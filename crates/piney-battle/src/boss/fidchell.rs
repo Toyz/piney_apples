@@ -16,7 +16,9 @@ use piney_data::volume::Volume;
 
 use self::eff::{Fx, MeteoSworm, RockTower, ThunderStorm};
 use super::blur::{BlurFunc, Set};
-use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
+use super::{
+    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, word,
+};
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
 use crate::item;
@@ -220,25 +222,8 @@ pub struct Fidchell {
 
 // --- small rules ------------------------------------------------------------------------
 
-fn word(tbl: &[i32], i: i32) -> i32 {
-    usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
-}
-
-fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
-    cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
-}
-
 fn held(b: &BossBase, cx: &Cx) -> bool {
     b.stop != 0 || cx.scene.chars[cx.me].cond[cond::HOLD] != 0
-}
-
-/// `if (ccMenu) ccMenu->cursolOff = on`.
-fn cursor(cx: &mut Cx, on: bool) {
-    cx.out(Out::CursorOff(on));
-}
-
-fn cinema_off(cx: &mut Cx) {
-    cx.out(Out::Cinema(None));
 }
 
 /// `ccTransPosP2W(W2P(from) + m v)`: a place `v` off `from`, turned by `m`.
@@ -257,24 +242,6 @@ fn set_cam3(x: &mut Fidchell, cx: &mut Cx, pos: V4, view: V4) {
     cx.out(Out::CameraPos { cam: 3, pos });
     cx.out(Out::CameraView { cam: 3, view });
     x.cam3 = (pos, view);
-}
-
-/// `ccBoss::CalcTargetInfo` (OUT gcmn 0x0046ff20) with the volume's
-/// `ccGetDist`.
-fn calc_target_info(b: &mut BossBase, cx: &mut Cx) {
-    let me = cx.me;
-    let Some(t) = cx.scene.chars[me].target_char.filter(|&t| cx.scene.listed(t)) else { return };
-    b.target_pos_p = cx.scene.chars[t].pos_p;
-    b.target_pos = cx.scene.chars[t].pos;
-    let pp = cx.scene.chars[me].pos_p;
-    b.target_dirc = get_dirc(pp, b.target_pos_p);
-    b.target_dist = super::dist(cx, pp, b.target_pos_p);
-}
-
-fn select(b: &mut BossBase, cx: &mut Cx, ty: i32) -> Option<usize> {
-    let t = b.select_target(cx, ty, FAR);
-    cx.scene.chars[cx.me].target_char = t;
-    t
 }
 
 /// `ccBoss::IsValidArea(p)` (OUT gcmn 0x0046f100): the world place's x and
@@ -350,12 +317,12 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 /// else the reserve goes and the table runs from its start.
 fn start_table(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
     if b.epitaph == 0 && x.reserve_pred != 0 {
-        exec_pattern(b, x, cx, 15, 0);
+        x.exec_pattern(b, cx, 15, 0);
         return;
     }
     x.reserve_pred = 0;
-    let tbl = cx.data.fidchell.words(t).to_vec();
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
+    let tbl = cx.data.fidchell.words(t);
+    b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 // --- the frame --------------------------------------------------------------------------------
@@ -383,45 +350,13 @@ fn frame(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         return;
     }
     let me = cx.me;
-    b.calc_real(cx);
-    calc_target_info(b, cx);
-    b.center_pos_p = super::w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = super::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     think(b, x, cx);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
+    b.lock_party(cx);
     b.move_(cx);
-    if b.draw_sw != 0 {
-        // ccBoss::PreDrawAnm (0x0046e6c0).
-        b.anm_status = i8::from(b.anm.forward());
-        b.draw(cx);
-    }
+    // ccBoss::PreDrawAnm (0x0046e6c0).
+    b.forward_and_draw(cx);
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
 
@@ -485,207 +420,98 @@ fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32
 
 // --- the patterns --------------------------------------------------------------------------------
 
-/// `ccBoss::ChangeNextPattern` (OUT gcmn 0x0046e490).
-fn change_next_pattern(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
-    let tbl = cx.data.fidchell.words(b.pat_tbl).to_vec();
-    if word(&tbl, b.pat_index) == -1 {
-        b.pat_index = 0;
-    }
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if b.epitaph != 0 {
-        b.change_action(cx, act::EPITAPH, 3, true);
-    } else {
-        b.change_action(cx, act::NEUTRAL, 1, true);
-    }
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
-}
+impl Patterns for Fidchell {
+    const ACTS: BaseActs = BaseActs { other_forbid: 3, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-/// `ccBoss::ExecPattern(pat, p0, 0, 0)` (OUT gcmn 0x0046e420).
-fn exec_pattern(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, pat: i32, p0: i32) {
-    let tbl = [pat, p0, 0, 0, -1];
-    exec_pattern_index(b, x, cx, &tbl, 0);
-}
-
-/// `ccBoss04::ExecPatternIndex(tbl, i)` (OUT gcmn 0x004a40b0), falling back
-/// on `ccBoss::ExecPatternIndex` (0x0046dd20): the next index.
-fn exec_pattern_index(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let orig = i;
-    let mut s = i;
-    let mut pat = word(tbl, s);
-    s += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        s = 1;
+    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        data.fidchell.words(b.pat_tbl)
     }
-    b.pat_num = pat;
-    let me = cx.me;
-    match pat {
-        18 => b.change_action(cx, act::MAGIC, 3, true),
-        17 => b.change_action(cx, act::BACK_DASH, 3, true),
-        16 => b.change_action(cx, act::DRAIN_ATK, 3, true),
-        1 => {
-            let n = if b.epitaph != 0 { act::EPITAPH_WAVE } else { act::WAVE };
-            b.change_action(cx, n, 3, true);
+
+    /// `ccBoss04::ExecPatternIndex(tbl, i)` (OUT gcmn 0x004a40b0), falling back
+    /// on `ccBoss::ExecPatternIndex` (0x0046dd20): the next index.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let x = self;
+        let orig = i;
+        let mut s = i;
+        let mut pat = word(tbl, s);
+        s += 1;
+        b.move_spd = 0;
+        b.move_vector = VF0;
+        if pat == -1 {
+            pat = word(tbl, 0);
+            s = 1;
         }
-        9..=11 => {
-            if pat != 11 {
-                let ty = word(tbl, s);
-                s += 1;
-                if ty < 0 {
-                    // A living member's pick: those on the lists and down
-                    // (`dead` set), one by ccRand (the first draw dropped).
-                    let _ = cx.cc.rand();
-                    let mut down = Vec::new();
-                    for m in cx.party.members.into_iter().flatten() {
-                        if cx.valid(Some(m)) && cx.dead(m) {
-                            down.push(m);
+        b.pat_num = pat;
+        let me = cx.me;
+        match pat {
+            18 => b.change_action(cx, act::MAGIC, 3, true),
+            17 => b.change_action(cx, act::BACK_DASH, 3, true),
+            16 => b.change_action(cx, act::DRAIN_ATK, 3, true),
+            1 => {
+                let n = if b.epitaph != 0 { act::EPITAPH_WAVE } else { act::WAVE };
+                b.change_action(cx, n, 3, true);
+            }
+            9..=11 => {
+                if pat != 11 {
+                    let ty = word(tbl, s);
+                    s += 1;
+                    if ty < 0 {
+                        // A living member's pick: those on the lists and down
+                        // (`dead` set), one by ccRand (the first draw dropped).
+                        let _ = cx.cc.rand();
+                        let mut down = Vec::new();
+                        for m in cx.party.members.into_iter().flatten() {
+                            if cx.valid(Some(m)) && cx.dead(m) {
+                                down.push(m);
+                            }
                         }
+                        if down.is_empty() {
+                            x.exec_pattern(b, cx, 2, -1);
+                            return s;
+                        }
+                        let r = cx.cc.rand().unsigned_abs() as usize;
+                        cx.scene.chars[me].target_char = Some(down[r % down.len()]);
+                    } else {
+                        b.select(cx, ty);
                     }
-                    if down.is_empty() {
-                        exec_pattern(b, x, cx, 2, -1);
-                        return s;
+                }
+                if !cx.target_ok(cx.scene.chars[me].target_char) {
+                    let t = b.select(cx, 3);
+                    if !cx.target_ok(t) {
+                        x.exec_pattern(b, cx, 2, 30);
+                        return orig;
                     }
-                    let r = cx.cc.rand().unsigned_abs() as usize;
-                    cx.scene.chars[me].target_char = Some(down[r % down.len()]);
-                } else {
-                    select(b, cx, ty);
                 }
-            }
-            if !target_ok(cx, cx.scene.chars[me].target_char) {
-                let t = select(b, cx, 3);
-                if !target_ok(cx, t) {
-                    exec_pattern(b, x, cx, 2, 30);
-                    return orig;
+                b.calc_target_info(cx);
+                if pat == 10 {
+                    // @1272 read, a skill drawn and dropped: OnThinkSkill draws
+                    // its own.
+                    let _ = (cx.cc.rand() % 3).abs();
+                    b.change_action(cx, act::SKILL, 3, true);
+                    return s;
                 }
-            }
-            calc_target_info(b, cx);
-            if pat == 10 {
-                // @1272 read, a skill drawn and dropped: OnThinkSkill draws
-                // its own.
-                let _ = (cx.cc.rand() % 3).abs();
-                b.change_action(cx, act::SKILL, 3, true);
-                return s;
-            }
-            let sid = word(tbl, s);
-            s += 1;
-            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-            if let Some(tp) = on
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-            exec_pattern(b, x, cx, 2, -2);
-        }
-        15 => {
-            b.change_action(cx, act::EXEC_PREDICTION, 3, true);
-            x.reserve_pred = 0;
-        }
-        14 => {
-            x.reserve_pred = 1;
-            b.change_action(cx, act::PREDICTION, 3, true);
-        }
-        _ => return base_exec_pattern_index(b, x, cx, tbl, orig),
-    }
-    s
-}
-
-/// `ccBoss::ExecPatternIndex` (OUT gcmn 0x0046dd20).
-fn base_exec_pattern_index(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let orig = i;
-    let mut i = i;
-    let mut pat = word(tbl, i);
-    i += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        i = 1;
-    }
-    b.pat_num = pat;
-    let me = cx.me;
-    let neutral = |b: &mut BossBase, cx: &mut Cx| {
-        let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
-        b.change_action(cx, n, 3, true);
-    };
-    match pat {
-        2 => {
-            let mut t = word(tbl, i);
-            i += 1;
-            if t == -1 && !cx.annihilated() {
-                t = 30;
-            }
-            b.stop_time = t;
-            b.stop_counter = 0;
-            neutral(b, cx);
-        }
-        3 => b.change_action(cx, super::act::ESCAPE, 3, true),
-        4 => b.change_action(cx, super::act::CHASE, 3, true),
-        5 => b.change_action(cx, super::act::RETURN, 3, true),
-        7 => b.change_action(cx, super::act::WANDER, 3, true),
-        6 => {
-            let d = ee::from_int(word(tbl, i));
-            i += 1;
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), b.center_dirc), NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [d, 0, 0, ONE]);
-            let p = geom::vadd(v, cx.scene.chars[me].pos_p);
-            b.dash_pos = super::p2w(cx, p);
-            b.dash_prev_pos = cx.scene.chars[me].pos;
-            b.change_action(cx, act::DASH_CENTER, 3, true);
-        }
-        8 => neutral(b, cx),
-        9 | 11 => {
-            let ty = word(tbl, i);
-            i += 1;
-            let sid = word(tbl, i);
-            i += 1;
-            if pat == 9 {
-                let t = select(b, cx, ty);
-                if !target_ok(cx, t) {
-                    exec_pattern(b, x, cx, 2, 30);
-                    return orig;
-                }
-                calc_target_info(b, cx);
-            }
-            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-            if let Some(tp) = on
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-            exec_pattern(b, x, cx, 2, 30);
-        }
-        12 => {
-            let sid = word(tbl, i);
-            i += 1;
-            let members = cx.party.members;
-            let mut last = None;
-            for m in members.into_iter().flatten() {
-                if target_ok(cx, Some(m)) {
-                    last = Some(m);
-                }
-            }
-            for m in members.into_iter().flatten() {
-                if Some(m) != last
-                    && target_ok(cx, Some(m))
-                    && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
+                let sid = word(tbl, s);
+                s += 1;
+                let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
+                if let Some(tp) = on
+                    && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 1, false, cx.rand)
                 {
-                    cx.out(Out::Skill(m, k));
+                    cx.out(Out::Skill(tp, k));
                 }
+                x.exec_pattern(b, cx, 2, -2);
             }
-            if let Some(l) = last
-                && target_ok(cx, Some(l))
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, l, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(l, k));
+            15 => {
+                b.change_action(cx, act::EXEC_PREDICTION, 3, true);
+                x.reserve_pred = 0;
             }
-            exec_pattern(b, x, cx, 2, -2);
+            14 => {
+                x.reserve_pred = 1;
+                b.change_action(cx, act::PREDICTION, 3, true);
+            }
+            _ => return base_exec_pattern_index(x, b, cx, tbl, orig),
         }
-        _ => neutral(b, cx),
+        s
     }
-    i
 }
 
 // --- Think ----------------------------------------------------------------------------------
@@ -706,7 +532,7 @@ fn think(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         act::DEAD => on_dead(b, x, cx),
         act::ESCAPE => on_escape(b, x, cx),
         act::CHASE => on_chase(b, x, cx),
-        act::WANDER => change_next_pattern(b, x, cx),
+        act::WANDER => x.change_next_pattern(b, cx),
         act::TRANSFER => on_transfer(b, x, cx),
         act::BACK_DASH => on_back_dash(b, x, cx),
         act::JUMP => {}
@@ -725,12 +551,12 @@ fn on_neutral(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     if !b.wait_over(cx) {
         return;
     }
-    let t = select(b, cx, 0);
+    let t = b.select(cx, 0);
     if !cx.valid(t) {
         return;
     }
-    calc_target_info(b, cx);
-    change_next_pattern(b, x, cx);
+    b.calc_target_info(cx);
+    x.change_next_pattern(b, cx);
 }
 
 fn on_epitaph(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
@@ -779,7 +605,7 @@ fn on_wave(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, drained: bool) {
             let done = x.anm_w.forward();
             cx.out(Out::DrawWave);
             if b.anm_status != 0 && done {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
             }
         }
         _ => {}
@@ -811,15 +637,15 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.act_count += 1;
     match b.act_proccess {
         0 if c == 0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
-            calc_target_info(b, cx);
+            b.calc_target_info(cx);
             b.lock_player(cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             let pos = cx.pos();
             let view = [pos[0], pos[1], 0x4396_0000, pos[3]];
             let eye = off_from(cx, pos, &behind(b.target_dirc), [0x44bb_8000, 0, 0x4248_0000, ONE]);
@@ -867,9 +693,9 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 return;
             }
             let t = b.select_target(cx, 0, FAR);
-            if target_ok(cx, t) {
+            if cx.target_ok(t) {
                 cx.scene.chars[me].target_char = t;
-                calc_target_info(b, cx);
+                b.calc_target_info(cx);
                 let mut vp = cx.scene.chars[t.unwrap()].pos;
                 vp[2] = ee::add(vp[2], 0x4348_0000);
                 let d = [0, 0, b.target_dirc, ONE];
@@ -882,7 +708,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         4 if c == 0 => {
             let sid = cx.data.fidchell.pred_skills[x.pred_id as usize & 3];
             for m in cx.party.members.into_iter().flatten() {
-                if target_ok(cx, Some(m))
+                if cx.target_ok(Some(m))
                     && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
                 {
                     cx.out(Out::Skill(m, k));
@@ -907,11 +733,11 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 cx.out(Out::SwitchLayer);
                 b.unlock_player();
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
+                cx.cursor(false);
                 cx.out(Out::CameraChange(2));
                 off_magic_camera(b, cx, 0);
-                cinema_off(cx);
-                change_next_pattern(b, x, cx);
+                cx.cinema_off();
+                x.change_next_pattern(b, cx);
             }
         }
         _ => {}
@@ -926,15 +752,15 @@ fn on_drain_atk(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.act_count += 1;
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
-            calc_target_info(b, cx);
+            b.calc_target_info(cx);
             b.lock_player(cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::Cinema(Some(-1)));
             b.act_proccess += 1;
             b.act_count = 0;
@@ -948,15 +774,15 @@ fn on_drain_atk(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         2 if cx.env.menu_type == -1 => {
             let t = cx.scene.chars[me].target_char;
             if let Some(tp) = t
-                && target_ok(cx, t)
+                && cx.target_ok(t)
             {
                 cx.affect(tp, 13, 0);
             }
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
-            cinema_off(cx);
-            change_next_pattern(b, x, cx);
+            cx.cursor(false);
+            cx.cinema_off();
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -972,14 +798,14 @@ fn on_exec_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.act_count += 1;
     match b.act_proccess {
         0 if c == 0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
-            calc_target_info(b, cx);
+            b.calc_target_info(cx);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.lock_player(cx, true);
             if let Some(&n) = SPELL_CINEMA.get(x.pred_id as usize) {
                 cx.out(Out::Cinema(Some(n)));
@@ -1053,9 +879,9 @@ fn on_exec_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 }
                 b.unlock_player();
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
-                cinema_off(cx);
-                change_next_pattern(b, x, cx);
+                cx.cursor(false);
+                cx.cinema_off();
+                x.change_next_pattern(b, cx);
             }
             b.transparency = f;
             b.set_transparency = f;
@@ -1185,13 +1011,13 @@ fn on_ice_break(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
     let me = cx.me;
     match x.act_sub_proccess {
         0 => {
-            if !target_ok(cx, cx.scene.chars[me].target_char) {
-                let t = select(b, cx, 0);
+            if !cx.target_ok(cx.scene.chars[me].target_char) {
+                let t = b.select(cx, 0);
                 if !cx.valid(t) {
-                    change_next_pattern(b, x, cx);
+                    x.change_next_pattern(b, cx);
                     return true;
                 }
-                calc_target_info(b, cx);
+                b.calc_target_info(cx);
             }
             cx.out(Out::SwitchLayer);
             x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 0x7fff]);
@@ -1216,7 +1042,7 @@ fn on_ice_break(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
                 clt: 8,
             };
             for m in cx.party.members.into_iter().flatten() {
-                if target_ok(cx, Some(m)) {
+                if cx.target_ok(Some(m)) {
                     let mut p = cx.scene.chars[m].pos;
                     p[2] = 0x447a_0000;
                     x.eff_magic = Some(b.effect_at(cx, k, p, rot));
@@ -1276,7 +1102,7 @@ fn on_ice_break(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
             }
             b.draw_sw = 1;
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.unlock_player();
             x.eff_magic = None;
             let tp = b.target_pos;
@@ -1369,7 +1195,7 @@ fn on_back_dash(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.act_count += 1;
     if c == 0 {
         b.erase_cmnd_target(cx);
-        cursor(cx, true);
+        cx.cursor(true);
         b.spd_up(0x4316_0000, 0x4316_0000);
         let pp = cx.scene.chars[me].pos_p;
         if valid_area(b, cx, pp) {
@@ -1394,10 +1220,10 @@ fn on_back_dash(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     }
     if b.act_count >= 31 {
         b.entry_cmnd_target(cx);
-        cursor(cx, false);
+        cx.cursor(false);
         b.move_spd = 0;
         b.move_vector = VF0;
-        change_next_pattern(b, x, cx);
+        x.change_next_pattern(b, cx);
     }
 }
 
@@ -1408,16 +1234,16 @@ fn on_chase(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
-            if !target_ok(cx, cx.scene.chars[me].target_char) {
-                let t = select(b, cx, 0);
-                if !target_ok(cx, t) {
-                    change_next_pattern(b, x, cx);
+            if !cx.target_ok(cx.scene.chars[me].target_char) {
+                let t = b.select(cx, 0);
+                if !cx.target_ok(t) {
+                    x.change_next_pattern(b, cx);
                     return;
                 }
             }
-            calc_target_info(b, cx);
+            b.calc_target_info(cx);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::SeNote { se: 57, note: 55 });
             b.move_dirc = b.target_dirc;
             b.move_spd = 0x42c8_0000;
@@ -1428,15 +1254,15 @@ fn on_chase(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             b.act_count += 1;
             if ee::lt(b.target_dist, 0x4348_0000) || c >= 151 {
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
-                change_next_pattern(b, x, cx);
+                cx.cursor(false);
+                x.change_next_pattern(b, cx);
                 return;
             }
             let pp = cx.scene.chars[me].pos_p;
             if !valid_area(b, cx, pp) {
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
-                exec_pattern(b, x, cx, 6, 500);
+                cx.cursor(false);
+                x.exec_pattern(b, cx, 6, 500);
                 return;
             }
             if c & 3 == 0 {
@@ -1465,7 +1291,7 @@ fn on_escape(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let c = b.act_count;
             b.act_count += 1;
             if c >= 150 || !ee::le(b.target_dist, 0x44bb_8000) {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
                 return;
             }
             if b.act_count >= 61 {
@@ -1474,7 +1300,7 @@ fn on_escape(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             if b.act_count >= 30 {
                 let pp = cx.scene.chars[me].pos_p;
                 if !valid_area(b, cx, pp) {
-                    exec_pattern(b, x, cx, 6, 1500);
+                    x.exec_pattern(b, cx, 6, 1500);
                     return;
                 }
             }
@@ -1495,7 +1321,7 @@ fn on_dash_center(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.act_proccess += 1;
             cx.se3d(229);
         }
@@ -1523,8 +1349,8 @@ fn on_dash_center(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         }
         2 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
-            change_next_pattern(b, x, cx);
+            cx.cursor(false);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1561,12 +1387,12 @@ fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.set_dirc(b.target_dirc);
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 0);
+            let t = b.select(cx, 0);
             if !cx.valid(t) {
-                exec_pattern(b, x, cx, 2, -1);
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
-            calc_target_info(b, cx);
+            b.calc_target_info(cx);
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
             let d = [0, 0, b.target_dirc, ONE];
@@ -1577,7 +1403,7 @@ fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             cx.out(Out::SkillStart { who: me, sid: x.skill_id });
             x.eff_start = Some(eff::SKILL_START_LIFE);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.lock_player(cx, true);
             cx.out(Out::CinemaSkill(x.skill_id));
             b.act_proccess += 1;
@@ -1593,14 +1419,14 @@ fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 return;
             }
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             if let Some(tp) = cx.scene.chars[me].target_char
                 && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, tp, x.skill_id, 0, false, cx.rand)
             {
                 cx.out(Out::Skill(tp, k));
             }
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -1618,10 +1444,10 @@ fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             if c == 15 {
                 b.unlock_player();
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
+                cx.cursor(false);
                 cx.out(Out::CameraChange(2));
-                cinema_off(cx);
-                change_next_pattern(b, x, cx);
+                cx.cinema_off();
+                x.change_next_pattern(b, cx);
             }
         }
         _ => {}
@@ -1637,17 +1463,17 @@ fn on_magic(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.act_count += 1;
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
-            calc_target_info(b, cx);
+            b.calc_target_info(cx);
             cx.out(Out::SwitchLayer);
             x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 3000]);
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
             let d = [0, 0, b.target_dirc, ONE];
@@ -1683,12 +1509,12 @@ fn on_magic(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         }
         3 if c == 15 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.unlock_player();
             cx.out(Out::CameraChange(2));
             cx.out(Out::SwitchLayer);
-            cinema_off(cx);
-            change_next_pattern(b, x, cx);
+            cx.cinema_off();
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1706,7 +1532,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         0 => {
             b.lock_player(cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             x.transparency = ONE;
             x.rot_z = 0;
             b.act_proccess += 1;
@@ -1790,7 +1616,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             x.transparency = ONE;
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.change_action(cx, act::NEUTRAL, 3, true);
         }
         _ => {}

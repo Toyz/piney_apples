@@ -402,8 +402,8 @@ pub enum Gen {
 }
 
 /// The base's patterns as Corbenik's forms run them: the neutral let go,
-/// the dash's w 1.
-const BASE_ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0x3f80_0000 };
+/// both w lanes 1.
+const BASE_ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
 fn bits(v: &[f32]) -> Vec<F> {
     v.iter().map(|f| f.to_bits()).collect()

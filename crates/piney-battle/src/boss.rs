@@ -34,7 +34,7 @@ use crate::rand::Rng;
 use crate::scene::Scene;
 use crate::tables::Tables;
 use crate::world::CharHit;
-use class::{BaseActs, BossClass, Patterns, base_exec_pattern_index, word};
+use class::{BaseActs, BossClass, Patterns, Skeith, base_change_next_pattern, base_exec_pattern_index, word};
 
 type F = u32;
 
@@ -1206,6 +1206,38 @@ impl Cx<'_> {
     }
 
     /// `c->EntryAffect(this, kind, p0, 0, 0)`.
+    /// A broken protect's count (`ppCount`) on a frame, when it runs.
+    fn pp_count_tick(&mut self) {
+        if let Some(p) = self.scene.param_mut(self.me)
+            && p.pp_count > 0
+        {
+            p.pp_count += 1;
+        }
+    }
+
+    /// `ccMenu`'s cursor off (or back on).
+    fn cursor(&mut self, on: bool) {
+        self.out(Out::CursorOff(on));
+    }
+
+    /// The cinema's bars off.
+    fn cinema_off(&mut self) {
+        self.out(Out::Cinema(None));
+    }
+
+    /// The camera free (mode 5) at `pos`, looking at `view`.
+    fn free_cam(&mut self, pos: V4, view: V4) {
+        self.out(Out::CamMode { mode: 5 });
+        self.out(Out::FreeCam { pos, view });
+    }
+
+    /// `QuakeCam` by `q` on each axis, with the boss's camera made.
+    fn quake(&mut self, q: [F; 3]) {
+        if self.boss_cam {
+            self.quake_vec(q);
+        }
+    }
+
     /// `ccCheckTarget(t)` and not dead.
     fn target_ok(&self, t: Option<usize>) -> bool {
         self.valid(t) && t.is_some_and(|t| !self.dead(t))
@@ -1299,7 +1331,7 @@ impl Boss {
         b.stop_time = 0;
         b.stop_counter = 0;
         b.set_pattern_tbl(Tbl::Normal);
-        let _ = b.exec_pattern_index(cx, Tbl::Normal.words(&cx.data.skeith).to_vec().as_slice(), 0);
+        let _ = Skeith.exec_pattern_index(&mut b, cx, Tbl::Normal.words(&cx.data.skeith), 0);
         b.pat_mode = 0;
         b.center_pos = [center[0], center[1], center[2], ONE];
         b.center_pos_p = w2p(cx, b.center_pos);
@@ -1334,6 +1366,89 @@ impl Boss {
     }
 }
 
+/// Skeith's patterns: `ccBoss01::ExecPatternIndex` over the base's, the
+/// neutral let go, both w lanes 0.
+impl Patterns for Skeith {
+    const ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0, still_w: 0 };
+
+    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        b.pat_tbl.words(&data.skeith)
+    }
+
+    /// `ccBoss01::ExecPatternIndex(tbl, i)` (0x0047c500), falling back on
+    /// `ccBoss::ExecPatternIndex` (0x0045cad0): the next index.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let mut orig = i;
+        let mut i = i;
+        let mut pat = word(tbl, i);
+        i += 1;
+        if pat == -1 {
+            i = 1;
+            orig = 1;
+            pat = word(tbl, 0);
+        }
+        b.pat_num = pat;
+        match pat {
+            2 => {
+                let t = word(tbl, i);
+                i += 1;
+                b.stop_time = t;
+                b.stop_counter = 0;
+                if t == -1 && !cx.annihilated() {
+                    b.stop_time = 30;
+                    b.stop_counter = 0;
+                }
+                b.neutral_act(cx, 3, 1);
+            }
+            1 => {
+                if b.epitaph != 0 {
+                    b.change_action(cx, act::EPITAPH_WAVE, 3, true);
+                } else {
+                    b.change_action(cx, act::WAVE, 3, true);
+                }
+            }
+            14 => b.change_action(cx, act::CROSS, 3, true),
+            15 => b.change_action(cx, act::DRAIN, 3, true),
+            16 => b.change_action(cx, act::MAGIC, 3, true),
+            9..=11 => {
+                let me = cx.me;
+                let mut target = cx.scene.chars[me].target_char;
+                if pat != 11 {
+                    let ty = word(tbl, i);
+                    i += 1;
+                    target = b.select_target(cx, ty, FAR);
+                    cx.scene.chars[me].target_char = target;
+                }
+                if !cx.valid(target) || target.is_some_and(|t| cx.dead(t)) {
+                    target = b.select_target(cx, 3, FAR);
+                    cx.scene.chars[me].target_char = target;
+                    if !cx.valid(target) || target.is_some_and(|t| cx.dead(t)) {
+                        self.exec_pattern(b, cx, 2, 30);
+                        return orig;
+                    }
+                }
+                b.calc_target_info(cx);
+                let (on, sid) = if pat == 10 {
+                    let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
+                    (target, cx.data.skeith.rand_skills[k])
+                } else {
+                    let sid = word(tbl, i);
+                    i += 1;
+                    (if pat == 9 { target } else { Some(me) }, sid)
+                };
+                if let Some(tp) = on
+                    && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
+                {
+                    cx.out(Out::Skill(tp, s));
+                }
+                self.exec_pattern(b, cx, 2, -2);
+            }
+            _ => return base_exec_pattern_index(self, b, cx, tbl, orig),
+        }
+        i
+    }
+}
+
 impl BossBase {
     /// `ccBoss01::Affect` (Skeith's, and a plain boss's).
     fn skeith_affect(&mut self, cx: &mut Cx) {
@@ -1354,8 +1469,8 @@ impl BossBase {
             let max = cx.t.bosses.get(id).map_or(0, |r| r.max_pp);
             if pp >= max >> 1 {
                 self.set_pattern_tbl(Tbl::Super);
-                let tbl = Tbl::Super.words(&cx.data.skeith).to_vec();
-                let _ = self.exec_pattern_index(cx, &tbl, 0);
+                let tbl = Tbl::Super.words(&cx.data.skeith);
+                let _ = Skeith.exec_pattern_index(self, cx, tbl, 0);
                 self.pat_mode = 1;
             }
         }
@@ -1379,12 +1494,8 @@ impl BossBase {
         if self.act_num == act::CROSS && self.act_proccess == 0 {
             self.act_proccess = 1;
         }
-        if (self.lock_player != 0 || self.erase_target != 0)
-            && self.epitaph == 0
-            && let Some(p) = cx.scene.param_mut(me)
-            && p.pp_count > 0
-        {
-            p.pp_count += 1;
+        if (self.lock_player != 0 || self.erase_target != 0) && self.epitaph == 0 {
+            cx.pp_count_tick();
         }
     }
 
@@ -1409,19 +1520,43 @@ impl BossBase {
         }
     }
 
-    /// `ccBoss::Main` (0x0045c270), the class's `Think` and `Action` in
-    /// `class`.
+    /// `ccBoss::Main` (0x0045c270) with the class's `Think` and `Action` in
+    /// `class`: the building blocks below in `ccBoss`'s order, the clip
+    /// forward by Skeith's `PreDrawAnm`.
     pub(crate) fn base_main(&mut self, cx: &mut Cx, class: &mut dyn FnMut(&mut BossBase, &mut Cx)) {
         if self.exit != 0 {
             return;
         }
-        let me = cx.me;
+        self.prologue(cx);
+        self.tick_stop();
+        class(self, cx);
+        self.lock_party(cx);
+        self.move_(cx);
+        if self.draw_sw != 0 {
+            self.pre_draw_anm(cx);
+            self.draw(cx);
+        }
+    }
+
+    // --- the frame's building blocks: each class's `Main` runs them in its own order ---
+
+    /// `CalcReal`, `CalcTargetInfo` and the centre ([`Self::centre`]).
+    fn prologue(&mut self, cx: &mut Cx) {
         self.calc_real(cx);
         self.calc_target_info(cx);
+        self.centre(cx);
+    }
+
+    /// The centre on the plane, its distance and heading from the boss.
+    fn centre(&mut self, cx: &mut Cx) {
         self.center_pos_p = w2p(cx, self.center_pos);
-        let pp = cx.scene.chars[me].pos_p;
+        let pp = cx.scene.chars[cx.me].pos_p;
         self.center_dist = dist(cx, pp, self.center_pos_p);
         self.center_dirc = get_dirc(pp, self.center_pos_p);
+    }
+
+    /// `stop`'s count: 60 frames still, then let go.
+    fn tick_stop(&mut self) {
         if self.stop != 0 {
             self.stop_count += 1;
             if self.stop_count >= 61 {
@@ -1432,26 +1567,45 @@ impl BossBase {
         } else {
             self.stop_count = 0;
         }
-        class(self, cx);
+    }
+
+    /// While `lockPlayer`, the party held (`EntryAffect 5`) and a reserved
+    /// menu forbid set; else a reserved release made. True when it made
+    /// the release.
+    fn lock_party(&mut self, cx: &mut Cx) -> bool {
+        let forbid = cx.env.menu_forbid;
+        self.lock_party_as(cx, forbid)
+    }
+
+    /// [`Self::lock_party`] with the menu's forbid as the class reads it.
+    fn lock_party_as(&mut self, cx: &mut Cx, menu_forbid: i16) -> bool {
         if self.lock_player != 0 {
             for m in cx.party.members.into_iter().flatten() {
                 if cx.valid(Some(m)) {
                     cx.affect(m, 5, 32767);
                 }
             }
-            if self.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
+            if self.reserve_forbid_menu == 1 && menu_forbid == 0 && cx.env.menu_type == -1 {
                 cx.out(Out::MenuForbid { on: true, chat_except: self.reserve_forbid_chat_except != 0 });
                 self.reserve_forbid_menu = 0;
                 self.reserve_forbid_chat_except = 0;
             }
+            false
         } else if self.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
             cx.out(Out::MenuForbid { on: false, chat_except: false });
             self.reserve_forbid_menu = 0;
             self.reserve_forbid_chat_except = 0;
+            true
+        } else {
+            false
         }
-        self.move_(cx);
+    }
+
+    /// `ccBoss::PreDrawAnm` (the clip forward, `anmStatus` its end) and
+    /// `Draw`, when drawn.
+    fn forward_and_draw(&mut self, cx: &mut Cx) {
         if self.draw_sw != 0 {
-            self.pre_draw_anm(cx);
+            self.anm_status = i8::from(self.anm.forward());
             self.draw(cx);
         }
     }
@@ -1527,204 +1681,12 @@ impl BossBase {
         self.pat_index = 0;
     }
 
-    /// `ccBoss::ChangeNextPattern` (0x0045d210).
-    fn change_next_pattern(&mut self, cx: &mut Cx) {
-        let tbl = self.pat_tbl.words(&cx.data.skeith).to_vec();
-        if tbl.get(self.pat_index as usize) == Some(&-1) {
-            self.pat_index = 0;
-        }
-        self.move_spd = 0;
-        self.move_vector = [0; 4];
-        if self.epitaph != 0 {
-            self.change_action(cx, act::EPITAPH_NEUTRAL, 3, true);
-        } else {
-            self.change_action(cx, act::NEUTRAL, 1, true);
-        }
-        self.pat_index = self.exec_pattern_index(cx, &tbl, self.pat_index);
-    }
-
-    /// `ccBoss::ExecPattern(pat, p0, p1, p2)` (0x0045d1a0).
-    fn exec_pattern(&mut self, cx: &mut Cx, pat: i32, p0: i32) {
-        let tbl = [pat, p0, 0, 0, -1];
-        self.exec_pattern_index(cx, &tbl, 0);
-    }
-
     fn neutral_act(&mut self, cx: &mut Cx, epitaph_forbid: i16, forbid: i16) {
         if self.epitaph != 0 {
             self.change_action(cx, act::EPITAPH_NEUTRAL, epitaph_forbid, true);
         } else {
             self.change_action(cx, act::NEUTRAL, forbid, true);
         }
-    }
-
-    /// `ccBoss01::ExecPatternIndex(tbl, i)` (0x0047c500), falling back on
-    /// `ccBoss::ExecPatternIndex` (0x0045cad0): the next index.
-    fn exec_pattern_index(&mut self, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-        let word = |k: i32| usize::try_from(k).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0);
-        let mut orig = i;
-        let mut i = i;
-        let mut pat = word(i);
-        i += 1;
-        if pat == -1 {
-            i = 1;
-            orig = 1;
-            pat = word(0);
-        }
-        self.pat_num = pat;
-        match pat {
-            2 => {
-                let t = word(i);
-                i += 1;
-                self.stop_time = t;
-                self.stop_counter = 0;
-                if t == -1 && !cx.annihilated() {
-                    self.stop_time = 30;
-                    self.stop_counter = 0;
-                }
-                self.neutral_act(cx, 3, 1);
-            }
-            1 => {
-                if self.epitaph != 0 {
-                    self.change_action(cx, act::EPITAPH_WAVE, 3, true);
-                } else {
-                    self.change_action(cx, act::WAVE, 3, true);
-                }
-            }
-            14 => self.change_action(cx, act::CROSS, 3, true),
-            15 => self.change_action(cx, act::DRAIN, 3, true),
-            16 => self.change_action(cx, act::MAGIC, 3, true),
-            9..=11 => {
-                let me = cx.me;
-                let mut target = cx.scene.chars[me].target_char;
-                if pat != 11 {
-                    let ty = word(i);
-                    i += 1;
-                    target = self.select_target(cx, ty, FAR);
-                    cx.scene.chars[me].target_char = target;
-                }
-                if !cx.valid(target) || target.is_some_and(|t| cx.dead(t)) {
-                    target = self.select_target(cx, 3, FAR);
-                    cx.scene.chars[me].target_char = target;
-                    if !cx.valid(target) || target.is_some_and(|t| cx.dead(t)) {
-                        self.exec_pattern(cx, 2, 30);
-                        return orig;
-                    }
-                }
-                self.calc_target_info(cx);
-                let (on, sid) = if pat == 10 {
-                    let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
-                    (target, cx.data.skeith.rand_skills[k])
-                } else {
-                    let sid = word(i);
-                    i += 1;
-                    (if pat == 9 { target } else { Some(me) }, sid)
-                };
-                if let Some(tp) = on
-                    && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-                {
-                    cx.out(Out::Skill(tp, s));
-                }
-                self.exec_pattern(cx, 2, -2);
-            }
-            _ => return self.base_exec_pattern_index(cx, tbl, orig),
-        }
-        i
-    }
-
-    /// `ccBoss::ExecPatternIndex` (0x0045cad0).
-    fn base_exec_pattern_index(&mut self, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-        let word = |k: i32| usize::try_from(k).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0);
-        let orig = i;
-        let mut i = i;
-        let mut pat = word(i);
-        i += 1;
-        self.move_spd = 0;
-        self.move_vector = [0; 4];
-        if pat == -1 {
-            pat = word(0);
-            i = 1;
-        }
-        self.pat_num = pat;
-        let me = cx.me;
-        match pat {
-            2 => {
-                let mut t = word(i);
-                i += 1;
-                if t == -1 && !cx.annihilated() {
-                    t = 30;
-                }
-                self.stop_time = t;
-                self.stop_counter = 0;
-                self.neutral_act(cx, 3, 3);
-            }
-            3 => self.change_action(cx, act::ESCAPE, 3, true),
-            4 => self.change_action(cx, act::CHASE, 3, true),
-            5 => self.change_action(cx, act::RETURN, 3, true),
-            7 => self.change_action(cx, act::WANDER, 3, true),
-            6 => {
-                let d = ee::from_int(word(i));
-                i += 1;
-                let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), self.center_dirc), NEG_HALF_PI);
-                let v = geom::apply_matrix(&m, [d, 0, 0, 0]);
-                let p = geom::vadd(v, cx.scene.chars[me].pos_p);
-                self.dash_pos = p2w(cx, p);
-                self.dash_prev_pos = cx.scene.chars[me].pos;
-                self.change_action(cx, act::DASH, 3, true);
-            }
-            8 => self.neutral_act(cx, 3, 3),
-            9 | 11 => {
-                let ty = word(i);
-                i += 1;
-                let sid = word(i);
-                i += 1;
-                if pat == 9 {
-                    let t = self.select_target(cx, ty, FAR);
-                    cx.scene.chars[me].target_char = t;
-                    if !cx.valid(t) || t.is_some_and(|t| cx.dead(t)) {
-                        self.exec_pattern(cx, 2, 30);
-                        return orig;
-                    }
-                    self.calc_target_info(cx);
-                }
-                let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-                if let Some(tp) = on
-                    && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-                {
-                    cx.out(Out::Skill(tp, s));
-                }
-                self.exec_pattern(cx, 2, 30);
-            }
-            12 => {
-                let sid = word(i);
-                i += 1;
-                let members = cx.party.members;
-                let mut last = None;
-                for m in members.into_iter().flatten() {
-                    if cx.valid(Some(m)) && !cx.dead(m) {
-                        last = Some(m);
-                    }
-                }
-                for m in members.into_iter().flatten() {
-                    if Some(m) != last
-                        && cx.valid(Some(m))
-                        && !cx.dead(m)
-                        && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
-                    {
-                        cx.out(Out::Skill(m, s));
-                    }
-                }
-                if let Some(l) = last
-                    && cx.valid(Some(l))
-                    && !cx.dead(l)
-                    && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, l, sid, 1, false, cx.rand)
-                {
-                    cx.out(Out::Skill(l, s));
-                }
-                self.exec_pattern(cx, 2, -2);
-            }
-            _ => self.neutral_act(cx, 3, 1),
-        }
-        i
     }
 
     // --- targets ----------------------------------------------------------------------------
@@ -1960,10 +1922,6 @@ impl BossBase {
         }
     }
 
-    fn cursor_off(cx: &mut Cx, on: bool) {
-        cx.out(Out::CursorOff(on));
-    }
-
     // --- the damage ---------------------------------------------------------------------------
 
     fn skill(cx: &Cx, i: usize) -> SkillParam {
@@ -2145,7 +2103,7 @@ impl BossBase {
         cx.scene.chars[cx.me].target_char = t;
         if cx.valid(t) {
             self.calc_target_info(cx);
-            self.change_next_pattern(cx);
+            Skeith.change_next_pattern(self, cx);
         }
     }
 
@@ -2177,7 +2135,7 @@ impl BossBase {
         if self.pat_num == 8 && c < 300 && !ee::le(self.target_dist, 0x4461_0000) {
             return;
         }
-        self.change_next_pattern(cx);
+        Skeith.change_next_pattern(self, cx);
     }
 
     /// `OnThinkEpitaphWave` (0x0047cdc0).
@@ -2225,7 +2183,7 @@ impl BossBase {
             0 => {
                 self.spd_up(0x4316_0000, 0x4316_0000);
                 self.erase_cmnd_target(cx);
-                Self::cursor_off(cx, true);
+                cx.cursor(true);
                 self.animate.set(self.transparency, HALF, 0x4170_0000);
                 cx.se3d(229);
                 let t = self.select_target(cx, 0, FAR);
@@ -2245,7 +2203,7 @@ impl BossBase {
                 if cx.valid(t) {
                     self.move_dirc = self.target_dirc;
                     if ee::lt(self.target_dist, 0x43c8_0000) {
-                        self.change_next_pattern(cx);
+                        Skeith.change_next_pattern(self, cx);
                         self.chase_end(cx);
                         return;
                     }
@@ -2253,7 +2211,7 @@ impl BossBase {
                     let t = self.select_target(cx, 0, FAR);
                     cx.scene.chars[me].target_char = t;
                     if !cx.valid(t) {
-                        self.exec_pattern(cx, 2, -1);
+                        Skeith.exec_pattern(self, cx, 2, -1);
                         self.chase_end(cx);
                         return;
                     }
@@ -2274,7 +2232,7 @@ impl BossBase {
     fn chase_end(&mut self, cx: &mut Cx) {
         self.set_transparency = ONE;
         self.entry_cmnd_target(cx);
-        Self::cursor_off(cx, false);
+        cx.cursor(false);
     }
 
     /// `OnThinkEscape` (0x0047d2f0).
@@ -2283,8 +2241,8 @@ impl BossBase {
         self.act_count += 1;
         if c >= 91 {
             self.entry_cmnd_target(cx);
-            Self::cursor_off(cx, false);
-            self.change_next_pattern(cx);
+            cx.cursor(false);
+            Skeith.change_next_pattern(self, cx);
             return;
         }
         if self.stop != 0 || cx.scene.chars[cx.me].cond[cond::HOLD] != 0 {
@@ -2306,9 +2264,9 @@ impl BossBase {
         self.move_dirc = Self::wrap(self.move_dirc);
         self.move_spd = 0x420c_0000;
         if !self.valid_area(cx, cx.scene.chars[cx.me].pos_p) {
-            self.change_next_pattern(cx);
+            Skeith.change_next_pattern(self, cx);
             self.entry_cmnd_target(cx);
-            Self::cursor_off(cx, false);
+            cx.cursor(false);
         }
     }
 
@@ -2317,7 +2275,7 @@ impl BossBase {
         match self.act_proccess {
             0 => {
                 self.erase_cmnd_target(cx);
-                Self::cursor_off(cx, true);
+                cx.cursor(true);
                 self.spd_up(0x42c8_0000, 0x42c8_0000);
                 self.move_dirc = self.center_dirc;
                 self.act_proccess += 1;
@@ -2326,8 +2284,8 @@ impl BossBase {
                 self.move_spd = 0;
                 self.move_vector = [0; 4];
                 self.entry_cmnd_target(cx);
-                Self::cursor_off(cx, false);
-                self.change_next_pattern(cx);
+                cx.cursor(false);
+                Skeith.change_next_pattern(self, cx);
             }
             _ => {}
         }
@@ -2344,7 +2302,7 @@ impl BossBase {
         let c = self.act_count;
         self.act_count += 1;
         if c >= 61 || !self.valid_area(cx, cx.scene.chars[me].pos_p) {
-            self.change_next_pattern(cx);
+            Skeith.change_next_pattern(self, cx);
             return;
         }
         if self.act_proccess != 0 {
@@ -2377,7 +2335,7 @@ impl BossBase {
         if self.act_proccess == 0 {
             self.animate.set(self.transparency, HALF, 0x4170_0000);
             self.erase_cmnd_target(cx);
-            Self::cursor_off(cx, true);
+            cx.cursor(true);
             self.act_proccess += 1;
             cx.se3d(229);
         }
@@ -2406,8 +2364,8 @@ impl BossBase {
             }
             2 => {
                 self.entry_cmnd_target(cx);
-                Self::cursor_off(cx, false);
-                self.change_next_pattern(cx);
+                cx.cursor(false);
+                Skeith.change_next_pattern(self, cx);
                 self.set_transparency = ONE;
             }
             _ => {}
@@ -2449,7 +2407,7 @@ impl BossBase {
             }
         }
         if self.anm_status != 0 {
-            self.change_next_pattern(cx);
+            Skeith.change_next_pattern(self, cx);
         } else {
             self.spd_down(0, 0x40a0_0000);
             self.set_dirc(self.target_dirc);
@@ -2486,7 +2444,7 @@ impl BossBase {
                 let done = self.anm_wave.forward();
                 cx.out(Out::DrawWave);
                 if self.anm_status != 0 && done {
-                    self.change_next_pattern(cx);
+                    Skeith.change_next_pattern(self, cx);
                 }
             }
             _ => {}
@@ -2506,7 +2464,7 @@ impl BossBase {
                 t = self.select_target(cx, 0, FAR);
                 cx.scene.chars[me].target_char = t;
                 if t.is_none() {
-                    self.change_next_pattern(cx);
+                    Skeith.change_next_pattern(self, cx);
                     return;
                 }
             }
@@ -2536,7 +2494,7 @@ impl BossBase {
                     }
                     self.unlock_player();
                     cx.out(Out::Cinema(None));
-                    self.change_next_pattern(cx);
+                    Skeith.change_next_pattern(self, cx);
                 }
             }
             _ => {}
@@ -2554,7 +2512,7 @@ impl BossBase {
                     let t = self.select_target(cx, 0, FAR);
                     cx.scene.chars[me].target_char = t;
                     if !cx.valid(t) {
-                        self.change_next_pattern(cx);
+                        Skeith.change_next_pattern(self, cx);
                         return;
                     }
                     self.calc_target_info(cx);
@@ -2570,7 +2528,7 @@ impl BossBase {
                     cx.out(Out::StageBegin { rgba: 0x6400_0000, t: [15, 15, 32767] });
                 }
                 self.erase_cmnd_target(cx);
-                Self::cursor_off(cx, true);
+                cx.cursor(true);
                 self.anm.set(ANM_MAGIC, cx.clips);
                 self.effect(cx, EffKind::MagicSquare { n: 0 });
                 cx.se3d(225);
@@ -2651,7 +2609,7 @@ impl BossBase {
                 }
                 self.draw_sw = 1;
                 self.entry_cmnd_target(cx);
-                Self::cursor_off(cx, false);
+                cx.cursor(false);
                 self.unlock_player();
                 if self.use_stage_eff && self.stage_eff_id >= 0 {
                     cx.out(Out::StageEnd { rgba: 0x6400_0000, t: 15 });
@@ -2665,7 +2623,7 @@ impl BossBase {
                 cx.se3d(65);
                 cx.se3d(56);
                 cx.out(Out::Cinema(None));
-                self.change_next_pattern(cx);
+                Skeith.change_next_pattern(self, cx);
             }
             _ => {}
         }
@@ -2679,9 +2637,9 @@ impl BossBase {
             act::EPITAPH => {
                 self.cheat_hp = 0;
                 self.set_pattern_tbl(Tbl::Epitaph);
-                let tbl = Tbl::Epitaph.words(&cx.data.skeith).to_vec();
+                let tbl = Tbl::Epitaph.words(&cx.data.skeith);
                 // The index is discarded, as in the constructor.
-                let _ = self.exec_pattern_index(cx, &tbl, 0);
+                let _ = Skeith.exec_pattern_index(self, cx, tbl, 0);
                 self.pat_mode = 2;
                 self.change_action(cx, act::EPITAPH_NEUTRAL, 3, true);
                 self.move_spd = 0;

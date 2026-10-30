@@ -12,8 +12,8 @@ use super::eff::{self, Fx};
 use super::{Pic, make_fx, manager_pass, word, wrap_hi, wrap_lo};
 use crate::boss::kyvia::{Part, as_me, plain_boss, set_base_param};
 use crate::boss::{
-    AfterImageParams, Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
-    base_exec_pattern_index, blur,
+    AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
+    base_change_next_pattern, base_exec_pattern_index, blur,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
@@ -246,24 +246,8 @@ fn out_from_after(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
     p2w(cx, geom::vadd(o, w2p(cx, at)))
 }
 
-fn cursor(cx: &mut Cx, on: bool) {
-    cx.out(Out::CursorOff(on));
-}
-
-fn free_cam(cx: &mut Cx, pos: V4, view: V4) {
-    cx.out(Out::CamMode { mode: 5 });
-    cx.out(Out::FreeCam { pos, view });
-}
-
 fn cam_back(cx: &mut Cx) {
     cx.out(Out::CamMode { mode: 6 });
-}
-
-/// `bossCam->QuakeCam(q)` (the form always has its camera).
-fn quake(cx: &mut Cx, q: [F; 3]) {
-    if cx.boss_cam {
-        cx.quake_vec(q);
-    }
 }
 
 // --- the constructor ------------------------------------------------------------------------------
@@ -364,8 +348,8 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = cx.data.corbenik.words_b(t).to_vec();
-    b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
+    let tbl = cx.data.corbenik.words_b(t);
+    b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 // --- the frame ------------------------------------------------------------------------------------
@@ -394,22 +378,8 @@ fn frame(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         return;
     }
     let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = crate::boss::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     // The barrier's message's wait.
     if b.act_num != act::DIE && x.barrier && !x.time_up && x.msg_shown {
         let c = x.msg_count;
@@ -419,22 +389,7 @@ fn frame(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         }
     }
     think(b, x, cx);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
+    b.lock_party(cx);
     b.move_(cx);
     if b.draw_sw != 0 {
         pre_draw_anm(b, x, cx);
@@ -473,43 +428,36 @@ fn slave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         with_root(x, k, cx, root_main);
         if x.roots[k].x.quake_time > 0 {
             x.roots[k].x.quake_time -= 1;
-            quake(cx, [0x41f0_0000, 0x41f0_0000, 0]);
+            cx.quake([0x41f0_0000, 0x41f0_0000, 0]);
         }
     }
 }
 
 // --- the patterns ---------------------------------------------------------------------------------
 
-/// `ccBoss08_b::ChangeNextPattern` (0x003b3200): a barrier asked for is
-/// raised (pattern 19); with the barrier up and the wait out, the death;
-/// else the base's.
-fn change_next_pattern(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
-    if x.reserve_setup_barrier && !x.barrier {
-        x.reserve_setup_barrier = false;
-        x.exec_pattern(b, cx, 19, 0);
-        return;
-    }
-    if x.barrier && x.time_up {
-        x.time_up = false;
-        b.change_action(cx, act::DIE, 2, true);
-        return;
-    }
-    let tbl = cx.data.corbenik.words_b(b.pat_tbl).to_vec();
-    if word(&tbl, b.pat_index) == -1 {
-        b.pat_index = 0;
-    }
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if b.epitaph != 0 {
-        b.change_action(cx, act::BASE_EPITAPH, 3, true);
-    } else {
-        b.change_action(cx, act::NEUTRAL, 1, true);
-    }
-    b.pat_index = x.exec_pattern_index(b, cx, &tbl, b.pat_index);
-}
-
 impl Patterns for Second {
     const ACTS: BaseActs = super::BASE_ACTS;
+
+    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        data.corbenik.words_b(b.pat_tbl)
+    }
+
+    /// `ccBoss08_b::ChangeNextPattern` (0x003b3200): a barrier asked for is
+    /// raised (pattern 19); with the barrier up and the wait out, the death;
+    /// else the base's.
+    fn change_next_pattern(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        if self.reserve_setup_barrier && !self.barrier {
+            self.reserve_setup_barrier = false;
+            self.exec_pattern(b, cx, 19, 0);
+            return;
+        }
+        if self.barrier && self.time_up {
+            self.time_up = false;
+            b.change_action(cx, act::DIE, 2, true);
+            return;
+        }
+        base_change_next_pattern(self, b, cx);
+    }
 
     /// `ccBoss08_b::ExecPatternIndex` (0x003b33c0): 1 the wave (3), 14 the
     /// magic (6), 15 the star dust (5), 16 the press (4), 17 the sybly (21),
@@ -600,7 +548,7 @@ fn on_neutral(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         return;
     }
     b.calc_target_info(cx);
-    change_next_pattern(b, x, cx);
+    x.change_next_pattern(b, cx);
 }
 
 /// `ccBoss08_b::IsValidArea(p)` (0x003b3820): within 2000 of the centre
@@ -647,7 +595,7 @@ fn on_escape(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         }
         1 => {
             if c == 300 {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
                 return;
             }
             if b.stop != 0 || cx.scene.chars[me].cond[cond::HOLD] != 0 {
@@ -671,7 +619,7 @@ fn on_sybly(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 return;
             }
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.lock_player(cx, true);
             cx.out(Out::CinemaSkill(157));
             cx.out(Out::SwitchLayer);
@@ -680,7 +628,7 @@ fn on_sybly(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             let mut vp = cx.scene.chars[t].pos;
             vp[2] = ee::add(vp[2], 0x42c8_0000);
             let eye = out_from_after(cx, vp, b.center_dirc, [0x44bb_8000, 0, 0x4396_0000, ONE]);
-            free_cam(cx, eye, vp);
+            cx.free_cam(eye, vp);
             b.act_proccess += 1;
         }
         1 => {
@@ -709,11 +657,11 @@ fn on_sybly(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             } else if c == 60 {
                 cx.out(Out::SwitchLayer);
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
+                cx.cursor(false);
                 b.unlock_player();
                 cx.out(Out::Cinema(None));
                 cam_back(cx);
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
             }
         }
         _ => {}
@@ -759,11 +707,11 @@ fn on_wave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             } else if f == 110 {
                 b.skill_damage(cx, None, Some(pos), 28);
             }
-            quake(cx, [0x4248_0000; 3]);
+            cx.quake([0x4248_0000; 3]);
             let ended = x.anm_w.forward();
             cx.out(Out::Corbenik(Pic::Wave { time: x.anm_w.posed, pos }));
             if ended && b.anm_status != 0 {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
             }
         }
         _ => {}
@@ -788,13 +736,13 @@ fn on_star_dust(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             let mut vp = pos;
             vp[2] = 0x4348_0000;
             let eye = out_from_after(cx, vp, b.center_dirc, [0x44fa_0000, 0, 0x4348_0000, ONE]);
-            free_cam(cx, eye, vp);
+            cx.free_cam(eye, vp);
             cx.out(Out::SwitchLayer);
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 3000]);
             b.lock_player(cx, true);
             cx.out(Out::Cinema(Some(30)));
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.act_proccess += 1;
             cx.out(Out::Blur(blur::Set::Ease));
         }
@@ -844,11 +792,11 @@ fn on_star_dust(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             cx.out(Out::SwitchLayer);
             cam_back(cx);
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.unlock_player();
             cx.out(Out::Cinema(None));
             cx.out(Out::Blur(blur::Set::Enable));
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -879,7 +827,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::Cinema(Some(29)));
             let d = round_target(b, cx);
             x.act_pos = out_from(cx, b.target_pos, d, [0x43fa_0000, 0, 0, ONE]);
@@ -1023,10 +971,10 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             cx.out(Out::SwitchLayer);
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.out(Out::Cinema(None));
             cam_back(cx);
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1125,14 +1073,14 @@ fn on_magic(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 return;
             }
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.lock_player(cx, true);
             cx.out(Out::CinemaSkill(244));
             cx.out(Out::SwitchLayer);
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 3000]);
             let vp = b.target_pos;
             let eye = out_from(cx, vp, b.target_dirc, [0x44bb_8000, 0, 0x43fa_0000, ONE]);
-            free_cam(cx, eye, vp);
+            cx.free_cam(eye, vp);
             b.act_proccess += 1;
         }
         1 => {
@@ -1168,11 +1116,11 @@ fn on_magic(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.out(Out::SwitchLayer);
             cx.out(Out::Cinema(None));
             cam_back(cx);
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
             b.act_proccess += 1;
         }
         _ => {}
@@ -1194,12 +1142,12 @@ fn on_setup_barrier(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             if c == 0 {
                 b.lock_player(cx, true);
                 b.erase_cmnd_target(cx);
-                cursor(cx, true);
+                cx.cursor(true);
                 let pos = cx.pos();
                 let eye = out_from(cx, pos, b.dirc[2], [0x44fa_0000, 0, 0x428c_0000, ONE]);
                 let mut view = pos;
                 view[2] = ee::add(view[2], 0x43c8_0000);
-                free_cam(cx, eye, view);
+                cx.free_cam(eye, view);
                 cx.out(Out::SwitchLayer);
                 x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 30000]);
             } else if c >= 30 {
@@ -1233,9 +1181,9 @@ fn on_setup_barrier(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             cam_back(cx);
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.out(Out::Cinema(None));
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1264,7 +1212,7 @@ fn on_return(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.act_proccess += 1;
             cx.se3d(229);
         }
@@ -1293,8 +1241,8 @@ fn on_return(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         }
         2 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
-            change_next_pattern(b, x, cx);
+            cx.cursor(false);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1312,7 +1260,7 @@ fn on_barrier_msg(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             b.lock_player(cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::StreamMenu { stream: 94, mask: 0 });
             b.act_proccess += 1;
         }
@@ -1322,8 +1270,8 @@ fn on_barrier_msg(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
-            change_next_pattern(b, x, cx);
+            cx.cursor(false);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1337,7 +1285,7 @@ fn on_die(b: &mut BossBase, _x: &mut Second, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.lock_player(cx, false);
             let mut vp = cx.pos();
             vp[2] = ee::add(vp[2], 0x4348_0000);
@@ -1348,7 +1296,7 @@ fn on_die(b: &mut BossBase, _x: &mut Second, cx: &mut Cx) {
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
             let v = geom::apply_matrix(&m, [0x44bb_8000, 0, 0x4348_0000, ONE]);
             let eye = p2w(cx, geom::vadd(v, w2p(cx, vp)));
-            free_cam(cx, eye, vp);
+            cx.free_cam(eye, vp);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -1502,7 +1450,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::Cinema(Some(57)));
             x.anm_root_l.set(ANM_ROOT_L, cx.clips);
             x.root_transparency = 0;
@@ -1539,7 +1487,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 let d = get_dirc(pp, w2p(cx, b.target_pos));
                 let eye = out_from(cx, x.act_pos, d, [0x447a_0000, 0, 0x4248_0000, ONE]);
                 let view = out_from(cx, eye, d, [0xc2c8_0000, 0, 0, ONE]);
-                free_cam(cx, eye, view);
+                cx.free_cam(eye, view);
                 b.move_spd = 0;
                 b.dirc[2] = b.center_dirc;
                 b.act_count = 0;
@@ -1564,7 +1512,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                     let z = ee::mul(0x40fb_53d2, ee::from_int(k));
                     cx.out(Out::Corbenik(Pic::Smoke { pos, rot: [0, 0, z, ONE] }));
                 }
-                quake(cx, [0x41f0_0000, 0x41f0_0000, 0x4248_0000]);
+                cx.quake([0x41f0_0000, 0x41f0_0000, 0x4248_0000]);
             } else if f == 35 {
                 cx.out(Out::SeNote { se: 63, note: 52 });
             }
@@ -1746,10 +1694,10 @@ fn self_affects(b: &mut BossBase, x: &mut Second, cx: &mut Cx, from: usize, targ
 fn root_drain_end(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     b.unlock_player();
     b.entry_cmnd_target(cx);
-    cursor(cx, false);
+    cx.cursor(false);
     cam_back(cx);
     cx.out(Out::Cinema(None));
-    change_next_pattern(b, x, cx);
+    x.change_next_pattern(b, cx);
 }
 
 /// The drain's own root (`m_anmRootL`) at the target while it shows; SE

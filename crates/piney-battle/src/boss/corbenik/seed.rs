@@ -130,23 +130,9 @@ fn frame(mb: &mut BossBase, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
         return;
     }
     let me = cx.me;
-    b.base.calc_real(cx);
-    b.base.calc_target_info(cx);
-    b.base.center_pos_p = crate::boss::w2p(cx, b.base.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.base.center_dist = crate::boss::dist(cx, pp, b.base.center_pos_p);
-    b.base.center_dirc = crate::enemy_ai::get_dirc(pp, b.base.center_pos_p);
+    b.base.prologue(cx);
     // `lockPlayer` and the menu's forbid: a seed never locks.
-    if b.base.stop != 0 {
-        b.base.stop_count += 1;
-        if b.base.stop_count >= 61 {
-            b.base.stop_count = 0;
-            b.base.stop = 0;
-        }
-        b.base.move_spd = 0;
-    } else {
-        b.base.stop_count = 0;
-    }
+    b.base.tick_stop();
     think(mb, x, p, cx);
     move_(p, cx);
     if p.b.base.draw_sw != 0 {

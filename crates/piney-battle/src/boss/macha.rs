@@ -15,7 +15,10 @@ use piney_data::volume::Volume;
 
 use self::eff::Fx;
 use super::blur::{BlurFunc, Set};
-use super::{AfterImageParams, Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
+use super::{
+    AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
+    base_exec_pattern_index, word,
+};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -29,8 +32,6 @@ const NEG_PI: F = 0xc049_0fdb;
 const TWO_PI: F = 0x40c9_0fdb;
 const HALF_PI: F = 0x3fc9_0fdb;
 const NEG_HALF_PI: F = 0xbfc9_0fdb;
-/// `SelectTarget`'s radius here: 999999.
-const FAR: F = 0x4974_23f0;
 /// The stage fader's colour (`BeginStageEffect(0x64000000, ...)`), and the
 /// charm's pink.
 const DARK: u32 = 0x6400_0000;
@@ -190,25 +191,6 @@ pub struct Macha {
 
 // --- small rules ------------------------------------------------------------------------
 
-fn word(tbl: &[i32], i: i32) -> i32 {
-    usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
-}
-
-fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
-    cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
-}
-
-/// `if (ccMenu) ccMenu->cursolOff = on`.
-fn cursor(cx: &mut Cx, on: bool) {
-    cx.out(Out::CursorOff(on));
-}
-
-fn select(b: &mut BossBase, cx: &mut Cx, ty: i32) -> Option<usize> {
-    let t = b.select_target(cx, ty, FAR);
-    cx.scene.chars[cx.me].target_char = t;
-    t
-}
-
 /// `-pi/2`, then `d`'s x, y and z turns on the unit matrix: where the
 /// action cameras put their eye from what they look at.
 fn cam_matrix(d: V4) -> geom::M4 {
@@ -223,8 +205,7 @@ fn cam_matrix(d: V4) -> geom::M4 {
 fn free_cam(cx: &mut Cx, vp: V4, d: V4, off: V4) {
     let v = geom::apply_matrix(&cam_matrix(d), off);
     let eye = super::p2w(cx, geom::vadd(super::w2p(cx, vp), v));
-    cx.out(Out::CamMode { mode: 5 });
-    cx.out(Out::FreeCam { pos: eye, view: vp });
+    cx.free_cam(eye, vp);
 }
 
 /// An angle wrapped once: below -pi a turn on, else above pi a turn off.
@@ -306,8 +287,8 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = cx.data.macha.words(t).to_vec();
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
+    let tbl = cx.data.macha.words(t);
+    b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 // --- the frame --------------------------------------------------------------------------------
@@ -327,12 +308,8 @@ pub(super) fn main(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     frame(b, x, cx);
     let me = cx.me;
     cx.scene.chars[me].cond[cond::HOLD] = 0;
-    if (b.lock_player != 0 || b.erase_target != 0)
-        && b.epitaph == 0
-        && let Some(p) = cx.scene.param_mut(me)
-        && p.pp_count > 0
-    {
-        p.pp_count += 1;
+    if (b.lock_player != 0 || b.erase_target != 0) && b.epitaph == 0 {
+        cx.pp_count_tick();
     }
 }
 
@@ -342,44 +319,12 @@ fn frame(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         return;
     }
     let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = super::w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = super::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     think(b, x, cx);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
+    b.lock_party(cx);
     b.move_(cx);
-    if b.draw_sw != 0 {
-        b.anm_status = i8::from(b.anm.forward());
-        b.draw(cx);
-    }
+    b.forward_and_draw(cx);
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
 
@@ -417,215 +362,111 @@ fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32
 
 // --- the patterns --------------------------------------------------------------------------------
 
-/// `ccBoss::ChangeNextPattern` (QUA gcmn 0x00361e30, Outbreak's).
-fn change_next_pattern(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
-    let tbl = cx.data.macha.words(b.pat_tbl).to_vec();
-    if word(&tbl, b.pat_index) == -1 {
-        b.pat_index = 0;
-    }
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if b.epitaph != 0 {
-        b.change_action(cx, act::EPITAPH, 3, true);
-    } else {
-        b.change_action(cx, act::NEUTRAL, 1, true);
-    }
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
-}
+impl Patterns for Macha {
+    const ACTS: BaseActs = BaseActs { other_forbid: 3, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-/// `ccBoss::ExecPattern(pat, p0, 0, 0)` (QUA gcmn 0x00360d30).
-fn exec_pattern(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, pat: i32, p0: i32) {
-    let tbl = [pat, p0, 0, 0, -1];
-    exec_pattern_index(b, x, cx, &tbl, 0);
-}
-
-/// `ccBoss06::ExecPatternIndex(tbl, i)` (0x003a3bb0), falling back on
-/// `ccBoss::ExecPatternIndex`: the next index. The pattern is `tbl`'s word,
-/// but every operand of its own patterns (2, 9, 10, 11) is read from
-/// `patTbl` at the running index, whatever `tbl` is: `ExecPattern(2, 30)`
-/// waits for `patTbl[1]`.
-fn exec_pattern_index(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let orig = i;
-    let mut s = i;
-    let mut pat = word(tbl, s);
-    s += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        s = 1;
+    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        data.macha.words(b.pat_tbl)
     }
-    b.pat_num = pat;
-    let me = cx.me;
-    let own = cx.data.macha.words(b.pat_tbl).to_vec();
-    match pat {
-        18 => b.change_action(cx, act::MAGIC, 3, true),
-        17 => b.change_action(cx, act::DATA_DRAIN_ATK, 3, true),
-        16 => b.change_action(cx, act::EYE_LASER, 3, true),
-        15 => b.change_action(cx, act::CHARM, 3, true),
-        14 => b.change_action(cx, act::LIGHT_BALL, 3, true),
-        1 => {
-            let n = if b.epitaph != 0 { act::EPITAPH_WAVE } else { act::WAVE };
-            b.change_action(cx, n, 3, true);
+
+    /// `ccBoss06::ExecPatternIndex(tbl, i)` (0x003a3bb0), falling back on
+    /// `ccBoss::ExecPatternIndex`: the next index. The pattern is `tbl`'s word,
+    /// but every operand of its own patterns (2, 9, 10, 11) is read from
+    /// `patTbl` at the running index, whatever `tbl` is: `ExecPattern(2, 30)`
+    /// waits for `patTbl[1]`.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let x = self;
+        let orig = i;
+        let mut s = i;
+        let mut pat = word(tbl, s);
+        s += 1;
+        b.move_spd = 0;
+        b.move_vector = VF0;
+        if pat == -1 {
+            pat = word(tbl, 0);
+            s = 1;
         }
-        2 => {
-            let mut t = word(&own, s);
-            s += 1;
-            if t == -1 && !cx.annihilated() {
-                t = 30;
+        b.pat_num = pat;
+        let me = cx.me;
+        let own = cx.data.macha.words(b.pat_tbl);
+        match pat {
+            18 => b.change_action(cx, act::MAGIC, 3, true),
+            17 => b.change_action(cx, act::DATA_DRAIN_ATK, 3, true),
+            16 => b.change_action(cx, act::EYE_LASER, 3, true),
+            15 => b.change_action(cx, act::CHARM, 3, true),
+            14 => b.change_action(cx, act::LIGHT_BALL, 3, true),
+            1 => {
+                let n = if b.epitaph != 0 { act::EPITAPH_WAVE } else { act::WAVE };
+                b.change_action(cx, n, 3, true);
             }
-            b.stop_time = t;
-            b.stop_counter = 0;
-            if b.epitaph != 0 {
-                b.change_action(cx, act::EPITAPH, 3, true);
-            } else {
-                b.change_action(cx, act::NEUTRAL, 1, true);
-            }
-        }
-        9..=11 => {
-            if pat != 11 {
-                let ty = word(&own, s);
+            2 => {
+                let mut t = word(own, s);
                 s += 1;
-                if ty < 0 {
-                    // A living member's pick: those on the lists and up, one
-                    // by ccRand (the first draw dropped).
-                    let _ = cx.cc.rand();
-                    let up: Vec<usize> =
-                        cx.party.members.into_iter().flatten().filter(|&m| cx.valid(Some(m)) && !cx.dead(m)).collect();
-                    if up.is_empty() {
-                        exec_pattern(b, x, cx, 2, -1);
-                        return s;
-                    }
-                    let r = cx.cc.rand().unsigned_abs() as usize;
-                    cx.scene.chars[me].target_char = Some(up[r % up.len()]);
+                if t == -1 && !cx.annihilated() {
+                    t = 30;
+                }
+                b.stop_time = t;
+                b.stop_counter = 0;
+                if b.epitaph != 0 {
+                    b.change_action(cx, act::EPITAPH, 3, true);
                 } else {
-                    select(b, cx, ty);
+                    b.change_action(cx, act::NEUTRAL, 1, true);
                 }
             }
-            if !target_ok(cx, cx.scene.chars[me].target_char) {
-                let t = select(b, cx, 3);
-                if !target_ok(cx, t) {
-                    exec_pattern(b, x, cx, 2, 30);
-                    return orig;
+            9..=11 => {
+                if pat != 11 {
+                    let ty = word(own, s);
+                    s += 1;
+                    if ty < 0 {
+                        // A living member's pick: those on the lists and up, one
+                        // by ccRand (the first draw dropped).
+                        let _ = cx.cc.rand();
+                        let up: Vec<usize> = cx
+                            .party
+                            .members
+                            .into_iter()
+                            .flatten()
+                            .filter(|&m| cx.valid(Some(m)) && !cx.dead(m))
+                            .collect();
+                        if up.is_empty() {
+                            x.exec_pattern(b, cx, 2, -1);
+                            return s;
+                        }
+                        let r = cx.cc.rand().unsigned_abs() as usize;
+                        cx.scene.chars[me].target_char = Some(up[r % up.len()]);
+                    } else {
+                        b.select(cx, ty);
+                    }
                 }
-            }
-            b.calc_target_info(cx);
-            if pat == 10 {
-                // @1198 read, a skill drawn and dropped: OnThinkSkill casts
-                // its own.
-                let _ = (cx.cc.rand() % 3).abs();
-                b.change_action(cx, act::SKILL, 3, true);
-                return s;
-            }
-            let sid = word(&own, s);
-            s += 1;
-            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-            if let Some(tp) = on
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-            exec_pattern(b, x, cx, 2, -2);
-        }
-        _ => return base_exec_pattern_index(b, x, cx, tbl, orig),
-    }
-    s
-}
-
-/// `ccBoss::ExecPatternIndex` (QUA gcmn, Outbreak's code).
-fn base_exec_pattern_index(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let orig = i;
-    let mut i = i;
-    let mut pat = word(tbl, i);
-    i += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        i = 1;
-    }
-    b.pat_num = pat;
-    let me = cx.me;
-    let neutral = |b: &mut BossBase, cx: &mut Cx| {
-        let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
-        b.change_action(cx, n, 3, true);
-    };
-    match pat {
-        2 => {
-            let mut t = word(tbl, i);
-            i += 1;
-            if t == -1 && !cx.annihilated() {
-                t = 30;
-            }
-            b.stop_time = t;
-            b.stop_counter = 0;
-            neutral(b, cx);
-        }
-        3 => b.change_action(cx, super::act::ESCAPE, 3, true),
-        4 => b.change_action(cx, super::act::CHASE, 3, true),
-        5 => b.change_action(cx, super::act::RETURN, 3, true),
-        7 => b.change_action(cx, super::act::WANDER, 3, true),
-        6 => {
-            let d = ee::from_int(word(tbl, i));
-            i += 1;
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), b.center_dirc), NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [d, 0, 0, ONE]);
-            let p = geom::vadd(v, cx.scene.chars[me].pos_p);
-            b.dash_pos = super::p2w(cx, p);
-            b.dash_prev_pos = cx.scene.chars[me].pos;
-            b.change_action(cx, act::DASH_CENTER, 3, true);
-        }
-        8 => neutral(b, cx),
-        9 | 11 => {
-            let ty = word(tbl, i);
-            i += 1;
-            let sid = word(tbl, i);
-            i += 1;
-            if pat == 9 {
-                let t = select(b, cx, ty);
-                if !target_ok(cx, t) {
-                    exec_pattern(b, x, cx, 2, 30);
-                    return orig;
+                if !cx.target_ok(cx.scene.chars[me].target_char) {
+                    let t = b.select(cx, 3);
+                    if !cx.target_ok(t) {
+                        x.exec_pattern(b, cx, 2, 30);
+                        return orig;
+                    }
                 }
                 b.calc_target_info(cx);
-            }
-            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-            if let Some(tp) = on
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-            exec_pattern(b, x, cx, 2, 30);
-        }
-        12 => {
-            let sid = word(tbl, i);
-            i += 1;
-            let members = cx.party.members;
-            let mut last = None;
-            for m in members.into_iter().flatten() {
-                if target_ok(cx, Some(m)) {
-                    last = Some(m);
+                if pat == 10 {
+                    // @1198 read, a skill drawn and dropped: OnThinkSkill casts
+                    // its own.
+                    let _ = (cx.cc.rand() % 3).abs();
+                    b.change_action(cx, act::SKILL, 3, true);
+                    return s;
                 }
-            }
-            for m in members.into_iter().flatten() {
-                if Some(m) != last
-                    && target_ok(cx, Some(m))
-                    && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
+                let sid = word(own, s);
+                s += 1;
+                let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
+                if let Some(tp) = on
+                    && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 1, false, cx.rand)
                 {
-                    cx.out(Out::Skill(m, k));
+                    cx.out(Out::Skill(tp, k));
                 }
+                x.exec_pattern(b, cx, 2, -2);
             }
-            if let Some(l) = last
-                && target_ok(cx, Some(l))
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, l, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(l, k));
-            }
-            exec_pattern(b, x, cx, 2, -2);
+            _ => return base_exec_pattern_index(x, b, cx, tbl, orig),
         }
-        _ => neutral(b, cx),
+        s
     }
-    i
 }
 
 // --- Think ----------------------------------------------------------------------------------
@@ -672,12 +513,12 @@ fn on_neutral(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, epitaph: bool) {
     if !b.wait_over(cx) {
         return;
     }
-    let t = select(b, cx, 0);
+    let t = b.select(cx, 0);
     if !cx.valid(t) {
         return;
     }
     b.calc_target_info(cx);
-    change_next_pattern(b, x, cx);
+    x.change_next_pattern(b, cx);
 }
 
 /// `OnThinkDamage` (0x003a4ae0): SE 243 once; back to the neutral as the
@@ -712,14 +553,14 @@ fn on_chase(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     }
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 4);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 4);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.calc_target_info(cx);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.move_dirc = b.target_dirc;
             b.move_spd = 0x42c8_0000;
             b.act_proccess += 1;
@@ -727,15 +568,15 @@ fn on_chase(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         1 => {
             if ee::lt(b.target_dist, 0x4396_0000) || c >= 301 {
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
-                change_next_pattern(b, x, cx);
+                cx.cursor(false);
+                x.change_next_pattern(b, cx);
                 return;
             }
             let pp = cx.scene.chars[me].pos_p;
             if !super::fidchell::valid_area(b, cx, pp) {
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
-                exec_pattern(b, x, cx, 6, 500);
+                cx.cursor(false);
+                x.exec_pattern(b, cx, 6, 500);
                 return;
             }
         }
@@ -753,7 +594,7 @@ fn on_dash_center(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.act_proccess += 1;
             cx.se3d(229);
         }
@@ -781,8 +622,8 @@ fn on_dash_center(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         }
         2 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
-            change_next_pattern(b, x, cx);
+            cx.cursor(false);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -800,9 +641,9 @@ fn on_skill(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         0 => {
             // SelectTarget's type is a1 as the switch left it: 4, the most
             // physical attack.
-            let t = select(b, cx, 4);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 4);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.calc_target_info(cx);
@@ -812,7 +653,7 @@ fn on_skill(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             vp[2] = 0x4348_0000;
             free_cam(cx, vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0, ONE]);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.lock_player(cx, true);
             x.skill_id = SKILL;
             cx.out(Out::CinemaSkill(x.skill_id));
@@ -837,14 +678,14 @@ fn on_skill(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
                 return;
             }
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             if let Some(tp) = cx.scene.chars[me].target_char
                 && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, tp, x.skill_id, 0, false, cx.rand)
             {
                 cx.out(Out::Skill(tp, k));
             }
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -857,11 +698,11 @@ fn on_skill(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         4 if c == 15 => {
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.out(Out::CamMode { mode: 6 });
             cx.out(Out::SwitchLayer);
             cx.out(Out::Cinema(None));
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -891,9 +732,9 @@ fn on_escape(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     }
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.calc_target_info(cx);
@@ -905,7 +746,7 @@ fn on_escape(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         }
         1 => {
             if c == 300 {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
                 return;
             }
             if b.stop != 0 || cx.scene.chars[me].cond[cond::HOLD] != 0 {
@@ -925,7 +766,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             x.org_blur = x.blur_func;
             x.blur_func = Some(BlurFunc::Boss06);
             cx.out(Out::Blur(Set::Func(BlurFunc::Boss06)));
@@ -954,7 +795,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         }
         3 if cx.disc.blur_exit != 0 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.change_action(cx, act::NEUTRAL, 1, false);
             if let Some(f) = x.org_blur {
                 cx.out(Out::Blur(Set::Func(f)));
@@ -977,7 +818,7 @@ fn on_back_dash(b: &mut BossBase, cx: &mut Cx) {
     b.act_count += 1;
     if c == 0 {
         b.erase_cmnd_target(cx);
-        cursor(cx, true);
+        cx.cursor(true);
         b.spd_up(0x4316_0000, 0x4316_0000);
         let pp = cx.scene.chars[me].pos_p;
         if !super::fidchell::valid_area(b, cx, pp) {
@@ -989,7 +830,7 @@ fn on_back_dash(b: &mut BossBase, cx: &mut Cx) {
     let pp = cx.scene.chars[me].pos_p;
     if !super::fidchell::valid_area(b, cx, pp) {
         b.entry_cmnd_target(cx);
-        cursor(cx, false);
+        cx.cursor(false);
         b.move_spd = 0;
         b.move_vector = VF0;
         b.change_action(cx, act::NEUTRAL, 1, false);
@@ -1007,7 +848,7 @@ fn on_back_dash(b: &mut BossBase, cx: &mut Cx) {
     }
     if b.act_count >= 31 {
         b.entry_cmnd_target(cx);
-        cursor(cx, false);
+        cx.cursor(false);
         b.move_spd = 0;
         b.move_vector = VF0;
         b.change_action(cx, act::NEUTRAL, 3, false);
@@ -1038,7 +879,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             x.light_rot = rand_f(cx.cc, PI);
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::Cinema(Some(21)));
             cx.out(Out::SwitchLayer);
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 30000]);
@@ -1131,9 +972,9 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             cx.out(Out::Cinema(None));
             cx.out(Out::SwitchLayer);
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.unlock_player();
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1174,7 +1015,7 @@ fn on_wave(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             pos[2] = ee::add(pos[2], 0x4248_0000);
             cx.out(Out::Macha(Pic::Wave { time: x.anm_w.posed, pos, dirc: b.dirc, scale: 0x4000_0000 }));
             if done && b.anm_status != 0 {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
             }
             if cx.cam.shake {
                 cx.quake_cam(0x420c_0000);
@@ -1255,12 +1096,12 @@ fn on_charm(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         0 => {
             let up = cx.party.members.into_iter().flatten().any(|m| cx.valid(Some(m)) && !cx.dead(m));
             if !up {
-                exec_pattern(b, x, cx, 2, -1);
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::Cinema(Some(69)));
             cx.out(Out::SwitchLayer);
             x.stage_eff = b.begin_stage_effect(cx, PINK, [15, 15, 30000]);
@@ -1279,7 +1120,7 @@ fn on_charm(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             }
             if f == 95 {
                 for m in cx.party.members.into_iter().flatten() {
-                    if target_ok(cx, Some(m))
+                    if cx.target_ok(Some(m))
                         && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, m, 159, 0, false, cx.rand)
                     {
                         cx.out(Out::Skill(m, k));
@@ -1303,8 +1144,8 @@ fn on_charm(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
                 cx.out(Out::CamMode { mode: 6 });
                 b.unlock_player();
                 b.entry_cmnd_target(cx);
-                cursor(cx, false);
-                change_next_pattern(b, x, cx);
+                cx.cursor(false);
+                x.change_next_pattern(b, cx);
             }
         }
         _ => {}
@@ -1373,15 +1214,15 @@ fn on_data_drain_atk(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     b.act_count += 1;
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.calc_target_info(cx);
             b.lock_player(cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::Cinema(Some(-1)));
             b.act_count = 0;
             b.act_proccess += 1;
@@ -1396,15 +1237,15 @@ fn on_data_drain_atk(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         2 if cx.env.menu_type == -1 => {
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             let t = cx.scene.chars[me].target_char;
             if let Some(tp) = t
-                && target_ok(cx, t)
+                && cx.target_ok(t)
             {
                 cx.affect(tp, 13, 0);
             }
             cx.out(Out::Cinema(None));
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1419,9 +1260,9 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     b.act_count += 1;
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.calc_target_info(cx);
@@ -1429,7 +1270,7 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 3000]);
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             x.skill_id = cx.data.macha.magic_skills[(cx.env.count & 3) as usize];
             cx.out(Out::CinemaSkill(x.skill_id));
             let mut vp = b.target_pos;
@@ -1463,11 +1304,11 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         3 if c == 15 => {
             cx.out(Out::Cinema(None));
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.out(Out::SwitchLayer);
             b.unlock_player();
             cx.out(Out::CamMode { mode: 6 });
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }

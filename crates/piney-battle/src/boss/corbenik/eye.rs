@@ -12,7 +12,8 @@ use super::third::Third;
 use super::{Pic, word};
 use crate::boss::kyvia::{Part, as_me, dp, fabs, fp, head, plain_boss, set_base_param};
 use crate::boss::{
-    AfterImageParams, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index,
+    AfterImageParams, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
+    base_exec_pattern_index,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -554,48 +555,48 @@ pub(crate) fn attack(p: &mut Part<Killer>, v: &KillerView, cx: &mut Cx) {
         45 => 14,
         _ => return,
     };
-    as_me(cx, p.me, |cx| KillerRules(v).exec_pattern(&mut p.b.base, cx, pat, 0));
-}
-
-fn killer_tbl(cx: &Cx, x: &Killer) -> Vec<i32> {
-    cx.data.corbenik.killer_acts[x.slave_id.rem_euclid(3) as usize].clone()
+    as_me(cx, p.me, |cx| KillerRules::new(&p.x, v).exec_pattern(&mut p.b.base, cx, pat, 0));
 }
 
 /// `ChangeNextPattern` (0x003bfe00): held while the body pauses (pattern
 /// 2 -1, `m_pauseFlag` set); else the base's.
 fn change_next_pattern(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
+    let mut r = KillerRules::new(x, v);
     if v.paused {
         x.pause = true;
-        KillerRules(v).exec_pattern(b, cx, 2, -1);
+        r.exec_pattern(b, cx, 2, -1);
         return;
     }
     x.pause = false;
-    let tbl = killer_tbl(cx, x);
-    if word(&tbl, b.pat_index) == -1 {
-        b.pat_index = 0;
-    }
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if b.epitaph != 0 {
-        b.change_action(cx, 12, 3, true);
-    } else {
-        b.change_action(cx, killer_act::NEUTRAL, 1, true);
-    }
-    b.pat_index = KillerRules(v).exec_pattern_index(b, cx, &tbl, b.pat_index);
+    r.change_next_pattern(b, cx);
 }
 
-/// A killer eye's patterns, which read what the body tells it.
-struct KillerRules<'a>(&'a KillerView);
+/// A killer eye's patterns: what the body tells it, and its table.
+struct KillerRules<'a> {
+    v: &'a KillerView,
+    /// Its pattern table's (`m_slaveId % 3`).
+    slot: usize,
+}
+
+impl<'a> KillerRules<'a> {
+    fn new(x: &Killer, v: &'a KillerView) -> KillerRules<'a> {
+        KillerRules { v, slot: x.slave_id.rem_euclid(3) as usize }
+    }
+}
 
 impl Patterns for KillerRules<'_> {
     const ACTS: BaseActs = super::BASE_ACTS;
+
+    fn words<'d>(&self, _b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        &data.corbenik.killer_acts[self.slot]
+    }
 
     /// `ExecPatternIndex` (0x003bfe90): 7 the wander (act 8, its length the
     /// next word in `actProccess`), 14 a skill of `@2388` by `ccRand() % 13` on
     /// its target, 16 skill 154 on the body, 15 a compelled one of `@2391`, 17
     /// the press (act 4); the rest the base's.
     fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-        let v = self.0;
+        let v = self.v;
         let mut s = i + 1;
         let mut pat = word(tbl, i);
         b.move_spd = 0;
@@ -687,7 +688,7 @@ fn on_wander(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
         return;
     }
     if cx.annihilated() || cx.game_over {
-        KillerRules(v).exec_pattern(b, cx, 2, -1);
+        KillerRules::new(x, v).exec_pattern(b, cx, 2, -1);
         return;
     }
     let t = cx.scene.chars[me].target_char;
@@ -814,8 +815,9 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
             }
             b.pat_tbl = Tbl::Normal;
             b.pat_index = 0;
-            let tbl = killer_tbl(cx, x);
-            b.pat_index = KillerRules(v).exec_pattern_index(b, cx, &tbl, 0);
+            let mut r = KillerRules::new(x, v);
+            let tbl = r.words(b, cx.data);
+            b.pat_index = r.exec_pattern_index(b, cx, tbl, 0);
             b.draw_sw = 1;
             b.exit = 0;
             b.body_hit_sw = 1;

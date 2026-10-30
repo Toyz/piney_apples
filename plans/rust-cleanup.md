@@ -107,8 +107,9 @@ order; tick items off here as they land, with the worklog entry.
       the 10 class take/put pairs and the 12 copied frames. (worklog 523:
       `Boss { base, class }`, the 10 take/put pairs gone; 524: the
       `BossClass` dispatch and `Patterns` with `BaseActs` for
-      `corbenik::Host`; the building blocks and Skeith's own members to
-      come.)
+      `corbenik::Host`; 525: the building blocks, one generic
+      `base_exec_pattern_index` and `base_change_next_pattern`; Skeith's
+      own members to come.)
 - [ ] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
       roots, seeds, eyes (keep the placeholder semantics where code indexes).
 - [ ] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,

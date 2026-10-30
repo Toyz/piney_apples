@@ -664,39 +664,9 @@ pub(crate) fn plain_boss() -> BossBase {
 /// it: `CalcReal`, the target and the centre, the party held while
 /// `lockPlayer` (and the menu's forbid), then `stop`'s count.
 pub(crate) fn head(b: &mut BossBase, cx: &mut Cx) {
-    let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = super::w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = super::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.lock_party(cx);
+    b.tick_stop();
 }
 
 /// The affect the core and the gomoras share (MUT gcmn 0x004f99c0,
@@ -877,22 +847,8 @@ pub(super) fn main(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
 
 fn frame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = super::w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = super::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     think(b, x, t, cx);
     action(b, x, t, cx);
     if x.fight == Fight::Fourth {
@@ -900,30 +856,11 @@ fn frame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     } else {
         b.move_(cx);
     }
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-        if x.cinema != 0 {
-            cx.out(Out::Cinema(None));
-            x.cinema = 0;
-        }
+    if b.lock_party(cx) && x.cinema != 0 {
+        cx.out(Out::Cinema(None));
+        x.cinema = 0;
     }
-    if b.draw_sw != 0 {
-        b.anm_status = i8::from(b.anm.forward());
-        b.draw(cx);
-    }
+    b.forward_and_draw(cx);
     // Slave(): the core's Main.
     if let Some(c) = t.core.as_mut() {
         self::core::main(c, &mut t.gomoras, cx);

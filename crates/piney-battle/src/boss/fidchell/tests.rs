@@ -146,7 +146,7 @@ impl Fight {
         let me = self.me;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
         let Class::Fidchell(x) = &mut b.class else { panic!("not Fidchell") };
-        self.with_cx(|cx| exec_pattern(&mut b.base, x, cx, 15, 0));
+        self.with_cx(|cx| x.exec_pattern(&mut b.base, cx, 15, 0));
         self.scene.chars[me].foe_state_mut().unwrap().boss = Some(b);
         self.until(3000, |f| f.boss().base.act_num != act::EXEC_PREDICTION)
     }

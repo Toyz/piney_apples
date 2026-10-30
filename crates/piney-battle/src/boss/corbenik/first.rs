@@ -11,7 +11,10 @@ use super::eff::{self, Fx};
 use super::seed::{self, Seed};
 use super::{Gen, Pic, SEEDS, make_fx, manager_pass, word, wrap_hi};
 use crate::boss::kyvia::Part;
-use crate::boss::{BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index};
+use crate::boss::{
+    BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_change_next_pattern,
+    base_exec_pattern_index,
+};
 use crate::enemy_ai::{get_dirc, rand_f2};
 use crate::geom::{self, V4};
 use crate::item;
@@ -180,8 +183,8 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut First, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = cx.data.corbenik.words(t).to_vec();
-    b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
+    let tbl = cx.data.corbenik.words(t);
+    b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 // --- the frame -----------------------------------------------------------------------------
@@ -211,40 +214,10 @@ fn frame(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     if b.exit != 0 {
         return;
     }
-    let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = crate::boss::w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = crate::boss::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     think(b, x, cx);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
+    b.lock_party(cx);
     b.move_(cx);
     if b.draw_sw != 0 {
         pre_draw_anm(b);
@@ -267,25 +240,18 @@ fn pre_draw_anm(b: &mut BossBase) {
 
 // --- the patterns --------------------------------------------------------------------------
 
-fn change_next_pattern(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
-    // `ccBoss08::ChangeNextPattern` (0x003ade20): the countdowns go on.
-    x.pause_cnt_down = false;
-    let tbl = cx.data.corbenik.words(b.pat_tbl).to_vec();
-    if word(&tbl, b.pat_index) == -1 {
-        b.pat_index = 0;
-    }
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if b.epitaph != 0 {
-        b.change_action(cx, act::BASE_EPITAPH, 3, true);
-    } else {
-        b.change_action(cx, act::NEUTRAL, 1, true);
-    }
-    b.pat_index = x.exec_pattern_index(b, cx, &tbl, b.pat_index);
-}
-
 impl Patterns for First {
     const ACTS: BaseActs = super::BASE_ACTS;
+
+    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        data.corbenik.words(b.pat_tbl)
+    }
+
+    fn change_next_pattern(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        // `ccBoss08::ChangeNextPattern` (0x003ade20): the countdowns go on.
+        self.pause_cnt_down = false;
+        base_change_next_pattern(self, b, cx);
+    }
 
     /// `ccBoss08::ExecPatternIndex(tbl, i)` (0x003adae0): 1 the wave (6), 14
     /// the magic (20) with the countdowns held, 15 n the seeds (21, `n` kept);
@@ -364,7 +330,7 @@ fn on_neutral(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
         return;
     }
     b.calc_target_info(cx);
-    change_next_pattern(b, x, cx);
+    x.change_next_pattern(b, cx);
 }
 
 /// The target picked for an act (`SelectTarget(0)`), or the 2-1 wait when
@@ -478,7 +444,7 @@ fn on_wave(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
         }
         5 => {
             b.entry_cmnd_target(cx);
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -522,7 +488,7 @@ fn on_escape(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
         }
         1 => {
             if c == 90 {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
                 return;
             }
             if b.stop != 0 || cx.scene.chars[me].cond[cond::HOLD] != 0 {
@@ -566,7 +532,7 @@ fn on_seed(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
         b.act_proccess += 1;
     }
     if b.act_proccess >= 3 && b.anm_status != 0 {
-        change_next_pattern(b, x, cx);
+        x.change_next_pattern(b, cx);
     }
 }
 
@@ -728,7 +694,7 @@ fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             cx.out(Out::SwitchLayer);
             cx.out(Out::Cinema(None));
             cx.out(Out::CameraChange(1));
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
             b.act_proccess += 1;
         }
         _ => {}

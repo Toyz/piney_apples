@@ -16,7 +16,10 @@ use piney_data::libm;
 use self::leaf::Leaf;
 use super::blur::Set;
 use super::kyvia::fabs;
-use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Fade, LoopOp, Out, VF0};
+use super::{
+    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fade, LoopOp, Out, Patterns, VF0,
+    base_exec_pattern_index, word,
+};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -307,11 +310,6 @@ impl Leaves {
 
 // --- small rules ------------------------------------------------------------------------
 
-/// A table word.
-fn word(tbl: &[i32], i: i32) -> i32 {
-    usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
-}
-
 /// `ccRandF()` (main 0x001ef330): `ccRand()` over 2^32.
 fn rand_unit(cx: &mut Cx) -> F {
     ee::div(ee::from_int(cx.cc.rand()), 0x4f80_0000)
@@ -345,10 +343,6 @@ fn max_pp_of(cx: &Cx) -> i16 {
 
 fn held(b: &BossBase, cx: &Cx) -> bool {
     b.stop != 0 || cx.scene.chars[cx.me].cond[cond::HOLD] != 0
-}
-
-fn cursor(cx: &mut Cx, on: bool) {
-    cx.out(Out::CursorOff(on));
 }
 
 // --- the constructor ------------------------------------------------------------------------
@@ -435,11 +429,8 @@ pub(super) fn main(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     for p in &ls.0 {
         cx.scene.chars[p.me].cond[cond::HOLD] = 0;
     }
-    if b.lock_player != 0
-        && let Some(p) = cx.scene.param_mut(me)
-        && p.pp_count > 0
-    {
-        p.pp_count += 1;
+    if b.lock_player != 0 {
+        cx.pp_count_tick();
     }
     ls.put(cx);
 }
@@ -448,39 +439,10 @@ pub(super) fn main(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
 /// `PreDrawAnm`, then `Slave()`: each leaf not exited drawn and run.
 fn frame(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = super::w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = super::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     think(b, x, ls, cx);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
+    b.lock_party(cx);
     mov(b, x, cx);
     if b.draw_sw != 0 {
         pre_draw_anm(b, x, cx);
@@ -735,195 +697,85 @@ fn change_action(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, n: i16, forbid: i
     }
 }
 
-/// `ccBoss::ChangeNextPattern` (0x00472bb0) as Magus's vtable runs it.
-fn change_next_pattern(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
-    let tbl = cx.data.magus.epitaph.clone();
-    if word(&tbl, b.pat_index) == -1 {
-        b.pat_index = 0;
-    }
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if epitaph(x) {
-        change_action(b, x, cx, act::EPITAPH, 3, true);
-    } else {
-        change_action(b, x, cx, act::NEUTRAL, 1, true);
-    }
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
-}
+impl Patterns for Magus {
+    const ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0, still_w: 0x3f80_0000 };
 
-/// `ccBoss::ExecPattern(pat, p0, 0, 0)` (0x00472b40).
-fn exec_pattern(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, pat: i32, p0: i32) {
-    let tbl = [pat, p0, 0, 0, -1];
-    exec_pattern_index(b, x, cx, &tbl, 0);
-}
-
-fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
-    cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
-}
-
-/// `ccBoss03::ExecPatternIndex(tbl, i)` (0x0049fd30), falling back on
-/// `ccBoss::ExecPatternIndex` (0x00472470): the next index. Its words 9
-/// and 10 read their target type from `patTbl`, not `tbl`.
-fn exec_pattern_index(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let mut orig = i;
-    let mut s0 = i;
-    let mut pat = word(tbl, i);
-    s0 += 1;
-    if pat == -1 {
-        s0 = 1;
-        orig = 1;
-        pat = word(tbl, 0);
+    fn words<'d>(&self, _b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        &data.magus.epitaph
     }
-    b.pat_num = pat;
-    let me = cx.me;
-    match pat {
-        14 => change_action(b, x, cx, act::CAST, 3, true),
-        2 => {
-            b.stop_time = word(tbl, s0);
-            s0 += 1;
-            b.stop_counter = 0;
-            change_action(b, x, cx, act::EPITAPH, 3, true);
+
+    fn epitaph(&self, _b: &BossBase) -> bool {
+        epitaph(self)
+    }
+
+    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+        change_action(b, self, cx, n, forbid, af);
+    }
+
+    /// `ccBoss03::ExecPatternIndex(tbl, i)` (0x0049fd30), falling back on
+    /// `ccBoss::ExecPatternIndex` (0x00472470): the next index. Its words 9
+    /// and 10 read their target type from `patTbl`, not `tbl`.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let x = self;
+        let mut orig = i;
+        let mut s0 = i;
+        let mut pat = word(tbl, i);
+        s0 += 1;
+        if pat == -1 {
+            s0 = 1;
+            orig = 1;
+            pat = word(tbl, 0);
         }
-        1 => {
-            let n = if epitaph(x) { act::EPITAPH_WAVE } else { act::WAVE };
-            change_action(b, x, cx, n, 3, true);
-        }
-        9..=11 => {
-            let pat_tbl = cx.data.magus.epitaph.clone();
-            if pat != 11 {
-                let ty = word(&pat_tbl, s0);
+        b.pat_num = pat;
+        let me = cx.me;
+        match pat {
+            14 => change_action(b, x, cx, act::CAST, 3, true),
+            2 => {
+                b.stop_time = word(tbl, s0);
                 s0 += 1;
-                let t = b.select_target(cx, ty, FAR);
-                cx.scene.chars[me].target_char = t;
+                b.stop_counter = 0;
+                change_action(b, x, cx, act::EPITAPH, 3, true);
             }
-            if !target_ok(cx, cx.scene.chars[me].target_char) {
-                let t = b.select_target(cx, 3, FAR);
-                cx.scene.chars[me].target_char = t;
-                if !target_ok(cx, t) {
-                    exec_pattern(b, x, cx, 2, 30);
-                    return orig;
+            1 => {
+                let n = if epitaph(x) { act::EPITAPH_WAVE } else { act::WAVE };
+                change_action(b, x, cx, n, 3, true);
+            }
+            9..=11 => {
+                let pat_tbl = &cx.data.magus.epitaph;
+                if pat != 11 {
+                    let ty = word(pat_tbl, s0);
+                    s0 += 1;
+                    let t = b.select_target(cx, ty, FAR);
+                    cx.scene.chars[me].target_char = t;
                 }
-            }
-            b.calc_target_info(cx);
-            let sid = if pat == 10 {
-                let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
-                cx.data.magus.skills[k]
-            } else {
-                let s = word(&pat_tbl, s0);
-                s0 += 1;
-                s
-            };
-            if let Some(tp) = cx.scene.chars[me].target_char
-                && let Some(s) = item::item_skill_compel(cx.t, cx.scene, me, tp, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, s));
-            }
-            exec_pattern(b, x, cx, 2, -2);
-        }
-        _ => return base_exec_pattern_index(b, x, cx, tbl, orig),
-    }
-    s0
-}
-
-/// `ccBoss::ExecPatternIndex` (0x00472470) under Magus's `ChangeAction`
-/// and `CheckEpitaph`.
-fn base_exec_pattern_index(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let orig = i;
-    let mut i = i;
-    let mut pat = word(tbl, i);
-    i += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        i = 1;
-    }
-    b.pat_num = pat;
-    let me = cx.me;
-    let neutral = |b: &mut BossBase, x: &mut Magus, cx: &mut Cx, forbid: i16| {
-        if epitaph(x) {
-            change_action(b, x, cx, act::EPITAPH, 3, true);
-        } else {
-            change_action(b, x, cx, act::NEUTRAL, forbid, true);
-        }
-    };
-    match pat {
-        2 => {
-            let mut t = word(tbl, i);
-            i += 1;
-            if t == -1 && !cx.annihilated() {
-                t = 30;
-            }
-            b.stop_time = t;
-            b.stop_counter = 0;
-            neutral(b, x, cx, 3);
-        }
-        3 => change_action(b, x, cx, super::act::ESCAPE, 3, true),
-        4 => change_action(b, x, cx, super::act::CHASE, 3, true),
-        5 => change_action(b, x, cx, super::act::RETURN, 3, true),
-        7 => change_action(b, x, cx, super::act::WANDER, 3, true),
-        6 => {
-            let d = ee::from_int(word(tbl, i));
-            i += 1;
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), b.center_dirc), NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [d, 0, 0, 0]);
-            let p = geom::vadd(v, cx.scene.chars[me].pos_p);
-            b.dash_pos = super::p2w(cx, p);
-            b.dash_prev_pos = cx.scene.chars[me].pos;
-            change_action(b, x, cx, super::act::DASH, 3, true);
-        }
-        8 => neutral(b, x, cx, 3),
-        9 | 11 => {
-            let ty = word(tbl, i);
-            i += 1;
-            let sid = word(tbl, i);
-            i += 1;
-            if pat == 9 {
-                let t = b.select_target(cx, ty, FAR);
-                cx.scene.chars[me].target_char = t;
-                if !target_ok(cx, t) {
-                    exec_pattern(b, x, cx, 2, 30);
-                    return orig;
+                if !cx.target_ok(cx.scene.chars[me].target_char) {
+                    let t = b.select_target(cx, 3, FAR);
+                    cx.scene.chars[me].target_char = t;
+                    if !cx.target_ok(t) {
+                        x.exec_pattern(b, cx, 2, 30);
+                        return orig;
+                    }
                 }
                 b.calc_target_info(cx);
-            }
-            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-            if let Some(tp) = on
-                && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, s));
-            }
-            exec_pattern(b, x, cx, 2, 30);
-        }
-        12 => {
-            let sid = word(tbl, i);
-            i += 1;
-            let members = cx.party.members;
-            let mut last = None;
-            for m in members.into_iter().flatten() {
-                if target_ok(cx, Some(m)) {
-                    last = Some(m);
-                }
-            }
-            for m in members.into_iter().flatten() {
-                if Some(m) != last
-                    && target_ok(cx, Some(m))
-                    && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
+                let sid = if pat == 10 {
+                    let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
+                    cx.data.magus.skills[k]
+                } else {
+                    let s = word(pat_tbl, s0);
+                    s0 += 1;
+                    s
+                };
+                if let Some(tp) = cx.scene.chars[me].target_char
+                    && let Some(s) = item::item_skill_compel(cx.t, cx.scene, me, tp, sid, 1, false, cx.rand)
                 {
-                    cx.out(Out::Skill(m, s));
+                    cx.out(Out::Skill(tp, s));
                 }
+                x.exec_pattern(b, cx, 2, -2);
             }
-            if let Some(l) = last
-                && target_ok(cx, Some(l))
-                && let Some(s) = item::item_skill_request(cx.t, cx.scene, me, l, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(l, s));
-            }
-            exec_pattern(b, x, cx, 2, -2);
+            _ => return base_exec_pattern_index(x, b, cx, tbl, orig),
         }
-        _ => neutral(b, x, cx, 1),
+        s0
     }
-    i
 }
 
 // --- Think ----------------------------------------------------------------------------------
@@ -1051,7 +903,7 @@ fn on_epitaph(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         return;
     }
     b.calc_target_info(cx);
-    change_next_pattern(b, x, cx);
+    x.change_next_pattern(b, cx);
 }
 
 /// `OnThinkDataDrain` (0x004a1470): drained; the leaves go.
@@ -1074,7 +926,7 @@ fn on_chase(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         0 => {
             b.spd_up(0x4316_0000, 0x4316_0000);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             x.animate_chase.set(b.transparency, 0x3f00_0000, 0x4170_0000);
             cx.se3d(229);
             b.act_proccess += 1;
@@ -1092,14 +944,14 @@ fn on_chase(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             if cx.valid(t) {
                 b.move_dirc = b.target_dirc;
                 if ee::lt(b.target_dist, 0x4316_0000) {
-                    change_next_pattern(b, x, cx);
+                    x.change_next_pattern(b, cx);
                     end = true;
                 }
             } else {
                 let t = b.select_target(cx, 0, FAR);
                 cx.scene.chars[me].target_char = t;
                 if !cx.valid(t) {
-                    exec_pattern(b, x, cx, 2, -1);
+                    x.exec_pattern(b, cx, 2, -1);
                     end = true;
                 } else {
                     b.calc_target_info(cx);
@@ -1120,7 +972,7 @@ fn on_chase(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     }
     b.set_transparency = ONE;
     b.entry_cmnd_target(cx);
-    cursor(cx, false);
+    cx.cursor(false);
 }
 
 /// `OnThinkEpitaphWave` (0x004a17d0): the drained wave, row 12 at 60.
@@ -1169,7 +1021,7 @@ fn on_drain_atk(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         0 => {
             let t = b.select_target(cx, 0, FAR);
             cx.scene.chars[me].target_char = t;
-            if !target_ok(cx, t) {
+            if !cx.target_ok(t) {
                 change_action(b, x, cx, act::NEUTRAL, 3, true);
                 return;
             }
@@ -1204,15 +1056,15 @@ fn on_cast(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         0 => {
             let t = b.select_target(cx, 0, FAR);
             cx.scene.chars[me].target_char = t;
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.calc_target_info(cx);
             x.stage_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 3000]);
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             let view = [b.target_pos[0], b.target_pos[1], 0x4348_0000, b.target_pos[3]];
             let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
             let m = geom::rot_matrix_x(&m, 0);
@@ -1245,10 +1097,10 @@ fn on_cast(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         }
         3 if c == 15 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.unlock_player();
             cx.out(Out::CameraChange(1));
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1383,7 +1235,7 @@ fn on_wander(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     let pp = cx.scene.chars[cx.me].pos_p;
     if !valid_area(b, cx, pp) {
         if epitaph(x) {
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         } else {
             change_action(b, x, cx, act::RETURN, 3, true);
         }
@@ -1409,7 +1261,7 @@ fn on_wander(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     }
     b.move_spd = 0;
     if epitaph(x) {
-        change_next_pattern(b, x, cx);
+        x.change_next_pattern(b, cx);
         return;
     }
     b.stop_time = 0;
@@ -1425,7 +1277,7 @@ fn on_dash(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         0 | 1 => {
             if b.act_proccess == 0 {
                 b.erase_cmnd_target(cx);
-                cursor(cx, true);
+                cx.cursor(true);
                 b.act_proccess += 1;
                 cx.se3d(229);
             }
@@ -1450,8 +1302,8 @@ fn on_dash(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         }
         2 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
-            change_next_pattern(b, x, cx);
+            cx.cursor(false);
+            x.change_next_pattern(b, cx);
             b.set_transparency = ONE;
         }
         _ => {}
@@ -1465,8 +1317,8 @@ fn on_escape(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     b.act_count += 1;
     if c >= 121 {
         b.entry_cmnd_target(cx);
-        cursor(cx, false);
-        change_next_pattern(b, x, cx);
+        cx.cursor(false);
+        x.change_next_pattern(b, cx);
         return;
     }
     b.move_spd = 0x41f0_0000;
@@ -1495,7 +1347,7 @@ fn on_escape(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     b.move_dirc = geom::set_dirc(b.move_dirc, b.dirc[0], 512);
     let pp = cx.scene.chars[cx.me].pos_p;
     if !valid_area(b, cx, pp) {
-        change_next_pattern(b, x, cx);
+        x.change_next_pattern(b, cx);
         return;
     }
     b.dirc[2] = b.move_dirc;
@@ -1550,7 +1402,7 @@ fn on_to_centre(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.body_hit_sw = 0;
             b.move_dirc = b.center_dirc;
             b.move_spd = 0x42c8_0000;
@@ -1570,7 +1422,7 @@ fn on_to_centre(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         }
         2 => {
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             b.body_hit_sw = 1;
             x.stuck = 0;
             if epitaph(x) {
@@ -1657,7 +1509,7 @@ fn on_leaf_drop(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     }
     let t = b.select_target(cx, 3, FAR);
     cx.scene.chars[me].target_char = t;
-    if target_ok(cx, t) {
+    if cx.target_ok(t) {
         let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
         let sid = cx.data.magus.drop_skills[k];
         if let Some(tp) = t
@@ -1767,7 +1619,7 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
                 // table's address, so the chat stays open.
                 b.lock_player(cx, true);
                 b.erase_cmnd_target(cx);
-                cursor(cx, true);
+                cx.cursor(true);
                 cx.out(Out::Cinema(Some(9)));
                 cx.out(Out::CameraChange(3));
                 x.cam_id = 3;
@@ -1830,7 +1682,7 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             cx.out(Out::CameraChange(1));
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             change_action(b, x, cx, act::NEUTRAL, 3, true);
             cx.out(Out::Cinema(None));
             b.act_proccess += 1;
@@ -1875,7 +1727,7 @@ fn on_rise(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
                 b.move_spd = 0;
                 b.lock_player(cx, true);
                 b.erase_cmnd_target(cx);
-                cursor(cx, true);
+                cx.cursor(true);
                 cx.out(Out::Cinema(Some(10)));
                 cx.out(Out::SeNote { se: 61, note: 36 });
             }
@@ -1958,7 +1810,7 @@ fn on_fall(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
             x.cam_id = 1;
             b.unlock_player();
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.scene.chars[me].pos[2] = 0;
             cx.out(Out::Cinema(None));
             if ls.dropped() == LEAVES {

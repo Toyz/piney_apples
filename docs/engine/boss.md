@@ -649,9 +649,15 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)),
   `Class::Macha` Quarantine's `ccBoss06` ([Macha](boss-macha.md)),
   `Class::Tarvos` its `ccBoss07` ([Tarvos](boss-tarvos.md)).
-- `ccBoss::ExecPatternIndex` calls back into the class (its
-  `ChangeAction`, `ExecPattern`): the `Patterns` trait, with the acts
-  the base's words set in that class's numbering (`BaseActs`).
+- `ccBoss::ExecPatternIndex` and `ChangeNextPattern` call back into the
+  class (its `ChangeAction`, `ExecPatternIndex`, `ExecPattern`,
+  `CheckEpitaph`, its table): the `Patterns` trait, one generic
+  `base_exec_pattern_index` and `base_change_next_pattern`. `BaseActs`
+  holds where the classes' copies parted: the neutral's forbid on an
+  unknown word and two vectors' w lanes.
+- `ccBoss::Main` is building blocks on `BossBase` (`prologue`,
+  `tick_stop`, `lock_party`, `move_`, `forward_and_draw`, and
+  `Cx::pp_count_tick`); each class's `Main` calls them in its own order.
   Each boss's tables come from the build through `BossData`
   (`tables::combat`).
 - `Foe.boss` carries the boss's state.

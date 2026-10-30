@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::blur::Set;
-use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, VF0};
+use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, VF0, word};
 use crate::chara::AffectFunc;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -292,11 +292,6 @@ fn fp(d: f64) -> F {
     (d as f32).to_bits()
 }
 
-/// A table word; outside the table (index -1) the padding before it, 0.
-fn word(tbl: &[i32], i: i32) -> i32 {
-    usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
-}
-
 /// C's `ccRand() % n`.
 fn rand_mod(cx: &mut Cx, n: i32) -> i32 {
     cx.cc.rand() % n
@@ -443,43 +438,13 @@ pub(super) fn main(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
 
 fn frame(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = super::w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = super::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     think(b, x, cx);
     action(b, x, cx);
     mov(b, x, cx);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        let forbid = x.forbid_now.take().unwrap_or(cx.env.menu_forbid);
-        if b.reserve_forbid_menu == 1 && forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
-    x.forbid_now = None;
+    let forbid = x.forbid_now.take().unwrap_or(cx.env.menu_forbid);
+    b.lock_party_as(cx, forbid);
     if b.draw_sw != 0 {
         b.anm_status = i8::from(b.anm.forward());
         b.transparency = x.alpha;

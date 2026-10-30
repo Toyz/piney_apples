@@ -13,7 +13,7 @@ use super::laser::{Refrect, Tera};
 use super::{Gen, Pic, make_fx, manager_pass_x, word};
 use crate::boss::kyvia::{Part, as_me, new_char, plain_boss, set_base_param};
 use crate::boss::{
-    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
+    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
 };
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, M4, V4};
@@ -112,15 +112,6 @@ fn out_from(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
     let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), d);
     let o = geom::apply_matrix(&m, v);
     p2w(cx, geom::vadd(w2p(cx, at), o))
-}
-
-fn cursor(cx: &mut Cx, on: bool) {
-    cx.out(Out::CursorOff(on));
-}
-
-fn free_cam(cx: &mut Cx, pos: V4, view: V4) {
-    cx.out(Out::CamMode { mode: 5 });
-    cx.out(Out::FreeCam { pos, view });
 }
 
 fn cam_back(cx: &mut Cx) {
@@ -288,39 +279,10 @@ fn frame(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
         return;
     }
     let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = w2p(cx, b.center_pos);
-    let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = crate::boss::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = get_dirc(pp, b.center_pos_p);
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
-        }
-        b.move_spd = 0;
-    } else {
-        b.stop_count = 0;
-    }
+    b.prologue(cx);
+    b.tick_stop();
     think(b, x, cx);
-    if b.lock_player != 0 {
-        for m in cx.party.members.into_iter().flatten() {
-            if cx.valid(Some(m)) {
-                cx.affect(m, 5, 32767);
-            }
-        }
-        if b.reserve_forbid_menu == 1 && cx.env.menu_forbid == 0 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: true, chat_except: b.reserve_forbid_chat_except != 0 });
-            b.reserve_forbid_menu = 0;
-            b.reserve_forbid_chat_except = 0;
-        }
-    } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-        cx.out(Out::MenuForbid { on: false, chat_except: false });
-        b.reserve_forbid_menu = 0;
-        b.reserve_forbid_chat_except = 0;
-    }
+    b.lock_party(cx);
     b.move_(cx);
     if b.draw_sw != 0 {
         pre_draw_anm(b, x, cx);
@@ -399,10 +361,6 @@ pub(crate) fn change_action(b: &mut BossBase, x: &mut Third, cx: &mut Cx, n: i16
     }
 }
 
-fn words(cx: &Cx, b: &BossBase) -> Vec<i32> {
-    cx.data.corbenik.words_c(b.pat_tbl).to_vec()
-}
-
 /// `SetPatternMode(m)` (0x003b9b90): 0 the first table, 1 the normal, any
 /// other none; run from its start.
 fn set_pattern_mode(b: &mut BossBase, x: &mut Third, cx: &mut Cx, m: i32) {
@@ -413,28 +371,16 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Third, cx: &mut Cx, m: i32) {
     };
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = words(cx, b);
-    b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
-}
-
-/// `ccBoss::ChangeNextPattern` (QUA gcmn 0x00360da0) through this class.
-fn change_next_pattern(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
-    let tbl = words(cx, b);
-    if word(&tbl, b.pat_index) == -1 {
-        b.pat_index = 0;
-    }
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if b.epitaph != 0 {
-        change_action(b, x, cx, 12, 3, true);
-    } else {
-        change_action(b, x, cx, act::NEUTRAL, 1, true);
-    }
-    b.pat_index = x.exec_pattern_index(b, cx, &tbl, b.pat_index);
+    let tbl = x.words(b, cx.data);
+    b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 impl Patterns for Third {
     const ACTS: BaseActs = super::BASE_ACTS;
+
+    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
+        data.corbenik.words_c(b.pat_tbl)
+    }
 
     fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
         change_action(b, self, cx, n, forbid, af);
@@ -560,7 +506,7 @@ fn on_neutral(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     {
         return;
     }
-    change_next_pattern(b, x, cx);
+    x.change_next_pattern(b, cx);
     b.dirc[2] = geom::set_dirc(b.dirc[2], b.target_dirc, 256);
 }
 
@@ -576,7 +522,7 @@ fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             b.lock_player(cx, false);
             killers_targets(x, cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             crate::fellow::delete_cmnd(cx.scene, me);
             cx.out(Out::DeleteCmnd);
             let pos = cx.pos();
@@ -584,7 +530,7 @@ fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             view[2] = ee::add(view[2], 0x4396_0000);
             let d = b.dirc[2];
             let eye = out_from(cx, pos, d, [0x44fa_0000, 0, 0x4396_0000, ONE]);
-            free_cam(cx, eye, view);
+            cx.free_cam(eye, view);
             x.dead_pos = out_from(cx, pos, d, [0x4248_0000, 0, 0, ONE]);
             x.dead_pos[2] = ee::add(x.dead_pos[2], 0x4396_0000);
             for p in &x.killers {
@@ -662,7 +608,7 @@ fn on_data_drain(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             b.lock_player(cx, false);
             killers_targets(x, cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             x.pause = true;
             cx.out(Out::Cinema(Some(-1)));
             b.act_count = 0;
@@ -692,9 +638,9 @@ fn on_data_drain(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             b.unlock_player();
             killers_targets(x, cx, true);
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.out(Out::Cinema(None));
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -713,7 +659,7 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             b.lock_player(cx, true);
             killers_targets(x, cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.dirc[2] = b.center_dirc;
             let mut d = ee::sub(b.center_dirc, 0x3f49_0fdb);
             if ee::lt(d, NEG_PI) {
@@ -723,7 +669,7 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             }
             let at = eye::dummy_at(&x.body_world, x.dummy);
             let eye_pos = out_from(cx, at, d, [0x44bb_8000, 0, 0xc2c8_0000, ONE]);
-            free_cam(cx, eye_pos, at);
+            cx.free_cam(eye_pos, at);
             cx.out(Out::Corbenik(Pic::Particles { which: Gen::GenerateEye, pos: at }));
             entry_killer(b, x, cx);
             cx.out(Out::SeNote { se: 48, note: 48 });
@@ -765,9 +711,9 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             b.unlock_player();
             killers_targets(x, cx, true);
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cam_back(cx);
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -819,7 +765,7 @@ fn on_wave(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             let ended = x.anm_w.forward();
             cx.out(Out::Corbenik(Pic::Wave { time: x.anm_w.posed, pos }));
             if ended && b.anm_status != 0 {
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
             }
         }
         _ => {}
@@ -853,11 +799,11 @@ fn on_tera_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             let mut view = pos;
             view[2] = ee::add(view[2], 0x4396_0000);
             let eye_pos = out_from(cx, b.target_pos, d2, [0x44bb_8000, 0, 0x4248_0000, ONE]);
-            free_cam(cx, eye_pos, view);
+            cx.free_cam(eye_pos, view);
             b.lock_player(cx, true);
             killers_targets(x, cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             b.body_hit_sw = 0;
             cx.out(Out::Cinema(Some(56)));
             x.pause = true;
@@ -994,10 +940,10 @@ fn on_tera_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             b.unlock_player();
             killers_targets(x, cx, true);
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             cx.out(Out::Cinema(None));
             x.pause = false;
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1040,12 +986,12 @@ fn on_slave_attack(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                 b.act_proccess += 1;
             } else {
                 x.pause = false;
-                change_next_pattern(b, x, cx);
+                x.change_next_pattern(b, cx);
             }
         }
         2 if x.slv_atk_mode == 1 => {
             x.pause = false;
-            change_next_pattern(b, x, cx);
+            x.change_next_pattern(b, cx);
         }
         _ => {}
     }
@@ -1084,7 +1030,7 @@ fn on_wander(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     b.dirc[2] = geom::set_dirc(b.dirc[2], d, 256);
     b.move_dirc = b.dirc[2];
     if c >= 300 {
-        change_next_pattern(b, x, cx);
+        x.change_next_pattern(b, cx);
     }
 }
 
@@ -1110,7 +1056,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             b.lock_player(cx, false);
             killers_targets(x, cx, false);
             b.erase_cmnd_target(cx);
-            cursor(cx, true);
+            cx.cursor(true);
             cx.out(Out::Cinema(Some(58)));
             x.act_pos = cx.pos();
             x.pause = true;
@@ -1118,7 +1064,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             let mut view = b.target_pos;
             view[2] = ee::add(view[2], 0x4348_0000);
             let eye_pos = out_from(cx, b.target_pos, d, [0x447a_0000, 0, 0x4248_0000, ONE]);
-            free_cam(cx, eye_pos, view);
+            cx.free_cam(eye_pos, view);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -1266,7 +1212,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             cam_back(cx);
             killers_targets(x, cx, true);
             b.entry_cmnd_target(cx);
-            cursor(cx, false);
+            cx.cursor(false);
             x.pause = false;
             cx.out(Out::Cinema(None));
             change_action(b, x, cx, act::NEUTRAL, 1, false);
@@ -1312,8 +1258,8 @@ fn calc_tera_laser_pos(x: &mut Third, cx: &mut Cx) {
 /// off the way back from the target), all set off from 1500 behind the
 /// target and 200 up at `v0` slowing to arrive in `n` frames.
 fn setup_refrect_laser_pos(b: &BossBase, x: &mut Third, cx: &mut Cx, v0: F, n: i32) {
-    let radii = cx.data.corbenik.refrect_radii.clone();
-    let heights = cx.data.corbenik.refrect_heights.clone();
+    let radii = &cx.data.corbenik.refrect_radii;
+    let heights = &cx.data.corbenik.refrect_heights;
     let r = |k: usize| radii.get(k).copied().unwrap_or(0);
     let h = |k: usize| heights.get(k).copied().unwrap_or(0);
     for p in &mut x.eyes {

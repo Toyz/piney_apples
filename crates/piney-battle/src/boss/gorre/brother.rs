@@ -150,18 +150,12 @@ pub(super) fn frame(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
         think(gb, gx, k, cx);
         let p = &mut gx.brothers[k];
         mov(&mut p.b.base, &mut p.x, cx);
-        if p.b.base.draw_sw != 0 {
-            p.b.base.anm_status = i8::from(p.b.base.anm.forward());
-            p.b.base.draw(cx);
-        }
+        p.b.base.forward_and_draw(cx);
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
     // Through its `param`: Gorre's, after the drain's 21.
-    if gb.lock_player != 0
-        && let Some(p) = cx.scene.param_mut(me)
-        && p.pp_count > 0
-    {
-        p.pp_count += 1;
+    if gb.lock_player != 0 {
+        cx.pp_count_tick();
     }
     cx.me = old;
 }

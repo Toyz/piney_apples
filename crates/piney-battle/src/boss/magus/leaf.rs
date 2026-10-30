@@ -160,46 +160,15 @@ pub(super) fn main(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus,
         ls.0[k].b.base.calc_real(cx);
         ls.0[k].b.base.calc_target_info(cx);
         let b = &mut ls.0[k].b;
-        if b.base.stop != 0 {
-            b.base.stop_count += 1;
-            if b.base.stop_count >= 61 {
-                b.base.stop_count = 0;
-                b.base.stop = 0;
-            }
-            b.base.move_spd = 0;
-        } else {
-            b.base.stop_count = 0;
-        }
+        b.base.tick_stop();
         think(ls, k, mb, mx, cx);
-        mov(&mut ls.0[k].b.base, cx);
+        // `ccBoss03Leaf::Move` (0x004a4e00): `ccBoss::Move`.
+        ls.0[k].b.base.move_(cx);
         if ls.0[k].b.base.draw_sw != 0 {
             pre_draw_anm(&mut ls.0[k], cx);
             ls.0[k].b.base.draw(cx);
         }
     });
-}
-
-/// `ccBoss03Leaf::Move` (0x004a4e00): `ccBoss::Move`.
-fn mov(b: &mut BossBase, cx: &mut Cx) {
-    let me = cx.me;
-    let mut pp = crate::boss::w2p(cx, cx.scene.chars[me].pos);
-    let spd = b.move_spd;
-    if !geom::eq(0, spd) {
-        pp[0] = ee::add(pp[0], ee::mul(spd, libm::sinf(b.move_dirc)));
-        pp[1] = ee::sub(pp[1], ee::mul(spd, libm::cosf(b.move_dirc)));
-    }
-    pp = geom::vadd(pp, b.move_vector);
-    let mut pos = crate::boss::p2w(cx, pp);
-    if b.body_hit_sw != 0
-        && let Some(mut off) = (cx.collide)(pos)
-    {
-        off[2] = 0;
-        pos = geom::vadd(pos, off);
-        pp = geom::vadd(pp, off);
-    }
-    let ch = &mut cx.scene.chars[me];
-    ch.pos_p = pp;
-    ch.pos = pos;
 }
 
 /// `ccBoss03Leaf::PreDrawAnm` (0x004a5080): the clip forward; bursting,

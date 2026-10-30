@@ -5,11 +5,8 @@
 use piney_data::field::ee;
 
 use super::brother::Msg;
-use super::{
-    CAM_Y, Gorre, ROW, act, change_action, change_next_pattern, cinema_off, cursor, entry_brothers, exec_pattern_index,
-    on_brother, target_ok,
-};
-use crate::boss::{BossBase, Cx, Out, Tbl};
+use super::{CAM_Y, Gorre, ROW, act, change_action, entry_brothers, on_brother};
+use crate::boss::{BossBase, Cx, Out, Patterns, Tbl};
 use crate::event::{Event, Who};
 use crate::item;
 
@@ -51,13 +48,13 @@ pub(super) fn send(b: &mut BossBase, x: &mut Gorre, from: usize, msg: Msg, cx: &
             cx.out(Out::CameraChange(2));
             b.unlock_player();
             entry_brothers(x, cx);
-            cinema_off(cx);
-            return change_next_pattern(b, x, cx);
+            cx.cinema_off();
+            return x.change_next_pattern(b, cx);
         }
         Msg::TornadeSpell => {
             let me = cx.me;
             if let Some(t) = cx.scene.chars[me].target_char
-                && target_ok(cx, Some(t))
+                && cx.target_ok(Some(t))
             {
                 let sid = tornade_skill(cx);
                 let br1 = x.brothers[1].me;
@@ -71,7 +68,7 @@ pub(super) fn send(b: &mut BossBase, x: &mut Gorre, from: usize, msg: Msg, cx: &
         p.x.sent[n] = false;
     }
     if msg == Msg::WaveDone {
-        change_next_pattern(b, x, cx);
+        x.change_next_pattern(b, cx);
     }
 }
 
@@ -139,7 +136,7 @@ fn on_report_affect(b: &mut BossBase, x: &mut Gorre, from: usize, cx: &mut Cx) {
                 b.set_pattern_tbl(Tbl::Super);
                 b.pat_mode = 1;
                 let tbl = cx.data.gorre.words(Tbl::Super).to_vec();
-                b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
+                b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
             }
         }
         _ => {}
@@ -195,7 +192,7 @@ fn fall(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     for k in 0..2 {
         on_brother(x, k, cx, |bb, cx| bb.base.erase_cmnd_target(cx));
     }
-    cursor(cx, true);
+    cx.cursor(true);
     cx.out(Out::MusicFade { t: 30 });
     change_action(b, x, cx, act::DEAD, 2, true);
 }
