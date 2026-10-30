@@ -686,6 +686,11 @@ def run_game(game, case):
             on = gomora_of(m, who) if kind == 1 else core_of(m)
             if s16(m.load(on + 8, 2)) != 0 or m.load(on + 0x1D4, 1) != 0:
                 continue
+            if kind == 3:
+                # The core's act forced (actNum, actProccess, actCount).
+                for off, v in ((0x1A2, p0), (0x1A4, 0), (0x1A6, 0)):
+                    m.store(on + off, 2, v & 0xFFFF)
+                continue
             ty = 7 if kind == 2 else 1
             m.call(ea, (on, kite, ty, p0 & 0xFFFF, p1 & 0xFFFF, 0))
         disc(f)
@@ -1049,6 +1054,16 @@ class Against(unittest.TestCase):
         transDist and never fade (worklog 455)."""
         for k, case in bb.forced_draw_cases(self.game.c, rnd_case, 9320):
             compare(self.game, case, f"camera {k}")
+
+    def test_core_wave(self):
+        """The core's act 13 (kyviaCore::Action's wave, MUT gcmn 0x004f8fc8),
+        which no code of the game's sets: forced, its DrawParts of its own
+        anmw at its own place, and the affects at its frame 25."""
+        cases = (rnd_case(self.game.c, random.Random(7400 + seed)) for seed in range(40))
+        for k, case in enumerate([c for c in cases if c["frames"] >= 700][:2]):
+            case["script"] = sorted(case["script"] + [(250, 3, 0, 13, 0)])
+            frames = compare(self.game, case, f"core wave {k}")
+            self.assertTrue(any(fr["core"][2] == 13 for fr in frames), "the core never waved")
 
     def test_cases(self):
         for seed in range(6):

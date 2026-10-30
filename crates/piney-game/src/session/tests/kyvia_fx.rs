@@ -93,17 +93,30 @@ fn core_of(c: &Combat, me: usize) -> Option<usize> {
 /// turn: the arm, the beams, the meteors (and in the second fight the
 /// thunder). `each` sees every frame.
 pub(super) fn fight(s: &mut Session, frames: u32, each: impl FnMut(&Session, &Frame, u32, &Seen)) -> Vec<Seen> {
-    fight_leaning(s, frames, |_| 128, true, each)
+    fight_leaning(s, frames, |_| 128, hurry, each)
 }
+
+/// The core's time cut short: its damage time at its end.
+pub(super) fn hurry(c: &mut Combat, core: usize, _: u32) {
+    if c.scene.listed(core)
+        && let Some(Class::KyviaCore(x)) =
+            c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+    {
+        x.now_dmg_time = x.now_dmg_time.max(x.dmg_time - 1);
+    }
+}
+
+/// The fight as it runs.
+fn unhurried(_: &mut Combat, _: usize, _: u32) {}
 
 /// [`fight`] with the right stick's x at `rx(i)` on the fight's frame `i`
 /// (128 centred; leant, its y a step down, as straight sideways reads as
-/// angle 0), the core's time cut short only with `hurry`.
-fn fight_leaning(
+/// angle 0), `poke` run on the fight, its core and the frame each frame.
+pub(super) fn fight_leaning(
     s: &mut Session,
     frames: u32,
     rx: impl Fn(u32) -> u8,
-    hurry: bool,
+    mut poke: impl FnMut(&mut Combat, usize, u32),
     mut each: impl FnMut(&Session, &Frame, u32, &Seen),
 ) -> Vec<Seen> {
     let mut pad = Pad::default();
@@ -133,13 +146,7 @@ fn fight_leaning(
         if i >= frames {
             break;
         }
-        if hurry
-            && c.scene.listed(core)
-            && let Some(Class::KyviaCore(x)) =
-                c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
-        {
-            x.now_dmg_time = x.now_dmg_time.max(x.dmg_time - 1);
-        }
+        poke(c, core, i);
         let now = Seen {
             act: c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.base.act_num),
             draws: census.boss_draws,
@@ -256,7 +263,7 @@ fn kyvias_gomoras_bend_through_their_shapes() {
             &mut s,
             6000,
             |_| 128,
-            false,
+            unhurried,
             |_, frame, _, _| {
                 let ms = gomora_morphs(frame, disc, &ccs, base);
                 drawn += u32::from(!ms.is_empty());
@@ -310,7 +317,7 @@ fn kyvias_gomoras_push_each_other_apart() {
             &mut s,
             6000,
             |_| 128,
-            false,
+            unhurried,
             |s, _, _, _| {
                 let gs = gomora_hits(s);
                 listed += u32::from(gs.iter().any(|h| h.sw && h.kind == 0x80 && h.mask == 0x80));
@@ -336,7 +343,7 @@ fn the_stick_turns_kyvias_camera() {
         &mut s,
         3000,
         |i| if (i / 300) % 2 == 0 { 255 } else { 0 },
-        true,
+        hurry,
         |s, _, _, _| {
             let Stage::Area(a) = &s.stage else { return };
             let Some(cam) = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()) else { return };
@@ -368,7 +375,7 @@ fn kyvia_push_and_turn_shots() {
         &mut s,
         2400,
         |i| if (i / 600) % 2 == 0 { 255 } else { 0 },
-        false,
+        unhurried,
         |s, frame, i, now| {
             let pushed = gomora_hits(s).iter().any(|h| h.offset != [0; 4]);
             pushes += u32::from(pushed);
@@ -404,7 +411,7 @@ fn kyvia_gomora_shape_shots() {
             &mut s,
             3000,
             |_| 128,
-            false,
+            unhurried,
             |s, frame, i, now| {
                 let ms = gomora_morphs(frame, disc, &ccs, base);
                 let path = (!ms.is_empty() && i.is_multiple_of(50)).then(|| {

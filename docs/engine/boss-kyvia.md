@@ -122,6 +122,15 @@ a hit shows `effResistantShield` when its skill's type
 (`ccSkillCheckType(affectParam[1])`) is the kind the attribute resists (0
 physical on attribute 0, 1 magic on attribute 1).
 
+`Action`'s act 13 (0x004f8fc8), the core's wave: `ANM_xx11wave` set on its
+own `anmw` (+0x29358), then each frame `_AnimateForward`,
+`SetMatrix_PosRotXYZ(pos, dirc)` of the core and `DrawParts(anmw, 0)`, an
+`EntryAffect(this, 1, 10)` on each member at its frame 25, and act 12 at
+its end. No code of the game's sets act 13 (no `ChangeAction(13)` in
+Kyvia's code, no write of 13 to `actNum`; affect 13 drains, act 11), so
+it is never seen. The harness forces it (`test_core_wave`); until worklog
+530 the port drew it at Kyvia's place at time 0.
+
 ## The body's attacks
 
 `SwitchDeadCheck` (0x004d4a80) reads the core's flags: `kAtkFlg` 1 hurts

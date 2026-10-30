@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-529 entries: audio 43, battle 138, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 127 entries still have open questions - [listed below](#still-open).
+530 entries: audio 43, battle 139, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -541,10 +541,10 @@ The [reference](docs/README.md) says what is true now.
 | 527 | [Boss split, step five: Part<T: PartClass> and Parts<T> for every part's take and put](worklog/0527-boss-split-step-five-part-t-partclass-and-parts-t-for-every.md) | 2026-10-30 | battle |
 | 528 | [Boss split, step six: enum Fx, BossBase::make_fx and one effect pass; on the effect side Mirrored pictures and one sync from one Source](worklog/0528-boss-split-step-six-enum-fx-bossbase-make-fx-and-one-effect.md) | 2026-10-30 | battle |
 | 529 | [Boss split, step seven: the world side by class hooks, a BossDef row a boss, one Picture list, the shared wave and after-image outs](worklog/0529-boss-split-step-seven-the-world-side-by-class-hooks-a.md) | 2026-10-30 | battle |
+| 530 | [Kyvia's core's wave drawn at the core with its own anmw: Out::Wave from act 13, which no game code sets, forced in a harness case and a shot](worklog/0530-kyvia-s-core-s-wave-drawn-at-the-core-with-its-own-anmw-out.md) | 2026-10-30 | battle |
 
 ## Still open
 
-- [529. Boss split, step seven: the world side by class hooks, a BossDef row a boss, one Picture list, the shared wave and after-image outs](worklog/0529-boss-split-step-seven-the-world-side-by-class-hooks-a.md) - whether the game draws Kyvia's core's wave at the core with its own anmw (the code says so; no harness or shot covers...
 - [521. piney-world by subsystem: town, story_map, field, dungeon, chara, camera, event, grunty and sky folders, and the story maps and towns as registries](worklog/0521-piney-world-by-subsystem-town-story-map-field-dungeon-chara.md) - test_town02_rs runs on Infection only (its ROOTTOWN02 layout and statics are Infection's); making it run on the later...
 - [518. Clean-up lift: the Table trait, one table cache indexed by generated IDs, and no accessors or LazyLock statics](worklog/0518-clean-up-lift-the-table-trait-one-table-cache-indexed-by.md) - whether the Outbreak failures of test_evcam_rs, test_evchar_rs and test_demo_rs (the same before this lift) are the...
 - [510. Clean-up section 0, item 6: piney-gen's library returns errors instead of ending the process; the manifest's own mistakes panic](worklog/0510-clean-up-section-0-item-6-piney-gen-s-library-returns.md) - Why work/analysis/carry/out.json and qua.json no longer match what piney-gen carry makes (they differ at 21d97e2 too)...

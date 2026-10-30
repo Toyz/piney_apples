@@ -816,8 +816,11 @@ fn action(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
                             cx.affect(m, 1, 10);
                         }
                     }
+                    // SetMatrix_PosRotXYZ(pos, dirc) and DrawParts(anmw, 0)
+                    // on the core's own anm, at the core.
                     let done = c.x.anm_w.forward();
-                    cx.out(Out::DrawWave);
+                    let (time, pos, dirc) = (c.x.anm_w.posed, cx.scene.chars[c.me].pos, c.b.base.dirc);
+                    cx.out(Out::Wave { who: c.me, time, pos, dirc, scale: ONE });
                     if done {
                         c.b.base.change_action(cx, act::DRAINED_WAIT, 3, true);
                     }

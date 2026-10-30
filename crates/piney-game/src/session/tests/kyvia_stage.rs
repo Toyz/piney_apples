@@ -240,6 +240,54 @@ fn kyvia_attack_shots() {
     });
 }
 
+/// Shots of the core's wave (`kyviaCore::Action`'s act 13, which no code
+/// of the game's sets) to `$PINEY_SHOTS` (/mnt/data/claude/scratch/cubia/
+/// wave): forced on the fight's frame 400, every 2nd frame of its 60,
+/// drawn at the core.
+#[test]
+#[ignore]
+fn kyvia_core_wave_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/cubia/wave".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut e) = in_area_47_dungeon() else { return };
+    for _ in 0..200 {
+        e.step(&still());
+    }
+    e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 9)));
+    let mut gs: Option<piney_gs::Gs> = None;
+    let mut at_core = 0;
+    let f = f32::from_bits;
+    let force = |c: &mut piney_world::combat::Combat, core: usize, i: u32| {
+        let pos = c.scene.chars[core].pos;
+        // At the core's place when its Action drew it (it drifts after).
+        let near = |w: &(u32, [u32; 4], [u32; 4], f32)| (0..3).all(|k| (f(w.1[k]) - f(pos[k])).abs() < 1.0);
+        at_core += c.boss.as_ref().map_or(0, |r| r.waves.iter().filter(|w| near(w)).count());
+        super::kyvia_fx::hurry(c, core, i);
+        if i == 400
+            && let Some(b) = c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut())
+        {
+            (b.base.act_num, b.base.act_proccess, b.base.act_count) = (13, 0, 0);
+        }
+    };
+    super::kyvia_fx::fight_leaning(
+        &mut e.s,
+        461,
+        |_| 128,
+        force,
+        |s, frame, i, _| {
+            if i < 400 || !i.is_multiple_of(2) {
+                return;
+            }
+            let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+            g.set_overlay(Mode::archive(s));
+            g.render(frame);
+            let (w, h) = g.target_size();
+            std::fs::write(format!("{dir}/wave-{i:05}.png"), piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        },
+    );
+    assert!(at_core > 30, "the wave drawn at the core on {at_core} frames");
+}
+
 /// Issue #72's glyphs (`o e a 0 / ¥ = * Y :`): area 47 is a hacked area,
 /// and its generated field flies data bugs (`FIREFLY` hacked,
 /// `EFF_sfzdigi0` trailing `field_eff`'s `TEX_sfzdigi1` glyphs). Fought

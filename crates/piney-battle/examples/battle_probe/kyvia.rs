@@ -449,6 +449,14 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             if !alive {
                 continue;
             }
+            // Kind 3: the core's act forced to `p0` from its start (actNum,
+            // actProccess and actCount written), as the harness writes it.
+            if kind == 3 {
+                if let Some(b) = scene.chars[on].foe_state_mut().and_then(|x| x.boss.as_mut()) {
+                    (b.base.act_num, b.base.act_proccess, b.base.act_count) = (p0, 0, 0);
+                }
+                continue;
+            }
             let mut ev = Events::new();
             let kite = members[0];
             let ty = if kind == 2 { 7 } else { 1 };
@@ -709,7 +717,7 @@ fn kout(o: &Out) -> Option<String> {
         Out::FieldBodyHit { n, on } => format!("[\"gate\",{n},{}]", u8::from(*on)),
         Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) => return None,
         // DrawParts(anmw, 0) at the arm's frame (its place is tesPOS).
-        Out::DrawAnm { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
+        Out::DrawAnm { time, .. } | Out::Wave { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
         Out::AfterImageAnm { frame, pos, dirc, params: e, .. } => format!(
             "[\"afterimage_anm\",{frame},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]",
             v3(pos),
