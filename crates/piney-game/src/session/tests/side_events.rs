@@ -426,7 +426,7 @@ fn side_survey(disc: &str, cases: &[Case], frames: u64) {
         .map(|v| v.split(',').filter_map(|n| n.trim().parse().ok()).collect())
         .unwrap_or_default();
     let god = std::env::var_os("PINEY_SURVEY_GOD").is_some();
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     if !iso.exists() {
         return;
     }
@@ -498,7 +498,7 @@ fn mutation_side_event_survey() {
 
 /// Outbreak's disc, when present.
 fn outbreak() -> Option<PathBuf> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
+    let iso = crate::check_image("outbreak");
     iso.exists().then_some(iso)
 }
 
@@ -742,7 +742,7 @@ fn server_3_black_death_falls_to_blows() {
 /// area 35's dungeon: the session once the room of event point `point`
 /// plays (well into its fade in), taken there as `room_point` goes.
 fn natsume_dungeon(point: i32) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         return None;
     }

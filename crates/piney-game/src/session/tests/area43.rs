@@ -12,7 +12,7 @@ use crate::session::area15::{hold, playing, start};
 /// the party is sent to town 1.
 #[test]
 fn area_43_flies_over_and_sends_the_party_back() {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         return;
     }

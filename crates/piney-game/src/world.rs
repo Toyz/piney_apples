@@ -1579,7 +1579,6 @@ impl Mode for WorldMode {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
 
     use piney_input::{Buttons, Raw};
 
@@ -1625,7 +1624,7 @@ mod tests {
     /// frames, the sound asked for, and the presses (frame, buttons).
     #[allow(clippy::type_complexity)]
     fn play_event_2() -> Option<(WorldMode, u64, Vec<Event>, Vec<(u64, Buttons)>)> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return None;
@@ -1690,7 +1689,7 @@ mod tests {
     /// sounds' inputs (the canals).
     #[test]
     fn mac_anu_starts_its_sound() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -1716,7 +1715,7 @@ mod tests {
     #[test]
     fn new_blades_in_his_hands() {
         use piney_battle::param::SpcParam;
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -1748,7 +1747,7 @@ mod tests {
     #[test]
     fn a_loaded_town_shows_the_equipment_s_added_effects() {
         use piney_battle::param::{SpcParam, cond};
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -1773,7 +1772,7 @@ mod tests {
 
     #[test]
     fn a_new_game_s_save_is_init_then_new_game() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return;
@@ -1792,7 +1791,7 @@ mod tests {
     /// not begun, the task disabled.
     #[test]
     fn a_new_game_reaches_the_world_with_event_1_done() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return;

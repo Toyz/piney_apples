@@ -54,12 +54,23 @@ use winit::window::{Window, WindowId};
 use crate::mode::{Event, Mode, TestCard};
 
 /// A disc as the game opens it: its data files, never its boot executable
-/// ([`Iso::without_executable`]). The suite plays the check images, some
-/// without port data, whose events are read from the executable: there
-/// the disc opens as it is.
+/// ([`Iso::without_executable`]).
 pub(crate) fn open_disc(path: impl AsRef<std::path::Path>) -> piney_data::Result<Iso> {
-    let disc = Iso::open(path)?;
-    Ok(if cfg!(test) { disc } else { disc.without_executable() })
+    Iso::open(path).map(Iso::without_executable)
+}
+
+/// The check image `work/DISC/DISC.iso` (there or not), with the port
+/// data the game reads made beside it as the launcher makes it, when
+/// missing ([`piney_build::image_data`]); one test at a time makes it.
+#[cfg(test)]
+pub(crate) fn check_image(disc: &str) -> PathBuf {
+    static MAKING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    if iso.exists() {
+        let _one = MAKING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        piney_build::image_data(&iso).unwrap_or_else(|e| panic!("{e}"));
+    }
+    iso
 }
 
 /// NTSC vertical blanks a second.

@@ -20,7 +20,7 @@ fn ending(card: PathBuf) -> Option<Session> {
 /// story:`n` on `disc`'s volume (its ending), the desktop's music set to
 /// `dt_bgm` when given, with a card at `card`. None without the disc.
 fn ending_on(disc: &str, n: i32, card: PathBuf, dt_bgm: Option<u8>) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return None;
@@ -324,7 +324,7 @@ const ROLL_MUSIC_SECONDS: f64 = 46_073_124.0 / 4.0 / 48_000.0;
 #[test]
 fn the_staff_roll_draws_from_the_frames_and_the_last_scenes_ccrand() {
     use piney_desktop::staffroll::CcRand;
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         return;
     }

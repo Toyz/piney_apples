@@ -168,7 +168,7 @@ fn magus_flash(s: &Session) -> Option<(i16, i16)> {
 #[test]
 fn magus_flashes_and_its_grows_loop() {
     let Some(mut s) = event_115_session() else { return };
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     let audio = piney_audio::Audio::headless(&iso).unwrap();
     let (mut phases, mut growing, mut held, mut stray) = (BTreeSet::new(), 0u32, 0u32, 0u32);
     let mut grows = 0u32;

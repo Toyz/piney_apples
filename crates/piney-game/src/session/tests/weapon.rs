@@ -52,7 +52,7 @@ fn weapon_shots() {
     use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/weapon/shots".into());
     std::fs::create_dir_all(&dir).unwrap();
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let Ok(mut disc) = Iso::open(&iso) else { return };
     let data = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut gs: Option<piney_gs::Gs> = None;
@@ -154,7 +154,7 @@ fn party_trail_shots() {
     use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/weapon/shots".into());
     std::fs::create_dir_all(&dir).unwrap();
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let Ok(mut disc) = Iso::open(&iso) else { return };
     let data = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut gs: Option<piney_gs::Gs> = None;

@@ -6,7 +6,6 @@
 //! there. The frame-by-frame checks against the game's own `PcMenu` and
 //! `TalkMenu` are tools/test_fieldui_shop_rs.py's `TalkPages`.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use piney_data::archive::Archive;
@@ -35,7 +34,7 @@ struct Run {
 /// The disc's archive, field UI and a fresh save; None without the disc.
 fn open(volume: Volume) -> Option<(Arc<Archive>, FieldUi, SaveState)> {
     let file = piney_data::pack::disc_name(volume).trim_end_matches(".disc");
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{file}/{file}.iso"));
+    let iso = crate::check_image(file);
     if !iso.exists() {
         return None;
     }

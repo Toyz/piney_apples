@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-510 entries: audio 43, battle 130, build 22, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 234, tooling 49, ui 102, video 16, volumes 91, world 145. 124 entries still have open questions - [listed below](#still-open).
+511 entries: audio 43, battle 130, build 23, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 235, tooling 49, ui 102, video 16, volumes 91, world 145. 124 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -522,6 +522,7 @@ The [reference](docs/README.md) says what is true now.
 | 508 | [Clean-up section 0, items 1-3: every caller names its volume's tables (the later volumes' thunder is sound 235), one guarded ccGetDircChg, and the bosses' HP kept in a short as the game keeps it](worklog/0508-clean-up-section-0-items-1-3-every-caller-names-its-volume.md) | 2026-10-29 | world, battle, volumes, test |
 | 509 | [Clean-up section 0, items 4, 5, 7, 8 and 9: the story sprites keyed by file, store groups read once, eemu's bus owned by its system, the field ambient statics carried in the save, the executable guard per disc, the events shared](worklog/0509-clean-up-section-0-items-4-5-7-8-and-9-the-story-sprites.md) | 2026-10-29 | engine, world, script, tooling, test |
 | 510 | [Clean-up section 0, item 6: piney-gen's library returns errors instead of ending the process; the manifest's own mistakes panic](worklog/0510-clean-up-section-0-item-6-piney-gen-s-library-returns.md) | 2026-10-29 | tooling, build |
+| 511 | [The game's discs never serve their executable, in the suite too: the suite's check images get their port data as the launcher makes it](worklog/0511-the-game-s-discs-never-serve-their-executable-in-the-suite.md) | 2026-10-29 | test, build |
 
 ## Still open
 

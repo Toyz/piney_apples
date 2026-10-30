@@ -245,7 +245,7 @@ mod tests {
     /// `DispInfo` (the fixture's lengths and hashes).
     #[test]
     fn event_22_lines_are_the_games() {
-        let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return;

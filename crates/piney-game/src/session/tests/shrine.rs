@@ -24,7 +24,7 @@ const SHRINE: (usize, usize) = (2, 2);
 /// 6's `eventStatus[0] == 1`.
 fn in_area_23() -> Option<Session> {
     use piney_event::ScriptSave;
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     story_session_with(25, |start| {
         let save = &mut start.state.save;
         save.update_flags(25, |f| f | 0xffff);
@@ -783,7 +783,7 @@ const POINT_1: (usize, usize) = (2, 2);
 /// the blocks in `played` marked played.
 fn in_story_dungeon(n: i32, town: i32, area: i32, played: u64, room: (i32, i32)) -> Option<Session> {
     use piney_event::ScriptSave;
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     story_session_with(n, |start| {
         let save = &mut start.state.save;
         save.update_flags(n, |f| f | played);

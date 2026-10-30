@@ -4,8 +4,6 @@
 //! registers what Kite holds, wears and keeps at Elf's Haven, and once
 //! every item is in it gives the desktop items and the NPC goes.
 
-use std::path::PathBuf;
-
 use piney_data::save::{by_id, ext, registry_row};
 use piney_input::{Buttons, Raw};
 use piney_world::entry::Kind;
@@ -27,7 +25,7 @@ fn still(buttons: Buttons) -> Raw {
 /// set, Kite's bag holding `bag` (category, id), and the registry full but
 /// `missing` when `full`. None without the disc.
 fn dun_loireag(bag: &[(i8, i16)], full: bool, missing: &[(i32, i32)]) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         eprintln!("mutation.iso not present; skipped");
         return None;

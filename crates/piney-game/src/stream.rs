@@ -418,7 +418,7 @@ pub(crate) mod tests {
     /// The volume's disc image in `work/`, when there.
     pub(crate) fn work_iso(v: Volume) -> Option<PathBuf> {
         let name = v.title().trim_start_matches(".hack//").to_lowercase();
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{name}/{name}.iso"));
+        let iso = crate::check_image(&name);
         iso.exists().then_some(iso).or_else(|| {
             eprintln!("{name}.iso not present; skipped");
             None

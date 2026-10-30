@@ -3,7 +3,6 @@
 //! two of virus core M), the cores put in, OK, and the area.
 
 use std::f32::consts::PI;
-use std::path::PathBuf;
 
 use piney_fieldui::ctrl::After;
 use piney_fieldui::menus::hack::Resume;
@@ -22,7 +21,7 @@ const ELK: i32 = 10;
 /// `--mode story:19` (Mac Anu after event 18) with area 19 closed again,
 /// in the Word List, and three of core M in Key Items.
 fn story_19() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         eprintln!("infection.iso not present; skipped");
         return None;
@@ -435,7 +434,7 @@ fn hear(a: &piney_audio::Audio, events: Vec<Event>) {
 #[test]
 fn gate_hack_silences_the_town_s_music() {
     let Some(mut s) = story_19() else { return };
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let audio = piney_audio::Audio::headless(&iso).unwrap();
     let mut pad = Pad::default();
     let mut chunk = vec![0i16; 1600];

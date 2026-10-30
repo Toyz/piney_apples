@@ -21,7 +21,7 @@ fn field_area(server: i32, lake: bool) -> Option<[i32; 3]> {
 
 /// [`field_area`] of the first area whose code `pred` takes.
 fn field_area_by(server: i32, lake: bool, pred: impl Fn(&piney_data::area::AreaCode) -> bool) -> Option<[i32; 3]> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let mut disc = Iso::open(&iso).ok()?;
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();
@@ -44,7 +44,7 @@ fn field_area_by(server: i32, lake: bool, pred: impl Fn(&piney_data::area::AreaC
 /// Event 25's start logged in at Mac Anu, the area of `words` made and the
 /// party put in its field, as the gate leaves it (`ChangeArea(1, 0)`).
 fn in_random_field(words: [i32; 3]) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         return None;
     }
@@ -225,7 +225,7 @@ fn breathes(row: i32) -> bool {
 fn breath_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/races/breath".into());
     std::fs::create_dir_all(&dir).unwrap();
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let Ok(mut disc) = Iso::open(&iso) else { return };
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();
@@ -358,7 +358,7 @@ fn breath_shots() {
 #[ignore]
 fn many_fields_fight() {
     let n: usize = std::env::var("PINEY_FIELDS").ok().and_then(|v| v.parse().ok()).unwrap_or(40);
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let Ok(mut disc) = Iso::open(&iso) else { return };
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();

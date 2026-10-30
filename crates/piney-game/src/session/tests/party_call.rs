@@ -5,8 +5,6 @@
 //! `Disp` in the same pass, which must find Kite on the lists and the
 //! screen. The town's runtime answered only for the balloons already up.
 
-use std::path::PathBuf;
-
 use super::*;
 
 /// `charTbl` row 15, a member on every disc.
@@ -17,7 +15,7 @@ const KITE: u32 = 1 << 24;
 /// A new game on `disc` logged in to Mac Anu with BlackRose in the party,
 /// held until the town's tasks have run 30 frames.
 fn mac_anu_with_black_rose(disc: &str) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return None;

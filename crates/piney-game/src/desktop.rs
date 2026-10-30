@@ -1026,7 +1026,7 @@ mod tests {
         use piney_event::ir::{Block, Event as Script, GameText, Op};
         use piney_event::state::ScriptSave as _;
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let iso = root.join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         if !iso.exists() {
             eprintln!("{disc}.iso not present; skipped");
             return;
@@ -1122,7 +1122,7 @@ mod tests {
     /// movie listed, until it plays; with the events so far. None without
     /// the disc.
     fn desktop_at_movie(unlocked: i32) -> Option<(DesktopMode, Pad, Vec<Event>)> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return None;
@@ -1280,7 +1280,7 @@ mod tests {
     #[test]
     fn black_rose_writes_when_friendly() {
         use piney_event::state::{DONE, ScriptSave as _};
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -1317,14 +1317,14 @@ mod tests {
     /// is refused; reading the three mails releases the locks.
     #[test]
     fn new_game_events_run_on_the_desktop() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return;
         }
         let mut disc = Iso::open(iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let iso_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso_path = crate::check_image("infection");
         let mut mode = DesktopMode::new(iso_path, archive, SaveState::fresh(), true, None, false).unwrap();
         // The setup: event 1's pass at phase 0 - streams 2 and 106, skipped
         // with cancel or START; two lines that wait for a press each - then

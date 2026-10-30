@@ -6,8 +6,6 @@
 //! with the bracelet's colours. The towns built straight from
 //! [`crate::world::new_game_state`] once left the boot out.
 
-use std::path::PathBuf;
-
 use super::*;
 
 /// `playTime` (+0x8400), which the desktop counts from its first frame.
@@ -31,7 +29,7 @@ fn title_new_game(disc: &str) -> Option<SaveData> {
 fn the_built_new_game_is_the_title_s() {
     for disc in DISCS {
         let Some(title) = title_new_game(disc) else { continue };
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         let built = crate::world::new_game_state(&mut Iso::open(&iso).unwrap()).unwrap().save;
         let differ: Vec<usize> = (0..title.bytes().len())
             .filter(|&i| !PLAY_TIME.contains(&i) && title.bytes()[i] != built.bytes()[i])
@@ -47,7 +45,7 @@ fn the_built_new_game_is_the_title_s() {
 #[test]
 fn kite_wears_the_bracelet_s_colours_in_a_later_volume_s_town() {
     for disc in DISCS {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         if !iso.exists() {
             eprintln!("{disc}.iso not present; skipped");
             continue;

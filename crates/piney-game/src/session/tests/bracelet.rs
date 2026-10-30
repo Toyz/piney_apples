@@ -3,8 +3,6 @@
 //! (`ccGimRadiator`) at Kite's right hand, the bracelet shining as he says
 //! "The bracelet... it's shining...".
 
-use std::path::PathBuf;
-
 use piney_input::Raw;
 
 use super::*;
@@ -16,7 +14,7 @@ const BLACK_ROSE: i32 = 15;
 /// `eventStatus[0]` 4, the session entering field 27 from Mac Anu
 /// (area 27's `WORLD_MAN`) with BlackRose in the party.
 fn area_27() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         eprintln!("infection.iso not present; skipped");
         return None;

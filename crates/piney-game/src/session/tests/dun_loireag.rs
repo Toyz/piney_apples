@@ -17,7 +17,7 @@ const OTHER_SERVERS: i32 = 61;
 const RANDOM: i32 = 57;
 
 fn disc() -> Option<(PathBuf, Arc<Archive>)> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         eprintln!("infection.iso not present; skipped");
         return None;

@@ -165,7 +165,7 @@ fn skeith_protect_breaks_and_returns_with_pictures() {
 /// area 71's dungeon leaves the game (block 9's `area 5` and scene),
 /// blocks 0-9 played and `eventStatus[0]` 2.
 pub(super) fn event_218_arena() -> Option<Session> {
-    let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
+    let iso = crate::check_image("outbreak");
     if !iso.exists() {
         eprintln!("outbreak.iso not present; skipped");
         return None;
@@ -726,7 +726,7 @@ fn gorre_kerse_shots() {
 #[ignore]
 fn event_218_save_bytes() {
     let Ok(out) = std::env::var("PINEY_SAVE_OUT") else { return };
-    let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
+    let iso = crate::check_image("outbreak");
     if !iso.exists() {
         return;
     }

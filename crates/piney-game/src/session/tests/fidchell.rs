@@ -2,8 +2,6 @@
 //! town 3, as area 73's dungeon leaves the game), the prediction and each
 //! spell and a skill forced in turn; what shows and sounds.
 
-use std::path::PathBuf;
-
 use piney_battle::boss::Class;
 use piney_battle::boss::fidchell::act;
 use piney_input::Raw;
@@ -14,7 +12,7 @@ use super::*;
 /// `eventStatus[0]` 1, the session in field 4 of town 3 with area 73's
 /// `WORLD_MAN`.
 pub(super) fn event_207_arena() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
+    let iso = crate::check_image("outbreak");
     if !iso.exists() {
         eprintln!("outbreak.iso not present; skipped");
         return None;

@@ -4,8 +4,6 @@
 //! default 4, Lia Fail; `PINEY_DISC=quarantine` for town 5; shots under
 //! `/mnt/data/claude/scratch/towns/shots`).
 
-use std::path::PathBuf;
-
 use piney_input::{Buttons, Raw};
 
 use super::*;
@@ -19,7 +17,7 @@ fn still(buttons: Buttons) -> Raw {
 fn town_shots() {
     use piney_event::host::PcCommand;
     let disc = std::env::var("PINEY_DISC").unwrap_or_else(|_| "infection".into());
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(&disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return;
@@ -83,7 +81,7 @@ fn town_shots() {
 fn pc_menu_shot() {
     use piney_world::entry::{Kind, Npc};
     let disc = std::env::var("PINEY_DISC").unwrap_or_else(|_| "infection".into());
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(&disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return;

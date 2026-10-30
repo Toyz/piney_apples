@@ -1,8 +1,6 @@
 //! Event 22 (PIRO02) in Mac Anu: Piros drinks Mia's potion, and the
 //! event's `piros_colour` turns him orange ([`crate::piros`]).
 
-use std::path::PathBuf;
-
 use piney_input::{Buttons, Raw};
 
 use super::*;
@@ -22,7 +20,7 @@ fn story_22_in_mac_anu() -> Option<Session> {
 /// the event task recording its blocks.
 fn story_in_mac_anu(n: i32, played: u64) -> Option<Session> {
     use piney_event::ScriptSave;
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         eprintln!("infection.iso not present; skipped");
         return None;
@@ -175,7 +173,7 @@ fn event_22_shot() {
 /// potion drunk in the town: the tint held).
 fn story_22_in_area_31(dungeon: bool) -> Option<Session> {
     use piney_world::area::{Scene, kind};
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         eprintln!("infection.iso not present; skipped");
         return None;
@@ -742,7 +740,7 @@ fn piros_menu_shot() {
     let Some((mut s, _)) = mac_anu_with_piros() else { return };
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/spcmenu".into());
     std::fs::create_dir_all(&dir).unwrap();
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
     let mut pad = Pad::default();

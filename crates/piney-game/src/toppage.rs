@@ -221,7 +221,7 @@ mod tests {
     /// `eventAreaInfo` record) and marked on its server.
     #[test]
     fn the_boards_keyword_announcements() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return;

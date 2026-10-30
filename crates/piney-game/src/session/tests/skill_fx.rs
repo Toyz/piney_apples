@@ -49,7 +49,7 @@ impl Cast {
 /// Drain's rows (2-5) are the drain menu's, which owns the camera: asked
 /// for bare they leave the event camera on. None without the disc.
 fn survey(by: Option<i32>, sids: impl IntoIterator<Item = i32>) -> Option<Vec<(i32, Cast)>> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let mut disc = Iso::open(&iso).ok()?;
     let data = Archive::new(disc.read_path("DATA/DATA.BIN").ok()?).ok()?;
     let assets = Assets::read(&data, Volume::Inf).ok()?;

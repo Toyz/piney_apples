@@ -31,7 +31,7 @@ pub(super) fn lake_areas(server: i32, types: &[u8]) -> Vec<[i32; 3]> {
 /// The first word triple for each dungeon type of `types` that makes a
 /// random area on `server` of field type 4 (`lake`) or not.
 fn areas_where(server: i32, types: &[u8], lake: bool) -> Vec<[i32; 3]> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let mut disc = Iso::open(&iso).unwrap();
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();
@@ -60,7 +60,7 @@ fn areas_where(server: i32, types: &[u8], lake: bool) -> Vec<[i32; 3]> {
 /// room, as the field's entrance leaves it (`ChangeArea(2, 0)`). None
 /// without the disc.
 pub(super) fn in_random_dungeon(town: i32, words: [i32; 3]) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         return None;
     }
@@ -279,7 +279,7 @@ fn dressed_room_shots() {
 /// area on `server` of field type 4 with bgnum 2: a lake by night
 /// (`WORLD_MAN::GetTime` 2).
 fn night_lake(server: i32) -> Option<[i32; 3]> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let mut disc = Iso::open(&iso).ok()?;
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();
@@ -462,7 +462,7 @@ fn the_spring_of_myst_takes_an_item() {
 #[ignore]
 fn many_dungeons_walk() {
     let n: usize = std::env::var("PINEY_DUNGEONS").ok().and_then(|v| v.parse().ok()).unwrap_or(16);
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let Ok(mut disc) = Iso::open(&iso) else { return };
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();

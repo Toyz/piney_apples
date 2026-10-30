@@ -4,8 +4,6 @@
 //! grown Grunty (the menu's constructor counts them, MUT gcmn 0x0053a394)
 //! and mail 324, which tells of the race, has been read.
 
-use std::path::PathBuf;
-
 use piney_input::{Buttons, Raw};
 use piney_world::entry::Kind;
 
@@ -46,7 +44,7 @@ impl Frames for Session {
 /// A new Mutation game logged in to Dun Loireag, its three pens holding
 /// `pens` grown Grunties and mail 324 in state `mail`. None without the disc.
 fn dun_loireag(pens: usize, mail: u8) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         eprintln!("mutation.iso not present; skipped");
         return None;
@@ -610,7 +608,7 @@ impl Frames for Ear {
 /// the flags are taken, for each rank. Before the fix a box's OK cut it.
 #[test]
 fn mutations_race_music_lasts_the_results() {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     let bgm = piney_data::sound::tables_of(piney_data::volume::Volume::Mut).bgm;
     for want in [1i8, 3, 4, 0] {
         let Some(s) = dun_loireag(3, 4) else { return };

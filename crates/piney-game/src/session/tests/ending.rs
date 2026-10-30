@@ -48,7 +48,7 @@ fn event_314_plays_through_field_126() {
 #[ignore]
 fn event_314_save_bytes() {
     let Ok(out) = std::env::var("PINEY_SAVE_OUT") else { return };
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/quarantine/quarantine.iso");
+    let iso = crate::check_image("quarantine");
     if !iso.exists() {
         return;
     }

@@ -1,7 +1,7 @@
 //! Members who leave by an event's `pc_act 5` outside a town: event 18's
 //! end in area 19's dungeon (issue #16), Mutation's event 162's in area
 //! 65's with its swirls (issue #67).
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use piney_event::host::PcCommand;
 use piney_event::state::ScriptSave as _;
@@ -92,7 +92,7 @@ fn portal(w: &piney_world::field_world::FieldWorld) -> Option<[u32; 4]> {
 /// (a face with no name in town, nobody in the field).
 #[test]
 fn event_18_leaves_kite_alone() {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let Some(mut s) = event_18_at_point_1(&iso) else { return };
     assert_eq!(party(&s).0, [0, ELK, MIA]);
     s.console("god");
@@ -140,7 +140,7 @@ fn event_18_leaves_kite_alone() {
 #[test]
 fn piros_along_plays_his_field_music() {
     use crate::piros::PIROS;
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let Some(mut s) = story_session_on("infection", 18, |start| {
         let save = &mut start.state.save;
         for at in [offset::PARTY_MEMBER_FLAG, offset::PARTY_MEMBER_CALL] {
@@ -180,7 +180,7 @@ const MOONSTONE: i32 = 7;
 /// dungeon's portals are counted closed (`mcNum` 0, as clearing them all
 /// leaves it), so block 7 takes the room again and block 8 plays the end.
 fn event_162_at_its_end() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     story_session_on("mutation", 104, |start| {
         for d in [155, 157, 159] {
             start.bring_forward(d);

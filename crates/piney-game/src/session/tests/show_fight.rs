@@ -4,8 +4,6 @@
 //! but maybe he needs some help?"). The monster's weapon flashes and the
 //! fight's hit marks belong on the fight, never on Kite.
 
-use std::path::PathBuf;
-
 use piney_draw::{Cmd, PrimKind};
 use piney_input::{Buttons, Raw};
 
@@ -32,7 +30,7 @@ struct Shot {
 /// the camera turns to Kite and left up after, each frame recorded and
 /// handed to `each`.
 fn the_show(hold: u64, mut each: impl FnMut(&Session, &Frame, u64)) -> Option<Vec<Shot>> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     let case = MUT_CASES.iter().find(|c| c.event == 155)?;
     let mut shots = Vec::new();
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };

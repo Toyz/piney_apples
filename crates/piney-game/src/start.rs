@@ -359,7 +359,7 @@ mod tests {
     use super::*;
 
     fn iso() -> Option<PathBuf> {
-        let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let p = crate::check_image("infection");
         p.exists().then_some(p)
     }
 

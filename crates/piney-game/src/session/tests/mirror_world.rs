@@ -78,7 +78,7 @@ fn still() -> piney_input::Raw {
 /// `WORLD_MAN`: event 115 done and 163's blocks 0 and 1 played (the mail,
 /// the gate's words), as the Chaos Gate and the dungeon leave them.
 fn in_area_66_dungeon(disc: &str) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return None;
@@ -189,7 +189,7 @@ fn fields_66_and_91_are_their_maps() {
     for (disc, field, class) in
         [("mutation", 66, Class::Mirror), ("quarantine", 66, Class::Mirror), ("outbreak", 91, Class::Whale)]
     {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         if !iso.exists() {
             continue;
         }
@@ -298,7 +298,7 @@ fn mirror_world_shots() {
 /// Mutation logged in to Dun Loireag (Theta) after event 115, its tasks
 /// run 100 frames (its clouds draw from `fieldrand`).
 fn in_dun_loireag() -> Option<(Session, &'static piney_data::area::AreaTables)> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         eprintln!("mutation.iso not present; skipped");
         return None;

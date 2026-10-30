@@ -105,7 +105,7 @@ fn npc_entries() -> Vec<(Volume, u16, usize, Area, i16, i16)> {
     let mut out = Vec::new();
     for volume in Volume::ALL {
         let file = piney_data::pack::disc_name(volume).trim_end_matches(".disc");
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{file}/{file}.iso"));
+        let iso = crate::check_image(file);
         if !iso.exists() {
             eprintln!("{file}.iso not present; skipped");
             continue;

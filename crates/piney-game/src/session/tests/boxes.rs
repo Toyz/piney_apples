@@ -21,7 +21,7 @@ fn in_area_18() -> Option<Session> {
 /// Event `event`'s start with the party put in story area `area`'s first
 /// dungeon, as Mac Anu's gate (server 0) and the field's entrance leave it.
 fn in_story_dungeon(event: i32, area: i32) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     story_session_with(event, |start| {
         let save = &mut start.state.save;
         save.set_u8(offset::LAST_TOWN, 0);

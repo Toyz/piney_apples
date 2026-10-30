@@ -3,7 +3,6 @@
 //! `entry 7 0` for the entry control's set-up.
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 
 use piney_input::{Buttons, Raw};
 use piney_world::field_world::FxCensus;
@@ -12,7 +11,7 @@ use super::*;
 
 /// The arena with the boss's entry, and the disc's archive.
 fn arena() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         eprintln!("infection.iso not present; skipped");
         return None;
@@ -136,7 +135,7 @@ fn skeith_fights_in_its_arena() {
 /// is still area 27's.
 #[test]
 fn skeith_plays_its_own_music() {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         return;
     }
@@ -293,7 +292,7 @@ pub(super) fn event_30_arena() -> Option<Session> {
 /// [`event_30_arena`] entered from area `prev` (2: area 27's dungeon, the
 /// player's way in).
 fn event_30_arena_from(prev: i32) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         return None;
     }
@@ -1038,7 +1037,7 @@ fn drain_side_effect_shots() {
 /// (`EVENTAREAB0`) as area 46's last door leaves the game, blocks 0-16
 /// played and `eventStatus[0]` 1 (block 4's `status_set 0 1`).
 pub(super) fn event_107_arena() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         return None;
     }
@@ -1225,7 +1224,7 @@ fn innis_drained_through_the_menus() {
 /// was never read), blocks 0-20 played and `eventStatus[0]` 1 (block 17's
 /// `set status`).
 fn event_108_disc() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         return None;
     }
@@ -1325,7 +1324,7 @@ fn event_108_ends_with_kyvia() {
 /// takes the party to field 3 (`EVENTAREAB0`), where block 22 makes Magus
 /// (`entry 7 2`, `battle_ready`).
 pub(super) fn event_115_session() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         return None;
     }

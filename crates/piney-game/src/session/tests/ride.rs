@@ -20,7 +20,7 @@ fn give_flute(save: &mut piney_data::save::SaveData, server: i32) {
 /// The first word triple in the tables' order that makes a random area on
 /// `server` whose field is not a lake's (or the special types).
 fn field_words(disc: &str, server: i32) -> Option<[i32; 3]> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     let mut disc = Iso::open(&iso).ok()?;
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();
@@ -50,7 +50,7 @@ pub(super) fn in_field() -> Option<(Session, i32)> {
 /// alone in a random field of its server, with the flute (no other key
 /// item) and a Grunty grown in pen 1.
 fn new_game_in_field(disc_name: &str) -> Option<(Session, i32)> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc_name}/{disc_name}.iso"));
+    let iso = crate::check_image(disc_name);
     if !iso.exists() {
         eprintln!("{disc_name}.iso not present; skipped");
         return None;
@@ -83,7 +83,7 @@ fn new_game_in_field(disc_name: &str) -> Option<(Session, i32)> {
 
 /// [`in_field`] on disc `disc` from story event `event`'s start.
 pub(super) fn in_field_on(disc_name: &str, event: i32) -> Option<(Session, i32)> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc_name}/{disc_name}.iso"));
+    let iso = crate::check_image(disc_name);
     if !iso.exists() {
         eprintln!("{disc_name}.iso not present; skipped");
         return None;
@@ -327,7 +327,7 @@ fn ride_shots() {
         Stage::Area(_) | Stage::World(_) => Mode::archive(&s),
         _ => None,
     };
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let mut disc = Iso::open(&iso).unwrap();
     let data = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive.unwrap_or(data))).unwrap();

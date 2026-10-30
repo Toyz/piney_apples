@@ -4,8 +4,6 @@
 //! once a session, so every ranch after the first listened at the first
 //! town's breeder.
 
-use std::path::PathBuf;
-
 use piney_input::{Buttons, Raw};
 
 use super::*;
@@ -88,7 +86,7 @@ impl Ear {
 #[test]
 fn every_ranch_plays_the_breeders_tune() {
     for (disc, crisis) in [("mutation", false), ("outbreak", true), ("quarantine", true)] {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         if !iso.exists() {
             eprintln!("{disc}.iso not present; skipped");
             continue;

@@ -3031,7 +3031,7 @@ fn supplies(s: &mut Session) {
 /// autopilot, the survey's aids on.
 fn whole_story(disc: &str) {
     let frames: u64 = std::env::var("PINEY_SURVEY_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(2_000_000);
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     let Some(volume) = Iso::open(&iso).ok().and_then(|mut d| d.volume().ok()) else { return };
     let story = crate::start::story(volume);
     // The first event a story start can be made at (Infection's 1 and 2 are
@@ -3189,7 +3189,7 @@ fn whole_story(disc: &str) {
 fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
     let frames: u64 = std::env::var("PINEY_SURVEY_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(4000);
     for n in events {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         if !iso.exists() {
             return;
         }
@@ -4164,7 +4164,7 @@ fn after_a_fight_shots() {
     let Some((mut s, mut f)) = story_to_field(0) else { return };
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/afterfight".into());
     std::fs::create_dir_all(&dir).unwrap();
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
     let mut log = Vec::new();
@@ -4238,7 +4238,7 @@ fn after_a_fight_shots() {
 /// 21 goes on to the arena, field 3.
 #[test]
 fn event_115_field_13_talks_to_six() {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         return;
     }

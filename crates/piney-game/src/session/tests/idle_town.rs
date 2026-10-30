@@ -5,8 +5,6 @@
 //! Event NPC's status set (the town at its fullest). The panic the player
 //! met is a lost device (worklog 408), not a frame grown too big.
 
-use std::path::PathBuf;
-
 use super::*;
 
 /// Carmina Gadelica, `game.town` 2.
@@ -19,7 +17,7 @@ const ITEM_COMPLETE: usize = offset::EVENT_STATUS + 52;
 /// A new game on `disc` logged in to Carmina Gadelica, its three pens
 /// holding grown Grunties, the race's mail read and the Event NPC there.
 fn in_carmina_gadelica(disc: &str) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return None;

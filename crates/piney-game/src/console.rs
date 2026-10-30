@@ -614,7 +614,7 @@ mod tests {
     use super::*;
 
     fn fonts() -> Option<Fonts> {
-        let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         let mut disc = piney_data::iso::Iso::open(&iso).ok()?;
         let archive = piney_data::archive::Archive::new(disc.read_path("DATA/DATA.BIN").ok()?).ok()?;
         piney_desktop::assets::read_fonts(disc.volume().ok()?, &archive).ok()
@@ -788,7 +788,7 @@ mod tests {
     #[test]
     #[ignore]
     fn console_picture() {
-        let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         let mut disc = piney_data::iso::Iso::open(&iso).unwrap();
         let archive = piney_data::archive::Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap();
         let fonts = piney_desktop::assets::read_fonts(disc.volume().unwrap(), &archive).unwrap();

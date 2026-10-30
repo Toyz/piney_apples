@@ -20,7 +20,7 @@ const LYING: i16 = 10;
 /// Story 19's save (Mia's and Elk's addresses given) in story area 14's
 /// field with Mia and Elk in the party, once the field plays.
 pub(super) fn field_with_mia_and_elk() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let mut s = story_session_on("infection", 19, |start| {
         let save = &mut start.state.save;
         for at in [offset::PARTY_MEMBER_FLAG, offset::PARTY_MEMBER_CALL] {

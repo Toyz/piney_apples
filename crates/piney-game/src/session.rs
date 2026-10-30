@@ -1469,7 +1469,7 @@ mod tests {
 
     /// A session on the disc extracted as `work/<disc>/<disc>.iso`.
     fn session_on(disc: &str, scripts: bool, card: Option<PathBuf>) -> Option<Session> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         if !iso.exists() {
             eprintln!("{disc}.iso not present; skipped");
             return None;
@@ -1558,7 +1558,7 @@ mod tests {
             // PINEY_SURVEY_BUILD=DIR: the disc as a build keeps it.
             let iso = match std::env::var_os("PINEY_SURVEY_BUILD") {
                 Some(dir) => PathBuf::from(dir).join(format!("{disc}.disc")),
-                None => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso")),
+                None => crate::check_image(disc),
             };
             let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
             let mut s = Session::new(iso.clone(), archive, true, Some(empty_card()), false).unwrap();
@@ -1612,7 +1612,7 @@ mod tests {
         // PINEY_SURVEY_BUILD=DIR: the disc as a build keeps it.
         let iso = match std::env::var_os("PINEY_SURVEY_BUILD") {
             Some(dir) => PathBuf::from(dir).join("infection.disc"),
-            None => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso"),
+            None => crate::check_image("infection"),
         };
         if !iso.exists() {
             return;
@@ -1704,7 +1704,7 @@ mod tests {
     /// change a menu makes to the save goes into the file.
     #[test]
     fn options_kept_across_the_parts() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -3308,7 +3308,7 @@ mod tests {
     /// [`story_to_field`], `each` seeing the session after every frame in
     /// the field.
     fn story_to_field_with(frames: u64, mut each: impl FnMut(&Session)) -> Option<(Session, u64)> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return None;
@@ -3503,7 +3503,7 @@ mod tests {
     #[test]
     #[ignore]
     fn event_3_map_presses() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -3925,7 +3925,7 @@ mod tests {
     #[test]
     fn town_jumps_keep_the_music() {
         let Some((mut s, mut f)) = story_to_field(0) else { return };
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         let audio = piney_audio::Audio::headless(&iso).unwrap();
         let mut log = Vec::new();
         story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
@@ -5333,7 +5333,7 @@ mod tests {
         let Ok(dir) = std::env::var("PINEY_SHOTS") else { return };
         let every: u64 = std::env::var("PINEY_EVERY").ok().and_then(|v| v.parse().ok()).unwrap_or(5);
         let Some((mut s, mut f)) = story_to_field(0) else { return };
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
@@ -5398,7 +5398,7 @@ mod tests {
     #[ignore]
     fn event_3_shots() {
         let Ok(dir) = std::env::var("PINEY_SHOTS") else { return };
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -5466,7 +5466,7 @@ mod tests {
             let Some((mut s, mut f)) = story_to_field(0) else { return };
             let mut log = Vec::new();
             story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
-            let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+            let iso = crate::check_image("infection");
             let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
             let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
             let mut pad = Pad::default();
@@ -5639,7 +5639,7 @@ mod tests {
         let mut cast = false;
         let shots = std::env::var("PINEY_SHOTS").ok();
         let mut gs = shots.as_ref().map(|_| {
-            let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+            let iso = crate::check_image("infection");
             let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
             piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap()
         });
@@ -5861,7 +5861,7 @@ mod tests {
     #[test]
     fn mutation_skill_from_the_menus() {
         use piney_battle::entry::Kind;
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+        let iso = crate::check_image("mutation");
         if !iso.exists() {
             return;
         }
@@ -5993,7 +5993,7 @@ mod tests {
                 return;
             }
             let gs = gs.get_or_insert_with(|| {
-                let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+                let iso = crate::check_image("infection");
                 let mut disc = Iso::open(&iso).unwrap();
                 let data = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
                 piney_gs::Gs::headless(piney_gs::Assets::new(Mode::archive(s).unwrap_or(data))).unwrap()
@@ -6089,7 +6089,7 @@ mod tests {
     #[ignore]
     fn event_4_shots() {
         let Ok(dir) = std::env::var("PINEY_SHOTS") else { return };
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -6189,7 +6189,7 @@ mod tests {
     #[test]
     #[ignore]
     fn event_3_fight_presses() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -6293,7 +6293,7 @@ mod tests {
     /// row), as the lakes' dungeon types (8, 9) choose it.
     #[test]
     fn a_lake_entered_from_town_is_its_field() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -6356,7 +6356,7 @@ mod tests {
     #[test]
     fn a_lake_keeps_both_its_dungeons() {
         use piney_world::evarea::Kept;
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
         }
@@ -6727,7 +6727,7 @@ mod tests {
         let Ok(dir) = std::env::var("PINEY_SHOTS") else { return };
         let walk: u64 = std::env::var("PINEY_WALK").ok().and_then(|v| v.parse().ok()).unwrap_or(150);
         let Some((mut s, _)) = story_4_first_room() else { return };
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
@@ -7004,7 +7004,7 @@ mod tests {
     fn story_4_shots() {
         let Ok(dir) = std::env::var("PINEY_SHOTS") else { return };
         let Some(mut s) = story_session(4) else { return };
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
@@ -7343,7 +7343,7 @@ mod tests {
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return None;
@@ -7386,7 +7386,7 @@ mod tests {
 
     /// [`story_session_with`] on the disc `disc` (`work/DISC/DISC.iso`).
     fn story_session_on(disc: &str, n: i32, prepare: impl FnOnce(&mut crate::start::Start)) -> Option<Session> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         if !iso.exists() {
             return None;
         }
@@ -7555,7 +7555,7 @@ mod tests {
     /// should, without the story before it playing again.
     fn starts_open_their_event(disc: &str) {
         use crate::start::{POINTS, Place};
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+        let iso = crate::check_image(disc);
         let Some(volume) = Iso::open(&iso).ok().and_then(|mut d| d.volume().ok()) else { return };
         let story = crate::start::story(volume);
         let mut checked = 0;
@@ -7835,7 +7835,7 @@ mod area15 {
     use super::*;
 
     pub(super) fn disc() -> Option<(PathBuf, Arc<Archive>)> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
             return None;

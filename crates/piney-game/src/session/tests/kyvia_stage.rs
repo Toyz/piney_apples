@@ -2,8 +2,6 @@
 //! Kyvia's (Cubia's) first fight. The dungeon's last door is
 //! `ChangeArea(1, 9)` with area 47's `WORLD_MAN` still in place.
 
-use std::path::PathBuf;
-
 use piney_input::Raw;
 
 use super::*;
@@ -54,7 +52,7 @@ fn in_area_47_dungeon() -> Option<Ear> {
 /// Event `n` of `disc` in area 47's dungeon, its blocks below `block`
 /// (the one that makes Kyvia) played and `eventStatus[0]` 1.
 fn in_area_47_dungeon_of(disc: &str, n: i32, block: u32) -> Option<Ear> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return None;

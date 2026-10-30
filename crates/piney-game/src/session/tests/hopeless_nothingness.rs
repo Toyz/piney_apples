@@ -15,7 +15,7 @@ use super::*;
 /// disc; None without it.
 fn in_field_27_dungeon(volume: Volume) -> Option<Session> {
     let file = piney_data::pack::disc_name(volume).trim_end_matches(".disc");
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{file}/{file}.iso"));
+    let iso = crate::check_image(file);
     if !iso.exists() {
         eprintln!("{file}.iso not present; skipped");
         return None;

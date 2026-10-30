@@ -4,7 +4,6 @@
 //! party, and the Chaos Gate's Word List to area 15 with her.
 
 use std::f32::consts::PI;
-use std::path::PathBuf;
 
 use piney_event::ScriptSave;
 use piney_input::{Buttons, Raw};
@@ -17,7 +16,7 @@ const BLACKROSE: i32 = 15;
 
 /// `--mode story:11`'s session, the event task recording its blocks.
 fn story_11() -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     if !iso.exists() {
         eprintln!("infection.iso not present; skipped");
         return None;
@@ -33,7 +32,7 @@ fn story_11() -> Option<Session> {
 /// resumed in its town on a new boot's event task, as the title's Load
 /// leaves it.
 fn from_card(file: &str) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let iso = crate::check_image("infection");
     let bytes = std::fs::read(file).ok()?;
     let mut disc = Iso::open(&iso).ok()?;
     let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());

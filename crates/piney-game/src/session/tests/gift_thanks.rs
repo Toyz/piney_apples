@@ -7,7 +7,6 @@
 //! The frame-by-frame checks against the game's own `PresentMenu` are
 //! tools/test_fieldui_talk_rs.py's `GiftPages`.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use piney_data::archive::Archive;
@@ -37,7 +36,7 @@ impl Run {
     /// the disc.
     fn new(volume: Volume) -> Option<Run> {
         let file = piney_data::pack::disc_name(volume).trim_end_matches(".disc");
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{file}/{file}.iso"));
+        let iso = crate::check_image(file);
         if !iso.exists() {
             return None;
         }

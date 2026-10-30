@@ -4,7 +4,6 @@
 //! on each other and their shapes, and the stick's turn of the camera.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 
 use piney_battle::boss::Class;
 use piney_input::{Buttons, Raw};
@@ -31,7 +30,7 @@ pub(super) fn on_the_disc_in(
     field: i32,
     status: u8,
 ) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let iso = crate::check_image(disc);
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
         return None;

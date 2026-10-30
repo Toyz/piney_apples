@@ -49,7 +49,7 @@ pub(super) const EVENT_313_THIRD: Arena =
 /// The event in its arena with Kite and `members` as a player calls them
 /// before the gate.
 pub(super) fn arena_session(a: &Arena, members: &[i32]) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/quarantine/quarantine.iso");
+    let iso = crate::check_image("quarantine");
     if !iso.exists() {
         return None;
     }

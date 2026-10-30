@@ -5,8 +5,6 @@
 //! same town keeps the turned marker; going to another town and back reads
 //! the file again, and the marker is the disc's.
 
-use std::path::PathBuf;
-
 use piney_data::volume::Volume;
 
 use super::*;
@@ -19,7 +17,7 @@ const TURNED: [(u8, i32, &str, i16); 2] = [(2, 177, "DMY_marker_ev01", 24576), (
 /// A new game at town `town`'s gate on Mutation with ITEM COMPLETE's status
 /// set.
 fn in_town(town: u8) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let iso = crate::check_image("mutation");
     if !iso.exists() {
         eprintln!("mutation.iso not present; skipped");
         return None;
