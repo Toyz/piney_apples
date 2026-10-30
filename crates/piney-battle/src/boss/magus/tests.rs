@@ -102,7 +102,7 @@ impl Fight {
         self.count += 1;
         let me = self.me;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        let mut out = b.take_pending();
+        let mut out = b.base.take_pending();
         out.extend(self.with_cx(|cx| {
             b.main(cx);
             std::mem::take(&mut cx.out)
@@ -167,13 +167,13 @@ fn stands_behind_kite_with_twelve_leaves_off_the_lists() {
     assert_eq!(leaves.len(), LEAVES);
     for &l in &leaves {
         assert!(!f.scene.listed(l));
-        assert_eq!(f.leaf(l).0.exit, 1);
-        assert_eq!(f.leaf(l).0.act_num, leaf_act::NEUTRAL);
+        assert_eq!(f.leaf(l).0.base.exit, 1);
+        assert_eq!(f.leaf(l).0.base.act_num, leaf_act::NEUTRAL);
     }
     assert_eq!(f.magus().reserve_leaf_drop, 1);
     assert_eq!(f.magus().dmg_count, 100);
     f.frame();
-    assert_eq!(f.boss().act_num, act::LEAF_DROP, "the first neutral drops the leaves");
+    assert_eq!(f.boss().base.act_num, act::LEAF_DROP, "the first neutral drops the leaves");
 }
 
 #[test]
@@ -182,9 +182,9 @@ fn a_dropped_leaf_lands_on_the_lists_and_counts_down() {
     let leaves = f.leaves();
     let l0 = leaves[0];
     f.until(200, |f| f.leaf(l0).1.drop != 0);
-    assert_eq!(f.leaf(l0).0.act_num, leaf_act::DROP);
+    assert_eq!(f.leaf(l0).0.base.act_num, leaf_act::DROP);
     assert_eq!(f.scene.chars[l0].pos[2], 0, "on the ground under its place");
-    f.until(100, |f| f.leaf(l0).0.act_num == leaf_act::COUNT_DOWN);
+    f.until(100, |f| f.leaf(l0).0.base.act_num == leaf_act::COUNT_DOWN);
     assert!(f.scene.listed(l0), "landed: on the lists");
     assert_eq!(f.leaf(l0).1.exp_cntr, 450);
 }
@@ -196,9 +196,9 @@ fn a_leaf_hit_to_death_fades_and_goes() {
     f.until(400, |f| f.scene.listed(l0));
     f.affect_on(l0, 1, 30000);
     assert_eq!(f.scene.chars[l0].hp, 0);
-    assert_eq!(f.leaf(l0).0.act_num, leaf_act::DIE);
-    let outs = f.until(60, |f| f.leaf(l0).0.exit != 0);
-    assert_eq!(f.leaf(l0).0.exit, 1);
+    assert_eq!(f.leaf(l0).0.base.act_num, leaf_act::DIE);
+    let outs = f.until(60, |f| f.leaf(l0).0.base.exit != 0);
+    assert_eq!(f.leaf(l0).0.base.exit, 1);
     assert!(!f.scene.listed(l0));
     assert!(outs.iter().any(|o| matches!(o, Out::Effect { kind: EffKind::LeafRing, .. })));
 }
@@ -209,13 +209,13 @@ fn a_leaf_left_alone_bursts_and_magus_rises_then_falls() {
     let l0 = f.leaves()[0];
     let mut rose = false;
     let outs = f.until(2000, |f| {
-        rose |= f.boss().act_num == act::RISE;
-        rose && f.boss().act_num == act::NEUTRAL
+        rose |= f.boss().base.act_num == act::RISE;
+        rose && f.boss().base.act_num == act::NEUTRAL
     });
     assert!(rose, "the countdown's end lifts Magus");
-    assert_eq!(f.boss().act_num, act::NEUTRAL);
+    assert_eq!(f.boss().base.act_num, act::NEUTRAL);
     assert_eq!(f.leaf(l0).1.explode, 1);
-    assert_eq!(f.leaf(l0).0.exit, 1);
+    assert_eq!(f.leaf(l0).0.base.exit, 1);
     assert!(outs.contains(&Out::Cinema(Some(10))));
     assert!(outs.contains(&Out::CameraChange(1)), "camera 1 once down");
 }
@@ -227,27 +227,27 @@ fn drained_to_the_epitaph_then_dies_and_exits() {
     let me = f.me;
     f.affect_on(me, 13, 0);
     f.frame();
-    assert_eq!(f.boss().act_num, act::EPITAPH);
+    assert_eq!(f.boss().base.act_num, act::EPITAPH);
     assert_eq!(f.magus().epitaph, 1);
-    assert_eq!(f.boss().cheat_hp, 0);
+    assert_eq!(f.boss().base.cheat_hp, 0);
     for l in f.leaves() {
-        assert_eq!(f.leaf(l).0.exit, 1, "the leaves go");
+        assert_eq!(f.leaf(l).0.base.exit, 1, "the leaves go");
     }
     f.affect_on(me, 21, 0);
     assert_eq!(f.scene.chars[me].hp, 4500);
     let mut dead = false;
     for _ in 0..400 {
-        if f.boss().act_num != act::DIE {
+        if f.boss().base.act_num != act::DIE {
             f.affect_on(me, 1, 1000);
         }
         f.frame();
-        dead |= f.boss().act_num == act::DIE;
-        if f.boss().exit != 0 {
+        dead |= f.boss().base.act_num == act::DIE;
+        if f.boss().base.exit != 0 {
             break;
         }
     }
     assert!(dead, "hit to death");
-    assert_eq!(f.boss().exit, 1, "the dead effect over, the task's exit");
+    assert_eq!(f.boss().base.exit, 1, "the dead effect over, the task's exit");
     assert!(!f.scene.ene_list.contains(&me));
 }
 
@@ -261,14 +261,14 @@ fn past_half_the_gauge_the_laser_comes() {
     assert_eq!(f.magus().reserve_laser, 1);
     assert_eq!(f.magus().high_drive, 1);
     f.frame();
-    assert_eq!(f.boss().act_num, act::LASER, "no leaf down: the laser");
-    let outs = f.until(600, |f| f.boss().act_num == act::NEUTRAL);
-    assert_eq!(f.boss().act_num, act::NEUTRAL);
+    assert_eq!(f.boss().base.act_num, act::LASER, "no leaf down: the laser");
+    let outs = f.until(600, |f| f.boss().base.act_num == act::NEUTRAL);
+    assert_eq!(f.boss().base.act_num, act::NEUTRAL);
     assert_eq!(f.magus().cam_id, 1);
     assert!(outs.contains(&Out::Cinema(Some(9))));
     assert_eq!(
         outs.iter().filter(|o| matches!(o, Out::Magus(Pic::Particles { which: super::Gen::Thunder, .. }))).count(),
         12
     );
-    assert_eq!(f.boss().lock_player, 0);
+    assert_eq!(f.boss().base.lock_player, 0);
 }

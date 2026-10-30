@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::blur::Set;
-use super::{Anm, Boss, Class, Cx, EffKind, Out, VF0};
+use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, VF0};
 use crate::chara::AffectFunc;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -186,7 +186,7 @@ pub struct Innis {
 /// `ccBoss02Slave`'s own members (+0x29350 on) and its `ccBoss` base.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Slave {
-    pub b: Boss,
+    pub b: BossBase,
     /// The image's scene index (a character on no command list).
     pub me: usize,
     /// `slaveID` (`SetMaster`), `orderNum` (`Order`).
@@ -306,16 +306,6 @@ fn vec3(x: F, y: F, z: F) -> V4 {
     [x, y, z, ONE]
 }
 
-fn innis_of(b: &mut Boss) -> Box<Innis> {
-    match std::mem::replace(&mut b.class, Class::Plain) {
-        Class::Innis(i) => i,
-        other => {
-            b.class = other;
-            Box::default()
-        }
-    }
-}
-
 // --- the constructor ----------------------------------------------------------------------
 
 /// `ccBoss02::ccBoss02` (0x004942c0) and `ccBoss02Slave::ccBoss02Slave`
@@ -334,7 +324,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         }
     }
     let me = cx.me;
-    let mut b = Boss {
+    let mut b = BossBase {
         anm_tbl: data.anm_tbl.clone(),
         wait_pat_num: -2,
         pat_num: 13,
@@ -346,7 +336,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         anm_wave: Anm::new(),
         animate: super::Fade { transparency: ONE, ..super::Fade::default() },
         animate_dead: super::Fade { transparency: ONE, ..super::Fade::default() },
-        ..Boss::default()
+        ..BossBase::default()
     };
     let mut x = Innis {
         anm_w: Anm::new(),
@@ -393,8 +383,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     x.vec_center = [center[0], center[1], center[2], ONE];
     x.vec_center_p = super::w2p(cx, x.vec_center);
     crate::fellow::entry_cmnd(cx.scene, me);
-    b.class = Class::Innis(Box::new(x));
-    b
+    Boss { base: b, class: Class::Innis(Box::new(x)) }
 }
 
 impl Slave {
@@ -408,8 +397,7 @@ impl Slave {
         let me = cx.scene.add(ch, 3);
         let mut anm = Anm::new();
         anm.set("ANM_ex21mon1", cx.clips);
-        let b = Boss {
-            class: Class::Plain,
+        let b = BossBase {
             wait_pat_num: -2,
             pat_num: 13,
             stage_eff_id: -1,
@@ -418,7 +406,7 @@ impl Slave {
             set_transparency: ONE,
             anm,
             anm_wave: Anm::new(),
-            ..Boss::default()
+            ..BossBase::default()
         };
         Slave {
             b,
@@ -437,16 +425,14 @@ impl Slave {
 // --- the frame ------------------------------------------------------------------------------
 
 /// `ccThBossEffect`'s pass and `ccBoss02::Main` (0x00495d50).
-pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
-    let mut x = innis_of(b);
-    manager_pass(b, &mut x, cx);
+pub(super) fn main(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
+    manager_pass(b, x, cx);
     if b.exit == 0 {
-        frame(b, &mut x, cx);
+        frame(b, x, cx);
     }
-    b.class = Class::Innis(x);
 }
 
-fn frame(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
     b.calc_real(cx);
     b.calc_target_info(cx);
@@ -500,7 +486,7 @@ fn frame(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::Move` (0x00494cd0): as `ccBoss::Move`, the body pushed out
 /// whole, then held at `Hipos`.
-fn mov(b: &mut Boss, x: &Innis, cx: &mut Cx) {
+fn mov(b: &mut BossBase, x: &Innis, cx: &mut Cx) {
     let me = cx.me;
     let mut pp = super::w2p(cx, cx.scene.chars[me].pos);
     if !geom::eq(0, b.move_spd) {
@@ -526,7 +512,7 @@ fn mov(b: &mut Boss, x: &Innis, cx: &mut Cx) {
 /// `ccBossEffManager::Draw` (MUT gcmn 0x004780f0) over Innis's effects:
 /// a missile's `Draw` may call `MagicDamage` and make a WaveShock, which
 /// takes the first free slot (drawn this pass if past this one).
-fn manager_pass(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn manager_pass(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     for k in 0..b.effects.slots.len() {
         let Some(e) = b.effects.slots[k].as_mut() else { continue };
         if !e.enabled {
@@ -676,7 +662,7 @@ impl Missile {
     /// The `Draw` in Innis's manager pass: [`Missile::step`] with its calls
     /// made (the WaveShock in the boss's effects, the quake, the first's
     /// `MagicDamage`). False once it clears `m_bEnabled`.
-    fn draw(&mut self, el: Element, no: i32, ctrl: &[V4; 4], b: &mut Boss, x: &mut Innis, cx: &mut Cx) -> bool {
+    fn draw(&mut self, el: Element, no: i32, ctrl: &[V4; 4], b: &mut BossBase, x: &mut Innis, cx: &mut Cx) -> bool {
         let mut calls = Vec::new();
         self.step(el, no, ctrl, |v| super::w2p(cx, v), &mut calls);
         let mut alive = true;
@@ -717,7 +703,7 @@ pub enum Call {
 /// `ccBoss02::MagicDamage(pos, mode)` (0x0049a7d0), the first missile's
 /// callback: the skill `mode` on the target at its first call, the camera
 /// shaken for 20 calls, and at the 60th the magic over (true).
-fn magic_damage(b: &mut Boss, x: &mut Innis, mode: i32, cx: &mut Cx) -> bool {
+fn magic_damage(b: &mut BossBase, x: &mut Innis, mode: i32, cx: &mut Cx) -> bool {
     if x.eny_int == 0 {
         let t = cx.scene.chars[cx.me].target_char;
         b.skill_damage(cx, t, None, mode as usize);
@@ -740,7 +726,7 @@ fn magic_damage(b: &mut Boss, x: &mut Innis, mode: i32, cx: &mut Cx) -> bool {
 // --- Think ------------------------------------------------------------------------------------
 
 /// `ccBoss02::Think` (0x004964b0).
-fn think(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     x.af_cou += 1;
     if x.af_timing < x.af_cou {
         x.af_cou = 0;
@@ -784,7 +770,7 @@ fn think(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `targetChar = RndTarget()`; with one, `moveDirc` its heading and
 /// `PosA` its distance.
-fn take_target(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn take_target(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let t = rnd_target(b, cx);
     cx.scene.chars[cx.me].target_char = t;
     if t.is_some() {
@@ -795,7 +781,7 @@ fn take_target(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::RndTarget` (0x00499950): `SelectTarget(|ccRand() % 15|,
 /// 1e6)`, else the first member alive on the party's list.
-fn rnd_target(b: &mut Boss, cx: &mut Cx) -> Option<usize> {
+fn rnd_target(b: &mut BossBase, cx: &mut Cx) -> Option<usize> {
     let ty = rand_mod(cx, 15).abs();
     let t = b.select_target(cx, ty, FAR);
     if t.is_some() {
@@ -815,7 +801,7 @@ fn particular_count(x: &mut Innis) {
 }
 
 /// `ccBoss02::ActionEnd` (0x00496f50).
-fn action_end(_b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn action_end(_b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     if cx.scene.chars[cx.me].target_char.is_some() {
         x.no += 1;
     }
@@ -828,7 +814,7 @@ fn action_end(_b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::ActionDecision` (0x00496a50): the pattern run by the
 /// protect gauge, the next word, the target.
-fn action_decision(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn action_decision(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     x.ex_spin_back_flg = 0;
     let me = cx.me;
     if x.epitaph_flg == 0 {
@@ -891,7 +877,7 @@ fn action_decision(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 }
 
 /// `ccBoss02::ResetData` (0x00496900): an action over.
-fn reset_data(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn reset_data(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     if b.lock_player == 0 && b.erase_target != 0 {
         b.body_hit_sw = 1;
         b.entry_cmnd_target(cx);
@@ -916,7 +902,7 @@ fn reset_data(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::SetCameraEyes` (0x00499b40): face the camera (its heading
 /// turned round), 256 at a time.
-fn set_camera_eyes(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn set_camera_eyes(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     x.cam_rot = cx.cam.rot;
     let to = wrap(ee::add(x.cam_rot[2], PI));
     b.dirc[2] = geom::set_dirc(b.dirc[2], to, 256);
@@ -944,7 +930,7 @@ fn char_all_hold(cx: &mut Cx) {
 /// `ccBoss02::DmgCheckCount` (0x00499d10): enough damage since the last
 /// check (a fifth of `DmgWait` before the drain, all of it after) spins
 /// Innis away.
-fn dmg_check_count(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn dmg_check_count(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let hp = i32::from(cx.scene.chars[cx.me].hp);
     if b.act_num == act::EPITAPH && x.epitaph_flg == 0 {
         x.dmg_count = hp;
@@ -990,7 +976,7 @@ fn dmg_check_count(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// The waits cut short: `MoveFlg` 15 (the escape, turned back), off the
 /// party's targets.
-fn spin_away(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn spin_away(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     x.move_flg = 15;
     x.eny_int = 0;
     x.ex_spin_back_flg = 1;
@@ -1015,7 +1001,7 @@ fn after_image(x: &Innis, at: i32, cx: &mut Cx) {
 
 /// `ccBoss02::SwitchActionPattern(pattern)` (0x00496fc0): the word's
 /// action, a frame of it.
-fn switch_action_pattern(b: &mut Boss, x: &mut Innis, pattern: i32, cx: &mut Cx) {
+fn switch_action_pattern(b: &mut BossBase, x: &mut Innis, pattern: i32, cx: &mut Cx) {
     set_camera_eyes(b, x, cx);
     let field = vec3(0, 0, 0x4348_0000);
     if x.dd_flg == 0 {
@@ -1169,7 +1155,7 @@ fn switch_action_pattern(b: &mut Boss, x: &mut Innis, pattern: i32, cx: &mut Cx)
 
 /// `ccBoss02::Pattern01` (0x00497b80): run at the target, easing to an
 /// eighth of the gap, until within 500.
-fn pattern01(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn pattern01(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     b.move_dirc = b.target_dirc;
     x.pos_b = ee::div(ee::sub(x.pos_a, x.pos_b), 0x4100_0000);
     b.spd_up(x.pos_b, 0x40a0_0000);
@@ -1179,7 +1165,7 @@ fn pattern01(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 }
 
 /// The step past the arena's edge: over, and the escape next.
-fn out_of_range(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn out_of_range(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     reset_data(b, x, cx);
     x.sub_no = x.no;
     x.move_flg = 14;
@@ -1188,7 +1174,7 @@ fn out_of_range(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::Pattern02` (0x00497c40): off to one side of the camera's
 /// heading (pi / 3 either way by `ccRand`), 900 farther at most.
-fn pattern02(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn pattern02(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     if x.p_flg != 0 {
         x.p_dist = b.target_dist;
         x.p_flg = 0;
@@ -1205,7 +1191,7 @@ fn pattern02(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 }
 
 /// `ccBoss02::Pattern03(time)` (0x00497df0): a wait, back on the targets.
-fn pattern03(b: &mut Boss, x: &mut Innis, time: i32, cx: &mut Cx) {
+fn pattern03(b: &mut BossBase, x: &mut Innis, time: i32, cx: &mut Cx) {
     x.cou += 1;
     if b.erase_target != 0 {
         b.body_hit_sw = 1;
@@ -1220,7 +1206,7 @@ fn pattern03(b: &mut Boss, x: &mut Innis, time: i32, cx: &mut Cx) {
 
 /// `ccBoss02::Pattern05(dist)` (0x00497eb0): straight along the camera's
 /// heading (back toward it once off the edge), `dist` farther.
-fn pattern05(b: &mut Boss, x: &mut Innis, dist: i32, cx: &mut Cx) {
+fn pattern05(b: &mut BossBase, x: &mut Innis, dist: i32, cx: &mut Cx) {
     if x.p_flg != 0 {
         x.p_dist = b.target_dist;
         x.p_flg = 0;
@@ -1236,7 +1222,7 @@ fn pattern05(b: &mut Boss, x: &mut Innis, dist: i32, cx: &mut Cx) {
 }
 
 /// `ccBoss02::Pattern06` (0x004980b0): a dash at the target.
-fn pattern06(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn pattern06(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     b.move_dirc = b.target_dirc;
     let d = b.target_dist;
     if ee::le(d, 0x43fa_0000) {
@@ -1252,7 +1238,7 @@ fn pattern06(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::Pattern07` (0x004981d0): once round the target, a
 /// thirty-sixth of a turn a frame, either way.
-fn pattern07(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn pattern07(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let step = ee::div(PI, 0x4190_0000);
     let me = cx.me;
     if x.eny_flg != 0 {
@@ -1282,7 +1268,7 @@ fn pattern07(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::Pattern08` (0x00498500): a zigzag off the camera's heading,
 /// a new leg every 10 frames, 31 frames.
-fn pattern08(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn pattern08(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     if x.cou == 0 && check_range(x, cx.pos()) {
         x.action_flg = 1;
     }
@@ -1320,7 +1306,7 @@ fn pattern08(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::Pattern10` (0x004987d0): the escape: turn, fade out,
 /// reappear 1100 from the world's origin at a random heading, fade in.
-fn pattern10(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn pattern10(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let step = ee::div(PI, 0x4100_0000);
     let fade = 0x3ca3_d70a;
     let me = cx.me;
@@ -1422,7 +1408,7 @@ fn turn(r: F, step: F, note: u8, cx: &mut Cx) -> F {
 
 /// `ccBoss02::Pattern11(dist)` (0x00498eb0): away along the camera's
 /// heading holding the party, until `dist` off (and the camera still).
-fn pattern11(b: &mut Boss, x: &mut Innis, dist: i32, cx: &mut Cx) {
+fn pattern11(b: &mut BossBase, x: &mut Innis, dist: i32, cx: &mut Cx) {
     let d = ee::from_int(dist);
     if x.cou == 0 {
         if check_range(x, cx.pos()) {
@@ -1455,7 +1441,7 @@ fn pattern11(b: &mut Boss, x: &mut Innis, dist: i32, cx: &mut Cx) {
 
 /// `ccBoss02::Checkstate` (0x00499770): not near the target, back two
 /// words.
-fn checkstate(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn checkstate(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     if !ee::le(b.target_dist, 0x43fa_0000) {
         x.no -= 2;
     }
@@ -1477,7 +1463,7 @@ fn rnd_skill(atb: i32, cx: &mut Cx) -> i32 {
 
 /// `ccBoss02::SkillAttack` (0x00499110): the camera closes on the target,
 /// a skill named by the next word at count 60, over at 90.
-fn skill_attack(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn skill_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
     let target = cx.scene.chars[me].target_char;
     if !cx.valid(target) {
@@ -1553,7 +1539,7 @@ fn skill_attack(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::EnemyAttack` (0x0049a900): with the gauge at half, a
 /// `ccRand` drawn and dropped; the cinema, act 5.
-fn enemy_attack(b: &mut Boss, _x: &mut Innis, cx: &mut Cx) {
+fn enemy_attack(b: &mut BossBase, _x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
     let max = i32::from(cx.t.bosses.get(1).map_or(0, |r| r.max_pp)) / 2;
     let pp = i32::from(cx.scene.param(me).map_or(0, |p| p.pp));
@@ -1567,7 +1553,7 @@ fn enemy_attack(b: &mut Boss, _x: &mut Innis, cx: &mut Cx) {
 /// `ccBoss02::MagicSquare` (0x0049a000): the camera's moves, the square
 /// (ice, lightning or fire by `ccRand() % 3`), and at count 10 after its
 /// last move the missiles; act 4 until they land.
-fn magic_square(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let pos = cx.pos();
     let c = x.cou;
     match c {
@@ -1657,7 +1643,7 @@ fn magic_square(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::AllAttack` (0x0049aa10): the fall to the floor, the wave, a
 /// ring, skill 4 on those near at count 40, back up to `Hipos`.
-fn all_attack(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn all_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
     match x.flg {
         1 => {
@@ -1735,7 +1721,7 @@ fn abs_f(n: i32) -> F {
 
 /// The three missiles' control points (`sp+128`: the boss, then two
 /// spline points, then the target 10 up) and their making.
-fn missile(b: &mut Boss, el: Element, ctrl: [V4; 4], first: bool, cx: &mut Cx) {
+fn missile(b: &mut BossBase, el: Element, ctrl: [V4; 4], first: bool, cx: &mut Cx) {
     let no = i32::from(first);
     let kind = EffKind::Missile { element: el, no, ctrl };
     let id = b.effects.create(kind);
@@ -1746,7 +1732,7 @@ fn missile(b: &mut Boss, el: Element, ctrl: [V4; 4], first: bool, cx: &mut Cx) {
 }
 
 /// `ccBoss02::IceAttack` (0x0049afa0).
-fn ice_attack(b: &mut Boss, cx: &mut Cx) {
+fn ice_attack(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     // The dirc turned by ccRandF(0.2) is worked out and not used.
     let _ = rand_f(cx.cc, 0x3e4c_cccd);
@@ -1786,7 +1772,7 @@ fn ice_attack(b: &mut Boss, cx: &mut Cx) {
 }
 
 /// `ccBoss02::ThunderAttack` (0x0049b560).
-fn thunder_attack(b: &mut Boss, cx: &mut Cx) {
+fn thunder_attack(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let mut turn = wrap(ee::add(b.dirc[2], rand_f(cx.cc, 0x3e4c_cccd)));
     let pos = cx.pos();
@@ -1825,7 +1811,7 @@ fn thunder_attack(b: &mut Boss, cx: &mut Cx) {
 }
 
 /// `ccBoss02::BlazeAttack` (0x0049bb30).
-fn blaze_attack(b: &mut Boss, cx: &mut Cx) {
+fn blaze_attack(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let mut turn = wrap(ee::add(b.dirc[2], rand_f(cx.cc, 0x3e4c_cccd)));
     let pos = cx.pos();
@@ -1866,7 +1852,7 @@ fn blaze_attack(b: &mut Boss, cx: &mut Cx) {
 // --- Action ------------------------------------------------------------------------------------
 
 /// `ccBoss02::Action` (0x00494e10).
-fn action(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn action(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
     match b.act_num {
         act::NEUTRAL | 8 | act::EPITAPH_NEUTRAL => {}
@@ -2019,7 +2005,7 @@ fn action(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 }
 
 /// A damage act over: back to 0, or 12 once drained.
-fn back_to_neutral(b: &mut Boss, x: &Innis, forbid: i16, cx: &mut Cx) {
+fn back_to_neutral(b: &mut BossBase, x: &Innis, forbid: i16, cx: &mut Cx) {
     if x.epitaph_flg == 0 {
         b.change_action(cx, act::NEUTRAL, forbid, true);
     }
@@ -2030,7 +2016,7 @@ fn back_to_neutral(b: &mut Boss, x: &Innis, forbid: i16, cx: &mut Cx) {
 
 /// Act 5 (0x00495448): the stream of the images, the camera behind the
 /// target, the three images sent at it; over once all three have broken.
-fn images(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
+fn images(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     set_camera_eyes(b, x, cx);
     b.spd_down(0, 0x40a0_0000);
     let pos = cx.pos();
@@ -2118,7 +2104,7 @@ fn entry_slave(x: &mut Innis) {
 
 /// `ccBoss02::Affect` (0x004960f0): as `ccBoss::Affect`, with the shield
 /// for a spell's hit.
-pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
+pub(super) fn affect(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let (t, p0, p1, person) = {
         let a = &cx.scene.chars[me].affect;
@@ -2180,7 +2166,7 @@ pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
 // --- the images ---------------------------------------------------------------------------------
 
 /// `ccBoss::Main` (0x0045c270) for image `k`, its `Think` the slave's.
-fn slave_main(master: &mut Boss, x: &mut Innis, k: usize, cx: &mut Cx) {
+fn slave_main(master: &mut BossBase, x: &mut Innis, k: usize, cx: &mut Cx) {
     let master_me = cx.me;
     let mut s = std::mem::take(&mut x.slaves[k]);
     let mut sb = std::mem::take(&mut s.b);
@@ -2206,7 +2192,7 @@ impl Slave {
     }
 
     /// `ccBoss02Slave::Think` (0x0049cce0).
-    fn think(&mut self, sb: &mut Boss, master: &mut Boss, master_me: usize, cx: &mut Cx) {
+    fn think(&mut self, sb: &mut BossBase, master: &mut BossBase, master_me: usize, cx: &mut Cx) {
         let me = self.me;
         match sb.act_num {
             0 => {
@@ -2281,7 +2267,7 @@ impl Slave {
 
     /// `ccBoss02Slave::SetStartPosition` (0x0049c810): where image
     /// `slaveID` starts from, round the camera's back, and its spins.
-    fn set_start_position(&mut self, sb: &mut Boss, cx: &mut Cx) {
+    fn set_start_position(&mut self, sb: &mut BossBase, cx: &mut Cx) {
         let me = self.me;
         let f20 = wrap(ee::add(PI, cx.cam.rot[2]));
         sb.dirc[2] = f20;
@@ -2320,7 +2306,7 @@ impl Slave {
     }
 
     /// `ccBoss02Slave::SetLotate` (0x0049d820): the spin on its turn.
-    fn set_lotate(&mut self, sb: &mut Boss, cx: &mut Cx) {
+    fn set_lotate(&mut self, sb: &mut BossBase, cx: &mut Cx) {
         sb.dirc[0] = ee::add(sb.dirc[0], self.spin[0]);
         sb.dirc[2] = ee::add(sb.dirc[2], self.spin[2]);
         for k in 0..3 {
@@ -2339,7 +2325,7 @@ impl Slave {
 
     /// `ccBoss02Slave::SetTan` (0x0049d6b0): the step toward the target,
     /// climbing by `atan2(posP.z, Dist)`: 150, or 100 within 100.
-    fn set_tan(&mut self, sb: &mut Boss, cx: &mut Cx) {
+    fn set_tan(&mut self, sb: &mut BossBase, cx: &mut Cx) {
         let pz = cx.scene.chars[self.me].pos_p[2];
         let up = wrap(libm::atan2f(pz, self.dist));
         let m = geom::rot_matrix_y(&geom::unit_matrix(), up);
@@ -2352,7 +2338,7 @@ impl Slave {
 
     /// `ccBoss02Slave::EnemyBurst` (0x0049d1b0): the burst's particles, two
     /// rings (the image's model, turned by the camera), sounds.
-    fn enemy_burst(&mut self, master: &mut Boss, cx: &mut Cx) {
+    fn enemy_burst(&mut self, master: &mut BossBase, cx: &mut Cx) {
         let tp = self.target_pos;
         cx.out(Out::Particles { which: Gen::Burst(3), pos: tp });
         let mut up = tp;
@@ -2614,7 +2600,7 @@ mod tests {
             self.count += 1;
             let me = self.me;
             let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-            let mut out = b.take_pending();
+            let mut out = b.base.take_pending();
             out.extend(self.with_cx(|cx| {
                 b.main(cx);
                 std::mem::take(&mut cx.out)
@@ -2675,24 +2661,24 @@ mod tests {
         f.frame();
         f.affect(13, 0);
         f.frame();
-        assert_eq!(f.boss().act_num, act::EPITAPH_NEUTRAL);
+        assert_eq!(f.boss().base.act_num, act::EPITAPH_NEUTRAL);
         assert_eq!(f.innis().epitaph_flg, 1);
-        assert_eq!(f.boss().cheat_hp, 0);
+        assert_eq!(f.boss().base.cheat_hp, 0);
         f.affect(21, 0);
         assert_eq!(f.scene.chars[f.me].hp, 3000);
         let mut dead = false;
         for _ in 0..400 {
-            if f.boss().act_num != act::DEAD {
+            if f.boss().base.act_num != act::DEAD {
                 f.affect(1, 1000);
             }
             f.frame();
-            dead |= f.boss().act_num == act::DEAD;
-            if f.boss().exit != 0 {
+            dead |= f.boss().base.act_num == act::DEAD;
+            if f.boss().base.exit != 0 {
                 break;
             }
         }
         assert!(dead, "hit to death");
-        assert_eq!(f.boss().exit, 1, "the dead effect over, 30 frames on, the task's exit");
+        assert_eq!(f.boss().base.exit, 1, "the dead effect over, 30 frames on, the task's exit");
         assert!(!f.scene.ene_list.contains(&f.me));
     }
 
@@ -2704,14 +2690,14 @@ mod tests {
         let mut waited = false;
         for _ in 0..400 {
             outs.extend(f.frame());
-            waited |= f.boss().act_num == act::MAGIC;
-            if waited && f.boss().act_num == act::NEUTRAL {
+            waited |= f.boss().base.act_num == act::MAGIC;
+            if waited && f.boss().base.act_num == act::NEUTRAL {
                 break;
             }
         }
         assert!(waited, "act 4 while the missiles fly");
-        assert_eq!(f.boss().act_num, act::NEUTRAL);
-        assert_eq!(f.boss().lock_player, 0);
+        assert_eq!(f.boss().base.act_num, act::NEUTRAL);
+        assert_eq!(f.boss().base.lock_player, 0);
         assert_eq!(f.innis().eny_int, 60, "MagicDamage called 60 times");
         assert!(outs.contains(&Out::CamMode { mode: 6 }));
         let missiles = outs.iter().filter(|o| matches!(o, Out::Effect { kind: EffKind::Missile { .. }, .. })).count();
@@ -2726,12 +2712,12 @@ mod tests {
         for _ in 0..1500 {
             f.frame();
             sent |= f.innis().slaves.iter().any(|s| s.b.exit == 0);
-            if sent && f.boss().act_num == act::NEUTRAL {
+            if sent && f.boss().base.act_num == act::NEUTRAL {
                 break;
             }
         }
         assert!(sent, "the three images went out");
-        assert_eq!(f.boss().act_num, act::NEUTRAL);
+        assert_eq!(f.boss().base.act_num, act::NEUTRAL);
         assert_eq!(f.innis().monster_id, 1);
         assert!(f.innis().slaves.iter().all(|s| s.b.exit == 1 && s.end_flg == 1));
     }

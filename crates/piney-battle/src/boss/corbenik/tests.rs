@@ -154,7 +154,7 @@ impl Fight {
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Qua };
         let mut ev = Events::new();
         affect::entry_affect(&self.t, &mut self.scene, &actx, on, kite, ty, [p0, sid, 0], &mut self.rand, &mut ev);
-        self.scene.chars[on].foe_state_mut().unwrap().boss.as_mut().unwrap().take_pending()
+        self.scene.chars[on].foe_state_mut().unwrap().boss.as_mut().unwrap().base.take_pending()
     }
 
     fn boss(&mut self) -> &mut Boss {
@@ -183,13 +183,13 @@ fn stands_behind_kite_with_its_seeds_put_away() {
     let me = f.me;
     assert_eq!(f.scene.chars[me].pos[1], 0xc3fa_0000, "500 behind Kite");
     assert_eq!(f.scene.chars[me].pos[2], 0x4120_0000, "10 up");
-    assert_eq!(f.boss().pat_tbl, Tbl::Normal);
-    assert_eq!(f.boss().stop_time, 60, "the table's first wait");
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Normal);
+    assert_eq!(f.boss().base.stop_time, 60, "the table's first wait");
     let x = f.first();
     assert_eq!(x.entry_seed_num, 1);
     for s in x.seed_me {
         let (b, _) = f.seed(s);
-        assert_eq!((b.exit, b.act_num, b.act_forbid), (1, seed::act::WAIT, 3));
+        assert_eq!((b.base.exit, b.base.act_num, b.base.act_forbid), (1, seed::act::WAIT, 3));
         assert!(!f.scene.listed(s), "a seed starts off the lists");
     }
 }
@@ -215,13 +215,13 @@ fn its_death_takes_the_seeds_and_holds_their_counts() {
         f.frame();
     }
     let me = f.me;
-    let live: Vec<usize> = f.first().seed_me.into_iter().filter(|&s| f.seed(s).0.exit == 0).collect();
+    let live: Vec<usize> = f.first().seed_me.into_iter().filter(|&s| f.seed(s).0.base.exit == 0).collect();
     f.scene.chars[me].hp = 1;
     f.affect(me, 1, 10, 0);
-    assert_eq!(f.boss().act_num, act::DIE);
+    assert_eq!(f.boss().base.act_num, act::DIE);
     assert!(f.first().pause_cnt_down);
     for s in live {
-        assert_eq!(f.seed(s).0.act_num, seed::act::DEAD);
+        assert_eq!(f.seed(s).0.base.act_num, seed::act::DEAD);
     }
     let mut stream = false;
     for _ in 0..300 {
@@ -248,7 +248,7 @@ fn a_spell_on_a_seed_shows_its_shield() {
     assert!(out.contains(&Out::Corbenik(Pic::SeedShield { seed: s })));
     let out = f.affect(s, 1, 5, 1);
     assert!(!out.iter().any(|o| matches!(o, Out::Corbenik(Pic::SeedShield { .. }))));
-    assert_eq!(f.seed(s).0.act_num, seed::act::COUNT_DOWN, "its count goes on");
+    assert_eq!(f.seed(s).0.base.act_num, seed::act::COUNT_DOWN, "its count goes on");
     assert_eq!(f.first().seed_me.len(), SEEDS);
 }
 
@@ -293,10 +293,10 @@ fn the_second_form_stands_with_its_roots_put_away() {
     let Some(mut f) = fight_b() else { return };
     let x = f.second();
     assert!(!x.barrier);
-    assert_eq!(f.boss().pat_tbl, Tbl::Normal);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Normal);
     for r in x.root_me {
         let b = f.scene.chars[r].foe_state().unwrap().boss.as_ref().unwrap();
-        assert_eq!(b.exit, 1, "a root starts exited");
+        assert_eq!(b.base.exit, 1, "a root starts exited");
     }
 }
 
@@ -307,7 +307,7 @@ fn its_hp_brings_the_super_table_and_asks_for_the_barrier() {
     let max = f.scene.chars[me].max_hp;
     f.scene.chars[me].hp = max / 2 + 1;
     f.affect(me, 1, 2, 0);
-    assert_eq!(f.boss().pat_tbl, Tbl::Super);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Super);
     let before = f.scene.chars[me].hp;
     f.affect(me, 1, before - max / 5, 0);
     let x = f.second();
@@ -329,9 +329,9 @@ fn the_barrier_takes_the_blows_and_its_count_kills() {
     assert_eq!(f.scene.chars[me].hp, hp, "the body's HP untouched");
     let x = f.second();
     assert!(x.msg_shown && x.msg_count == 3630, "under 4000 the message and its wait");
-    assert_eq!(f.boss().act_num, super::second::act::BARRIER_MSG);
+    assert_eq!(f.boss().base.act_num, super::second::act::BARRIER_MSG);
     f.affect(me, 1, 30000, 0);
-    assert_eq!(f.boss().act_num, super::second::act::DIE, "the count out: the death");
+    assert_eq!(f.boss().base.act_num, super::second::act::DIE, "the count out: the death");
 }
 
 // --- the third form -----------------------------------------------------------------------------
@@ -368,7 +368,7 @@ fn the_third_form_rides_its_eyes_on_the_dummy() {
     let Some(mut f) = fight_c() else { return };
     let x = f.third();
     for &k in &x.killer_me {
-        assert_eq!(f.part(k).exit, 1, "a killer eye starts out");
+        assert_eq!(f.part(k).base.exit, 1, "a killer eye starts out");
     }
     f.frame();
     let x = f.third();
@@ -376,7 +376,7 @@ fn the_third_form_rides_its_eyes_on_the_dummy() {
     // it on its offset.
     let pos = f.scene.chars[f.me].pos;
     for &e in &x.eye_me {
-        assert_eq!(f.part(e).exit, 0, "an eye is in");
+        assert_eq!(f.part(e).base.exit, 0, "an eye is in");
         let (ep, b) = (f.scene.chars[e].pos, f.part(e));
         let Class::CorbenikEye(y) = &b.class else { panic!("not an eye") };
         let want = crate::geom::vadd([pos[0], pos[1], piney_data::field::ee::add(pos[2], 0x4396_0000), ONE], y.pos_b);
@@ -392,7 +392,7 @@ fn half_its_hp_turns_the_table_with_stream_88() {
     f.scene.chars[me].hp = max / 2 + 1;
     let out = f.affect(me, 1, 2, 0);
     let _ = out;
-    assert_eq!(f.boss().pat_tbl, Tbl::Super);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Super);
     assert!(f.third().half);
     f.affect(me, 1, 2, 0);
     assert!(f.third().half, "only once");
@@ -404,13 +404,13 @@ fn the_eye_entry_throws_the_killer_eyes() {
     f.frame();
     {
         let b = f.boss();
-        (b.act_num, b.act_proccess, b.act_count) = (super::third::act::ENTRY_EYE, 0, 0);
+        (b.base.act_num, b.base.act_proccess, b.base.act_count) = (super::third::act::ENTRY_EYE, 0, 0);
     }
     f.frame();
     let x = f.third();
     for &k in &x.killer_me {
         let b = f.part(k);
-        assert_eq!((b.exit, b.act_num), (0, super::eye::killer_act::GENERATE), "born and thrown");
+        assert_eq!((b.base.exit, b.base.act_num), (0, super::eye::killer_act::GENERATE), "born and thrown");
     }
     for _ in 0..400 {
         f.frame();
@@ -435,15 +435,15 @@ fn the_camera_fades_the_body_as_ccboss_draw_does() {
     f.cam.fade = at(&f, 9000.0, false);
     f.frame();
     let b = f.boss();
-    assert_eq!((b.transparency, b.drawn), (0, false), "faded out past the far end");
+    assert_eq!((b.base.transparency, b.base.drawn), (0, false), "faded out past the far end");
     // The eye view never fades.
     f.cam.fade = at(&f, 9000.0, true);
     f.frame();
     let b = f.boss();
-    assert_eq!((b.transparency, b.drawn), (b.set_transparency, true), "the eye view: setTransparency");
+    assert_eq!((b.base.transparency, b.base.drawn), (b.base.set_transparency, true), "the eye view: setTransparency");
     // Inside the far end: setTransparency as it is.
     f.cam.fade = at(&f, 2000.0, false);
     f.frame();
     let b = f.boss();
-    assert_eq!(b.transparency, b.set_transparency, "near enough: no fade");
+    assert_eq!(b.base.transparency, b.base.set_transparency, "near enough: no fade");
 }

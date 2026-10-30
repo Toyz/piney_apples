@@ -14,7 +14,7 @@ use super::{
     core_state_is, gen_op, particles,
 };
 use crate::boss::blur::Set;
-use crate::boss::{Boss, Cx, Out, VF0};
+use crate::boss::{BossBase, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 
@@ -267,7 +267,7 @@ fn switch_gate_off(x: &mut Kyvia, cx: &mut Cx, n: i16) {
 // --- the frame ---------------------------------------------------------------------------
 
 /// The fourth fight's `Think` (QUA gcmn 0x003dbcf0) before its turn.
-pub(super) fn think_head(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn think_head(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     if fourth_of(x).wall_gp_flg != 0 {
         init_wall_gp_start(x, cx);
     }
@@ -281,7 +281,7 @@ pub(super) fn think_head(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx)
 
 /// `Think`'s turn: the EX turn's pattern or the places' (neither once the
 /// party is gone or the game is over), idle in the attacks.
-pub(super) fn think_turn(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn think_turn(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => {
             if cx.annihilated() || cx.game_over {
@@ -314,7 +314,7 @@ fn check_core_point(x: &Kyvia, cx: &Cx) -> bool {
 /// gathered there; at 30 the core risen and the place behind closed, or at
 /// the last place the body's scene, then the EX turn. Once a core falls
 /// the next place opened.
-fn check_disc_move(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let kite = cx.world.player.map_or(x.disc_pos, |k| cx.scene.chars[k].pos);
     x.disc_pos = kite;
     if x.st_flg != 1 {
@@ -387,7 +387,7 @@ fn check_disc_move(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
 /// body; from 40 the eye rising 5 (3 from 155) while it holds; at 155 the
 /// body's light and roar (`ANM_ex04act0`); at 280 the camera back. True
 /// at 280.
-fn kyvia_scene(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) -> bool {
+fn kyvia_scene(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) -> bool {
     let c = x.wait_disc_count;
     if c % 40 == 0 {
         cx.out(Out::Se { se: 232 });
@@ -432,7 +432,7 @@ fn kyvia_scene(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) -> bool {
 /// `KyviaExOn` (QUA gcmn 0x003dcd70): the core at level 5 and in, its
 /// HP a fifth to a smoke, the EX turn's clips; after the rebirth (never
 /// reached) only the core again and the body at rest.
-fn ex_on(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+fn ex_on(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let reborn = fourth_of(x).rebirth_flg != 0;
     if !reborn {
         fourth_of(x).fight_flg = 1;
@@ -467,10 +467,10 @@ fn core_base_param_ex(x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
 pub(super) fn entry_slave(x: &mut Kyvia, t: &mut Tree, cx: &mut Cx, on: i32) -> i32 {
     let ex = ex(x);
     let Some(c) = t.core.as_mut() else { return -1 };
-    if c.b.exit == 0 {
+    if c.b.base.exit == 0 {
         return -1;
     }
-    c.b.exit = 0;
+    c.b.base.exit = 0;
     c.x.order_num = on;
     if ex {
         let gs = &mut t.gomoras;
@@ -485,7 +485,7 @@ pub(super) fn entry_slave(x: &mut Kyvia, t: &mut Tree, cx: &mut Cx, on: i32) -> 
 /// `DeadCheck` (QUA gcmn 0x003dc7a0), in the EX turn: the core's first
 /// death the rebirth, its second (its HP out, the party standing) the
 /// body's.
-fn dead_check(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+fn dead_check(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     if !ex(x) || x.live_flg == 0 {
         return;
     }
@@ -508,7 +508,7 @@ fn dead_check(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
 /// `SwitchActionPattern` of the places (QUA gcmn 0x003dcf40): at the
 /// core's turn (`kAtkFlg` 2, its state 0), the next of three attacks by
 /// the place.
-fn switch_action_pattern(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+fn switch_action_pattern(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     super::switch_dead_check(b, x, t, cx);
     let Some(c) = t.core.as_mut() else { return };
     if c.x.k_atk_flg != 2 || c.x.core_state != 0 {
@@ -572,7 +572,7 @@ fn switch_action_pattern(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx)
 /// five: the thunder or the ball after the rebirth, the skills, the
 /// beams, hell's express, and the great meteor, the last waiting for the
 /// menu with the player held.
-fn kyvia_switch_action_pattern(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+fn kyvia_switch_action_pattern(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let flg = t.core.as_ref().map_or(0, |c| c.x.k_atk_flg);
     match flg {
         2 => {
@@ -597,7 +597,7 @@ fn kyvia_switch_action_pattern(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &m
                 if let Some(c) = t.core.as_mut() {
                     c.x.k_dmg_flg = 0;
                     let cm = c.me;
-                    as_me(cx, cm, |cx| c.b.change_action(cx, super::core::act::NEUTRAL, 0, true));
+                    as_me(cx, cm, |cx| c.b.base.change_action(cx, super::core::act::NEUTRAL, 0, true));
                 }
             }
         }
@@ -680,7 +680,7 @@ pub(super) fn together_char_pos(cx: &mut Cx, pos: &mut V4, ex: i32) {
 /// `KyviaRndTarget` (QUA gcmn 0x003deb10): `SelectTarget(|ccRand() % 15|,
 /// 1e6)` if alive, else the first member alive on the list, else what it
 /// chose.
-fn rnd_target(b: &mut Boss, cx: &mut Cx) -> Option<usize> {
+fn rnd_target(b: &mut BossBase, cx: &mut Cx) -> Option<usize> {
     let ty = (cx.cc.rand() % 15).abs();
     let sel = b.select_target(cx, ty, super::super::FAR);
     if sel.is_some_and(|s| cx.scene.chars[s].hp != 0) {
@@ -691,7 +691,7 @@ fn rnd_target(b: &mut Boss, cx: &mut Cx) -> Option<usize> {
 
 /// `Move` (QUA gcmn 0x003db820): `ccBoss::Move` but the push kept whole
 /// (no ground under the body).
-pub(super) fn move_body(b: &mut Boss, cx: &mut Cx) {
+pub(super) fn move_body(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let mut pp = super::super::w2p(cx, cx.scene.chars[me].pos);
     if !geom::eq(0, b.move_spd) {
@@ -716,7 +716,7 @@ pub(super) fn move_body(b: &mut Boss, cx: &mut Cx) {
 /// `Kyvia_HellE_Damage(target)` (QUA gcmn 0x003df4a0), hell's express's
 /// callback: each member alive struck from Kyvia, `target` 80% of its HP
 /// and the rest 40% (at least 400), and the act on to its fifth step.
-pub(super) fn hell_damage(b: &mut Boss, cx: &mut Cx, target: Option<usize>) {
+pub(super) fn hell_damage(b: &mut BossBase, cx: &mut Cx, target: Option<usize>) {
     let me = cx.me;
     for m in cx.party.members {
         let Some(m) = m.filter(|&m| cx.valid(Some(m)) && cx.scene.chars[m].hp > 0) else { continue };
@@ -732,7 +732,7 @@ pub(super) fn hell_damage(b: &mut Boss, cx: &mut Cx, target: Option<usize>) {
 /// EX turn: at once) hell's express at the place's centre, the party
 /// gathered there; its callback moves the act on; 60 frames later the
 /// core back (the EX turn: its fade at once) and the act's end.
-pub(super) fn hell_e_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn hell_e_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let ex = ex(x);
     match b.act_proccess {
         0 => {
@@ -788,7 +788,7 @@ pub(super) fn hell_e_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx)
 /// before the body and the party gathered before it; at its tenth frame
 /// the great meteor's light and the core's boss skill 55 on Kite; at 90
 /// the blur's colour fading back, then the act's end.
-pub(super) fn big_megid(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn big_megid(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     match b.act_proccess {
         10 => {
             b.lock_player(cx, false);
@@ -834,7 +834,7 @@ pub(super) fn big_megid(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) 
                 let kite = cx.party.members[0];
                 if let Some(c) = t.core.as_mut() {
                     let cm = c.me;
-                    as_me(cx, cm, |cx| c.b.skill_damage(cx, kite, None, 55));
+                    as_me(cx, cm, |cx| c.b.base.skill_damage(cx, kite, None, 55));
                 }
             }
         }
@@ -862,7 +862,7 @@ pub(super) fn big_megid(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) 
 /// camera on the core; at 3, 10, 20, 40 and 50 one of
 /// `Skill_KYVIA_VARIOUS` from the core on a member at random; at the
 /// body's clip's end the act's end and the core's fade.
-pub(super) fn skill_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn skill_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.act_proccess += 1;
@@ -921,7 +921,7 @@ pub(super) fn core_eye(cx: &Cx, r: F, core: V4) -> V4 {
 /// at 11, the second gathering at 35; once the flash is out the ball
 /// (the EX turn's eye on the core); the ball's callback moves it on; the
 /// colour back, then the act's end.
-pub(super) fn magic_ball_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let ex = ex(x);
     match b.act_proccess {
         0 => {
@@ -1027,13 +1027,13 @@ pub(super) fn magic_ball_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut
 /// `KyviaMagicalBallDamage` of the fourth fight (QUA gcmn 0x003df3d0): 0
 /// and 1 the core's boss skills 74 and 75 round `pos`; 2 the attack on,
 /// the core's state 7 and the camera back.
-pub(super) fn ball_damage(b: &mut Boss, t: &mut Tree, cx: &mut Cx, pos: V4, flg: i32) {
+pub(super) fn ball_damage(b: &mut BossBase, t: &mut Tree, cx: &mut Cx, pos: V4, flg: i32) {
     match flg {
         0 | 1 => {
             let Some(c) = t.core.as_mut() else { return };
             let cm = c.me;
             let skill = if flg == 0 { 74 } else { 75 };
-            as_me(cx, cm, |cx| c.b.skill_damage(cx, None, Some(pos), skill));
+            as_me(cx, cm, |cx| c.b.base.skill_damage(cx, None, Some(pos), skill));
         }
         2 => {
             b.act_proccess += 1;
@@ -1051,7 +1051,7 @@ pub(super) fn ball_damage(b: &mut Boss, t: &mut Tree, cx: &mut Cx, pos: V4, flg:
 /// camera before it; its cries each eighth frame; at 30 (the clip done)
 /// stream 85; at 35 `bossTbl` row 15's `maxHP` 9999 and the EX turn
 /// again with the core reborn, the body's HP new; at 36 the body back.
-pub(super) fn rebirth(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn rebirth(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -1130,7 +1130,7 @@ pub(super) fn apply_row15(x: &Kyvia, cx: &mut Cx, who: usize) {
 /// filling with the core's HP, the flash and the quake; the smoke rising,
 /// the cries, the camera and the light (`DeadKyviaRipus`); the party
 /// gathered at 11; then the exit.
-pub(super) fn dead(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn dead(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     if fourth_of(x).rebirth_flg == 0 {
         return;
     }
@@ -1220,7 +1220,7 @@ pub(super) fn dead(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
 
 /// `DeadKyviaRipus` (QUA gcmn 0x003db430): the death's lights 700 before
 /// the body and 1500 up, at 30, 50 and 170.
-fn dead_ripus(b: &Boss, cx: &mut Cx) {
+fn dead_ripus(b: &BossBase, cx: &mut Cx) {
     let at = add(cx.scene.chars[cx.me].pos, [0, 0xc42f_0000, 0x44bb_8000, ONE]);
     let rows: &[u8] = match b.act_count {
         30 => &[0],

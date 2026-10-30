@@ -150,13 +150,13 @@ fn stands_at_the_marker_with_its_core_and_gomoras() {
     assert_eq!(c.gomoras.len(), 5);
     assert_eq!(c.kyvia_lv, 1);
     let core = x.core;
-    assert_eq!(f.part(core).exit, 1, "the core waits for the disc");
+    assert_eq!(f.part(core).base.exit, 1, "the core waits for the disc");
     assert_eq!(x.max_hp, i32::from(f.scene.chars[core].max_hp));
     assert_eq!(x.switch_hp, x.max_hp / 4);
     assert_eq!(f.scene.chars[core].pos, f.scene.chars[f.party.members[0].unwrap()].pos, "the core at Kite");
     for k in 0..5 {
         let (b, g) = f.gomora(k);
-        assert_eq!((b.exit, g.state, g.slave_id), (1, 2, k as i32));
+        assert_eq!((b.base.exit, g.state, g.slave_id), (1, 2, k as i32));
     }
     assert_eq!(f.data.kyvia.gomora_lists[0], [3, 3, 3, 2, 0]);
     assert!(!f.scene.listed(core), "no target before it rises");
@@ -175,7 +175,7 @@ fn the_core_rises_once_the_disc_stops() {
     }
     let core = f.kyvia().core;
     assert_eq!(f.kyvia().st_flg, 0);
-    assert_eq!(f.part(core).exit, 0, "EntrySlave after 50 frames");
+    assert_eq!(f.part(core).base.exit, 0, "EntrySlave after 50 frames");
     // Its fade in: 0.02 a frame, then ActionStart puts it on the lists.
     for _ in 0..60 {
         f.frame();
@@ -195,7 +195,7 @@ fn gomoras_come_out_in_turn() {
     let c = f.core();
     assert_eq!(c.gomora_meter, 1, "the first gomora after 60 and 31 frames (`GsCount++ == 30`)");
     let (b, g) = f.gomora(0);
-    assert_eq!(b.exit, 0);
+    assert_eq!(b.base.exit, 0);
     assert_eq!(g.my_attribute, 3, "list 0's first: the dash");
     for _ in 0..(4 * 31) {
         f.frame();
@@ -226,7 +226,7 @@ fn a_hit_on_the_core_shows_its_resistance() {
     affect::entry_affect(&f.t, &mut f.scene, &actx, core, kite, 1, [100, 1, 0], &mut f.rand, &mut ev);
     assert_eq!(f.scene.chars[core].hp, hp - 100);
     let b = f.part(core);
-    assert_eq!(b.act_num, core::act::DAMAGE);
+    assert_eq!(b.base.act_num, core::act::DAMAGE);
     let shield = crate::event::Event::ResistantShield { on: crate::event::Who::Char(core), magic: 0 };
     assert!(ev.contains(&shield), "{ev:?}");
 }
@@ -254,7 +254,7 @@ fn the_second_fight_has_two_stages_and_a_level_2_core() {
     assert_eq!(f.core().kyvia_lv, 2);
     assert_eq!(x.switch_hp, x.max_hp / 5, "a fifth of the core's HP");
     assert!(x.thunder.is_some());
-    assert_eq!(f.part(f.me).anm.clip.as_deref(), Some("ANM_ex02nut0"));
+    assert_eq!(f.part(f.me).base.anm.clip.as_deref(), Some("ANM_ex02nut0"));
     // AllGomoraList_2: two steps of three lists, none after.
     let d = &f.data.kyvia;
     assert_eq!(d.gomora_lists_of(2, 0).map(<[_]>::len), Some(3));
@@ -269,17 +269,17 @@ fn the_first_stage_calls_thunder_for_the_beams() {
     let core = f.kyvia().core;
     let mut b = f.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
     let (act, kind) = f.with_cx(|cx| {
-        let mut x = kyvia_of(&mut b);
+        let Class::Kyvia(x) = &mut b.class else { panic!("not Kyvia") };
         x.atk_pat_mode = 2;
         let mut t = Tree::take(cx, core);
         if let Some(c) = t.core.as_mut() {
             c.x.k_atk_flg = 2;
             c.x.core_state = 0;
         }
-        switch_action_pattern(&mut b, &mut x, &mut t, cx);
+        switch_action_pattern(&mut b.base, x, &mut t, cx);
         t.put(cx);
         let kind = x.thunder.map(|t| t.kind);
-        (b.act_num, kind)
+        (b.base.act_num, kind)
     });
     assert_eq!(act, act::THUNDER);
     assert_eq!(kind, Some(thunder::Kind::Strike));

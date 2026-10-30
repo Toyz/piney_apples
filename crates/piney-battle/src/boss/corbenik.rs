@@ -22,7 +22,7 @@ use piney_data::volume::Volume;
 
 use piney_data::field::ee;
 
-use super::{Boss, Cx, EffKind, Out, Tbl, VF0};
+use super::{BossBase, Cx, EffKind, Out, Tbl, VF0};
 use crate::geom::V4;
 
 type F = u32;
@@ -419,8 +419,8 @@ fn restart(anm: &mut crate::boss::Anm, cx: &Cx) {
 /// A class's own `ChangeAction` and `ExecPattern`, which the base's
 /// `ExecPatternIndex` calls through the vtable.
 pub(crate) trait Host {
-    fn change_action(&mut self, b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16, af: bool);
-    fn exec_pattern(&mut self, b: &mut Boss, cx: &mut Cx, pat: i32, p0: i32);
+    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool);
+    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32);
 }
 
 /// The base's acts its patterns set: the neutral, the epitaph's, the
@@ -440,7 +440,7 @@ mod base_act {
 /// neutral held (forbid 3), 9 and 11 a skill on the target or on itself,
 /// 12 one on every member; any other word the neutral let go (forbid 1).
 /// `h` is the class's `ChangeAction` and `ExecPattern`.
-pub(crate) fn base_exec_pattern_index(b: &mut Boss, cx: &mut Cx, h: &mut dyn Host, tbl: &[i32], i: i32) -> i32 {
+pub(crate) fn base_exec_pattern_index(b: &mut BossBase, cx: &mut Cx, h: &mut dyn Host, tbl: &[i32], i: i32) -> i32 {
     let orig = i;
     let mut i = i;
     let mut pat = word(tbl, i);
@@ -453,7 +453,7 @@ pub(crate) fn base_exec_pattern_index(b: &mut Boss, cx: &mut Cx, h: &mut dyn Hos
     }
     b.pat_num = pat;
     let me = cx.me;
-    let neutral = |b: &mut Boss, cx: &mut Cx, h: &mut dyn Host, forbid: i16| {
+    let neutral = |b: &mut BossBase, cx: &mut Cx, h: &mut dyn Host, forbid: i16| {
         if b.epitaph != 0 {
             h.change_action(b, cx, base_act::EPITAPH, 3, true);
         } else {
@@ -551,7 +551,7 @@ fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
 }
 
 /// `targetChar = SelectTarget(ty, 999999)`.
-fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
+fn select(b: &mut BossBase, cx: &mut Cx, ty: i32) -> Option<usize> {
     let t = b.select_target(cx, ty, FAR);
     cx.scene.chars[cx.me].target_char = t;
     t
@@ -569,12 +569,12 @@ fn wrap_lo(v: F) -> F {
 
 /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
 /// order, a disabled one freed. Corbenik's own run their rules here.
-fn manager_pass(b: &mut Boss, cx: &mut Cx) {
+fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
     manager_pass_x(b, cx, None);
 }
 
 /// The pass with the third form's members at hand (its eyes).
-fn manager_pass_x(b: &mut Boss, cx: &mut Cx, mut third: Option<&mut third::Third>) {
+fn manager_pass_x(b: &mut BossBase, cx: &mut Cx, mut third: Option<&mut third::Third>) {
     let mut k = 0;
     while k < b.effects.slots.len() {
         let Some(e) = b.effects.slots[k].as_mut() else {
@@ -601,7 +601,7 @@ fn manager_pass_x(b: &mut Boss, cx: &mut Cx, mut third: Option<&mut third::Third
 }
 
 /// An effect of Corbenik's own made in the first free slot.
-fn make_fx(b: &mut Boss, cx: &mut Cx, kind: EffKind, fx: eff::Fx, pos: V4) -> i32 {
+fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: eff::Fx, pos: V4) -> i32 {
     let id = b.effects.create(kind);
     if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
         e.corbenik = Some(Box::new(fx));

@@ -3116,7 +3116,7 @@ fn whole_story(disc: &str) {
             let c = a.world().combat();
             let ch = &c.scene.chars[me];
             let pp = c.scene.param(me).map_or(0, |p| p.pp);
-            let b = ch.foe_state().and_then(|fo| fo.boss.as_ref().map(|b| (b.act_num, pp)));
+            let b = ch.foe_state().and_then(|fo| fo.boss.as_ref().map(|b| (b.base.act_num, pp)));
             println!("BOSS {f} {b:?} hp {}/{} {}", ch.hp, ch.max_hp, fighters(a));
         }
         if f.is_multiple_of(30)
@@ -3748,7 +3748,7 @@ fn live_seeds(c: &piney_world::combat::Combat) -> Vec<(usize, i32)> {
         .filter_map(|k| {
             let b = c.scene.chars[k].foe_state()?.boss.as_ref()?;
             let Class::CorbenikSeed(x) = &b.class else { return None };
-            (b.act_num == act::COUNT_DOWN).then_some((k, x.exp_count))
+            (b.base.act_num == act::COUNT_DOWN).then_some((k, x.exp_count))
         })
         .collect()
 }
@@ -3866,7 +3866,7 @@ fn kyvia_trace(a: &crate::area::AreaMode, f: u64) {
     eprintln!(
         "KYVIA {f} exit {} act {} st {} disc {} fourth {fourth:?} core {}/{} listed {} kite {p:?} | {}",
         r.exit,
-        b.act_num,
+        b.base.act_num,
         x.st_flg,
         x.disc_lv,
         core.hp,
@@ -3907,7 +3907,7 @@ fn flee_wave(a: &crate::area::AreaMode) -> Option<Raw> {
     let r = c.boss.as_ref().filter(|r| !r.exit && r.code == piney_world::combat::boss::MACHA)?;
     let me = &c.scene.chars[r.me];
     let b = me.foe_state()?.boss.as_ref()?;
-    if !matches!(b.act_num, act::WAVE | act::EPITAPH_WAVE) {
+    if !matches!(b.base.act_num, act::WAVE | act::EPITAPH_WAVE) {
         return None;
     }
     let p = w.player().body.pos.map(f32::from_bits);
@@ -3978,8 +3978,10 @@ pub(super) fn fighters(a: &crate::area::AreaMode) -> String {
                     (a[0] - b[0]).hypot(a[1] - b[1])
                 });
                 // A boss's act and its Epitaph flag.
-                let boss =
-                    f.boss.as_ref().map_or(String::new(), |b| format!(" boss act {} epitaph {}", b.act_num, b.epitaph));
+                let boss = f
+                    .boss
+                    .as_ref()
+                    .map_or(String::new(), |b| format!(" boss act {} epitaph {}", b.base.act_num, b.base.epitaph));
                 format!(
                     "{} {}/{} lv {} pp {} break {}{boss} at {d:.0} aims {:?} skill {}",
                     String::from_utf8_lossy(&f.row.name),

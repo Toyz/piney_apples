@@ -12,7 +12,7 @@ use super::eye::{self, Eye, Killer};
 use super::laser::{Refrect, Tera};
 use super::{Gen, Host, Pic, make_fx, manager_pass_x, select, target_ok, word};
 use crate::boss::kyvia::{Part, as_me, new_char, plain_boss, set_base_param};
-use crate::boss::{Anm, Boss, Class, Cx, EffKind, Out, Tbl, VF0, blur};
+use crate::boss::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0, blur};
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, M4, V4};
 use crate::param::cond;
@@ -95,16 +95,6 @@ pub struct Third {
     /// `ccBoss::actPos` (+0x1b0): where the laser started.
     pub act_pos: V4,
     pub gen_serial: u32,
-}
-
-fn third_of(b: &mut Boss) -> Box<Third> {
-    match std::mem::replace(&mut b.class, Class::Plain) {
-        Class::CorbenikC(x) => x,
-        other => {
-            b.class = other;
-            Box::default()
-        }
-    }
 }
 
 fn w2p(cx: &Cx, v: V4) -> V4 {
@@ -247,8 +237,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
         eye::set_master(&mut p.x, me, k as i32);
     }
     put_parts(cx, &mut x, found);
-    b.class = Class::CorbenikC(x);
-    b
+    Boss { base: b, class: Class::CorbenikC(x) }
 }
 
 /// `SetupSlave` (0x003bd960): the sixteen eyes made (each its own
@@ -276,16 +265,14 @@ fn setup_slave(x: &mut Third, cx: &mut Cx) {
 
 /// The effect manager's pass, then `ccBoss08_c::Main` (0x003b99b0, the
 /// base's).
-pub(crate) fn main(b: &mut Boss, cx: &mut Cx) {
-    let mut x = third_of(b);
-    let found = take_parts(cx, &mut x);
-    manager_pass_x(b, cx, Some(&mut x));
-    frame(b, &mut x, cx);
-    put_parts(cx, &mut x, found);
-    b.class = Class::CorbenikC(x);
+pub(crate) fn main(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
+    let found = take_parts(cx, x);
+    manager_pass_x(b, cx, Some(x));
+    frame(b, x, cx);
+    put_parts(cx, x, found);
 }
 
-fn frame(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     if b.exit != 0 {
         return;
     }
@@ -335,7 +322,7 @@ fn frame(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// `PreDrawAnm` (0x003b99d0): the base's (the clip forward), then the
 /// eyes' centre offset: the dummy by the clip's last drawn pose, less its
 /// place.
-fn pre_draw_anm(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn pre_draw_anm(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     b.anm_status = i8::from(b.anm.forward());
     let d = w2p(cx, eye::dummy_at(&x.body_world, x.dummy));
     x.eye_center_offset = geom::vsub(d, cx.scene.chars[cx.me].pos_p);
@@ -344,7 +331,7 @@ fn pre_draw_anm(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// `ccBoss::Draw` (QUA gcmn 0x00361040) as far as the rules see it: the
 /// transparency the camera's fade leaves, and the clip drawn while it
 /// shows, which leaves its world matrix `SetMatrix_PosRotZYX(pos, dirc)`.
-fn draw(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn draw(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let pos = cx.scene.chars[cx.me].pos;
     if b.draw(cx) {
         x.body_world = geom::trans_matrix(&geom::rot_matrix(&geom::unit_matrix(), b.dirc), pos);
@@ -353,7 +340,7 @@ fn draw(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 
 /// `Slave` (0x003bd870): each eye its `Main` (the body's target, its way
 /// and distance handed down), then each killer eye's.
-fn slave(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn slave(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let m = x.master_view(b, cx);
     for p in &mut x.eyes {
         eye::eye_main(p, &m, cx);
@@ -370,7 +357,7 @@ fn slave(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 
 /// `ccBoss08_c::ChangeAction(n, forbid, af)` (0x003bd6c0): the base's, and
 /// each eye told the act (`Order(n)`).
-pub(crate) fn change_action(b: &mut Boss, x: &mut Third, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+pub(crate) fn change_action(b: &mut BossBase, x: &mut Third, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
     let ok = match forbid {
         0 => b.act_forbid == 0,
         1 => {
@@ -390,7 +377,7 @@ pub(crate) fn change_action(b: &mut Boss, x: &mut Third, cx: &mut Cx, n: i16, fo
     b.act_proccess = 0;
     b.act_count = 0;
     for p in &mut x.eyes {
-        as_me(cx, p.me, |cx| eye::order(&mut p.b, &mut p.x, cx, n));
+        as_me(cx, p.me, |cx| eye::order(&mut p.b.base, &mut p.x, cx, n));
     }
     if af && let Some(Some(clip)) = usize::try_from(n).ok().and_then(|k| b.anm_tbl.get(k)) {
         let clip = clip.clone();
@@ -406,22 +393,22 @@ struct ThirdHost<'a> {
 }
 
 impl Host for ThirdHost<'_> {
-    fn change_action(&mut self, b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
         change_action(b, self.x, cx, n, forbid, af);
     }
 
-    fn exec_pattern(&mut self, b: &mut Boss, cx: &mut Cx, pat: i32, p0: i32) {
+    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
         exec_pattern(b, self.x, cx, pat, p0);
     }
 }
 
-fn words(cx: &Cx, b: &Boss) -> Vec<i32> {
+fn words(cx: &Cx, b: &BossBase) -> Vec<i32> {
     cx.data.corbenik.words_c(b.pat_tbl).to_vec()
 }
 
 /// `SetPatternMode(m)` (0x003b9b90): 0 the first table, 1 the normal, any
 /// other none; run from its start.
-fn set_pattern_mode(b: &mut Boss, x: &mut Third, cx: &mut Cx, m: i32) {
+fn set_pattern_mode(b: &mut BossBase, x: &mut Third, cx: &mut Cx, m: i32) {
     b.pat_tbl = match m {
         0 => Tbl::Normal,
         1 => Tbl::Super,
@@ -433,13 +420,13 @@ fn set_pattern_mode(b: &mut Boss, x: &mut Third, cx: &mut Cx, m: i32) {
     b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
 }
 
-fn exec_pattern(b: &mut Boss, x: &mut Third, cx: &mut Cx, pat: i32, p0: i32) {
+fn exec_pattern(b: &mut BossBase, x: &mut Third, cx: &mut Cx, pat: i32, p0: i32) {
     let tbl = [pat, p0, 0, 0, -1];
     exec_pattern_index(b, x, cx, &tbl, 0);
 }
 
 /// `ccBoss::ChangeNextPattern` (QUA gcmn 0x00360da0) through this class.
-fn change_next_pattern(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn change_next_pattern(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let tbl = words(cx, b);
     if word(&tbl, b.pat_index) == -1 {
         b.pat_index = 0;
@@ -459,7 +446,7 @@ fn change_next_pattern(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// (those three holding the slaves), 17 the eye entry (20) once every
 /// killer eye is out (else the next word), 18 a slave attack (21) by the
 /// next word's row; the rest the base's, from the word it was called at.
-fn exec_pattern_index(b: &mut Boss, x: &mut Third, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn exec_pattern_index(b: &mut BossBase, x: &mut Third, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let mut s = i;
     loop {
         let mut pat = word(tbl, s);
@@ -475,7 +462,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Third, cx: &mut Cx, tbl: &[i32], i: 
         match pat {
             1 => change_action(b, x, cx, act::WAVE, 3, true),
             17 => {
-                if x.killers.iter().any(|p| p.b.exit == 0) {
+                if x.killers.iter().any(|p| p.b.base.exit == 0) {
                     continue;
                 }
                 change_action(b, x, cx, act::ENTRY_EYE, 3, true);
@@ -504,7 +491,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Third, cx: &mut Cx, tbl: &[i32], i: 
 }
 
 /// `ccBoss08_c::Think` (0x003b9a50).
-fn think(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
         act::DMG0 | act::DMG1 => change_action(b, x, cx, act::NEUTRAL, 1, false),
@@ -521,7 +508,7 @@ fn think(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 }
 
 /// `SelectTarget(0)`; none alive, pattern 2 -1.
-fn pick(b: &mut Boss, x: &mut Third, cx: &mut Cx) -> bool {
+fn pick(b: &mut BossBase, x: &mut Third, cx: &mut Cx) -> bool {
     let t = select(b, cx, 0);
     if !alive(cx, t) {
         exec_pattern(b, x, cx, 2, -1);
@@ -534,17 +521,17 @@ fn pick(b: &mut Boss, x: &mut Third, cx: &mut Cx) -> bool {
 /// Each killer eye not out: off (`EraseCmndTarget`) or on the targets.
 fn killers_targets(x: &mut Third, cx: &mut Cx, on: bool) {
     for p in &mut x.killers {
-        if p.b.exit != 0 {
+        if p.b.base.exit != 0 {
             continue;
         }
-        as_me(cx, p.me, |cx| if on { p.b.entry_cmnd_target(cx) } else { p.b.erase_cmnd_target(cx) });
+        as_me(cx, p.me, |cx| if on { p.b.base.entry_cmnd_target(cx) } else { p.b.base.erase_cmnd_target(cx) });
     }
 }
 
 /// `OnThinkNeutral` (0x003b9ff0): still, turning to its target
 /// (`SelectTarget(0)` each frame); the wait (-3: while a killer eye is
 /// out and busy but in its neutral or wander), then the next pattern.
-fn on_neutral(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let me = cx.me;
     b.move_spd = 0;
     b.move_vector = VF0;
@@ -566,7 +553,9 @@ fn on_neutral(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
         }
         b.stop_time = 0;
     } else if b.stop_time == -3
-        && x.killers.iter().any(|p| p.b.exit == 0 && p.b.act_num != 0 && p.b.act_num != eye::killer_act::WANDER)
+        && x.killers
+            .iter()
+            .any(|p| p.b.base.exit == 0 && p.b.base.act_num != 0 && p.b.base.act_num != eye::killer_act::WANDER)
     {
         return;
     }
@@ -579,7 +568,7 @@ fn on_neutral(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// and 520 up `BossDeadGenerator` row 0 (SE 56), 35 frames on row 1 20
 /// higher (SE 104), 60 on row 1 again 20 higher; 20 more a fade to black,
 /// at 140 out and the camera back.
-fn on_die(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -647,9 +636,9 @@ fn on_die(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 
 /// `OnExit` (0x003ba8e0): each killer eye out and off the lists, then the
 /// body out.
-fn on_exit(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_exit(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     for p in &mut x.killers {
-        eye::on_exit(&mut p.b, cx);
+        eye::on_exit(&mut p.b.base, cx);
         crate::fellow::delete_cmnd(cx.scene, p.me);
         cx.out(Out::DeleteCmnd);
     }
@@ -660,7 +649,7 @@ fn on_exit(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// party held, off the lists, the slaves paused, the cinema; at 45 stream
 /// 107 on the drained member's slot; once the menu is shut the drain (13)
 /// on the target, all back and the next pattern.
-fn on_data_drain(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_data_drain(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -715,7 +704,7 @@ fn on_data_drain(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// eye's birth there and the killer eyes thrown (SE 48); at 90 the camera
 /// 3000 out and 300 up, 30 degrees off its heading, drawn out 6.67 a frame
 /// to 220; all back and the next pattern.
-fn on_entry_eye(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let c = b.act_count;
     b.act_count += 1;
     match b.act_proccess {
@@ -784,10 +773,10 @@ fn on_entry_eye(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 }
 
 /// `EntryKiller(3)` (0x003bdbc0): each killer eye that is out born again.
-fn entry_killer(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn entry_killer(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let v = x.killer_view(b, cx);
     for p in &mut x.killers {
-        if p.b.exit != 0 {
+        if p.b.base.exit != 0 {
             eye::generate(p, &v, cx);
         }
     }
@@ -798,7 +787,7 @@ fn entry_killer(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// SE 255 at 61, from 70 the quake (50) and the wave drawn, at 73 a flash
 /// and a WaveShock, at 85 boss skill 59; both clips over, the next
 /// pattern.
-fn on_wave(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let pos = cx.pos();
     match b.act_proccess {
         0 => {
@@ -842,7 +831,7 @@ fn on_wave(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// of sight; the camera high over the arena, the dark stage, the clump
 /// off, the tera laser (`ccBossEffTeraLaser`) from 3000 over the origin
 /// onto the target; over, all back where it was and the next pattern.
-fn on_tera_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_tera_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -883,13 +872,13 @@ fn on_tera_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
             b.dirc[2] = b.target_dirc;
             if c >= 60 {
                 for p in &mut x.eyes {
-                    p.b.transparency = 0;
-                    p.b.set_transparency = 0;
+                    p.b.base.transparency = 0;
+                    p.b.base.set_transparency = 0;
                 }
                 for p in &mut x.killers {
                     crate::fellow::delete_cmnd(cx.scene, p.me);
                     cx.out(Out::DeleteCmnd);
-                    eye::on_exit(&mut p.b, cx);
+                    eye::on_exit(&mut p.b.base, cx);
                 }
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -902,20 +891,20 @@ fn on_tera_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
             b.transparency = t;
             b.set_transparency = t;
             for p in &mut x.eyes {
-                let mut t = ee::sub(p.b.transparency, 0x3d08_8889);
+                let mut t = ee::sub(p.b.base.transparency, 0x3d08_8889);
                 if ee::le(t, 0) {
                     t = 0;
                 }
-                p.b.transparency = t;
-                p.b.set_transparency = t;
+                p.b.base.transparency = t;
+                p.b.base.set_transparency = t;
             }
             for p in &mut x.killers {
-                let mut t = ee::sub(p.b.transparency, 0x3d08_8889);
+                let mut t = ee::sub(p.b.base.transparency, 0x3d08_8889);
                 if ee::lt(t, 0) {
                     t = 0;
                 }
-                p.b.transparency = t;
-                p.b.set_transparency = t;
+                p.b.base.transparency = t;
+                p.b.base.set_transparency = t;
             }
         }
         2 => {
@@ -993,9 +982,9 @@ fn on_tera_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
         }
         5 => {
             for p in &mut x.eyes {
-                p.b.draw_sw = 1;
-                p.b.transparency = ONE;
-                p.b.set_transparency = ONE;
+                p.b.base.draw_sw = 1;
+                p.b.base.transparency = ONE;
+                p.b.base.set_transparency = ONE;
             }
             cx.scene.chars[me].pos = x.old_pos;
             b.body_hit_sw = 1;
@@ -1017,7 +1006,7 @@ fn on_tera_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// the killer eye of the pattern's row (-1: one of `@1714` by `ccRand() %
 /// 3`) that is on the lists and alive attacks (`Attack()`), else the next
 /// pattern; the frame after, the next pattern.
-fn on_slave_attack(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_slave_attack(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let mut k = x.attack_slave;
     match b.act_proccess {
         0 => {
@@ -1064,7 +1053,7 @@ fn on_slave_attack(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// `OnThinkWander` (0x003bc6c0): round the centre at 15 (stopped while
 /// stopped or held) for 300 frames, the next pattern after; with the party
 /// gone, pattern 2 -1.
-fn on_wander(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_wander(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1104,7 +1093,7 @@ fn on_wander(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// they show; the charge at the dummy, a flash and the body hidden; `16 /
 /// n` reflected lasers at each of the n members alive; once all are over
 /// boss skill 58 at the target and the stage back; 15 frames on, all back.
-fn on_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
+fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1137,11 +1126,11 @@ fn on_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
                 b.transparency = 0;
                 b.set_transparency = 0;
                 for p in &mut x.eyes {
-                    p.b.transparency = 0;
-                    p.b.set_transparency = 0;
+                    p.b.base.transparency = 0;
+                    p.b.base.set_transparency = 0;
                 }
                 for p in &mut x.killers {
-                    p.b.draw_sw = 0;
+                    p.b.base.draw_sw = 0;
                 }
                 let d = get_dirc(b.center_pos_p, b.target_pos_p);
                 let pos = out_from(cx, b.target_pos, d, [0x447a_0000, 0, 0, ONE]);
@@ -1158,12 +1147,12 @@ fn on_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
                     cx.out(Out::Se { se: 229 });
                 }
                 for p in &mut x.eyes {
-                    let mut t = ee::add(p.b.transparency, 0x3d08_8889);
+                    let mut t = ee::add(p.b.base.transparency, 0x3d08_8889);
                     if !ee::le(t, ONE) {
                         t = ONE;
                     }
-                    p.b.transparency = t;
-                    p.b.set_transparency = t;
+                    p.b.base.transparency = t;
+                    p.b.base.set_transparency = t;
                 }
                 return;
             }
@@ -1267,7 +1256,7 @@ fn on_laser(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
                 return;
             }
             for p in &mut x.killers {
-                p.b.draw_sw = 1;
+                p.b.base.draw_sw = 1;
             }
             reset_refrect_laser_pos(x, cx);
             cx.scene.chars[me].pos = x.act_pos;
@@ -1321,7 +1310,7 @@ fn calc_tera_laser_pos(x: &mut Third, cx: &mut Cx) {
 /// up, five at `[1]`, `[2]`, eight at `[2]`, `[3]`, from a quarter turn
 /// off the way back from the target), all set off from 1500 behind the
 /// target and 200 up at `v0` slowing to arrive in `n` frames.
-fn setup_refrect_laser_pos(b: &Boss, x: &mut Third, cx: &mut Cx, v0: F, n: i32) {
+fn setup_refrect_laser_pos(b: &BossBase, x: &mut Third, cx: &mut Cx, v0: F, n: i32) {
     let radii = cx.data.corbenik.refrect_radii.clone();
     let heights = cx.data.corbenik.refrect_heights.clone();
     let r = |k: usize| radii.get(k).copied().unwrap_or(0);
@@ -1401,10 +1390,9 @@ fn calc_laser_turning_points(cx: &mut Cx) -> Vec<usize> {
 /// `ChangeAction`), then for a blow (1, 3): at half its HP the first time
 /// stream 88 and the normal table; at 0 the death (14); a hit's note
 /// (`ccSeOn3DNote(195, pos, abs(ccRand() % 5) + 60)`).
-pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
-    let mut x = third_of(b);
-    let found = take_parts(cx, &mut x);
-    b.base_affect_with(cx, &mut |b, cx, n, forbid, af| change_action(b, &mut x, cx, n, forbid, af));
+pub(crate) fn affect(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
+    let found = take_parts(cx, x);
+    b.base_affect_with(cx, &mut |b, cx, n, forbid, af| change_action(b, x, cx, n, forbid, af));
     let me = cx.me;
     let t = cx.scene.chars[me].affect.ty;
     if t == 1 || t == 3 {
@@ -1413,10 +1401,10 @@ pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
         if b.exit == 0 && !x.half && hp <= mhp / 2 {
             cx.out(Out::StreamMenu { stream: 88, mask: 0 });
             x.half = true;
-            set_pattern_mode(b, &mut x, cx, 1);
+            set_pattern_mode(b, x, cx, 1);
         }
         if b.exit == 0 && cx.scene.chars[me].hp <= 0 {
-            change_action(b, &mut x, cx, act::DIE, 2, true);
+            change_action(b, x, cx, act::DIE, 2, true);
         }
         if cx.scene.chars[me].affect.param[0] > 0 {
             let n = (cx.cc.rand() % 5).abs() + 60;
@@ -1424,6 +1412,5 @@ pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
             cx.out(Out::Se3dNote { se: 195, pos, note: n as u8 });
         }
     }
-    put_parts(cx, &mut x, found);
-    b.class = Class::CorbenikC(x);
+    put_parts(cx, x, found);
 }

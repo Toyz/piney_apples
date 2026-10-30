@@ -70,7 +70,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
                     let b = c.boss.as_ref().map(|r| {
                         let bb = c.scene.chars[r.me].foe_state().and_then(|f| f.boss.as_ref());
                         let core = r.parts.first().map(|&k| (c.scene.chars[k].hp, c.scene.listed(k)));
-                        (r.code, r.exit, bb.map(|b| (b.act_num, b.act_proccess, b.exit)), core)
+                        (r.code, r.exit, bb.map(|b| (b.base.act_num, b.base.act_proccess, b.base.exit)), core)
                     });
                     format!("{} boss {b:?} flag {:x?}", Mode::title(s), event_flag(s, 308))
                 }
@@ -121,11 +121,11 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         }
         let c = a.world_mut().combat_mut();
         if let Some(b) = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()) {
-            p.acts.insert(b.act_num);
+            p.acts.insert(b.base.act_num);
             if let Class::Kyvia(x) = &b.class {
                 p.stages.insert(x.disc_lv);
             }
-            if b.effects.slots.iter().flatten().any(|e| e.ball.is_some()) && census.anchored_generators > 0 {
+            if b.base.effects.slots.iter().flatten().any(|e| e.ball.is_some()) && census.anchored_generators > 0 {
                 p.plasma += 1;
             }
         }
@@ -185,7 +185,7 @@ fn kyvia_third_shots() {
                 a.world().combat().scene.chars[r.me]
                     .foe_state()
                     .and_then(|f| f.boss.as_ref())
-                    .is_some_and(|b| b.effects.slots.iter().flatten().any(|e| e.ball.is_some()))
+                    .is_some_and(|b| b.base.effects.slots.iter().flatten().any(|e| e.ball.is_some()))
             }),
             _ => false,
         };

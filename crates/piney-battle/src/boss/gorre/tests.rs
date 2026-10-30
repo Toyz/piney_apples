@@ -120,7 +120,7 @@ impl Fight {
         let me = self.me;
         self.scene.chars[me].skill_id = 0;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        let mut out = b.take_pending();
+        let mut out = b.base.take_pending();
         out.extend(self.with_cx(|cx| {
             b.main(cx);
             std::mem::take(&mut cx.out)
@@ -157,8 +157,8 @@ fn stands_behind_kite_with_two_brothers_beside_it() {
     let me = f.me;
     assert_eq!(f.scene.chars[me].pos[1], (-500.0f32).to_bits(), "500 behind Kite");
     assert!(!f.scene.ene_list.contains(&me), "Gorre itself is never listed");
-    assert_eq!(f.boss().pat_tbl, Tbl::Normal);
-    assert_eq!(f.boss().act_num, act::NEUTRAL);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Normal);
+    assert_eq!(f.boss().base.act_num, act::NEUTRAL);
     let br = f.gorre().brother_me;
     assert_ne!(br[0], br[1], "two distinct brothers");
     for m in br {
@@ -175,7 +175,7 @@ fn runs_its_first_pattern_without_panicking() {
     // Reaching here (no panic, no infinite recursion) is the assertion:
     // the pattern table, Think's dispatch and both brothers' frames all
     // ran across several act changes.
-    assert!(f.boss().pat_num != 0 || f.boss().act_num != act::NEUTRAL);
+    assert!(f.boss().base.pat_num != 0 || f.boss().base.act_num != act::NEUTRAL);
 }
 
 /// An `EntryAffect` on a brother (Kite's), as a hit, a drain or a heal.
@@ -203,10 +203,10 @@ fn a_drain_on_a_brother_drains_gorre() {
     affect_brother(&mut f, 1, 13, 0);
     f.frame();
     let b = f.boss();
-    assert_eq!(b.epitaph, 1);
-    assert_eq!(b.pat_tbl, Tbl::Epitaph);
-    assert_eq!(b.pat_mode, 2);
-    assert_eq!(b.cheat_hp, 0);
+    assert_eq!(b.base.epitaph, 1);
+    assert_eq!(b.base.pat_tbl, Tbl::Epitaph);
+    assert_eq!(b.base.pat_mode, 2);
+    assert_eq!(b.base.cheat_hp, 0);
 }
 
 #[test]
@@ -215,10 +215,10 @@ fn the_three_fall_together_and_the_fight_ends() {
     affect_brother(&mut f, 1, 13, 0);
     f.frame();
     affect_brother(&mut f, 0, 1, i16::MAX);
-    assert_eq!(f.boss().act_num, act::DEAD);
+    assert_eq!(f.boss().base.act_num, act::DEAD);
     let br = f.gorre().brother_me;
-    f.until(600, |f| f.boss().exit != 0);
-    assert_ne!(f.boss().exit, 0, "both brothers' dead effects over");
+    f.until(600, |f| f.boss().base.exit != 0);
+    assert_ne!(f.boss().base.exit, 0, "both brothers' dead effects over");
     for m in br {
         assert!(!f.scene.ene_list.contains(&m), "the brothers off the lists");
     }

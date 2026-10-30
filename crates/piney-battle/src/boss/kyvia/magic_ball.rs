@@ -12,7 +12,7 @@ use super::{
     fp,
 };
 use crate::boss::blur::Set;
-use crate::boss::{Boss, Cx, EffKind, Out, VF0};
+use crate::boss::{BossBase, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::rand::Rng;
@@ -369,7 +369,7 @@ pub trait BallHost {
 
 /// The fight's ball: the manager's blur and `KyviaMagicalBallDamage`.
 pub(crate) struct FightBall<'a, 'c> {
-    pub b: &'a mut Boss,
+    pub b: &'a mut BossBase,
     pub x: &'a mut Kyvia,
     pub t: &'a mut Tree,
     pub cx: &'a mut Cx<'c>,
@@ -399,7 +399,7 @@ impl BallHost for FightBall<'_, '_> {
 /// the core's boss skills 72 and 73 round `pos`; 2 the attack on
 /// (`actProccess`), the core's state 7 and the camera back (mode 4); 3
 /// the quake 30 each way.
-pub(crate) fn ball_damage(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx, pos: V4, flg: i32) {
+pub(crate) fn ball_damage(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx, pos: V4, flg: i32) {
     if x.fight == super::Fight::Fourth {
         super::fourth::ball_damage(b, t, cx, pos, flg);
         return;
@@ -409,7 +409,7 @@ pub(crate) fn ball_damage(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx
             let Some(c) = t.core.as_mut() else { return };
             let cm = c.me;
             let skill = if flg == 0 { 72 } else { 73 };
-            as_me(cx, cm, |cx| c.b.skill_damage(cx, None, Some(pos), skill));
+            as_me(cx, cm, |cx| c.b.base.skill_damage(cx, None, Some(pos), skill));
         }
         2 => {
             b.act_proccess += 1;
@@ -423,7 +423,7 @@ pub(crate) fn ball_damage(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx
 
 /// `ccBossEffMagicalBallCreate(40, DiscPos, blur, KyviaMagicalBallDamage)`
 /// into the manager.
-pub(super) fn create(b: &mut Boss, x: &Kyvia, cx: &mut Cx) {
+pub(super) fn create(b: &mut BossBase, x: &Kyvia, cx: &mut Cx) {
     let ball = MagicalBall::new(cx.cc, 0x4220_0000, x.disc_pos);
     let kind = EffKind::MagicalBall;
     let id = b.effects.create(kind);
@@ -438,7 +438,7 @@ pub(super) fn create(b: &mut Boss, x: &Kyvia, cx: &mut Cx) {
 /// colour 0x60808080 with the ball's sound; once the camera is there, the
 /// ball over the disc (its callback moves the attack on); the quake while
 /// it lasts; the colour back; the core back and the act's end.
-pub(super) fn magic_ball_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             if core_ready(t) {

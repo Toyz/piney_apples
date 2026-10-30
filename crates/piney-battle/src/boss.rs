@@ -917,14 +917,21 @@ pub enum Out {
     BlurSinRot(F),
 }
 
-/// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own
-/// state is in [`Boss::class`]. Floats are bits; positions `[x, y, z, w]`.
+/// A boss: `ccBoss`'s members and its class's own ([`Class`]), apart, so
+/// that a class's rules hold both at once.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Boss {
+    pub base: BossBase,
+    pub class: Class,
+}
+
+/// `ccBoss`, with `ccBoss01`'s members (Skeith's). Floats are bits;
+/// positions `[x, y, z, w]`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BossBase {
     // ccBoss
     /// `actAnmTbl` (+0x1a8): the act's clip, by act (none for some).
     pub anm_tbl: Vec<Option<String>>,
-    pub class: Class,
     pub target_pos: V4,
     pub target_pos_p: V4,
     pub target_dist: F,
@@ -1253,7 +1260,7 @@ impl Boss {
     /// `ChangeNextPattern` runs pattern 0 again). `centerPos` is the event
     /// area's `DMY_center01` (`center`, world).
     pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
-        let mut b = Boss {
+        let mut b = BossBase {
             anm_tbl: cx.data.skeith.anm_tbl.clone(),
             wait_pat_num: -2,
             pat_num: 13,
@@ -1267,7 +1274,7 @@ impl Boss {
             // the ccAnimateObjects start opaque
             animate: Fade { transparency: ONE, ..Fade::default() },
             animate_dead: Fade { transparency: ONE, ..Fade::default() },
-            ..Boss::default()
+            ..BossBase::default()
         };
         // ccBoss01's On/Off: exit off, drawn, body hit on, cheat HP on.
         b.exit = 0;
@@ -1292,10 +1299,8 @@ impl Boss {
         // The blur on under `ccBoss03BlurParamCB` (INF gcmn 0x0047bc40).
         cx.out(Out::Blur(blur::Set::Enable));
         cx.out(Out::Blur(blur::Set::Func(blur::BlurFunc::Boss03)));
-        b
+        Boss { base: b, class: Class::Skeith }
     }
-
-    // --- the frame ----------------------------------------------------------------------
 
     /// The boss task's frame: the effect manager's pass (its task runs
     /// first in the frame), then the class's `Main`.
@@ -1304,26 +1309,88 @@ impl Boss {
     /// blur's `Main` and the boss's task. The other classes' effects run
     /// in their `main`.
     pub fn effects_pass(&mut self, cx: &mut Cx) {
-        if let Class::Kyvia(_) = self.class {
-            kyvia::effects_pass(self, cx);
+        if let Class::Kyvia(x) = &mut self.class {
+            kyvia::effects_pass(&mut self.base, x, cx);
         }
     }
 
     pub fn main(&mut self, cx: &mut Cx) {
-        match self.class {
-            Class::Innis(_) => innis::main(self, cx),
-            Class::Magus(_) => magus::main(self, cx),
-            Class::Kyvia(_) => kyvia::main(self, cx),
-            Class::Fidchell(_) => fidchell::main(self, cx),
-            Class::Macha(_) => macha::main(self, cx),
-            Class::Tarvos(_) => tarvos::main(self, cx),
-            Class::Corbenik(_) => corbenik::first::main(self, cx),
-            Class::CorbenikB(_) => corbenik::second::main(self, cx),
-            Class::CorbenikC(_) => corbenik::third::main(self, cx),
-            Class::Gorre(_) => gorre::main(self, cx),
-            _ => self.skeith_main(cx),
+        let b = &mut self.base;
+        match &mut self.class {
+            Class::Innis(x) => innis::main(b, x, cx),
+            Class::Magus(x) => magus::main(b, x, cx),
+            Class::Kyvia(x) => kyvia::main(b, x, cx),
+            Class::Fidchell(x) => fidchell::main(b, x, cx),
+            Class::Macha(x) => macha::main(b, x, cx),
+            Class::Tarvos(x) => tarvos::main(b, x, cx),
+            Class::Corbenik(x) => corbenik::first::main(b, x, cx),
+            Class::CorbenikB(x) => corbenik::second::main(b, x, cx),
+            Class::CorbenikC(x) => corbenik::third::main(b, x, cx),
+            Class::Gorre(x) => gorre::main(b, x, cx),
+            _ => b.skeith_main(cx),
         }
     }
+
+    /// `ccBoss01::Affect` (0x0047bdf0): what an `EntryAffect` on the boss
+    /// does at once (`bossAffectFunc`, 0x0045f090): `ccBoss::Affect`, then
+    /// Skeith's own - the drain's 4500 HP, and the Super patterns once a
+    /// hit leaves its protect gauge at half.
+    pub fn affect(&mut self, cx: &mut Cx) {
+        match self.class {
+            Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
+            Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
+            _ => {}
+        }
+        let b = &mut self.base;
+        match &mut self.class {
+            Class::Innis(_) => innis::affect(b, cx),
+            Class::Magus(x) => magus::affect(b, x, cx),
+            Class::MagusLeaf(_) => magus::leaf::affect(b, cx),
+            Class::Gomora(_) => kyvia::gomora::affect(b, cx),
+            Class::Fidchell(x) => fidchell::affect(b, x, cx),
+            Class::Macha(x) => macha::affect(b, x, cx),
+            Class::Tarvos(x) => tarvos::affect(b, x, cx),
+            Class::Corbenik(x) => corbenik::first::affect(b, x, cx),
+            Class::CorbenikSeed(_) => corbenik::seed::affect(b, cx),
+            Class::CorbenikB(x) => corbenik::second::affect(b, x, cx),
+            Class::CorbenikC(x) => corbenik::third::affect(b, x, cx),
+            Class::CorbenikKiller(_) => corbenik::eye::affect(b, cx),
+            Class::Gorre(_) => gorre::affect(b, cx),
+            _ => b.skeith_affect(cx),
+        }
+    }
+}
+
+impl BossBase {
+    /// `ccBoss01::Affect` (Skeith's, and a plain boss's).
+    fn skeith_affect(&mut self, cx: &mut Cx) {
+        let me = cx.me;
+        let t = cx.scene.chars[me].affect.ty;
+        if t != 21 && (self.act_forbid == 2 || self.lock_player != 0) {
+            return;
+        }
+        self.base_affect(cx);
+        let t = cx.scene.chars[me].affect.ty;
+        if t == 21 {
+            let ch = &mut cx.scene.chars[me];
+            ch.hp = 4500;
+            ch.max_hp = 4500;
+        } else if (t == 1 || t == 3) && self.pat_mode == 0 {
+            let pp = cx.scene.param(me).map_or(0, |p| p.pp);
+            let id = usize::try_from(cx.scene.chars[me].id()).unwrap_or(0);
+            let max = cx.t.bosses.get(id).map_or(0, |r| r.max_pp);
+            if pp >= max >> 1 {
+                self.set_pattern_tbl(Tbl::Super);
+                let tbl = Tbl::Super.words(&cx.data.skeith).to_vec();
+                let _ = self.exec_pattern_index(cx, &tbl, 0);
+                self.pat_mode = 1;
+            }
+        }
+    }
+}
+
+impl BossBase {
+    // --- the frame ----------------------------------------------------------------------
 
     /// `ccBoss01::Main` (gcmn 0x0047bd50), with the manager's pass before.
     fn skeith_main(&mut self, cx: &mut Cx) {
@@ -1371,7 +1438,7 @@ impl Boss {
 
     /// `ccBoss::Main` (0x0045c270), the class's `Think` and `Action` in
     /// `class`.
-    pub(crate) fn base_main(&mut self, cx: &mut Cx, class: &mut dyn FnMut(&mut Boss, &mut Cx)) {
+    pub(crate) fn base_main(&mut self, cx: &mut Cx, class: &mut dyn FnMut(&mut BossBase, &mut Cx)) {
         if self.exit != 0 {
             return;
         }
@@ -1444,7 +1511,7 @@ impl Boss {
     /// (0x0045d440): the wave's speed 512 in its acts; the boss's
     /// animation forward, its end in `anmStatus`.
     fn pre_draw_anm(&mut self, _cx: &mut Cx) {
-        if self.class == Class::Skeith && (self.act_num == act::WAVE || self.act_num == act::EPITAPH_WAVE) {
+        if self.act_num == act::WAVE || self.act_num == act::EPITAPH_WAVE {
             self.anm_wave.speed = 512;
         }
         self.anm_status = i8::from(self.anm.forward());
@@ -2696,53 +2763,6 @@ impl Boss {
 
     // --- Affect ----------------------------------------------------------------------------------
 
-    /// `ccBoss01::Affect` (0x0047bdf0): what an `EntryAffect` on the boss
-    /// does at once (`bossAffectFunc`, 0x0045f090): `ccBoss::Affect`, then
-    /// Skeith's own - the drain's 4500 HP, and the Super patterns once a
-    /// hit leaves its protect gauge at half.
-    pub fn affect(&mut self, cx: &mut Cx) {
-        match self.class {
-            Class::Innis(_) => return innis::affect(self, cx),
-            Class::Magus(_) => return magus::affect(self, cx),
-            Class::MagusLeaf(_) => return magus::leaf::affect(self, cx),
-            Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
-            Class::Gomora(_) => return kyvia::gomora::affect(self, cx),
-            Class::Fidchell(_) => return fidchell::affect(self, cx),
-            Class::Macha(_) => return macha::affect(self, cx),
-            Class::Tarvos(_) => return tarvos::affect(self, cx),
-            Class::Corbenik(_) => return corbenik::first::affect(self, cx),
-            Class::CorbenikSeed(_) => return corbenik::seed::affect(self, cx),
-            Class::CorbenikB(_) => return corbenik::second::affect(self, cx),
-            Class::CorbenikC(_) => return corbenik::third::affect(self, cx),
-            Class::CorbenikKiller(_) => return corbenik::eye::affect(self, cx),
-            Class::Gorre(_) => return gorre::affect(self, cx),
-            Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
-            _ => {}
-        }
-        let me = cx.me;
-        let t = cx.scene.chars[me].affect.ty;
-        if t != 21 && (self.act_forbid == 2 || self.lock_player != 0) {
-            return;
-        }
-        self.base_affect(cx);
-        let t = cx.scene.chars[me].affect.ty;
-        if t == 21 {
-            let ch = &mut cx.scene.chars[me];
-            ch.hp = 4500;
-            ch.max_hp = 4500;
-        } else if (t == 1 || t == 3) && self.pat_mode == 0 {
-            let pp = cx.scene.param(me).map_or(0, |p| p.pp);
-            let id = usize::try_from(cx.scene.chars[me].id()).unwrap_or(0);
-            let max = cx.t.bosses.get(id).map_or(0, |r| r.max_pp);
-            if pp >= max >> 1 {
-                self.set_pattern_tbl(Tbl::Super);
-                let tbl = Tbl::Super.words(&cx.data.skeith).to_vec();
-                let _ = self.exec_pattern_index(cx, &tbl, 0);
-                self.pat_mode = 1;
-            }
-        }
-    }
-
     /// `ccBoss::Affect` (0x0045c730).
     fn base_affect(&mut self, cx: &mut Cx) {
         self.base_affect_with(cx, &mut |b, cx, n, forbid, af| b.change_action(cx, n, forbid, af));
@@ -2750,7 +2770,7 @@ impl Boss {
 
     /// `ccBoss::Affect` with the class's `ChangeAction` (`ca`), which it
     /// calls through the vtable.
-    pub(crate) fn base_affect_with(&mut self, cx: &mut Cx, ca: &mut dyn FnMut(&mut Boss, &mut Cx, i16, i16, bool)) {
+    pub(crate) fn base_affect_with(&mut self, cx: &mut Cx, ca: &mut dyn FnMut(&mut BossBase, &mut Cx, i16, i16, bool)) {
         let me = cx.me;
         let (t, p0, person) = {
             let a = &cx.scene.chars[me].affect;
@@ -2849,11 +2869,11 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         let a = &scene.chars[on].affect;
         let q = (a.ty, a.param, a.person);
         let Some(b) = scene.chars[on].foe_state_mut().and_then(|f| f.boss.as_mut()) else { return };
-        b.queued.push(q);
+        b.base.queued.push(q);
         // Every class's Affect takes a drain (13) at once unless held, and
         // leaves the type 0; kept at 13 until the boss's frame, it would
         // stop the drain menu's 21 (the world paused) at `EntryAffect`.
-        if q.0 == 13 && b.act_forbid != 2 && b.lock_player == 0 {
+        if q.0 == 13 && b.base.act_forbid != 2 && b.base.lock_player == 0 {
             scene.chars[on].affect.ty = 0;
         }
         return;
@@ -2893,7 +2913,7 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
     };
     boss.affect(&mut cx);
     let (out, e) = (cx.out, cx.ev);
-    boss.pending.extend(out);
+    boss.base.pending.extend(out);
     ev.extend(e);
     if let Some(f) = scene.chars[on].foe_state_mut() {
         f.boss = Some(boss);
@@ -2906,7 +2926,7 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
 /// frames, run first thing in the boss's task of the same frame.
 pub fn apply_queued(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, ev: &mut Events) {
     let q = match scene.chars[on].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-        Some(b) => std::mem::take(&mut b.queued),
+        Some(b) => std::mem::take(&mut b.base.queued),
         None => return,
     };
     for (ty, param, person) in q {

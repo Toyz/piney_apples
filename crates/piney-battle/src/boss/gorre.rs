@@ -16,7 +16,7 @@ use piney_data::volume::Volume;
 
 use self::brother::Brother;
 use super::kyvia::Part;
-use super::{Boss, Class, Cx, EffKind, Out, PI, TWO_PI, Tbl, VF0};
+use super::{Boss, BossBase, Class, Cx, EffKind, Out, PI, TWO_PI, Tbl, VF0};
 use crate::enemy_ai::get_dirc;
 use crate::event::{Event, Who};
 use crate::geom::{self, V4};
@@ -82,7 +82,7 @@ pub enum Pic {
 }
 
 /// `EntryAfterImage(0)` on the brother `who` as it stands.
-fn brother_image(b: &Boss, who: usize, cx: &mut Cx) {
+fn brother_image(b: &BossBase, who: usize, cx: &mut Cx) {
     let clip = b.anm.clip.clone().unwrap_or_default();
     let pos = cx.scene.chars[who].pos;
     cx.out(Out::Gorre(Pic::Image { who, clip, frame: b.anm.frame(), pos, dirc: b.dirc }));
@@ -163,16 +163,6 @@ pub struct Gorre {
     pub skill_start: Option<i32>,
 }
 
-fn gorre_of(b: &mut Boss) -> Box<Gorre> {
-    match std::mem::replace(&mut b.class, Class::Plain) {
-        Class::Gorre(x) => x,
-        other => {
-            b.class = other;
-            Box::default()
-        }
-    }
-}
-
 /// A brother taken out of its own character (`Class::GorreBrother`,
 /// `super::kyvia::Tree::take`'s way): the part, and whether one was there
 /// to take (a wrongly-typed or missing slot is left alone and this is
@@ -214,7 +204,7 @@ fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
     cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
 }
 
-fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
+fn select(b: &mut BossBase, cx: &mut Cx, ty: i32) -> Option<usize> {
     let t = b.select_target(cx, ty, FAR);
     cx.scene.chars[cx.me].target_char = t;
     t
@@ -251,7 +241,7 @@ fn on_brother(x: &mut Gorre, k: usize, cx: &mut Cx, f: impl FnOnce(&mut Boss, &m
 /// Both brothers untargetable (`EraseCmndTarget`), the cursor off.
 fn erase_brothers(x: &mut Gorre, cx: &mut Cx) {
     for k in 0..2 {
-        on_brother(x, k, cx, |bb, cx| bb.erase_cmnd_target(cx));
+        on_brother(x, k, cx, |bb, cx| bb.base.erase_cmnd_target(cx));
     }
     cursor(cx, true);
 }
@@ -259,34 +249,34 @@ fn erase_brothers(x: &mut Gorre, cx: &mut Cx) {
 /// Both brothers targetable again (`EntryCmndTarget`), the cursor back.
 fn entry_brothers(x: &mut Gorre, cx: &mut Cx) {
     for k in 0..2 {
-        on_brother(x, k, cx, |bb, cx| bb.entry_cmnd_target(cx));
+        on_brother(x, k, cx, |bb, cx| bb.base.entry_cmnd_target(cx));
     }
     cursor(cx, false);
 }
 
 /// `ccBoss05::IsValidArea(posP)` (OUT gcmn 0x004aa100): the world place
 /// inside 2500 plus the centre's own x (y) of 0 either way.
-fn valid_area(b: &Boss, cx: &Cx, pp: V4) -> bool {
+fn valid_area(b: &BossBase, cx: &Cx, pp: V4) -> bool {
     let w = super::p2w(cx, pp);
     let lim = |c: F| ee::sub(ee::add(0x453b_8000, c), 0x43fa_0000);
     ee::lt(w[0] & 0x7fff_ffff, lim(b.center_pos[0])) && ee::lt(w[1] & 0x7fff_ffff, lim(b.center_pos[1]))
 }
 
-fn stopped_or_held(b: &Boss, cx: &Cx) -> bool {
+fn stopped_or_held(b: &BossBase, cx: &Cx) -> bool {
     b.stop != 0 || cx.scene.chars[cx.me].cond[crate::param::cond::HOLD] != 0
 }
 
 /// `ccBoss05::ChangeAction` (OUT gcmn 0x004aa6b0): the base's own, then
 /// both brothers `Order`'d into the same act, taken or not (not from
 /// [`new`]: its first `ChangeAction` comes before the brothers).
-fn change_action(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, act: i16, forbid: i16, af: bool) {
+fn change_action(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx, act: i16, forbid: i16, af: bool) {
     b.change_action(cx, act, forbid, af);
     order_both(x, cx, act);
 }
 
 /// `CalcTargetInfo`'s target part, since Gorre's own `Main` only inlines
 /// the centre's (`ccBoss::CalcTargetInfo`, OUT gcmn 0x0046ff20).
-fn calc_target_info(b: &mut Boss, cx: &mut Cx) {
+fn calc_target_info(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let Some(t) = cx.scene.chars[me].target_char.filter(|&t| cx.scene.listed(t)) else { return };
     b.target_pos_p = cx.scene.chars[t].pos_p;
@@ -367,14 +357,12 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     for (k, ok) in found.into_iter().enumerate() {
         put_brother(cx, std::mem::take(&mut x.brothers[k]), ok);
     }
-    b.class = Class::Gorre(Box::new(x));
-    b
+    Boss { base: b, class: Class::Gorre(Box::new(x)) }
 }
 
 // --- the frame --------------------------------------------------------------------------------
 
-pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
-    let mut x = gorre_of(b);
+pub(super) fn main(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let found: [bool; 2] = std::array::from_fn(|k| {
         let (part, found) = take_brother(cx, x.brother_me[k]);
         x.brothers[k] = part;
@@ -383,27 +371,26 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
     // The effect manager's pass: one array for the three.
     b.effects.tick();
     for p in &mut x.brothers {
-        p.b.effects.tick();
+        p.b.base.effects.tick();
     }
     if b.exit == 0 {
-        frame(b, &mut x, cx);
+        frame(b, x, cx);
         // `Slave` (OUT gcmn 0x004ad980): each brother's own `Main`.
         for k in 0..2 {
-            brother::frame(b, &mut x, k, cx);
+            brother::frame(b, x, k, cx);
         }
         cx.scene.chars[cx.me].cond[crate::param::cond::HOLD] = 0;
     }
     for (k, ok) in found.into_iter().enumerate() {
         put_brother(cx, std::mem::take(&mut x.brothers[k]), ok);
     }
-    b.class = Class::Gorre(x);
 }
 
 /// `ccBoss05::Main` (OUT gcmn 0x004aa210) up to `Slave`: `CalcRealEx(0)`,
 /// the centre's distance and heading, the stop's count, `hold` while a
 /// brother's is set, `Think`, the party held while `lockPlayer` (a broken
 /// protect's count on), `Move`, the count handed to both brothers.
-fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     calc_real_ex(b, x, cx);
     calc_target_info(b, cx);
@@ -462,7 +449,7 @@ fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// the protect's return is shown on both brothers, each with its
 /// `SetProtect` (`effProtect(brother, 1, kind)`, 0x004a980c, 0x004a9844),
 /// not on Gorre, whose body is not drawn.
-fn calc_real_ex(b: &mut Boss, x: &Gorre, cx: &mut Cx) {
+fn calc_real_ex(b: &mut BossBase, x: &Gorre, cx: &mut Cx) {
     let me = cx.me;
     let from = cx.ev.len();
     b.calc_real(cx);
@@ -483,7 +470,7 @@ fn calc_real_ex(b: &mut Boss, x: &Gorre, cx: &mut Cx) {
 
 // --- the patterns --------------------------------------------------------------------------------
 
-fn change_next_pattern(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn change_next_pattern(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let tbl = cx.data.gorre.words(b.pat_tbl).to_vec();
     if word(&tbl, b.pat_index) == -1 {
         b.pat_index = 0;
@@ -498,7 +485,7 @@ fn change_next_pattern(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
 }
 
-fn exec_pattern(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, pat: i32, p0: i32) {
+fn exec_pattern(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx, pat: i32, p0: i32) {
     let tbl = [pat, p0, 0, 0, -1];
     exec_pattern_index(b, x, cx, &tbl, 0);
 }
@@ -507,7 +494,7 @@ fn exec_pattern(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, pat: i32, p0: i32) {
 /// `ccBoss::ExecPatternIndex` ([`Boss::base_exec_pattern_index`], whose act
 /// numbers for patterns 2-8 and 12 already match Gorre's own `act`
 /// module). Pattern 10 skips its word (the spell is `OnThinkSkill`'s own).
-fn exec_pattern_index(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn exec_pattern_index(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let orig = i;
     let mut s = i;
     let mut pat = word(tbl, s);
@@ -596,7 +583,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, tbl: &[i32], i: 
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss05::Think` (OUT gcmn 0x00498670).
-fn think(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
         act::DMG0 | act::DMG1 => on_dmg(b, x, cx),
@@ -625,7 +612,7 @@ fn think(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkNeutral` (0x004987f0) and its `act` 15 twin, and `OnThinkEpitaph`
 /// (0x0049b0d0, which also counts): the wait (`Boss::wait_over`), then the
 /// next pattern at the nearest.
-fn on_neutral(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     b.set_dirc(b.target_dirc);
@@ -640,13 +627,13 @@ fn on_neutral(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     change_next_pattern(b, x, cx);
 }
 
-fn on_epitaph(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_epitaph(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     b.act_count += 1;
     on_neutral(b, x, cx);
 }
 
 /// `OnThinkDmg` (0x004990e0): back to the neutral at once.
-fn on_dmg(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_dmg(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
     change_action(b, x, cx, n, 1, true);
     b.spd_down(0, 0x40a0_0000);
@@ -654,7 +641,7 @@ fn on_dmg(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 
 /// `OnThinkDrain` (OUT gcmn 0x004aaa40): drained, the Epitaph (act 12,
 /// which marks `epitaph`) and its table, `m_patMode` 2.
-fn on_drain(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_drain(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     change_action(b, x, cx, act::EPITAPH, 3, true);
     b.set_pattern_tbl(Tbl::Epitaph);
     b.pat_mode = 2;
@@ -667,7 +654,7 @@ fn on_drain(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// frame 115 the camera's quake and at 115 the flash and a wave shock at
 /// each brother; the brothers' own [`Msg::WaveDone`] ends it. The plain
 /// Wave runs a broken protect's count on.
-fn on_wave(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let c = b.act_count;
     b.act_count += 1;
     if b.act_num == act::WAVE
@@ -679,11 +666,11 @@ fn on_wave(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             for k in 0..2 {
-                on_brother(x, k, cx, |bb, cx| bb.erase_cmnd_target(cx));
+                on_brother(x, k, cx, |bb, cx| bb.base.erase_cmnd_target(cx));
             }
             cursor(cx, true);
             for p in &mut x.brothers {
-                p.b.body_hit_sw = 0;
+                p.b.base.body_hit_sw = 0;
             }
             b.act_proccess += 1;
         }
@@ -706,19 +693,19 @@ fn on_wave(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkTalk` (OUT gcmn 0x004acdf0): a member (type 2) held under the
 /// cinema; at 45 its stream (71); once the menu is shut the second
 /// brother's skill 20 on it and a flash.
-fn on_talk(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_talk(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     stream_attack(b, x, cx, 2, 71);
 }
 
 /// `OnThinkDataDrainAtk` (OUT gcmn 0x004ac060): as [`on_talk`] with a
 /// target of type 0 and stream 72, then the drain (`EntryAffect` 13).
-fn on_data_drain_atk(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_data_drain_atk(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     stream_attack(b, x, cx, 0, 72);
 }
 
 /// The Talk and the Data Drain: their shared steps, by their target type
 /// and stream.
-fn stream_attack(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, ty: i32, stream: i32) {
+fn stream_attack(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx, ty: i32, stream: i32) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -748,7 +735,7 @@ fn stream_attack(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, ty: i32, stream: i32)
             let t = cx.scene.chars[me].target_char;
             if stream == 71 {
                 on_brother(x, 1, cx, |bb, cx| {
-                    bb.skill_damage(cx, t, None, 20);
+                    bb.base.skill_damage(cx, t, None, 20);
                 });
                 cinema_off(cx);
                 cx.out(Out::Flash { t: 15, colour: 0x80e0_ffff });
@@ -769,7 +756,7 @@ fn stream_attack(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, ty: i32, stream: i32)
 /// `OnThinkDashCenter` (OUT gcmn 0x004ac320): the base's dash at 50, the
 /// brothers untargetable and held, a trail of both; at the dash's place
 /// (or 121 frames) the next pattern.
-fn on_dash_center(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_dash_center(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     b.spd_up(0x4248_0000, 0x4248_0000);
     match b.act_proccess {
@@ -782,7 +769,7 @@ fn on_dash_center(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             // `m_brotherM`'s, then `m_brotherP`'s (0x004ac414, 0x004ac42c).
             if b.act_count & 3 == 3 {
                 for p in x.brothers.iter().rev() {
-                    brother_image(&p.b, p.me, cx);
+                    brother_image(&p.b.base, p.me, cx);
                 }
                 if b.act_count == 3 {
                     cx.se3d(57);
@@ -815,7 +802,7 @@ fn on_dash_center(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkChase` (OUT gcmn 0x004ad320): at a target (type 7) at 100, the
 /// brothers turned with Gorre, untargetable; close (300) or 60 frames on,
 /// the next pattern; out of the arena, a dash of 500 back.
-fn on_chase(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_chase(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -832,7 +819,7 @@ fn on_chase(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             b.move_dirc = b.target_dirc;
             b.dirc[2] = b.target_dirc;
             for p in &mut x.brothers {
-                p.b.dirc = b.dirc;
+                p.b.base.dirc = b.dirc;
             }
             let c = b.act_count;
             b.act_count += 1;
@@ -851,7 +838,7 @@ fn on_chase(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkEscape` (OUT gcmn 0x004aaf40): every 32 frames a way a quarter
 /// turn off the target's, across the centre's (the centre's own out of the
 /// arena); at 100 on a target, 30 after 60 frames, the next pattern at 300.
-fn on_escape(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_escape(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     let quarter = 0x3fc9_0fdb;
     let c = b.act_count;
@@ -895,7 +882,7 @@ fn on_escape(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkWander` (OUT gcmn 0x004aba30): a way drawn (`ccRandF(pi)`),
 /// then 120 frames at 30 turning to it (still while stopped or held); out
 /// of the arena, a dash of 500 back.
-fn on_wander(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_wander(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -934,7 +921,7 @@ const FADE_SLOW: F = 0x3d08_8889;
 /// the FinalPhotonFlash; the second brother's skill 19 at the target; once
 /// the flash is gone the brothers back, fading in; the stage fader out;
 /// Gorre undrawn and neutral (forbid 3).
-fn on_kerse(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let c = b.act_count;
     match b.act_proccess {
         0 => {
@@ -965,13 +952,13 @@ fn on_kerse(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
         1 => {
             let t = x.fade;
             for p in &mut x.brothers {
-                p.b.transparency = t;
-                p.b.set_transparency = t;
+                p.b.base.transparency = t;
+                p.b.base.set_transparency = t;
             }
             let t = ee::sub(t, FADE_FAST);
             if ee::lt(t, 0) {
                 for p in &mut x.brothers {
-                    p.b.draw_sw = 0;
+                    p.b.base.draw_sw = 0;
                 }
                 x.fade = ONE;
                 b.act_proccess += 1;
@@ -1011,12 +998,12 @@ fn on_kerse(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             if c == 15 {
                 let tp = b.target_pos;
                 on_brother(x, 1, cx, |bb, cx| {
-                    bb.skill_damage(cx, None, Some(tp), 19);
+                    bb.base.skill_damage(cx, None, Some(tp), 19);
                 });
             }
             if !b.effects.enabled(x.flash) {
                 for p in &mut x.brothers {
-                    p.b.draw_sw = 1;
+                    p.b.base.draw_sw = 1;
                 }
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -1030,8 +1017,8 @@ fn on_kerse(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             }
             x.fade = t;
             for p in &mut x.brothers {
-                p.b.transparency = t;
-                p.b.set_transparency = t;
+                p.b.base.transparency = t;
+                p.b.base.set_transparency = t;
             }
         }
         5 => {
@@ -1063,7 +1050,7 @@ fn on_kerse(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// held, the brothers untargetable, the cinema (68) and camera 3 on the
 /// target; the brothers' own Tornade does the rest ([`Msg::TornadeHidden`],
 /// [`Msg::TornadeSpell`], [`Msg::TornadeDone`]).
-fn on_tornade(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_tornade(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     if b.act_proccess != 0 {
         return;
     }
@@ -1074,7 +1061,7 @@ fn on_tornade(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     calc_target_info(b, cx);
     b.lock_player(cx, true);
     for k in 0..2 {
-        on_brother(x, k, cx, |bb, cx| bb.erase_cmnd_target(cx));
+        on_brother(x, k, cx, |bb, cx| bb.base.erase_cmnd_target(cx));
     }
     cursor(cx, true);
     cx.out(Out::Cinema(Some(68)));
@@ -1090,7 +1077,7 @@ fn on_tornade(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// fader, camera 3 and the spell's cinema; once `effSkillStart` ends the
 /// caster's `ccItemSkillCompel` on the target; 50 frames on the fader out;
 /// 15 more, the next pattern.
-fn on_skill(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_skill(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     b.set_dirc(b.target_dirc);
     let caster = |sid: i32| usize::from(!matches!(sid, 157 | 158));
@@ -1128,14 +1115,14 @@ fn on_skill(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             let k = caster(sid);
             let target = cx.scene.chars[me].target_char;
             on_brother(x, k, cx, |bb, cx| {
-                bb.entry_cmnd_target(cx);
+                bb.base.entry_cmnd_target(cx);
                 let user = cx.me;
                 if let Some(t) = target
                     && let Some(s) = item::item_skill_compel(cx.t, cx.scene, user, t, sid, 0, false, cx.rand)
                 {
                     cx.out(Out::SkillFrom { user, target: t, skill: s });
                 }
-                bb.erase_cmnd_target(cx);
+                bb.base.erase_cmnd_target(cx);
             });
             b.act_count = 0;
             b.act_proccess += 1;
@@ -1170,7 +1157,7 @@ fn on_skill(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// `abs(ccRand()) & 3`) named in the cinema under the stage fader and
 /// camera 3; at 15 the second brother casts it on the target; 60 on the
 /// brothers back; 15 more, the fader out and the next pattern.
-fn on_magic(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     match b.act_proccess {
@@ -1234,7 +1221,7 @@ fn on_magic(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// dead and set 300 either side of Gorre across the way to the centre,
 /// camera 3 3000 off Gorre looking at it; their own [`Msg::Dead`] ends
 /// the fight.
-fn on_dead(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn on_dead(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     if b.act_proccess != 0 {
         return;
     }
@@ -1263,7 +1250,7 @@ fn on_dead(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 /// `Main` draws nothing else.
 pub fn body(b: &Boss) -> Option<(V4, V4)> {
     match &b.class {
-        Class::Gorre(x) if b.act_num == act::KERSE && b.act_proccess == 2 => {
+        Class::Gorre(x) if b.base.act_num == act::KERSE && b.base.act_proccess == 2 => {
             Some((x.talk_pos, [0, 0, x.talk_dirc, ONE]))
         }
         _ => None,
@@ -1274,7 +1261,7 @@ pub fn body(b: &Boss) -> Option<(V4, V4)> {
 
 /// `ccBoss05::Affect` (OUT gcmn 0x004aa200): empty (and Gorre is never
 /// listed, so nothing reaches it); the fight is won through its brothers.
-pub(super) fn affect(_b: &mut Boss, _cx: &mut Cx) {}
+pub(super) fn affect(_b: &mut BossBase, _cx: &mut Cx) {}
 
 /// `ccBoss05Brother::Affect`, for a `Class::GorreBrother` character.
 pub(super) fn brother_affect(b: &mut Boss, cx: &mut Cx) {

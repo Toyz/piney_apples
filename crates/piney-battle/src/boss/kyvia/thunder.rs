@@ -8,7 +8,7 @@
 use piney_data::field::ee;
 
 use super::{Fight, Kyvia, Tree, as_me, core_fade_check, core_state, core_state_is, dp, fabs, fp};
-use crate::boss::{Boss, Cx, EffKind, Out, VF0};
+use crate::boss::{BossBase, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, M4, V4};
 use crate::rand::Rng;
@@ -245,7 +245,7 @@ impl Bolt {
 
 /// `ccBossEffThunderboltCreate(pos, time, range, num, dat)` into the
 /// manager, then `ccGetBossEffAdrs(id)`'s offset set when given.
-fn bolt(b: &mut Boss, cx: &mut Cx, pos: V4, th: (i32, i32, i16), dat: &BoltData, off: Option<V4>) {
+fn bolt(b: &mut BossBase, cx: &mut Cx, pos: V4, th: (i32, i32, i16), dat: &BoltData, off: Option<V4>) {
     let (time, range, num) = th;
     let mut e = Bolt::new(cx.cc, pos, time, range, num, dat);
     if let Some(o) = off {
@@ -264,7 +264,7 @@ fn bolt(b: &mut Boss, cx: &mut Cx, pos: V4, th: (i32, i32, i16), dat: &BoltData,
 /// `ThunderSound` (OUT gcmn 0x004ddd40): the build-up's flashes by the
 /// raised `actCount`; true (and the count back to 0) at 80. The third
 /// fight's thunders again (SE 41) at 50.
-fn thunder_sound(b: &mut Boss, fight: Fight, cx: &mut Cx) -> bool {
+fn thunder_sound(b: &mut BossBase, fight: Fight, cx: &mut Cx) -> bool {
     b.act_count += 1;
     let flash = |t, colour| Out::Flash { t, colour };
     match b.act_count {
@@ -352,7 +352,7 @@ fn strikes(fight: Fight, kind: Kind) -> ([Strike; 5], usize, bool) {
 /// `ThunderDmg` (OUT gcmn 0x004dd3f0, QUA 0x003d8d40): the strikes by kind
 /// and count; the last, at `ThunderTime`, is 10 frames of 0x08ffffff with
 /// the other sound (the third fight's with the thunder and the disc's).
-fn thunder_dmg(b: &Boss, x: &Kyvia, t: &mut Tree, cx: &mut Cx) {
+fn thunder_dmg(b: &BossBase, x: &Kyvia, t: &mut Tree, cx: &mut Cx) {
     let Some(th) = x.thunder else { return };
     let (list, last, twice) = strikes(x.fight, th.kind);
     let pos = cx.scene.chars[cx.me].pos;
@@ -385,7 +385,7 @@ fn thunder_dmg(b: &Boss, x: &Kyvia, t: &mut Tree, cx: &mut Cx) {
 fn core_damage_at(t: &mut Tree, cx: &mut Cx, pos: V4, i: usize) {
     let Some(c) = t.core.as_mut() else { return };
     let cm = c.me;
-    as_me(cx, cm, |cx| c.b.skill_damage(cx, None, Some(pos), i));
+    as_me(cx, cm, |cx| c.b.base.skill_damage(cx, None, Some(pos), i));
 }
 
 /// The core and its gomoras at rest (`GetActNum`), whatever its state.
@@ -394,7 +394,7 @@ fn core_at_rest(t: &Tree) -> bool {
 }
 
 /// `ThunderboltAtk` (OUT gcmn 0x004dc6b0, QUA 0x003d7fa0).
-pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let mut th = x.thunder.unwrap_or_default();
     let me = cx.me;
     let fourth = x.fight == Fight::Fourth;

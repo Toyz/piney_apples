@@ -9,7 +9,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::super::kyvia::{self, Part};
-use super::super::{ANM_WAVE, Boss, Class, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
+use super::super::{ANM_WAVE, Boss, BossBase, Class, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
 use super::Gorre;
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
@@ -116,7 +116,7 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
     cx.me = old;
     b.anm_wave.set(ANM_WAVE, cx.clips);
     let x = Brother { offset, rad_spd: INIT_SPD, rad_accel: INIT_ACCEL, id, master_me, ..Brother::default() };
-    Part { b: Box::new(b), x: Box::new(x), me }
+    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
 }
 
 fn translate(t: V4) -> geom::M4 {
@@ -132,7 +132,7 @@ fn as_brother<R>(p: &mut Part<Brother>, cx: &mut Cx, f: impl FnOnce(&mut Boss, &
 }
 
 /// `m_sendMsgFlag[msg] = 1; m_parent->SendMessage(this, msg)`.
-fn report(gb: &mut Boss, gx: &mut Gorre, k: usize, msg: Msg, cx: &mut Cx) {
+fn report(gb: &mut BossBase, gx: &mut Gorre, k: usize, msg: Msg, cx: &mut Cx) {
     gx.brothers[k].x.sent[msg as usize] = true;
     let old = std::mem::replace(&mut cx.me, gx.brothers[k].x.master_me);
     super::message::send(gb, gx, k, msg, cx);
@@ -142,17 +142,17 @@ fn report(gb: &mut Boss, gx: &mut Gorre, k: usize, msg: Msg, cx: &mut Cx) {
 /// `ccBoss05Brother::Main` (OUT gcmn 0x004aefb0): the base's `Main` with
 /// its own `Think` and `Move`, then `hold` cleared and, while Gorre holds
 /// the party, a broken protect's count run on.
-pub(super) fn frame(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+pub(super) fn frame(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
     let me = gx.brothers[k].me;
     let old = std::mem::replace(&mut cx.me, me);
-    if gx.brothers[k].b.exit == 0 {
-        kyvia::head(&mut gx.brothers[k].b, cx);
+    if gx.brothers[k].b.base.exit == 0 {
+        kyvia::head(&mut gx.brothers[k].b.base, cx);
         think(gb, gx, k, cx);
         let p = &mut gx.brothers[k];
-        mov(&mut p.b, &mut p.x, cx);
-        if p.b.draw_sw != 0 {
-            p.b.anm_status = i8::from(p.b.anm.forward());
-            p.b.draw(cx);
+        mov(&mut p.b.base, &mut p.x, cx);
+        if p.b.base.draw_sw != 0 {
+            p.b.base.anm_status = i8::from(p.b.base.anm.forward());
+            p.b.base.draw(cx);
         }
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
@@ -170,7 +170,7 @@ pub(super) fn frame(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
 /// `m_moveSpdB` and moved by `m_moveVectorB` (never set off (0, 0, 0, 1)),
 /// the place Gorre's plus it, then the base's own speed on top. The
 /// `m_invOffset` pull after it waits on msg 1, which nothing sends.
-fn mov(b: &mut Boss, x: &mut Brother, cx: &mut Cx) {
+fn mov(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
     if !geom::eq(0, x.spd) {
         x.offset[0] = ee::add(x.offset[0], ee::mul(x.spd, libm::sinf(x.dirc)));
         x.offset[1] = ee::sub(x.offset[1], ee::mul(x.spd, libm::cosf(x.dirc)));
@@ -197,8 +197,8 @@ enum Wave {
 }
 
 /// `ccBoss05Brother::Think` (OUT gcmn 0x004af020).
-fn think(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
-    match gx.brothers[k].b.act_num {
+fn think(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+    match gx.brothers[k].b.base.act_num {
         act::NEUTRAL => on_neutral(gb, gx, k, cx),
         act::EPITAPH => on_epitaph(gb, gx, k, cx),
         act::WAVE => on_wave(gb, gx, k, Wave::Plain, cx),
@@ -210,7 +210,7 @@ fn think(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
 }
 
 /// The smoothed turn (`ccSetDirc` mode 256) toward the master.
-fn face_master(b: &mut Boss, x: &Brother, cx: &Cx) {
+fn face_master(b: &mut BossBase, x: &Brother, cx: &Cx) {
     let pp = cx.scene.chars[cx.me].pos_p;
     let master_pp = cx.scene.chars[x.master_me].pos_p;
     b.set_dirc(get_dirc(pp, master_pp));
@@ -225,23 +225,23 @@ fn orbit(x: &mut Brother) {
 
 /// `OnThinkNeutral` (OUT gcmn 0x004af0e0): stopped or held, a report
 /// ([`Msg::Held`]); else a turn toward the master and a step round it.
-fn on_neutral(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
-    gx.brothers[k].b.move_spd = 0;
-    if super::stopped_or_held(&gx.brothers[k].b, cx) {
+fn on_neutral(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+    gx.brothers[k].b.base.move_spd = 0;
+    if super::stopped_or_held(&gx.brothers[k].b.base, cx) {
         return report(gb, gx, k, Msg::Held, cx);
     }
     let p = &mut gx.brothers[k];
-    face_master(&mut p.b, &p.x, cx);
+    face_master(&mut p.b.base, &p.x, cx);
     orbit(&mut p.x);
 }
 
 /// `OnThinkEpitaph` (OUT gcmn 0x004af1f0): the turn first, whatever
 /// holds it; then as [`on_neutral`].
-fn on_epitaph(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn on_epitaph(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
     let p = &mut gx.brothers[k];
-    p.b.move_spd = 0;
-    face_master(&mut p.b, &p.x, cx);
-    if super::stopped_or_held(&gx.brothers[k].b, cx) {
+    p.b.base.move_spd = 0;
+    face_master(&mut p.b.base, &p.x, cx);
+    if super::stopped_or_held(&gx.brothers[k].b.base, cx) {
         return report(gb, gx, k, Msg::Held, cx);
     }
     orbit(&mut gx.brothers[k].x);
@@ -252,7 +252,7 @@ fn on_epitaph(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
 /// master, the wave's strike (skill 18 at frame 55 of the clip), then home
 /// to within 300 and [`Msg::WaveDone`]. The Epitaph's has no sound on the
 /// way out, a slower trail, its own clips and no turn or body hit after.
-fn on_wave(gb: &mut Boss, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
+fn on_wave(gb: &mut BossBase, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
     let (me, master) = (gx.brothers[k].me, gx.brothers[k].x.master_me);
     let (pp, mpp) = (cx.scene.chars[me].pos_p, cx.scene.chars[master].pos_p);
     let to_master = get_dirc(pp, mpp);
@@ -260,15 +260,15 @@ fn on_wave(gb: &mut Boss, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
     let dist = super::super::dist(cx, pp, mpp);
     let p = &mut gx.brothers[k];
     let (b, x) = (&mut p.b, &mut p.x);
-    match b.act_proccess {
+    match b.base.act_proccess {
         0 => {
             x.radius = WAVE_RADIUS;
             x.rad = 0;
             x.prev_offset = x.offset;
-            b.anm_wave.set(ANM_WAVE, cx.clips);
-            b.erase_cmnd_target(cx);
-            b.body_hit_sw = 0;
-            b.act_proccess += 1;
+            b.base.anm_wave.set(ANM_WAVE, cx.clips);
+            b.base.erase_cmnd_target(cx);
+            b.base.body_hit_sw = 0;
+            b.base.act_proccess += 1;
         }
         1 if ee::le(dist, WAVE_OUT) => {
             x.dirc = from_master;
@@ -276,22 +276,22 @@ fn on_wave(gb: &mut Boss, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
         }
         1 => {
             x.spd = 0;
-            let c = b.act_count;
-            b.act_count += 1;
+            let c = b.base.act_count;
+            b.base.act_count += 1;
             if c == 30 {
-                b.act_proccess += 1;
-                b.act_count = 0;
+                b.base.act_proccess += 1;
+                b.base.act_count = 0;
                 x.prev_offset = x.offset;
                 if kind == Wave::Plain {
                     cx.out(Out::Se3dNote { se: 57, pos: cx.pos(), note: 55 });
                 }
             }
         }
-        2 => spin(b, x, kind, cx),
-        3 => strike(b, kind, cx),
+        2 => spin(&mut b.base, x, kind, cx),
+        3 => strike(&mut b.base, kind, cx),
         4 => {
-            let c = b.act_count;
-            b.act_count += 1;
+            let c = b.base.act_count;
+            b.base.act_count += 1;
             if c >= 15 {
                 x.spd = WAVE_SPD;
                 x.dirc = to_master;
@@ -299,12 +299,12 @@ fn on_wave(gb: &mut Boss, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
                     x.wave_end = true;
                     report(gb, gx, k, Msg::WaveDone, cx);
                     let p = &mut gx.brothers[k];
-                    p.b.act_proccess += 1;
-                    p.b.act_count = 0;
+                    p.b.base.act_proccess += 1;
+                    p.b.base.act_count = 0;
                     p.x.spd = 0;
-                    p.b.entry_cmnd_target(cx);
+                    p.b.base.entry_cmnd_target(cx);
                     if kind == Wave::Plain {
-                        p.b.body_hit_sw = 1;
+                        p.b.base.body_hit_sw = 1;
                     }
                 }
             }
@@ -313,13 +313,13 @@ fn on_wave(gb: &mut Boss, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
     }
     if kind == Wave::Plain {
         let p = &mut gx.brothers[k];
-        p.b.set_dirc(p.x.dirc);
+        p.b.base.set_dirc(p.x.dirc);
     }
 }
 
 /// The Wave's spin: `m_fRad` on 5 degrees, `m_posB` its start turned by
 /// it (wrapped into -pi..pi); past pi, the strike's clip.
-fn spin(b: &mut Boss, x: &mut Brother, kind: Wave, cx: &mut Cx) {
+fn spin(b: &mut BossBase, x: &mut Brother, kind: Wave, cx: &mut Cx) {
     let c = b.act_count;
     b.act_count += 1;
     match kind {
@@ -366,7 +366,7 @@ fn spin(b: &mut Boss, x: &mut Brother, kind: Wave, cx: &mut Cx) {
 /// 55; once the clip and the wave are both over, the act's own clip. Below
 /// 40 the game tests a register it never set there (`this`, nonzero), so
 /// the clip's end alone ends it.
-fn strike(b: &mut Boss, kind: Wave, cx: &mut Cx) {
+fn strike(b: &mut BossBase, kind: Wave, cx: &mut Cx) {
     let f = b.anm.frame();
     let over = match f {
         15 => {
@@ -404,51 +404,51 @@ fn strike(b: &mut Boss, kind: Wave, cx: &mut Cx) {
 /// ([`Msg::TornadeHidden`]: Gorre at the target), fade back, then 211
 /// frames round the master at a quickening turn ([`Msg::TornadeSpell`] at
 /// 120, [`Msg::TornadeDone`] after).
-fn on_tornade(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn on_tornade(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
     let (me, master) = (gx.brothers[k].me, gx.brothers[k].x.master_me);
     let (pp, mpp) = (cx.scene.chars[me].pos_p, cx.scene.chars[master].pos_p);
     let p = &mut gx.brothers[k];
     let (b, x) = (&mut p.b, &mut p.x);
-    b.dirc[2] = get_dirc(pp, mpp);
-    let c = b.act_count;
-    b.act_count += 1;
-    match b.act_proccess {
+    b.base.dirc[2] = get_dirc(pp, mpp);
+    let c = b.base.act_count;
+    b.base.act_count += 1;
+    match b.base.act_proccess {
         0 | 1 if c < 15 => {}
         0 => {
-            if b.act_count == 16 {
+            if b.base.act_count == 16 {
                 cx.out(Out::SeNote { se: 57, note: 55 });
             }
-            let mut t = ee::sub(b.set_transparency, FADE_STEP);
+            let mut t = ee::sub(b.base.set_transparency, FADE_STEP);
             if ee::le(t, 0) {
                 report(gb, gx, k, Msg::TornadeHidden, cx);
                 t = 0;
                 let p = &mut gx.brothers[k];
-                p.b.act_count = 0;
-                p.b.act_proccess += 1;
+                p.b.base.act_count = 0;
+                p.b.base.act_proccess += 1;
             }
             let p = &mut gx.brothers[k];
-            p.b.transparency = t;
-            p.b.set_transparency = t;
+            p.b.base.transparency = t;
+            p.b.base.set_transparency = t;
             p.x.rad = 0;
             p.x.rad_spd = TORNADE_SPD;
             p.x.rad_accel = TORNADE_ACCEL;
             p.x.tornade_spell = false;
         }
         1 => {
-            if b.act_count == 16 {
+            if b.base.act_count == 16 {
                 cx.out(Out::SeNote { se: 57, note: 55 });
             }
-            let mut t = ee::add(b.set_transparency, FADE_STEP);
+            let mut t = ee::add(b.base.set_transparency, FADE_STEP);
             if !ee::le(t, ONE) {
                 t = ONE;
-                b.act_count = 0;
-                b.act_proccess += 1;
+                b.base.act_count = 0;
+                b.base.act_proccess += 1;
             }
-            b.transparency = t;
-            b.set_transparency = t;
+            b.base.transparency = t;
+            b.base.set_transparency = t;
         }
         2 if c >= 211 => {
-            b.act_proccess += 1;
+            b.base.act_proccess += 1;
             report(gb, gx, k, Msg::TornadeDone, cx);
         }
         2 => {
@@ -459,7 +459,7 @@ fn on_tornade(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
             if !ee::lt(spd, TORNADE_MAX) {
                 spd = TORNADE_MAX;
             }
-            let n = b.act_count;
+            let n = b.base.act_count;
             if n == 120 && !x.tornade_spell {
                 x.tornade_spell = true;
                 report(gb, gx, k, Msg::TornadeSpell, cx);
@@ -486,20 +486,20 @@ pub(super) fn wrap_pi(v: F) -> F {
 
 /// `OnThinkDead` (OUT gcmn 0x004b0490): the dead effect at its place and
 /// off the lists; once the effect is gone, [`Msg::Dead`] and `OnExit`.
-fn on_dead(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn on_dead(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
     let p = &mut gx.brothers[k];
-    match p.b.act_proccess {
+    match p.b.base.act_proccess {
         0 => {
-            p.b.eff_dead = Some(p.b.effect(cx, EffKind::Dead));
+            p.b.base.eff_dead = Some(p.b.base.effect(cx, EffKind::Dead));
             delete_cmnd(cx);
-            p.b.act_proccess += 1;
+            p.b.base.act_proccess += 1;
         }
-        1 if !p.b.effects.valid(p.b.eff_dead) => {
+        1 if !p.b.base.effects.valid(p.b.base.eff_dead) => {
             report(gb, gx, k, Msg::Dead, cx);
             let p = &mut gx.brothers[k];
-            on_exit(&mut p.b, cx);
-            p.b.eff_dead = None;
-            p.b.act_proccess += 1;
+            on_exit(&mut p.b.base, cx);
+            p.b.base.eff_dead = None;
+            p.b.base.act_proccess += 1;
         }
         _ => {}
     }
@@ -512,7 +512,7 @@ fn delete_cmnd(cx: &mut Cx) {
 
 /// `ccBoss05Brother::OnExit` (OUT gcmn 0x004b0b00): out, off the lists,
 /// no body hit.
-fn on_exit(b: &mut Boss, cx: &mut Cx) {
+fn on_exit(b: &mut BossBase, cx: &mut Cx) {
     b.exit = 1;
     delete_cmnd(cx);
     b.body_hit_sw = 0;
@@ -523,14 +523,14 @@ fn on_exit(b: &mut Boss, cx: &mut Cx) {
 /// wave's clip set on `anmw` first; anything else that act, forbid 3.
 pub(super) fn order(p: &mut Part<Brother>, cx: &mut Cx, on: i16) {
     as_brother(p, cx, |b, x, cx| match on {
-        0 | 15 => b.change_action(cx, act::NEUTRAL, 1, true),
-        3 | 5 => b.change_action(cx, act::WATCH, 3, true),
+        0 | 15 => b.base.change_action(cx, act::NEUTRAL, 1, true),
+        3 | 5 => b.base.change_action(cx, act::WATCH, 3, true),
         act::WAVE => {
             x.wave_end = false;
-            b.anm_wave.set(ANM_WAVE, cx.clips);
-            b.change_action(cx, act::WAVE, 3, true);
+            b.base.anm_wave.set(ANM_WAVE, cx.clips);
+            b.base.change_action(cx, act::WAVE, 3, true);
         }
-        _ => b.change_action(cx, on, 3, true),
+        _ => b.base.change_action(cx, on, 3, true),
     });
 }
 
@@ -547,7 +547,14 @@ pub(super) fn affect_alone(b: &mut Boss, cx: &mut Cx) {
         b.class = Class::GorreBrother(x);
         return;
     };
-    let mut gx = super::gorre_of(&mut gb);
+    // Gorre's own members, taken from its character for the span.
+    let mut gx = match std::mem::replace(&mut gb.class, Class::Plain) {
+        Class::Gorre(x) => x,
+        other => {
+            gb.class = other;
+            Box::default()
+        }
+    };
     let k = usize::from(gx.brother_me[1] == me);
     let (other, found) = super::take_brother(cx, gx.brother_me[1 - k]);
     gx.brothers[1 - k] = other;
@@ -555,11 +562,11 @@ pub(super) fn affect_alone(b: &mut Boss, cx: &mut Cx) {
     // The report first (a drain only before the brother's Epitaph,
     // `CheckEpitaph`); what Gorre makes of it is Gorre's to show.
     let start = cx.out.len();
-    if cx.scene.chars[me].affect.ty != 13 || gx.brothers[k].b.epitaph == 0 {
-        report(&mut gb, &mut gx, k, Msg::Affect, cx);
+    if cx.scene.chars[me].affect.ty != 13 || gx.brothers[k].b.base.epitaph == 0 {
+        report(&mut gb.base, &mut gx, k, Msg::Affect, cx);
     }
-    gb.pending.extend(cx.out.split_off(start));
-    local_affect(&mut gx.brothers[k].b, cx);
+    gb.base.pending.extend(cx.out.split_off(start));
+    local_affect(&mut gx.brothers[k].b.base, cx);
     let part = std::mem::take(&mut gx.brothers[k]);
     *b = *part.b;
     b.class = Class::GorreBrother(part.x);
@@ -573,7 +580,7 @@ pub(super) fn affect_alone(b: &mut Boss, cx: &mut Cx) {
 /// `Affect`'s own part after the report: `stop` by 5 and 6; a hit's
 /// shield (row 40 against a physical skill, 41 against a spell), number
 /// and mark.
-fn local_affect(b: &mut Boss, cx: &mut Cx) {
+fn local_affect(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let a = &cx.scene.chars[me].affect;
     let (ty, p0, p1, by) = (a.ty, a.param[0], a.param[1], a.person);

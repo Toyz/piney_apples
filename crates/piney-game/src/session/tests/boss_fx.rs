@@ -57,7 +57,7 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Combat, usize, 
         }
         let f = c.scene.chars[me].foe_state();
         let now = Seen {
-            act: f.and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.act_num),
+            act: f.and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.base.act_num),
             pp_count: c.scene.param(me).map_or(0, |p| p.pp_count),
             effects: census.effects,
             draws: census.boss_draws,
@@ -107,7 +107,7 @@ fn break_protect(c: &mut Combat, me: usize, sid: i32) -> bool {
 fn protect_twice(s: &mut Session, frames: u32) -> ([u32; 2], [u32; 2]) {
     let mut breaks = 0usize;
     let seen = fight(s, frames, |c, me, _, now| {
-        let free = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.lock_player == 0);
+        let free = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.base.lock_player == 0);
         // Each break after the last one's pictures are over.
         let quiet = !now.effects.iter().any(|e| BREAK.contains(e) || RETURN.contains(e));
         if breaks < 2
@@ -236,7 +236,7 @@ fn gorres_brothers_show_the_protect_break_and_return() {
             && (break_protect(c, b0, 1) || break_protect(c, b0, 193))
         {
             if let Some(b) = c.scene.chars[b0].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-                b.queued.push((1, [10, 0, 0], c.kite));
+                b.base.queued.push((1, [10, 0, 0], c.kite));
             }
             broke = true;
         }
@@ -272,7 +272,7 @@ fn gorres_brothers_share_its_param_after_the_drain() {
         if !drained && i > 200 && c.scene.listed(b0) {
             let kite = c.kite;
             if let Some(b) = c.scene.chars[b0].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-                b.queued.push((21, [0, 0, 0], kite));
+                b.base.queued.push((21, [0, 0, 0], kite));
             }
             drained = true;
         }
@@ -421,7 +421,7 @@ fn innis_unforced(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
         }
         let b = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref());
         let element = b.and_then(|b| {
-            b.effects.slots.iter().flatten().find_map(|e| match e.kind {
+            b.base.effects.slots.iter().flatten().find_map(|e| match e.kind {
                 piney_battle::boss::EffKind::Missile { element, .. } => Some(element),
                 _ => None,
             })
@@ -549,7 +549,7 @@ fn innis_shots() {
         for d in &census.boss_draws {
             *drawn.entry(d.clone()).or_default() += 1;
         }
-        let act = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.act_num);
+        let act = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.base.act_num);
         let prot = census.effects.iter().any(|e| BREAK.contains(e) || RETURN.contains(e));
         let word = innis(c, me).map_or(0, |x| x.move_flg);
         if (matches!(act, 4 | 5) && i.is_multiple_of(10)) || (prot && i.is_multiple_of(4)) {
@@ -619,7 +619,7 @@ fn shield_fight(
             let sid = if c.scene.chars[b].id() == 40 { 1 } else { 2 };
             let kite = c.kite;
             if let Some(pb) = c.scene.chars[b].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-                pb.queued.push((1, [10, sid, 0], kite));
+                pb.base.queued.push((1, [10, sid, 0], kite));
             }
         }
         let on: Vec<_> = shields.into_iter().filter(|(t, ..)| brothers.contains(&(*t as usize))).collect();
@@ -790,7 +790,7 @@ fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
         // by the camera's distance).
         let due = bm.map(|k| {
             let b = c.scene.chars[k].foe_state().and_then(|f| f.boss.as_ref());
-            b.is_some_and(|b| b.draw_sw != 0 && b.exit == 0 && b.drawn)
+            b.is_some_and(|b| b.base.draw_sw != 0 && b.base.exit == 0 && b.base.drawn)
         });
         let drawn = bm.map(|k| c.cast.actors.get(&k).is_some_and(|a| a.drawn));
         let run = c.boss.as_ref().unwrap();

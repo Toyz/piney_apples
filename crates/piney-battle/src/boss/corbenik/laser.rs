@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use super::third::Third;
 use super::{Gen, Pic};
 use crate::boss::kyvia::{dp, fabs, fp};
-use crate::boss::{Anm, Boss, Cx, EffKind, Out, VF0};
+use crate::boss::{Anm, BossBase, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 
@@ -222,7 +222,7 @@ impl Tera {
 
     /// `Draw` (0x00378d80): whether it is still on. `b` is the body
     /// (`cmn_thisPtr`, the callback's).
-    pub fn draw(&mut self, cx: &mut Cx, b: &mut Boss) -> bool {
+    pub fn draw(&mut self, cx: &mut Cx, b: &mut BossBase) -> bool {
         let fall_key = self.fall_key;
         let c = self.count;
         self.count += 1;
@@ -381,7 +381,7 @@ impl Refrect {
 
     /// `Draw` (0x003773d0). `x` is the third form (its eyes, the
     /// callback's `_RefrectLaserCB`).
-    pub fn draw(&mut self, cx: &mut Cx, b: &mut Boss, x: &mut Third) -> bool {
+    pub fn draw(&mut self, cx: &mut Cx, b: &mut BossBase, x: &mut Third) -> bool {
         if !self.segs[0].done {
             self.head.forward();
             let (from, to) = (self.segs[0].pos, self.segs[1].pos);
@@ -459,7 +459,7 @@ impl Refrect {
 /// `_RefrectLaserCB(eye)` (0x003b9140): three rings at the eye (each
 /// turned by two `ccRandF(pi)`, `190 + abs(ccRand()) & 7`, params 0.5, 1,
 /// 0, 40), then its flash (`Order(23)`).
-fn refrect_cb(cx: &mut Cx, b: &mut Boss, x: &mut Third, k: usize) {
+fn refrect_cb(cx: &mut Cx, b: &mut BossBase, x: &mut Third, k: usize) {
     let me = x.eye_me[k];
     let pos = cx.scene.chars[me].pos;
     for _ in 0..3 {

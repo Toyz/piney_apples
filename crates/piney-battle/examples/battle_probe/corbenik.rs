@@ -335,7 +335,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 }
                 8 => {
                     if let Some(b) = scene.chars[me].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                        (b.act_num, b.act_proccess, b.act_count) = (p0, 0, 0);
+                        (b.base.act_num, b.base.act_proccess, b.base.act_count) = (p0, 0, 0);
                     }
                 }
                 9 => affect::entry_affect(tables, &mut scene, actx, me, kite, 3, [p0, 0, 0], &mut rand, &mut ev),
@@ -359,7 +359,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc = cell.into_inner();
         for &s in std::iter::once(&me).chain(seeds.iter()) {
             if let Some(b) = scene.chars[s].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                out.extend(b.take_pending());
+                out.extend(b.base.take_pending());
             }
         }
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
@@ -547,11 +547,11 @@ fn first_json(b: &Boss, x: &First) -> String {
         v3(&j.cp),
         j.time.to_string(),
         x.act_pos[2].to_string(),
-        b.stop_time.to_string(),
-        b.stop_counter.to_string(),
-        b.pat_index.to_string(),
-        b.pat_num.to_string(),
-        b.m_act_dirc[2].to_string(),
+        b.base.stop_time.to_string(),
+        b.base.stop_counter.to_string(),
+        b.base.pat_index.to_string(),
+        b.base.pat_num.to_string(),
+        b.base.m_act_dirc[2].to_string(),
     ];
     v.join(",")
 }
@@ -563,27 +563,27 @@ fn seed_json(scene: &Scene, s: usize) -> String {
     let x: &Seed = x;
     format!(
         "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{},{},{},{},{},{},{}]",
-        b.act_num,
-        b.act_proccess,
-        b.act_count,
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_count,
         v3(&ch.pos),
         v3(&ch.pos_p),
-        v3(&b.dirc),
-        v3(&b.move_vector),
+        v3(&b.base.dirc),
+        v3(&b.base.move_vector),
         ch.hp,
         ch.max_hp,
-        b.act_forbid,
-        b.anm_status,
-        b.exit,
-        b.draw_sw,
-        b.body_hit_sw,
-        b.erase_target,
+        b.base.act_forbid,
+        b.base.anm_status,
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.body_hit_sw,
+        b.base.erase_target,
         u8::from(scene.listed(s)),
         ch.cond[0],
-        b.transparency,
-        b.set_transparency,
-        b.anm.clip.as_deref().unwrap_or(""),
-        b.anm.frame(),
+        b.base.transparency,
+        b.base.set_transparency,
+        b.base.anm.clip.as_deref().unwrap_or(""),
+        b.base.anm.frame(),
         x.exp_count,
         x.blink_time,
         x.rot_speed[0],
@@ -609,6 +609,7 @@ fn frame_json(
     let Class::Corbenik(x) = &b.class else { return "{}".into() };
     let ch = &scene.chars[me];
     let effs: Vec<String> = b
+        .base
         .effects
         .slots
         .iter()
@@ -626,39 +627,39 @@ fn frame_json(
          \"hp\":[{},{}],\"flags\":[{},{},{},{},{},{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\
          \"anm\":[\"{}\",{},{}],\"first\":[{}],\"seeds\":[{}],\"cam\":[{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
          \"menu\":[{},{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
-        b.act_num,
-        b.act_proccess,
-        b.act_count,
-        b.move_spd,
-        b.move_dirc,
-        v3(&b.move_vector),
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_count,
+        b.base.move_spd,
+        b.base.move_dirc,
+        v3(&b.base.move_vector),
         ch.target_char.map_or(-1, |t| t as i64),
-        b.target_dist,
-        b.target_dirc,
-        v3(&b.target_pos),
+        b.base.target_dist,
+        b.base.target_dirc,
+        v3(&b.base.target_pos),
         v3(&ch.pos),
         v3(&ch.pos_p),
-        v3(&b.dirc),
+        v3(&b.base.dirc),
         ch.hp,
         ch.max_hp,
-        b.act_forbid,
-        b.anm_status,
-        b.stop,
-        b.cheat_hp,
-        b.exit,
-        b.draw_sw,
-        b.body_hit_sw,
-        b.lock_player,
-        b.erase_target,
-        b.reserve_forbid_menu,
-        u8::from(b.reserve_forbid_chat_except != 0),
-        b.stop_count,
+        b.base.act_forbid,
+        b.base.anm_status,
+        b.base.stop,
+        b.base.cheat_hp,
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.body_hit_sw,
+        b.base.lock_player,
+        b.base.erase_target,
+        b.base.reserve_forbid_menu,
+        u8::from(b.base.reserve_forbid_chat_except != 0),
+        b.base.stop_count,
         u8::from(scene.listed(me)),
-        b.transparency,
-        b.set_transparency,
-        b.anm.clip.as_deref().unwrap_or(""),
-        b.anm.frame(),
-        b.anm.speed,
+        b.base.transparency,
+        b.base.set_transparency,
+        b.base.anm.clip.as_deref().unwrap_or(""),
+        b.base.anm.frame(),
+        b.base.anm.speed,
         first_json(b, x),
         seeds.join(","),
         cam_type,

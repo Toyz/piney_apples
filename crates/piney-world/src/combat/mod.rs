@@ -2048,7 +2048,7 @@ impl Combat {
             // off the command lists (m_bEraseTarget, its `dead` 1).
             if a.look == Look::Boss {
                 let ch = &mut self.scene.chars[who];
-                let erased = ch.foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.erase_target != 0);
+                let erased = ch.foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.base.erase_target != 0);
                 let dead = ch.cond[cond::DEAD];
                 let mut blend = if dead == 1 && erased {
                     crate::chara::foe::FogBlend::default()

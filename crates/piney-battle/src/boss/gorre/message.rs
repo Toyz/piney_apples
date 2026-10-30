@@ -9,7 +9,7 @@ use super::{
     CAM_Y, Gorre, ROW, act, change_action, change_next_pattern, cinema_off, cursor, entry_brothers, exec_pattern_index,
     on_brother, target_ok,
 };
-use crate::boss::{Boss, Cx, Out, Tbl};
+use crate::boss::{BossBase, Cx, Out, Tbl};
 use crate::event::{Event, Who};
 use crate::item;
 
@@ -24,7 +24,7 @@ fn tornade_skill(cx: &mut Cx) -> i32 {
 /// character. The Wave's end, the Tornade's steps and a death wait on both
 /// brothers' flags (and clear them, but the Tornade's end: the next
 /// Tornade's first report ends it at once); an affect and a hold at once.
-pub(super) fn send(b: &mut Boss, x: &mut Gorre, from: usize, msg: Msg, cx: &mut Cx) {
+pub(super) fn send(b: &mut BossBase, x: &mut Gorre, from: usize, msg: Msg, cx: &mut Cx) {
     let n = msg as usize;
     let both = x.brothers.iter().all(|p| p.x.sent[n]);
     match msg {
@@ -79,7 +79,7 @@ pub(super) fn send(b: &mut Boss, x: &mut Gorre, from: usize, msg: Msg, cx: &mut 
 /// takes the three's one HP (a tenth, never under half, while `cheatHP`,
 /// the broken protect shared), down to the death; a heal (7, 9) adds to
 /// it; a drain (13) the Drain; 21 all three to row 4's stats at 6000.
-fn on_report_affect(b: &mut Boss, x: &mut Gorre, from: usize, cx: &mut Cx) {
+fn on_report_affect(b: &mut BossBase, x: &mut Gorre, from: usize, cx: &mut Cx) {
     let me = cx.me;
     let bm = x.brothers[from].me;
     let a = &cx.scene.chars[bm].affect;
@@ -186,14 +186,14 @@ fn share_protect(x: &Gorre, me: usize, from: usize, cx: &mut Cx) {
 /// The three down (HP 0): the boss camera off, the party's conditions
 /// cleared and the party held, the brothers untargetable, the music out,
 /// Gorre's Dead (forbid 2).
-fn fall(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
+fn fall(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     if std::mem::take(&mut x.cam_sw) {
         cx.out(Out::BossCamOff);
     }
     cx.out(Out::ClearSpcCondition);
     b.lock_player(cx, false);
     for k in 0..2 {
-        on_brother(x, k, cx, |bb, cx| bb.erase_cmnd_target(cx));
+        on_brother(x, k, cx, |bb, cx| bb.base.erase_cmnd_target(cx));
     }
     cursor(cx, true);
     cx.out(Out::MusicFade { t: 30 });

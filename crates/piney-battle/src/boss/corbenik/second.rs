@@ -11,7 +11,7 @@ use piney_data::field::ee;
 use super::eff::{self, Fx};
 use super::{Pic, make_fx, manager_pass, select, target_ok, word, wrap_hi, wrap_lo};
 use crate::boss::kyvia::{Part, as_me, plain_boss, set_base_param};
-use crate::boss::{AfterImageParams, Anm, Boss, Class, Cx, EffKind, Out, Tbl, VF0, blur};
+use crate::boss::{AfterImageParams, Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0, blur};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -170,16 +170,6 @@ pub const EAI_RD: AfterImageParams = AfterImageParams {
     scale_time: 0,
 };
 
-fn second_of(b: &mut Boss) -> Box<Second> {
-    match std::mem::replace(&mut b.class, Class::Plain) {
-        Class::CorbenikB(x) => x,
-        other => {
-            b.class = other;
-            Box::default()
-        }
-    }
-}
-
 /// A root out of its character (`Class::CorbenikRoot`), and whether one
 /// was there.
 fn take_root(cx: &mut Cx, me: usize) -> (Part<Root>, bool) {
@@ -223,9 +213,9 @@ fn put_roots(cx: &mut Cx, x: &mut Second, found: [bool; ROOTS]) {
 }
 
 /// `cx.me` set to root `k`'s character for `f`.
-fn with_root<R>(x: &mut Second, k: usize, cx: &mut Cx, f: impl FnOnce(&mut Boss, &mut Root, &mut Cx) -> R) -> R {
+fn with_root<R>(x: &mut Second, k: usize, cx: &mut Cx, f: impl FnOnce(&mut BossBase, &mut Root, &mut Cx) -> R) -> R {
     let p = &mut x.roots[k];
-    as_me(cx, p.me, |cx| f(&mut p.b, &mut p.x, cx))
+    as_me(cx, p.me, |cx| f(&mut p.b.base, &mut p.x, cx))
 }
 
 fn w2p(cx: &Cx, v: V4) -> V4 {
@@ -326,8 +316,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     cx.out(Out::Blur(blur::Set::Enable));
     init_elements(&b, &mut x, cx);
     set_pattern_mode(&mut b, &mut x, cx, 0);
-    b.class = Class::CorbenikB(x);
-    b
+    Boss { base: b, class: Class::CorbenikB(x) }
 }
 
 /// `ccBoss08Root::ccBoss08Root` (0x003b8c10): row 8, its clips by
@@ -345,12 +334,12 @@ fn new_root(cx: &mut Cx, me: usize, k: usize) -> Part<Root> {
     b.draw_sw = 1;
     b.exit = 1;
     let _ = k;
-    Part { b: Box::new(b), x: Box::new(Root::default()), me }
+    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(Root::default()), me }
 }
 
 /// `_InitElement` (0x003b74b0): each element's clip the body's own, a
 /// frame on, free.
-fn init_elements(b: &Boss, x: &mut Second, cx: &Cx) {
+fn init_elements(b: &BossBase, x: &mut Second, cx: &Cx) {
     for e in &mut x.elements {
         e.anm = Anm::new();
         if let Some(c) = &b.anm.clip {
@@ -363,7 +352,7 @@ fn init_elements(b: &Boss, x: &mut Second, cx: &Cx) {
 
 /// `SetPatternMode(m)` (0x003b32f0): 0 the normal table, 1 the super, any
 /// other none; run from its start.
-fn set_pattern_mode(b: &mut Boss, x: &mut Second, cx: &mut Cx, m: i32) {
+fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
     let t = match m {
         0 => Tbl::Normal,
         1 => Tbl::Super,
@@ -379,16 +368,14 @@ fn set_pattern_mode(b: &mut Boss, x: &mut Second, cx: &mut Cx, m: i32) {
 // --- the frame ------------------------------------------------------------------------------------
 
 /// The effect manager's pass, then `ccBoss08_b::Main` (0x003b2610).
-pub(crate) fn main(b: &mut Boss, cx: &mut Cx) {
-    let mut x = second_of(b);
-    let found = take_roots(cx, &mut x);
+pub(crate) fn main(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
+    let found = take_roots(cx, x);
     manager_pass(b, cx);
-    frame(b, &mut x, cx);
-    put_roots(cx, &mut x, found);
-    b.class = Class::CorbenikB(x);
+    frame(b, x, cx);
+    put_roots(cx, x, found);
 }
 
-fn frame(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     if b.exit != 0 {
         return;
     }
@@ -446,7 +433,7 @@ fn frame(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// `PreDrawAnm` (0x003b3600): the clip forward (not in the press past its
 /// start); with the barrier, its hit clip while it flashes (ended, the
 /// barrier shown again).
-fn pre_draw_anm(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn pre_draw_anm(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     if !(b.act_num == act::BODY_PRESS && b.act_proccess != 0) {
         b.anm_status = i8::from(b.anm.forward());
     }
@@ -466,7 +453,7 @@ fn pre_draw_anm(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 
 /// `Slave` (0x003b2a00): each root's `Main`; a root's quake time shakes
 /// the camera (30, 30, 0) a frame.
-fn slave(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn slave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let _ = b;
     for k in 0..ROOTS {
         with_root(x, k, cx, root_main);
@@ -482,7 +469,7 @@ fn slave(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// `ccBoss08_b::ChangeNextPattern` (0x003b3200): a barrier asked for is
 /// raised (pattern 19); with the barrier up and the wait out, the death;
 /// else the base's.
-fn change_next_pattern(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn change_next_pattern(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     if x.reserve_setup_barrier && !x.barrier {
         x.reserve_setup_barrier = false;
         exec_pattern(b, x, cx, 19, 0);
@@ -507,7 +494,7 @@ fn change_next_pattern(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
     b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
 }
 
-fn exec_pattern(b: &mut Boss, x: &mut Second, cx: &mut Cx, pat: i32, p0: i32) {
+fn exec_pattern(b: &mut BossBase, x: &mut Second, cx: &mut Cx, pat: i32, p0: i32) {
     let tbl = [pat, p0, 0, 0, -1];
     exec_pattern_index(b, x, cx, &tbl, 0);
 }
@@ -515,7 +502,7 @@ fn exec_pattern(b: &mut Boss, x: &mut Second, cx: &mut Cx, pat: i32, p0: i32) {
 /// `ccBoss08_b::ExecPatternIndex` (0x003b33c0): 1 the wave (3), 14 the
 /// magic (6), 15 the star dust (5), 16 the press (4), 17 the sybly (21),
 /// 18 the root drain (22), 19 the barrier (23); the rest the base's.
-fn exec_pattern_index(b: &mut Boss, x: &mut Second, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn exec_pattern_index(b: &mut BossBase, x: &mut Second, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let mut s = i + 1;
     let mut pat = word(tbl, i);
     b.move_spd = 0;
@@ -541,7 +528,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Second, cx: &mut Cx, tbl: &[i32], i:
 
 /// `ccBoss::ExecPatternIndex` through this class's `ChangeAction` and
 /// `ExecPattern` ([`super::base_exec_pattern_index`]).
-fn base_exec_pattern_index(b: &mut Boss, x: &mut Second, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn base_exec_pattern_index(b: &mut BossBase, x: &mut Second, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     super::base_exec_pattern_index(b, cx, &mut BaseHost { x }, tbl, i)
 }
 
@@ -550,17 +537,17 @@ struct BaseHost<'a> {
 }
 
 impl super::Host for BaseHost<'_> {
-    fn change_action(&mut self, b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
         b.change_action(cx, n, forbid, af);
     }
 
-    fn exec_pattern(&mut self, b: &mut Boss, cx: &mut Cx, pat: i32, p0: i32) {
+    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
         exec_pattern(b, self.x, cx, pat, p0);
     }
 }
 
 /// `ccBoss08_b::Think` (0x003b3020).
-fn think(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
         act::DAMAGE0 | act::DAMAGE1 => b.change_action(cx, act::NEUTRAL, 1, false),
@@ -582,7 +569,7 @@ fn think(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 
 /// The act's target (`SelectTarget(ty)`), or the 2-1 wait when it is gone
 /// or down.
-fn pick(b: &mut Boss, x: &mut Second, cx: &mut Cx, ty: i32) -> bool {
+fn pick(b: &mut BossBase, x: &mut Second, cx: &mut Cx, ty: i32) -> bool {
     let t = select(b, cx, ty);
     if !target_ok(cx, t) {
         exec_pattern(b, x, cx, 2, -1);
@@ -594,7 +581,7 @@ fn pick(b: &mut Boss, x: &mut Second, cx: &mut Cx, ty: i32) -> bool {
 
 /// `OnThinkNeutral` (0x003b38a0): still, turning to its target; the wait,
 /// then the next pattern at `SelectTarget(0)`.
-fn on_neutral(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     b.move_spd = 0;
     b.move_vector = VF0;
@@ -624,7 +611,7 @@ fn on_neutral(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 
 /// `ccBoss08_b::IsValidArea(p)` (0x003b3820): within 2000 of the centre
 /// each way.
-fn valid_area(b: &Boss, p: V4) -> bool {
+fn valid_area(b: &BossBase, p: V4) -> bool {
     let (cx_, cy) = (b.center_pos_p[0], b.center_pos_p[1]);
     let r = 0x44fa_0000;
     ee::le(ee::sub(cx_, r), p[0])
@@ -636,7 +623,7 @@ fn valid_area(b: &Boss, p: V4) -> bool {
 /// `OnThinkEscape` (0x003b3a40): away from the target at 30 for 300
 /// frames, turned a quarter off it every 32, toward the centre outside its
 /// box.
-fn on_escape(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_escape(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -682,7 +669,7 @@ fn on_escape(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// locked, the cinema of skill 157, the dark stage, the camera 1500 out and
 /// 300 up from the target along the centre's way; 15 frames on skill 157
 /// compelled on every member up; the stage back at 45, all back at 60.
-fn on_sybly(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_sybly(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -743,7 +730,7 @@ fn on_sybly(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// wave's clip from its start at 512; its notes, SE 223 at 59 and 224 at
 /// 101; at 105 a flash and the WaveShock, at 110 boss skill 28 there; from
 /// 105 the quake and the wave drawn; both clips over, the next pattern.
-fn on_wave(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let pos = cx.pos();
     match b.act_proccess {
         0 => {
@@ -795,7 +782,7 @@ fn on_wave(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// (`ccBossEffStarDustFlash`) at the target; its notes while it runs;
 /// over, the stage back and boss skill 30 at the target; 30 frames on all
 /// back.
-fn on_star_dust(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_star_dust(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let pos = cx.pos();
     match b.act_proccess {
         0 => {
@@ -874,7 +861,7 @@ fn on_star_dust(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 }
 
 /// The press's way round the target (`GetDirc(W2P(targetPos), centre)`).
-fn round_target(b: &Boss, cx: &Cx) -> F {
+fn round_target(b: &BossBase, cx: &Cx) -> F {
     get_dirc(w2p(cx, b.target_pos), b.center_pos_p)
 }
 
@@ -884,7 +871,7 @@ fn round_target(b: &Boss, cx: &Cx) -> F {
 /// and fading (the camera drawn back at 120); the elements shot from round
 /// the target every 8 frames to 90 (boss skill 29 each one that arrives);
 /// the stage back; shown again.
-fn on_body_press(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1054,7 +1041,7 @@ fn on_body_press(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// `_EntryElement` (0x003b6f50): the first free element thrown across the
 /// target (a `ccRandF(pi)` way, from 1000 out to 1000 beyond, 133 a frame
 /// from 100 up); the bearing is drawn even with none free.
-fn entry_element(b: &Boss, x: &mut Second, cx: &mut Cx) {
+fn entry_element(b: &BossBase, x: &mut Second, cx: &mut Cx) {
     let r = rand_f(cx.cc, PI);
     let tp = w2p(cx, b.target_pos);
     let Some(e) = x.elements.iter_mut().find(|e| e.state == 0) else { return };
@@ -1079,7 +1066,7 @@ fn entry_element(b: &Boss, x: &mut Second, cx: &mut Cx) {
 /// arriving (its way from the start 1000 or more) hits the target with
 /// boss skill 29 and rings (195, a `ccRandF(pi)` turn each way); going on
 /// it fades with its way left. Whether any is out.
-fn draw_elements(b: &mut Boss, x: &mut Second, cx: &mut Cx) -> bool {
+fn draw_elements(b: &mut BossBase, x: &mut Second, cx: &mut Cx) -> bool {
     let mut any = false;
     let tp = w2p(cx, b.target_pos);
     for k in 0..ELEMENTS {
@@ -1136,7 +1123,7 @@ fn draw_elements(b: &mut Boss, x: &mut Second, cx: &mut Cx) -> bool {
 /// the cinema of skill 244, the dark stage, the camera 1500 out and 500 up
 /// from the target along its way; 15 frames on skill 244 at it; the stage
 /// back 150 after; 15 more, all back.
-fn on_magic(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_magic(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -1204,7 +1191,7 @@ fn on_magic(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// barrier's stats (`bossTbl` row 48, its `Exdefense` written 256); the
 /// transform over, the barrier up (SE 229), the stage back; 30 frames on
 /// all back.
-fn on_setup_barrier(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_setup_barrier(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1277,7 +1264,7 @@ fn barrier_stats(cx: &mut Cx, me: usize) {
 /// (by 50), off the targets, SE 229; an after-image every fourth frame
 /// (SE 57 at the third); toward `dashPos` until within 200 or 121 frames;
 /// back on the targets and the next pattern.
-fn on_return(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_return(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     b.spd_up(0x4248_0000, 0x4248_0000);
     match b.act_proccess {
@@ -1322,7 +1309,7 @@ fn on_return(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// The barrier's message (0x003b5b80): unless the party is out, the party
 /// held, off the targets and menu 74's stream 94; once it closes, all back
 /// and the next pattern.
-fn on_barrier_msg(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_barrier_msg(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             if cx.annihilated() || cx.game_over {
@@ -1351,7 +1338,7 @@ fn on_barrier_msg(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// The death (0x003b5cf0): off the targets, the party held, the camera
 /// 1500 out and 200 up from 200 over it along its heading; once not held
 /// and no menu, hidden, the camera back, out of the lists and exited.
-fn on_die(b: &mut Boss, _x: &mut Second, cx: &mut Cx) {
+fn on_die(b: &mut BossBase, _x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -1392,7 +1379,7 @@ fn on_die(b: &mut Boss, _x: &mut Second, cx: &mut Cx) {
 /// runs (25 frames, then 30 each, turning 150 degrees, then 120), at 10
 /// then 50, an after-image every third frame; then by `ccRand() & 0xff`
 /// the neutral (below 128), the press (below 240) or the star dust.
-fn on_random_drive(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_random_drive(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     if b.stop != 0 || cx.scene.chars[me].cond[cond::HOLD] != 0 {
         b.move_spd = 0;
@@ -1474,7 +1461,7 @@ fn on_random_drive(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 
 /// `SetupRoot` (0x003b8910): the five roots set out between it and the
 /// target (a sixth of the way apart, `ccRandF(100)` aside), its heading.
-fn setup_root(b: &Boss, x: &mut Second, cx: &mut Cx) {
+fn setup_root(b: &BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     let pp = cx.scene.chars[me].pos_p;
     let dist = crate::boss::dist(cx, pp, w2p(cx, b.target_pos));
@@ -1489,14 +1476,14 @@ fn setup_root(b: &Boss, x: &mut Second, cx: &mut Cx) {
         let pos = p2w(cx, geom::vadd(pp, v));
         let rm = x.roots[k].me;
         cx.scene.chars[rm].pos = pos;
-        x.roots[k].b.dirc = b.dirc;
+        x.roots[k].b.base.dirc = b.dirc;
     }
 }
 
 /// `EntryRoot` (0x003b8b00): the first exited root up (`Order(3)`), its
 /// slot; -1 for none.
 fn entry_root(x: &mut Second, cx: &mut Cx) -> i32 {
-    let Some(k) = (0..ROOTS).find(|&k| x.roots[k].b.exit != 0) else { return -1 };
+    let Some(k) = (0..ROOTS).find(|&k| x.roots[k].b.base.exit != 0) else { return -1 };
     with_root(x, k, cx, |rb, _, cx| root_order(rb, cx, 3));
     k as i32
 }
@@ -1510,7 +1497,7 @@ fn entry_root(x: &mut Second, cx: &mut Cx) -> i32 {
 /// over at 90; the drain (`ccBossEffRootDrain`) at the target, boss skill
 /// 57 every fifth frame from 45 to 95 draining HP and SP, the camera
 /// rising; over, the roots fade; then its clip, and all back.
-fn on_root_drain(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1667,7 +1654,7 @@ fn on_root_drain(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
                     cx.scene.chars[me].cond[cond::DRAIN_SP] = 0;
                     if cx.annihilated() || cx.game_over {
                         for k in 0..ROOTS {
-                            x.roots[k].b.exit = 1;
+                            x.roots[k].b.base.exit = 1;
                         }
                         root_drain_end(b, x, cx);
                         root_l(b, x, cx);
@@ -1686,13 +1673,13 @@ fn on_root_drain(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
             if x.boss_eff.is_none() {
                 for k in 0..ROOTS {
                     let rb = &mut x.roots[k].b;
-                    let mut t = ee::sub(rb.transparency, 0x3d08_8889);
+                    let mut t = ee::sub(rb.base.transparency, 0x3d08_8889);
                     if ee::le(t, 0) {
                         t = 0;
-                        rb.exit = 1;
+                        rb.base.exit = 1;
                     }
-                    rb.transparency = t;
-                    rb.set_transparency = t;
+                    rb.base.transparency = t;
+                    rb.base.set_transparency = t;
                 }
                 let mut t = ee::sub(x.root_transparency, 0x3d08_8889);
                 if ee::le(t, 0) {
@@ -1731,7 +1718,7 @@ fn on_root_drain(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 /// 10, by the target): taken from the events since `from` and run through
 /// the form's `Affect` as `ccChar::EntryAffect` would (on the lists, not
 /// drained; 6 nothing).
-fn self_affects(b: &mut Boss, x: &mut Second, cx: &mut Cx, from: usize, target: Option<usize>) {
+fn self_affects(b: &mut BossBase, x: &mut Second, cx: &mut Cx, from: usize, target: Option<usize>) {
     use crate::event::{Event, Who};
     let me = cx.me;
     let evs: Vec<Event> = cx.ev.drain(from..).collect();
@@ -1757,12 +1744,12 @@ fn self_affects(b: &mut Boss, x: &mut Second, cx: &mut Cx, from: usize, target: 
         a.person = by;
         a.ty = kind;
         a.param = p;
-        affect_of(b, x, cx);
+        affect(b, x, cx);
     }
 }
 
 /// The root drain's end: all back and the next pattern.
-fn root_drain_end(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+fn root_drain_end(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     b.unlock_player();
     b.entry_cmnd_target(cx);
     cursor(cx, false);
@@ -1773,7 +1760,7 @@ fn root_drain_end(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
 
 /// The drain's own root (`m_anmRootL`) at the target while it shows; SE
 /// 206 at its frame 2.
-fn root_l(b: &Boss, x: &mut Second, cx: &mut Cx) {
+fn root_l(b: &BossBase, x: &mut Second, cx: &mut Cx) {
     if ee::le(x.root_transparency, 0) {
         return;
     }
@@ -1788,7 +1775,7 @@ fn root_l(b: &Boss, x: &mut Second, cx: &mut Cx) {
 // --- the roots ------------------------------------------------------------------------------------
 
 /// `Order(n)` (0x003b8e00): opaque, back on, act `n`.
-fn root_order(b: &mut Boss, cx: &mut Cx, n: i16) {
+fn root_order(b: &mut BossBase, cx: &mut Cx, n: i16) {
     b.transparency = ONE;
     b.set_transparency = ONE;
     b.exit = 0;
@@ -1798,7 +1785,7 @@ fn root_order(b: &mut Boss, cx: &mut Cx, n: i16) {
 /// A root's `ccBoss::Main`: its `Think` (0x003b8e80): up (3), its clip
 /// over, a quake of 30 frames and the ground's radiate, then still; dying
 /// (14), faded out over 15 frames. Drawn at 1.5.
-fn root_main(b: &mut Boss, x: &mut Root, cx: &mut Cx) {
+fn root_main(b: &mut BossBase, x: &mut Root, cx: &mut Cx) {
     b.base_main(cx, &mut |b, cx| match b.act_num {
         3 => {
             if b.anm_status != 0 {
@@ -1824,12 +1811,6 @@ fn root_main(b: &mut Boss, x: &mut Root, cx: &mut Cx) {
 // --- Affect ---------------------------------------------------------------------------------------
 
 /// `ccBoss08_b::Affect` (0x003b2ae0).
-pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
-    let mut x = second_of(b);
-    affect_of(b, &mut x, cx);
-    b.class = Class::CorbenikB(x);
-}
-
 /// A heal (7, 9) passes the guards in the root drain. 6 and 5 the stop; 13
 /// the drain: act 11 (no `Think`: the neutral), a tenth of its HP, the
 /// gauge -1; 7 and 9 a heal (number 20). A blow (1, 3): on the barrier its
@@ -1838,7 +1819,7 @@ pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
 /// else the mark, SE 195 at `abs(ccRand() % 5) + 60` and the HP down: at
 /// half the super table, at a fifth the barrier asked for (its count the
 /// HP before the blow). Its HP never kills it.
-fn affect_of(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
+pub(crate) fn affect(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     let (t, p0, person) = {
         let a = &cx.scene.chars[me].affect;

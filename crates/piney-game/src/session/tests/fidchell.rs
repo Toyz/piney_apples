@@ -90,12 +90,12 @@ fn run(s: &mut Session, mut each: impl FnMut(&Session, u32, &Frame, &Seen)) {
         if let Some(me) = c.boss_char()
             && let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut())
         {
-            seen.act = b.act_num;
-            if let Some(&(_, act, pred)) = SCHEDULE.get(next).filter(|x| i >= x.0 && b.act_num == act::NEUTRAL) {
+            seen.act = b.base.act_num;
+            if let Some(&(_, act, pred)) = SCHEDULE.get(next).filter(|x| i >= x.0 && b.base.act_num == act::NEUTRAL) {
                 next += 1;
-                b.act_num = act;
-                b.act_proccess = 0;
-                b.act_count = 0;
+                b.base.act_num = act;
+                b.base.act_proccess = 0;
+                b.base.act_count = 0;
                 if let Class::Fidchell(x) = &mut b.class
                     && pred >= 0
                 {

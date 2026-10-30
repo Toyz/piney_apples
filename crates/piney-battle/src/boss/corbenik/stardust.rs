@@ -11,7 +11,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::Pic;
-use crate::boss::{Anm, Boss, Cx, EffKind, Out, VF0};
+use crate::boss::{Anm, BossBase, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 
@@ -153,7 +153,7 @@ impl StarDust {
     }
 
     /// `Draw` (0x00374fd0): its phase; past the fourth, off.
-    pub(super) fn draw(&mut self, cx: &mut Cx, b: &mut Boss, slot: usize) -> bool {
+    pub(super) fn draw(&mut self, cx: &mut Cx, b: &mut BossBase, slot: usize) -> bool {
         match self.phase {
             0 => self.generate(cx, b, slot),
             1 => self.birst(cx),
@@ -172,7 +172,7 @@ impl StarDust {
     }
 
     /// `_Generate` (0x00375070).
-    fn generate(&mut self, cx: &mut Cx, b: &mut Boss, slot: usize) {
+    fn generate(&mut self, cx: &mut Cx, b: &mut BossBase, slot: usize) {
         let mut all_done = true;
         let mut all_four = true;
         // The view the follow reads: the core as written here while the
@@ -294,7 +294,7 @@ impl StarDust {
     /// `_Concentrate(star)` (0x003755a0): the star 25 a frame toward the
     /// core, fading with its way left; there (within 25), a ring (190 +
     /// `ccRand() & 7`, turned by two `ccRandF(pi)`) and the core grown.
-    fn concentrate(&mut self, cx: &mut Cx, b: &mut Boss, k: usize) {
+    fn concentrate(&mut self, cx: &mut Cx, b: &mut BossBase, k: usize) {
         let s = self.stars[k];
         let sp = w2p(cx, s.pos);
         let cp = w2p(cx, self.core);
@@ -405,7 +405,7 @@ impl Thunder {
     /// `Draw` (0x00375f00): the points jittered anew (`ccRandF(200)` aside,
     /// turned by `ccRandF(pi)`, and one more `ccRandF(pi)` unused, each);
     /// the drawn ones as segments.
-    pub(super) fn draw(&mut self, cx: &mut Cx, b: &Boss) -> bool {
+    pub(super) fn draw(&mut self, cx: &mut Cx, b: &BossBase) -> bool {
         if let Some((slot, k)) = self.follow
             && let Some(Some(e)) = b.effects.slots.get(slot)
             && let Some(fx) = &e.corbenik

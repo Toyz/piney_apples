@@ -11,7 +11,7 @@ use super::{Gen, Held, LEAF_ROW, LeafPart, Leaves, Magus, Pic, Place};
 use crate::boss::GenOp;
 use crate::boss::blur::Set;
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
-use crate::boss::{Anm, Boss, Class, Cx, EffKind, Out};
+use crate::boss::{Anm, Boss, BossBase, Class, Cx, EffKind, Out};
 use crate::geom::{self, V4};
 use crate::param::cond;
 
@@ -142,9 +142,8 @@ pub(super) fn new(cx: &mut Cx, k: i32) -> usize {
     b.anm_status = 0;
     // The marker (a ccAnimateObject) starts opaque.
     let x = Leaf { master: cx.me, slave_id: k, marker_alpha: ONE, ..Leaf::default() };
-    b.class = Class::MagusLeaf(Box::new(x));
     if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-        f.boss = Some(Box::new(b));
+        f.boss = Some(Box::new(Boss { base: b, class: Class::MagusLeaf(Box::new(x)) }));
     }
     me
 }
@@ -152,36 +151,36 @@ pub(super) fn new(cx: &mut Cx, k: i32) -> usize {
 // --- the frame --------------------------------------------------------------------------------
 
 /// `ccBoss03Leaf::Main` (0x004a4f30), run from Magus's `Slave()`.
-pub(super) fn main(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
+pub(super) fn main(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
     let me = ls.0[k].me;
     as_me(cx, me, |cx| {
-        if ls.0[k].b.exit != 0 {
+        if ls.0[k].b.base.exit != 0 {
             return;
         }
-        ls.0[k].b.calc_real(cx);
-        ls.0[k].b.calc_target_info(cx);
+        ls.0[k].b.base.calc_real(cx);
+        ls.0[k].b.base.calc_target_info(cx);
         let b = &mut ls.0[k].b;
-        if b.stop != 0 {
-            b.stop_count += 1;
-            if b.stop_count >= 61 {
-                b.stop_count = 0;
-                b.stop = 0;
+        if b.base.stop != 0 {
+            b.base.stop_count += 1;
+            if b.base.stop_count >= 61 {
+                b.base.stop_count = 0;
+                b.base.stop = 0;
             }
-            b.move_spd = 0;
+            b.base.move_spd = 0;
         } else {
-            b.stop_count = 0;
+            b.base.stop_count = 0;
         }
         think(ls, k, mb, mx, cx);
-        mov(&mut ls.0[k].b, cx);
-        if ls.0[k].b.draw_sw != 0 {
+        mov(&mut ls.0[k].b.base, cx);
+        if ls.0[k].b.base.draw_sw != 0 {
             pre_draw_anm(&mut ls.0[k], cx);
-            ls.0[k].b.draw(cx);
+            ls.0[k].b.base.draw(cx);
         }
     });
 }
 
 /// `ccBoss03Leaf::Move` (0x004a4e00): `ccBoss::Move`.
-fn mov(b: &mut Boss, cx: &mut Cx) {
+fn mov(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let mut pp = crate::boss::w2p(cx, cx.scene.chars[me].pos);
     let spd = b.move_spd;
@@ -207,27 +206,27 @@ fn mov(b: &mut Boss, cx: &mut Cx) {
 /// the burst's picture instead; fading, the leaf's fade.
 fn pre_draw_anm(p: &mut LeafPart, _cx: &mut Cx) {
     let (b, x) = (&mut p.b, &mut p.x);
-    match b.act_num {
+    match b.base.act_num {
         act::FIRE => {
-            b.anm_status = i8::from(x.exp.draw());
+            b.base.anm_status = i8::from(x.exp.draw());
         }
         act::DESTROY => {
             x.transparency = ee::sub(x.transparency, x.trans_spd);
             if ee::lt(x.transparency, 0) {
                 x.transparency = 0;
             }
-            b.transparency = x.transparency;
-            b.set_transparency = x.transparency;
-            b.anm_status = i8::from(b.anm.forward());
+            b.base.transparency = x.transparency;
+            b.base.set_transparency = x.transparency;
+            b.base.anm_status = i8::from(b.base.anm.forward());
         }
-        _ => b.anm_status = i8::from(b.anm.forward()),
+        _ => b.base.anm_status = i8::from(b.base.anm.forward()),
     }
 }
 
 /// `ccBoss03Leaf::Think` (0x004a54b0).
-fn think(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
+fn think(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
     let me = cx.me;
-    match ls.0[k].b.act_num {
+    match ls.0[k].b.base.act_num {
         act::NEUTRAL => {
             if ls.0[k].x.order_num == 0 {
                 return;
@@ -235,18 +234,18 @@ fn think(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) 
             let mp = cx.scene.chars[ls.0[k].x.master].pos;
             cx.scene.chars[me].pos = mp;
             let p = &mut ls.0[k];
-            p.b.dirc = mb.dirc;
-            p.b.draw_sw = 1;
+            p.b.base.dirc = mb.dirc;
+            p.b.base.draw_sw = 1;
             p.x.act_cnt = 0;
             change_action(p, cx, act::DROP, 3, true);
         }
         7 => {
-            let c = ls.0[k].b.act_count;
-            ls.0[k].b.act_count += 1;
+            let c = ls.0[k].b.base.act_count;
+            ls.0[k].b.base.act_count += 1;
             if c >= 121 {
                 on_exit(ls, k, mb, mx, cx);
                 let p = &mut ls.0[k];
-                p.b.draw_sw = 0;
+                p.b.base.draw_sw = 0;
                 change_action(p, cx, act::NEUTRAL, 3, true);
             }
         }
@@ -254,7 +253,7 @@ fn think(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) 
         act::DROP => on_drop(&mut ls.0[k], cx),
         act::FIRE => on_fire(ls, k, mb, mx, cx),
         act::COUNT_DOWN => on_count_down(ls, k, mb, mx, cx),
-        act::DESTROY if ls.0[k].b.anm_status != 0 => on_exit(ls, k, mb, mx, cx),
+        act::DESTROY if ls.0[k].b.base.anm_status != 0 => on_exit(ls, k, mb, mx, cx),
         _ => {}
     }
 }
@@ -262,11 +261,11 @@ fn think(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) 
 /// `ccBoss03Leaf::ChangeAction` (0x004a6e00): the base's; bursting, the
 /// burst's clip (`xeffect`'s `ANM_ex31exp1`); `anmStatus` 0.
 fn change_action(p: &mut LeafPart, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
-    p.b.change_action(cx, n, forbid, af);
-    if af && p.b.act_num == act::FIRE {
-        p.b.anm.set("ANM_ex31exp1", cx.clips);
+    p.b.base.change_action(cx, n, forbid, af);
+    if af && p.b.base.act_num == act::FIRE {
+        p.b.base.anm.set("ANM_ex31exp1", cx.clips);
     }
-    p.b.anm_status = 0;
+    p.b.base.anm_status = 0;
 }
 
 /// `CheckBlink` (0x004a6e80): the blink's time out, it flips.
@@ -303,16 +302,16 @@ fn count_start(x: &mut Leaf) {
 
 /// `Init` (0x004a5920): at the body's leaf `slaveID` on the ground, the
 /// body's heading, its fall clip, full HP, fallen.
-fn init(p: &mut LeafPart, mb: &Boss, mx: &Magus, cx: &mut Cx) {
+fn init(p: &mut LeafPart, mb: &BossBase, mx: &Magus, cx: &mut Cx) {
     let me = p.me;
     let k = usize::try_from(p.x.slave_id).unwrap_or(0).min(super::LEAVES - 1);
     let mut pos = mx.leaf_pos[k];
     pos[2] = 0;
     cx.scene.chars[me].pos = pos;
-    p.b.dirc = mb.dirc;
-    p.x.vec_rot = p.b.dirc;
+    p.b.base.dirc = mb.dirc;
+    p.x.vec_rot = p.b.base.dirc;
     let clip = if p.x.slave_id & 1 != 0 { "ANM_ex31atc1" } else { "ANM_ex31atc0" };
-    p.b.anm.set(clip, cx.clips);
+    p.b.base.anm.set(clip, cx.clips);
     p.x.anm_end = 0;
     let ch = &mut cx.scene.chars[me];
     ch.hp = ch.max_hp;
@@ -359,7 +358,7 @@ fn particles(cx: &mut Cx, which: Gen, at: Place, held: Option<Held>) {
 
 /// `Order(n)` (0x004a6780): 24 fall, 25 the countdown again, 26 burst, 27
 /// go, 28 fade off the body, 29 and 30 the grow's charge on and off.
-pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
+pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
     let me = ls.0[k].me;
     as_me(cx, me, |cx| {
         let p = &mut ls.0[k];
@@ -382,8 +381,8 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut Boss, mx: &mut M
                 }
                 p.x.marker_init = true;
                 p.x.marker_pos = pos;
-                p.b.transparency = ONE;
-                p.b.set_transparency = ONE;
+                p.b.base.transparency = ONE;
+                p.b.base.set_transparency = ONE;
             }
             25 => {
                 count_start(&mut p.x);
@@ -408,7 +407,7 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut Boss, mx: &mut M
             28 => {
                 init(p, mb, mx, cx);
                 p.x.transparency = ONE;
-                p.x.trans_spd = ee::div(ONE, ee::from_int(p.b.anm.frames as i32));
+                p.x.trans_spd = ee::div(ONE, ee::from_int(p.b.base.anm.frames as i32));
                 change_action(p, cx, act::DESTROY, 3, true);
             }
             29 => {
@@ -431,8 +430,8 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut Boss, mx: &mut M
 
 /// `OnExit` (0x004a65a0): exited; unless Magus is drained its
 /// `OnExitLeaf`; off the lists.
-fn on_exit(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
-    ls.0[k].b.exit = 1;
+fn on_exit(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
+    ls.0[k].b.base.exit = 1;
     if mx.epitaph == 0 {
         let mme = ls.0[k].x.master;
         as_me(cx, mme, |cx| super::on_exit_leaf(mb, mx, ls, cx));
@@ -445,13 +444,13 @@ fn on_exit(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx
 /// begins and the leaf lands 137.6 to its side, on the lists.
 fn on_drop(p: &mut LeafPart, cx: &mut Cx) {
     let me = p.me;
-    if p.b.anm_status == 0 {
+    if p.b.base.anm_status == 0 {
         return;
     }
     count_start(&mut p.x);
     change_action(p, cx, act::COUNT_DOWN, 3, true);
     let s = if p.x.slave_id & 1 != 0 { 0x4309_999a } else { 0xc309_999a };
-    let d = p.b.dirc[2];
+    let d = p.b.base.dirc[2];
     let v = [ee::mul(s, libm::cosf(d)), ee::mul(s, libm::sinf(d)), 0, ONE];
     let pp = geom::vadd(crate::boss::w2p(cx, cx.scene.chars[me].pos), v);
     let pos = crate::boss::p2w(cx, pp);
@@ -459,7 +458,7 @@ fn on_drop(p: &mut LeafPart, cx: &mut Cx) {
     ch.pos = pos;
     ch.pos_p = pp;
     let clip = if p.x.slave_id & 1 != 0 { "ANM_ex31lea1" } else { "ANM_ex31lea0" };
-    p.b.anm.set(clip, cx.clips);
+    p.b.base.anm.set(clip, cx.clips);
     cx.out(Out::Magus(Pic::Dust { pos }));
     cx.out(Out::Se3dNote { se: 56, pos, note: 72 });
     if p.x.marker_init {
@@ -471,12 +470,12 @@ fn on_drop(p: &mut LeafPart, cx: &mut Cx) {
 
 /// `OnThinkFire` (0x004a5db0): the burst over, the leaf goes; the last of
 /// the fallen to go brings Magus down (act 28) and its blur back.
-fn on_fire(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
-    if ls.0[k].b.anm_status == 0 {
+fn on_fire(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
+    if ls.0[k].b.base.anm_status == 0 {
         return;
     }
     on_exit(ls, k, mb, mx, cx);
-    if ls.0.iter().any(|p| p.x.drop != 0 && p.b.exit == 0) {
+    if ls.0.iter().any(|p| p.x.drop != 0 && p.b.base.exit == 0) {
         return;
     }
     mx.explosion = 0;
@@ -489,7 +488,7 @@ fn on_fire(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx
 /// At 0, the burst readied, and Magus rises unless it waves, is held or
 /// already rises (then all burst at its next neutral). The count waits
 /// while Magus is stuck or the party is down; the marker is drawn after.
-fn on_count_down(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
+fn on_count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
     if mx.stuck != 0 || cx.annihilated() || cx.game_over {
         return;
     }
@@ -504,21 +503,21 @@ fn on_count_down(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &
     x.marker_alpha = ee::div(x.exp_alpha, 0x42c8_0000);
 }
 
-fn count_down(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
+fn count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
     let p = &mut ls.0[k];
     let x = &mut p.x;
     if x.prepare_explode != 0 {
         return;
     }
-    let c = p.b.act_count;
-    p.b.act_count += 1;
+    let c = p.b.base.act_count;
+    p.b.base.act_count += 1;
     if c < 0 {
         return;
     }
     if check_blink(x) {
         let t = ((u64::from((x.exp_cntr as u32).wrapping_mul(30)) * 0x91a2_b3c5) >> 32) as u32 >> 8;
         set_blink_time(x, t as i32);
-        cx.out(Out::Magus(Pic::LeafAfterImage { leaf: k, frame: p.b.anm.frame() }));
+        cx.out(Out::Magus(Pic::LeafAfterImage { leaf: k, frame: p.b.base.anm.frame() }));
     }
     if x.blink_base_time != 0 {
         let base = ee::from_int(x.blink_base_time);
@@ -568,17 +567,17 @@ fn count_down(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut
 
 /// `OnThinkDie` (0x004a57a0): off the lists, its death's sound, smoke and
 /// ring; it fades in 30 frames and goes.
-fn on_die(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx) {
+fn on_die(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
     let me = ls.0[k].me;
     let p = &mut ls.0[k];
-    match p.b.act_proccess {
+    match p.b.base.act_proccess {
         0 => {
             p.x.exit_alpha = ONE;
-            p.b.act_proccess += 1;
+            p.b.base.act_proccess += 1;
             crate::fellow::delete_cmnd(cx.scene, me);
             marker_off(&mut p.x, me, cx);
             crate::affect::clear_conditions(&mut cx.scene.chars[me]);
-            let dirc = p.b.dirc;
+            let dirc = p.b.base.dirc;
             dead_effect(mb, dirc, cx);
         }
         1 => {
@@ -588,19 +587,19 @@ fn on_die(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx)
                 p.x.exit_alpha = 0;
             }
             let a = p.x.exit_alpha;
-            p.b.transparency = a;
-            p.b.set_transparency = a;
+            p.b.base.transparency = a;
+            p.b.base.set_transparency = a;
             if gone {
                 on_exit(ls, k, mb, mx, cx);
             }
         }
-        _ => p.b.act_proccess = 1,
+        _ => p.b.base.act_proccess = 1,
     }
 }
 
 /// `DeadEffect` (0x004a5680): SE 104, the smoke, an auto samon ring
 /// (model 195) 50 up, in the one effect manager (Magus's).
-fn dead_effect(mb: &mut Boss, dirc: V4, cx: &mut Cx) {
+fn dead_effect(mb: &mut BossBase, dirc: V4, cx: &mut Cx) {
     let pos = cx.pos();
     cx.out(Out::Se3dNote { se: 104, pos, note: 36 });
     particles(cx, Gen::LeafDead, Place::At(pos), None);
@@ -613,7 +612,7 @@ fn dead_effect(mb: &mut Boss, dirc: V4, cx: &mut Cx) {
 
 /// `ccBoss03Leaf::Affect` (0x004a52b0): a hit (with no party checks and
 /// no mark) takes HP; at 0 the leaf dies; the rest the base's.
-pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
+pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     if b.lock_player != 0 || b.act_forbid == 2 {
         return;
@@ -645,7 +644,7 @@ pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
 }
 
 /// The leaf's `ChangeAction` on a bare `Boss` (from its affect).
-fn leaf_change_action(b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16) {
+fn leaf_change_action(b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16) {
     b.change_action(cx, n, forbid, true);
     if b.act_num == act::FIRE {
         b.anm.set("ANM_ex31exp1", cx.clips);

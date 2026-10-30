@@ -8,7 +8,7 @@
 use piney_data::field::ee;
 
 use super::Pic;
-use crate::boss::{Anm, Boss, Cx, Out};
+use crate::boss::{Anm, BossBase, Cx, Out};
 use crate::geom::V4;
 
 type F = u32;
@@ -30,7 +30,13 @@ impl Fx {
     /// The effect's `Draw` (out of its slot of `b`'s manager while it
     /// runs): whether it is still enabled. `third` is the third form when
     /// it runs the pass (a reflected laser's callback reaches its eyes).
-    pub fn draw(&mut self, cx: &mut Cx, b: &mut Boss, slot: usize, third: Option<&mut super::third::Third>) -> bool {
+    pub fn draw(
+        &mut self,
+        cx: &mut Cx,
+        b: &mut BossBase,
+        slot: usize,
+        third: Option<&mut super::third::Third>,
+    ) -> bool {
         match self {
             Fx::Wave(w) => w.draw(cx, b),
             Fx::Flush(f) => f.draw(cx),
@@ -67,7 +73,7 @@ impl Wave {
     /// ends; `WaveFuncCB(anm, pos)` (0x003adf80) after, every time: at the
     /// clip's frame 8 boss skill 27 from the place and a quake (35, 25,
     /// 50).
-    fn draw(&mut self, cx: &mut Cx, b: &mut Boss) -> bool {
+    fn draw(&mut self, cx: &mut Cx, b: &mut BossBase) -> bool {
         let ended = self.anm.forward();
         cx.out(Out::Corbenik(Pic::Wave { time: self.anm.posed, pos: self.pos }));
         if self.anm.frame() == 8 {

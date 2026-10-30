@@ -216,7 +216,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             let mut ev = Events::new();
             let kite = members[0];
             if let Some(b) = scene.chars[me].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                out.extend(b.take_pending());
+                out.extend(b.base.take_pending());
             }
             match kind {
                 0 => affect::entry_affect(tables, &mut scene, actx, me, kite, 1, [p0, 0, 0], &mut rand, &mut ev),
@@ -235,7 +235,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 }
                 8 => {
                     if let Some(b) = scene.chars[me].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                        (b.act_num, b.act_proccess, b.act_count) = (p0, 0, 0);
+                        (b.base.act_num, b.base.act_proccess, b.base.act_count) = (p0, 0, 0);
                     }
                 }
                 9 => affect::entry_affect(tables, &mut scene, actx, me, kite, 3, [p0, 0, 0], &mut rand, &mut ev),
@@ -249,7 +249,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc = cell.into_inner();
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
         let mut all = out;
-        all.extend(boss.take_pending());
+        all.extend(boss.base.take_pending());
         // The affects' writes, then the manager's pass, then the boss's.
         blur.apply(&all);
         blur.frame();
@@ -381,13 +381,13 @@ fn tarvos_json(b: &Boss, x: &Tarvos) -> String {
         x.pattern_mode.to_string(),
         x.def_mode.to_string(),
         x.blend_rate.to_string(),
-        b.stop_time.to_string(),
-        b.stop_counter.to_string(),
-        b.pat_index.to_string(),
-        b.pat_num.to_string(),
-        b.epitaph.to_string(),
-        v3(&b.dash_pos),
-        b.m_act_dirc[2].to_string(),
+        b.base.stop_time.to_string(),
+        b.base.stop_counter.to_string(),
+        b.base.pat_index.to_string(),
+        b.base.pat_num.to_string(),
+        b.base.epitaph.to_string(),
+        v3(&b.base.dash_pos),
+        b.base.m_act_dirc[2].to_string(),
     ];
     v.join(",")
 }
@@ -407,6 +407,7 @@ fn frame_json(
     let ch = &scene.chars[me];
     let f = scene.param(me).unwrap();
     let effs: Vec<String> = b
+        .base
         .effects
         .slots
         .iter()
@@ -423,41 +424,41 @@ fn frame_json(
          \"hp\":[{},{}],\"pp\":[{},{}],\"flags\":[{},{},{},{},{},{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\
          \"anm\":[\"{}\",{},{},\"{}\",{},{}],\"tarvos\":[{}],\"cam\":[{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
          \"menu\":[{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
-        b.act_num,
-        b.act_proccess,
-        b.act_count,
-        b.move_spd,
-        b.move_dirc,
-        v3(&b.move_vector),
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_count,
+        b.base.move_spd,
+        b.base.move_dirc,
+        v3(&b.base.move_vector),
         ch.target_char.map_or(-1, |t| t as i64),
-        b.target_dist,
-        b.target_dirc,
-        v3(&b.target_pos),
+        b.base.target_dist,
+        b.base.target_dirc,
+        v3(&b.base.target_pos),
         v3(&ch.pos),
         v3(&ch.pos_p),
-        v3(&b.dirc),
+        v3(&b.base.dirc),
         ch.hp,
         ch.max_hp,
         f.pp,
         f.pp_count,
-        b.act_forbid,
-        b.anm_status,
-        b.stop,
-        b.cheat_hp,
-        b.exit,
-        b.draw_sw,
-        b.body_hit_sw,
-        b.lock_player,
-        b.erase_target,
-        b.reserve_forbid_menu,
-        u8::from(b.reserve_forbid_chat_except != 0),
-        b.stop_count,
+        b.base.act_forbid,
+        b.base.anm_status,
+        b.base.stop,
+        b.base.cheat_hp,
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.body_hit_sw,
+        b.base.lock_player,
+        b.base.erase_target,
+        b.base.reserve_forbid_menu,
+        u8::from(b.base.reserve_forbid_chat_except != 0),
+        b.base.stop_count,
         u8::from(scene.listed(me)),
-        b.transparency,
-        b.set_transparency,
-        b.anm.clip.as_deref().unwrap_or(""),
-        b.anm.frame(),
-        b.anm.speed,
+        b.base.transparency,
+        b.base.set_transparency,
+        b.base.anm.clip.as_deref().unwrap_or(""),
+        b.base.anm.frame(),
+        b.base.anm.speed,
         x.anm_w.clip.as_deref().unwrap_or(""),
         x.anm_w.frame(),
         x.anm_w.speed,

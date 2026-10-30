@@ -11,7 +11,7 @@ use super::eff::{self, Fx};
 use super::seed::{self, Seed};
 use super::{Gen, Pic, SEEDS, make_fx, manager_pass, select, target_ok, word, wrap_hi};
 use crate::boss::kyvia::Part;
-use crate::boss::{Boss, Class, Cx, EffKind, Out, Tbl, VF0};
+use crate::boss::{Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
 use crate::enemy_ai::{get_dirc, rand_f2};
 use crate::geom::{self, V4};
 use crate::item;
@@ -90,16 +90,6 @@ pub struct First {
     pub act_pos: V4,
 }
 
-fn first_of(b: &mut Boss) -> Box<First> {
-    match std::mem::replace(&mut b.class, Class::Plain) {
-        Class::Corbenik(x) => x,
-        other => {
-            b.class = other;
-            Box::default()
-        }
-    }
-}
-
 /// The seeds taken out of their characters (`Class::CorbenikSeed`),
 /// whether each was there.
 fn take_seeds(cx: &mut Cx, x: &mut First) -> [bool; SEEDS] {
@@ -127,8 +117,13 @@ fn with_seed<R>(x: &mut First, k: usize, cx: &mut Cx, f: impl FnOnce(&mut Boss, 
 /// `EntryCmndTarget`'d.
 fn seeds_targetable(x: &mut First, cx: &mut Cx, on: bool) {
     for k in 0..SEEDS {
-        if x.seeds[k].b.exit == 0 {
-            with_seed(x, k, cx, |b, _, cx| if on { b.entry_cmnd_target(cx) } else { b.erase_cmnd_target(cx) });
+        if x.seeds[k].b.base.exit == 0 {
+            with_seed(
+                x,
+                k,
+                cx,
+                |b, _, cx| if on { b.base.entry_cmnd_target(cx) } else { b.base.erase_cmnd_target(cx) },
+            );
         }
     }
 }
@@ -175,13 +170,12 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let found = take_seeds(cx, &mut x);
     set_pattern_mode(&mut b, &mut x, cx, 0);
     put_seeds(cx, &mut x, found);
-    b.class = Class::Corbenik(x);
-    b
+    Boss { base: b, class: Class::Corbenik(x) }
 }
 
 /// `SetPatternMode(m)` (0x003adc30): mode 0 the normal table (any other a
 /// null one), run from its start.
-fn set_pattern_mode(b: &mut Boss, x: &mut First, cx: &mut Cx, m: i32) {
+fn set_pattern_mode(b: &mut BossBase, x: &mut First, cx: &mut Cx, m: i32) {
     let t = if m == 0 { Tbl::Normal } else { Tbl::None };
     b.pat_tbl = t;
     b.pat_index = 0;
@@ -194,19 +188,17 @@ fn set_pattern_mode(b: &mut Boss, x: &mut First, cx: &mut Cx, m: i32) {
 
 /// The effect manager's pass, then `ccBoss08::Main` (0x003ad000):
 /// `ccBoss::Main` (its `Slave` each seed's own `Main`), `hold` cleared.
-pub(crate) fn main(b: &mut Boss, cx: &mut Cx) {
-    let mut x = first_of(b);
-    let found = take_seeds(cx, &mut x);
+pub(crate) fn main(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
+    let found = take_seeds(cx, x);
     manager_pass(b, cx);
-    frame(b, &mut x, cx);
-    put_seeds(cx, &mut x, found);
+    frame(b, x, cx);
+    put_seeds(cx, x, found);
     cx.scene.chars[cx.me].cond[cond::HOLD] = 0;
-    b.class = Class::Corbenik(x);
 }
 
 /// `ccBoss::Main` (QUA gcmn 0x0035fda0) on the first form: `PreDrawAnm`
 /// its own (the blink, the vibe's scale), `Slave` the seeds'.
-fn frame(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     if b.exit != 0 {
         return;
     }
@@ -251,7 +243,7 @@ fn frame(b: &mut Boss, x: &mut First, cx: &mut Cx) {
     }
     // `Slave` (0x003ad030): each seed not exited, its own `Main`.
     for k in 0..SEEDS {
-        if x.seeds[k].b.exit == 0 {
+        if x.seeds[k].b.base.exit == 0 {
             seed::main(b, x, k, cx);
         }
     }
@@ -260,13 +252,13 @@ fn frame(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 /// `ccBoss08::PreDrawAnm` (0x003ad5d0): the clip forward. Its blink
 /// and its vibe's scale are the flash's alone (`_ChangeVibeType(4)`,
 /// which nothing calls): the scale stays 1 and no fog is set.
-fn pre_draw_anm(b: &mut Boss) {
+fn pre_draw_anm(b: &mut BossBase) {
     b.anm_status = i8::from(b.anm.forward());
 }
 
 // --- the patterns --------------------------------------------------------------------------
 
-fn change_next_pattern(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn change_next_pattern(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     // `ccBoss08::ChangeNextPattern` (0x003ade20): the countdowns go on.
     x.pause_cnt_down = false;
     let tbl = cx.data.corbenik.words(b.pat_tbl).to_vec();
@@ -284,7 +276,7 @@ fn change_next_pattern(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 }
 
 /// `ccBoss::ExecPattern(pat, p0, 0, 0)` (QUA gcmn 0x00360d30).
-fn exec_pattern(b: &mut Boss, x: &mut First, cx: &mut Cx, pat: i32, p0: i32) {
+fn exec_pattern(b: &mut BossBase, x: &mut First, cx: &mut Cx, pat: i32, p0: i32) {
     let tbl = [pat, p0, 0, 0, -1];
     exec_pattern_index(b, x, cx, &tbl, 0);
 }
@@ -292,7 +284,7 @@ fn exec_pattern(b: &mut Boss, x: &mut First, cx: &mut Cx, pat: i32, p0: i32) {
 /// `ccBoss08::ExecPatternIndex(tbl, i)` (0x003adae0): 1 the wave (6), 14
 /// the magic (20) with the countdowns held, 15 n the seeds (21, `n` kept);
 /// the rest the base's.
-fn exec_pattern_index(b: &mut Boss, x: &mut First, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn exec_pattern_index(b: &mut BossBase, x: &mut First, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let mut s = i;
     let mut pat = word(tbl, s);
     s += 1;
@@ -321,7 +313,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut First, cx: &mut Cx, tbl: &[i32], i: 
 
 /// `ccBoss::ExecPatternIndex` through this class's `ChangeAction` and
 /// `ExecPattern` ([`super::base_exec_pattern_index`]).
-fn base_exec_pattern_index(b: &mut Boss, x: &mut First, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn base_exec_pattern_index(b: &mut BossBase, x: &mut First, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     super::base_exec_pattern_index(b, cx, &mut BaseHost { x }, tbl, i)
 }
 
@@ -330,17 +322,17 @@ struct BaseHost<'a> {
 }
 
 impl super::Host for BaseHost<'_> {
-    fn change_action(&mut self, b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
         b.change_action(cx, n, forbid, af);
     }
 
-    fn exec_pattern(&mut self, b: &mut Boss, cx: &mut Cx, pat: i32, p0: i32) {
+    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
         exec_pattern(b, self.x, cx, pat, p0);
     }
 }
 
 /// `ccBoss08::Think` (0x003ad460).
-fn think(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
         act::DAMAGE0 | act::DAMAGE1 => b.change_action(cx, act::NEUTRAL, 0, false),
@@ -360,7 +352,7 @@ fn think(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 /// `OnThinkNeutral` (0x003adce0): still; the wait (a count up to
 /// `stopTime`; -1 for ever; -2 until its skill is over), then the next
 /// pattern at the target.
-fn on_neutral(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     let me = cx.me;
@@ -389,7 +381,7 @@ fn on_neutral(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 
 /// The target picked for an act (`SelectTarget(0)`), or the 2-1 wait when
 /// it is gone or down.
-fn pick(b: &mut Boss, x: &mut First, cx: &mut Cx) -> bool {
+fn pick(b: &mut BossBase, x: &mut First, cx: &mut Cx) -> bool {
     let t = select(b, cx, 0);
     if !target_ok(cx, t) {
         exec_pattern(b, x, cx, 2, -1);
@@ -401,7 +393,7 @@ fn pick(b: &mut Boss, x: &mut First, cx: &mut Cx) -> bool {
 
 /// A leap from where it stands at `dirc`: 1000 out, the control point 500
 /// out and 1000 up (`m_jumpData`), its time 0.
-fn leap(b: &mut Boss, x: &mut First, cx: &mut Cx, dirc: F) {
+fn leap(b: &mut BossBase, x: &mut First, cx: &mut Cx, dirc: F) {
     let me = cx.me;
     let pos = cx.scene.chars[me].pos;
     x.jump.sp = pos;
@@ -445,7 +437,7 @@ fn calc_jump_pos(cx: &Cx, j: &Jump) -> V4 {
 /// frames on, three leaps turning 2 pi / 3 each (SE 223 at the first, 224
 /// at their tops), each landing in a WaveShock and a wave (`WaveFuncCB`);
 /// then back on the targets and the next pattern.
-fn on_wave(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     let me = cx.me;
     b.dirc[2] = b.move_dirc;
     match b.act_proccess {
@@ -507,7 +499,7 @@ fn on_wave(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 /// `OnThinkEscape` (0x003ae780): away from the target at 20, turned a
 /// quarter off it every 32 frames (toward the centre out of the arena),
 /// for 90 frames.
-fn on_escape(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn on_escape(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -558,7 +550,7 @@ fn on_escape(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 /// 50 SE 61, 35 (note 65) and 256; from 50, every other frame an exited
 /// seed thrown (`Order(3)`; the first time the throw's smoke); the next
 /// pattern once three are out and the clip is over.
-fn on_seed(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn on_seed(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     let pos = cx.pos();
     let f = b.anm.frame();
     if f == 25 {
@@ -574,9 +566,9 @@ fn on_seed(b: &mut Boss, x: &mut First, cx: &mut Cx) {
     let c = b.act_count;
     b.act_count += 1;
     if c & 1 != 0 {
-        if let Some(k) = (0..SEEDS).find(|&k| x.seeds[k].b.exit != 0) {
+        if let Some(k) = (0..SEEDS).find(|&k| x.seeds[k].b.base.exit != 0) {
             let master = cx.scene.chars[cx.me].pos;
-            with_seed(x, k, cx, |sb, sx, cx| seed::order(sb, sx, cx, 3, master));
+            with_seed(x, k, cx, |sb, sx, cx| seed::order(&mut sb.base, sx, cx, 3, master));
         }
         if b.act_proccess == 0 {
             let mut p = pos;
@@ -595,7 +587,7 @@ fn on_seed(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 /// 200, looking there, the countdowns held; after 60 frames the eye moving
 /// 10 a frame; at 150 a white flash and its command gone; at 250 menu 74's
 /// stream 106, the body hidden; once the menu closes, out (camera 1).
-fn on_die(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn on_die(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -671,7 +663,7 @@ fn on_die(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 /// 60 frames on skill 252 at it; then the stage back 160 frames on and
 /// the view shaken (a `ccRandF` kick at 95, 115, 135 and 155, damped by
 /// -0.9); 15 frames after, all back and the next pattern.
-fn on_magic(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -762,15 +754,13 @@ fn on_magic(b: &mut Boss, x: &mut First, cx: &mut Cx) {
 /// 20); a blow (1, 3), unless the party is out: its number, SE 195, the
 /// mark and the HP down; at 0 the death (each seed's too); else a type-1
 /// blow the damage act. No cheat, no drain.
-pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
-    let mut x = first_of(b);
-    let found = take_seeds(cx, &mut x);
-    affect_of(b, &mut x, cx);
-    put_seeds(cx, &mut x, found);
-    b.class = Class::Corbenik(x);
+pub(crate) fn affect(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
+    let found = take_seeds(cx, x);
+    affect_of(b, x, cx);
+    put_seeds(cx, x, found);
 }
 
-fn affect_of(b: &mut Boss, x: &mut First, cx: &mut Cx) {
+fn affect_of(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     let me = cx.me;
     if b.act_forbid == 2 || b.lock_player != 0 {
         return;
@@ -806,8 +796,8 @@ fn affect_of(b: &mut Boss, x: &mut First, cx: &mut Cx) {
                 // `m_deadFlag`, which nothing sets).
                 x.pause_cnt_down = true;
                 for k in 0..SEEDS {
-                    if x.seeds[k].b.exit == 0 {
-                        with_seed(x, k, cx, |sb, _, cx| sb.change_action(cx, seed::act::DEAD, 2, true));
+                    if x.seeds[k].b.base.exit == 0 {
+                        with_seed(x, k, cx, |sb, _, cx| sb.base.change_action(cx, seed::act::DEAD, 2, true));
                     }
                 }
                 b.move_spd = 0;
@@ -838,7 +828,7 @@ pub(crate) fn send_message(x: &mut First, from: usize, at: V4, cx: &mut Cx) {
         }
         let q = cx.scene.chars[x.seeds[k].me].pos_p;
         if ee::le(crate::boss::dist(cx, at, q), reach) && !x.seeds[k].x.explode {
-            with_seed(x, k, cx, |sb, sx, cx| seed::order(sb, sx, cx, 5, VF0));
+            with_seed(x, k, cx, |sb, sx, cx| seed::order(&mut sb.base, sx, cx, 5, VF0));
         }
     }
 }

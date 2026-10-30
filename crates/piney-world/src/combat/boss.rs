@@ -572,12 +572,12 @@ impl Combat {
         }
         let pos = self.scene.chars[me].pos;
         let (h, w) = (self.scene.chars[me].base().height, self.scene.chars[me].base().width);
-        let clip0 = b.anm.clip.clone().unwrap_or_default();
+        let clip0 = b.base.anm.clip.clone().unwrap_or_default();
         let body0 = match code {
             CORBENIK => clip_body(&look.images, &clip0).unwrap_or_else(|| look.body.clone()),
             _ => look.body.clone(),
         };
-        if let Some(a) = Actor::new(body0, &clip0, Look::Boss, pos, b.dirc, h, w) {
+        if let Some(a) = Actor::new(body0, &clip0, Look::Boss, pos, b.base.dirc, h, w) {
             self.cast.actors.insert(me, a);
         }
         let images = match &b.class {
@@ -684,7 +684,7 @@ impl Combat {
         let Some(run) = self.boss.as_mut() else { return };
         for c in std::iter::once(run.me).chain(run.parts.iter().copied()) {
             if let Some(b) = self.scene.chars[c].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-                for s in b.take_blur() {
+                for s in b.base.take_blur() {
                     run.blur.set(s);
                 }
             }
@@ -748,15 +748,15 @@ impl Combat {
         for &p in &parts {
             boss::apply_queued(&mut self.scene, &actx, p, &mut self.rand, &mut ev);
             if let Some(pb) = self.scene.chars[p].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-                part_out.extend(pb.take_pending().into_iter().map(|o| (p, o)));
+                part_out.extend(pb.base.take_pending().into_iter().map(|o| (p, o)));
             }
         }
         let Some(mut b) = self.scene.chars[me].foe_state_mut().and_then(|f| f.boss.take()) else { return ev };
-        let mut out = b.take_pending();
+        let mut out = b.base.take_pending();
         // Magus's leaves hang where its body was last posed: `Init` reads
         // `OBJ_ex31leafNN`'s world matrix.
-        let laser = b.act_num == boss::magus::act::LASER;
-        let (anm, dirc) = (b.anm.clone(), b.dirc);
+        let laser = b.base.act_num == boss::magus::act::LASER;
+        let (anm, dirc) = (b.base.anm.clone(), b.base.dirc);
         if let (Class::Magus(x), Some(a)) = (&mut b.class, self.cast.actors.get(&me)) {
             x.leaf_pos = leaf_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, x.leaf_pos);
             // The laser's shocks as SetupLaserShock and PreDrawAnm find
@@ -776,7 +776,7 @@ impl Combat {
         // pushed out of the others (CollisionDetection).
         let kite = self.kite;
         let mut body = super::spc::to_body(me, kite, &hit, false);
-        hits.set_hit_sw(&mut body, b.body_hit_sw != 0);
+        hits.set_hit_sw(&mut body, b.base.body_hit_sw != 0);
         let hits = RefCell::new(hits);
         let mut collide = |pos: V4| {
             let mut hits = hits.borrow_mut();
@@ -828,11 +828,11 @@ impl Combat {
             let mut pending = Vec::new();
             for &p in &parts {
                 if let Some(pb) = cx.scene.chars[p].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-                    pending.extend(pb.take_blur());
+                    pending.extend(pb.base.take_blur());
                 }
             }
             let fx_sets = fx_out.iter().filter_map(|o| if let Out::Blur(s) = o { Some(*s) } else { None });
-            for s in b.take_blur().into_iter().chain(pending).chain(fx_sets) {
+            for s in b.base.take_blur().into_iter().chain(pending).chain(fx_sets) {
                 r.blur.set(s);
             }
             r.reflex = r.blur.main(&mut self.blur_statics);
@@ -868,9 +868,9 @@ impl Combat {
                 (hit, parts) = (r.hit, r.parts.clone());
             }
         }
-        let exited = b.exit != 0;
+        let exited = b.base.exit != 0;
         // The body's copy in the list where the boss stands now.
-        let at = CharHit { pos: self.scene.chars[me].pos, sw: b.body_hit_sw != 0 && !exited, ..hit };
+        let at = CharHit { pos: self.scene.chars[me].pos, sw: b.base.body_hit_sw != 0 && !exited, ..hit };
         let mut body = super::spc::to_body(me, kite, &at, false);
         hits.set_hit_sw(&mut body, at.sw);
         hits.sync(&body);
@@ -879,7 +879,7 @@ impl Combat {
         // OBJ_ex11swd as it was last drawn, a new row of the trail; then
         // the trail's Disp.
         let skeith = b.class == Class::Skeith;
-        let cross = (skeith && b.act_num == piney_battle::boss::act::CROSS && !exited)
+        let cross = (skeith && b.base.act_num == piney_battle::boss::act::CROSS && !exited)
             .then(|| self.cast.actors.get(&me).and_then(|a| sword_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc)))
             .flatten();
         if let Some(r) = self.boss.as_mut()
@@ -892,17 +892,17 @@ impl Combat {
             }
             r.trail = r.lattice.disp();
         }
-        let dirc = b.dirc;
+        let dirc = b.base.dirc;
         let wave_time = match &b.class {
             Class::Innis(x) => x.anm_w.posed,
             Class::Magus(x) => x.anm_w.posed,
             Class::Fidchell(x) => x.anm_w.posed,
             Class::Macha(x) => x.anm_w.posed,
             Class::Tarvos(x) => x.anm_w.posed,
-            _ => b.anm_wave.posed,
+            _ => b.base.anm_wave.posed,
         };
-        let clip = b.anm.clip.clone().unwrap_or_default();
-        let time = b.anm.posed;
+        let clip = b.base.anm.clip.clone().unwrap_or_default();
+        let time = b.base.anm.posed;
         let leaves = match &b.class {
             Class::Magus(x) => x.leaves.clone(),
             _ => Vec::new(),
@@ -1067,13 +1067,13 @@ impl Combat {
                     Out::Magus(boss::magus::Pic::LeafAfterImage { leaf, frame }) => {
                         let Some(&c) = leaves.get(*leaf) else { continue };
                         let Some(lb) = self.scene.chars[c].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
-                        let mut a = lb.anm.clone();
+                        let mut a = lb.base.anm.clone();
                         (a.time, a.posed) = (*frame as u32 * 256, *frame as u32 * 256);
                         if *frame == 0 {
                             a.forward();
                         }
                         let p = self.scene.chars[c].pos;
-                        r.afterimages.push(AfterImage::leaf(a.clip.unwrap_or_default(), a.posed, p, lb.dirc));
+                        r.afterimages.push(AfterImage::leaf(a.clip.unwrap_or_default(), a.posed, p, lb.base.dirc));
                     }
                     Out::DrawWave => r.waves.push((wave_time, at.pos, dirc, 1.0)),
                     // Macha's white images, its ball, light and wave.
@@ -1138,23 +1138,23 @@ impl Combat {
         // Gorre's own body is drawn only in its Kerse, at `m_talkPos`.
         let (pos, dirc, shown) = match (&b.class, boss::gorre::body(&b)) {
             (Class::Gorre(_), Some((p, d))) => (p, d, true),
-            (Class::Gorre(_), None) => (self.scene.chars[me].pos, b.dirc, false),
-            _ => (self.scene.chars[me].pos, b.dirc, b.draw_sw != 0),
+            (Class::Gorre(_), None) => (self.scene.chars[me].pos, b.base.dirc, false),
+            _ => (self.scene.chars[me].pos, b.base.dirc, b.base.draw_sw != 0),
         };
         self.fidchell_body(&b, me);
         let dropped = self.magus_dropped(&b);
         if let Some(a) = self.cast.actors.get_mut(&me) {
-            pose(a, &b.anm, pos, dirc);
-            a.drawn = shown && !exited && b.drawn;
-            a.alpha = b.transparency;
+            pose(a, &b.base.anm, pos, dirc);
+            a.drawn = shown && !exited && b.base.drawn;
+            a.alpha = b.base.transparency;
             a.trans_dist = false;
             // PreDrawAnm's hiding, but in the grow (act 26).
-            let grow = b.act_num == boss::magus::act::LEAF_GROW;
+            let grow = b.base.act_num == boss::magus::act::LEAF_GROW;
             a.ch.play.hidden = if grow { Vec::new() } else { dropped_objects(&a.ch.body, &a.ch.play, &dropped) };
         }
         // Act 8's after-image callback (0x0049e7c0) hides them likewise.
         if let Some(r) = self.boss.as_mut() {
-            r.dropped = if b.act_num == boss::magus::act::TO_CENTRE { dropped } else { Vec::new() };
+            r.dropped = if b.base.act_num == boss::magus::act::TO_CENTRE { dropped } else { Vec::new() };
         }
         self.image_actors(&b, exited);
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
@@ -1229,7 +1229,7 @@ impl Combat {
     /// `ANM_ex7x*`), the first body under the rest.
     fn fidchell_body(&mut self, b: &Boss, me: usize) {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
-        let clip = b.anm.clip.clone().unwrap_or_default();
+        let clip = b.base.anm.clip.clone().unwrap_or_default();
         let body = match look.code {
             // Corbenik: the clump of x81 its form's clip poses.
             CORBENIK => match clip_body(&look.images, &clip) {
@@ -1253,7 +1253,7 @@ impl Combat {
         let (h, w) = (self.scene.chars[me].base().height, self.scene.chars[me].base().width);
         if let Some(a) = self.cast.actors.get_mut(&me)
             && !Rc::ptr_eq(&a.ch.body, &body)
-            && let Some(n) = Actor::new(body, &clip, Look::Boss, pos, b.dirc, h, w)
+            && let Some(n) = Actor::new(body, &clip, Look::Boss, pos, b.base.dirc, h, w)
         {
             *a = n;
         }
@@ -1302,22 +1302,23 @@ impl Combat {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
         for (k, &p) in parts.iter().enumerate() {
             let Some(pb) = self.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
-            let shown = pb.draw_sw != 0 && pb.exit == 0 && !exited && pb.drawn;
+            let shown = pb.base.draw_sw != 0 && pb.base.exit == 0 && !exited && pb.base.drawn;
             // Kyvia's core then its gomoras; Magus's leaves, one model;
             // Gorre's brothers the clump their clip poses.
             let pick = usize::from(k > 0 && look.code != MAGUS);
-            let clip = pb.anm.clip.as_deref().unwrap_or_default();
+            let clip = pb.base.anm.clip.as_deref().unwrap_or_default();
             let body = match look.code {
                 GORRE | CORBENIK => clip_body(&look.images, clip),
                 _ => look.images.get(pick).cloned(),
             };
             let Some(body) = body else { continue };
-            let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.transparency);
+            let (anm, dirc, alpha) = (pb.base.anm.clone(), pb.base.dirc, pb.base.transparency);
             let pos = self.scene.chars[p].pos;
             let matrix = super::corbenik::part_matrix(&pb.class, pos, dirc);
             // A seed's PreDrawAnm draws its clip once more first, at the
             // transparency the last ccBoss::Draw gave the anm.
-            let again = matches!(pb.class, Class::CorbenikSeed(_)) && pb.draw_sw != 0 && pb.exit == 0 && !exited;
+            let again =
+                matches!(pb.class, Class::CorbenikSeed(_)) && pb.base.draw_sw != 0 && pb.base.exit == 0 && !exited;
             if let Some(r) = self.boss.as_mut() {
                 let prev = r.anm_alpha.insert(p, alpha).unwrap_or(ONE);
                 if again {

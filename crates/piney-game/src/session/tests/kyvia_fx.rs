@@ -141,7 +141,7 @@ fn fight_leaning(
             x.now_dmg_time = x.now_dmg_time.max(x.dmg_time - 1);
         }
         let now = Seen {
-            act: c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.act_num),
+            act: c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.base.act_num),
             draws: census.boss_draws,
             anchored: census.anchored_generators,
             on_core: census.char_generators.iter().filter(|&&g| g as usize == core).count(),

@@ -11,7 +11,7 @@ use piney_data::field::ee;
 use super::third::Third;
 use super::{Pic, word};
 use crate::boss::kyvia::{Part, as_me, dp, fabs, fp, head, plain_boss, set_base_param};
-use crate::boss::{AfterImageParams, Boss, Class, Cx, EffKind, Out, Tbl, VF0};
+use crate::boss::{AfterImageParams, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
 use crate::item;
@@ -172,7 +172,7 @@ pub(crate) fn new_eye(cx: &mut Cx, me: usize) -> Part<Eye> {
         *r = rand_f(cx.cc, 0x3c8e_fa35);
     }
     let x = Eye { hit, pos_b: VF0, pos_bp: VF0, move_vector_b: VF0, rot_dirc, ..Eye::default() };
-    Part { b: Box::new(b), x: Box::new(x), me }
+    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
 }
 
 /// `SetupSlave`'s part of an eye (0x003bd960): `SetMaster`, on, act 0 held
@@ -181,8 +181,8 @@ pub(crate) fn new_eye(cx: &mut Cx, me: usize) -> Part<Eye> {
 pub(crate) fn setup_eye(p: &mut Part<Eye>, cx: &mut Cx, master: usize, k: i32) {
     p.x.master = master;
     p.x.slave_id = k;
-    p.b.exit = 0;
-    as_me(cx, p.me, |cx| order(&mut p.b, &mut p.x, cx, 0));
+    p.b.base.exit = 0;
+    as_me(cx, p.me, |cx| order(&mut p.b.base, &mut p.x, cx, 0));
     let r = fp(dp(fabs(rand_f(cx.cc, 0x447a_0000))) + 4500.0);
     let mut a = rand_f(cx.cc, PI);
     if ee::lt(a, 0x3f06_0a92) {
@@ -198,7 +198,7 @@ pub(crate) fn setup_eye(p: &mut Part<Eye>, cx: &mut Cx, master: usize, k: i32) {
 
 /// `ccBoss08Eye::Order(n)` (0x003bf1a0): 23 the flash (100); else
 /// `ChangeAction(n, 3, 0)`.
-pub(crate) fn order(b: &mut Boss, x: &mut Eye, cx: &mut Cx, n: i16) {
+pub(crate) fn order(b: &mut BossBase, x: &mut Eye, cx: &mut Cx, n: i16) {
     if n == 23 {
         x.color_blend = 0x42c8_0000;
     } else {
@@ -211,25 +211,25 @@ pub(crate) fn order(b: &mut Boss, x: &mut Eye, cx: &mut Cx, n: i16) {
 pub(crate) fn eye_main(p: &mut Part<Eye>, m: &MasterView, cx: &mut Cx) {
     as_me(cx, p.me, |cx| {
         let me = cx.me;
-        p.b.target_dirc = m.target_dirc;
-        p.b.target_dist = m.target_dist;
+        p.b.base.target_dirc = m.target_dirc;
+        p.b.base.target_dist = m.target_dist;
         cx.scene.chars[me].target_char = m.target;
         let b = &mut p.b;
-        if b.exit != 0 {
+        if b.base.exit != 0 {
             return;
         }
-        head(b, cx);
-        eye_think(b, &mut p.x, m, cx);
-        eye_move(b, &mut p.x, m, cx);
-        if p.b.draw_sw != 0 {
-            eye_pre_draw(&mut p.b, &mut p.x, cx);
-            p.b.draw(cx);
+        head(&mut b.base, cx);
+        eye_think(&mut b.base, &mut p.x, m, cx);
+        eye_move(&mut b.base, &mut p.x, m, cx);
+        if p.b.base.draw_sw != 0 {
+            eye_pre_draw(&mut p.b.base, &mut p.x, cx);
+            p.b.base.draw(cx);
         }
         cx.scene.chars[me].cond[cond::HOLD] = 0;
     });
 }
 
-fn eye_think(b: &mut Boss, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
+fn eye_think(b: &mut BossBase, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => eye_neutral(b, x, m, cx),
         act::LASER => eye_laser(b, x, m, cx),
@@ -240,7 +240,7 @@ fn eye_think(b: &mut Boss, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
 
 /// The heading toward `at` (in the player's frame): its pitch in x, its
 /// way in z.
-fn face(b: &mut Boss, cx: &Cx, at: V4) {
+fn face(b: &mut BossBase, cx: &Cx, at: V4) {
     let pp = cx.scene.chars[cx.me].pos_p;
     b.dirc = VF0;
     b.dirc[0] = pitch(cx, pp, at);
@@ -249,7 +249,7 @@ fn face(b: &mut Boss, cx: &Cx, at: V4) {
 
 /// `OnThinkNeutral` (0x003bef40): facing the body; its offset turned by
 /// `m_rotDirc` (`RotMatrixX`, `Y`, `Z` over its translation).
-fn eye_neutral(b: &mut Boss, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
+fn eye_neutral(b: &mut BossBase, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
     face(b, cx, m.pos_p);
     let t = geom::trans_matrix(&geom::unit_matrix(), x.pos_b);
     let t = geom::rot_matrix_x(&t, x.rot_dirc[0]);
@@ -259,14 +259,14 @@ fn eye_neutral(b: &mut Boss, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
 }
 
 /// `OnThinkTeraLaser` (0x003bf070): facing its target.
-fn eye_tera(b: &mut Boss, cx: &mut Cx) {
+fn eye_tera(b: &mut BossBase, cx: &mut Cx) {
     let tp = w2p(cx, b.target_pos);
     face(b, cx, tp);
 }
 
 /// `OnThinkLaser` (0x003bf0f0): facing the body's target, its own way
 /// stopped.
-fn eye_laser(b: &mut Boss, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
+fn eye_laser(b: &mut BossBase, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
     let at = m.target.map_or(VF0, |t| cx.scene.chars[t].pos_p);
     face(b, cx, at);
     x.move_vector_b = VF0;
@@ -291,7 +291,7 @@ fn calc_master_coord(x: &mut Eye, m: &MasterView, cx: &mut Cx) {
 
 /// `ccBoss08Eye::Move` (0x003bec10): on the body in its neutral, then the
 /// base's step, its body hit pushed (all of the push kept).
-fn eye_move(b: &mut Boss, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
+fn eye_move(b: &mut BossBase, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
     if b.act_num == act::NEUTRAL {
         calc_master_coord(x, m, cx);
     }
@@ -323,7 +323,7 @@ fn eye_move(b: &mut Boss, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
 
 /// `PreDrawAnm` (0x003bed70): the clip forward and drawn at its place,
 /// turned XYZ; a flash fading 1/9.6 of its 100 a frame.
-fn eye_pre_draw(b: &mut Boss, x: &mut Eye, cx: &mut Cx) {
+fn eye_pre_draw(b: &mut BossBase, x: &mut Eye, cx: &mut Cx) {
     b.anm_status = i8::from(b.anm.forward());
     let me = cx.me;
     let pos = cx.scene.chars[me].pos;
@@ -410,7 +410,7 @@ pub(crate) fn new_killer(cx: &mut Cx, me: usize, kite_pos: V4, kite_dirc: V4) ->
     }
     let eai = AfterImageParams { color: 0xffff_ffff, ss: VF0, es: VF0, ..AfterImageParams::default() };
     let x = Killer { hit, eai, spin: VF0, press_start: VF0, ..Killer::default() };
-    Part { b: Box::new(b), x: Box::new(x), me }
+    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
 }
 
 /// What a killer eye reads of the body.
@@ -427,24 +427,24 @@ pub struct KillerView {
 /// `ccBoss08KillerEye::Main` (0x003bf630): `ccBoss::Main` with its
 /// `Think`, the base's `Move` and its own `PreDrawAnm`. `mb` is the body
 /// (its manager's effects).
-pub(crate) fn killer_main(mb: &mut Boss, p: &mut Part<Killer>, v: &KillerView, cx: &mut Cx) {
+pub(crate) fn killer_main(mb: &mut BossBase, p: &mut Part<Killer>, v: &KillerView, cx: &mut Cx) {
     as_me(cx, p.me, |cx| {
         let me = cx.me;
-        if p.b.exit != 0 {
+        if p.b.base.exit != 0 {
             return;
         }
-        head(&mut p.b, cx);
-        killer_think(mb, &mut p.b, &mut p.x, v, cx);
-        killer_move(&mut p.b, &mut p.x, cx);
-        if p.b.draw_sw != 0 {
-            killer_pre_draw(&mut p.b, cx);
-            p.b.draw(cx);
+        head(&mut p.b.base, cx);
+        killer_think(mb, &mut p.b.base, &mut p.x, v, cx);
+        killer_move(&mut p.b.base, &mut p.x, cx);
+        if p.b.base.draw_sw != 0 {
+            killer_pre_draw(&mut p.b.base, cx);
+            p.b.base.draw(cx);
         }
         cx.scene.chars[me].cond[cond::HOLD] = 0;
     });
 }
 
-fn killer_think(mb: &mut Boss, b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
+fn killer_think(mb: &mut BossBase, b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     match b.act_num {
         killer_act::DEAD => on_dead(mb, b, x, cx),
         killer_act::GENERATE => on_generate(b, x, v, cx),
@@ -457,7 +457,7 @@ fn killer_think(mb: &mut Boss, b: &mut Boss, x: &mut Killer, v: &KillerView, cx:
 /// `ccBoss::Move` (QUA gcmn 0x00360120) on a killer eye: the step and its
 /// throw, then its body hit pushed out of the others, the push's height
 /// dropped.
-fn killer_move(b: &mut Boss, x: &mut Killer, cx: &mut Cx) {
+fn killer_move(b: &mut BossBase, x: &mut Killer, cx: &mut Cx) {
     let me = cx.me;
     let mut pp = w2p(cx, cx.scene.chars[me].pos);
     if !geom::eq(0, b.move_spd) {
@@ -487,7 +487,7 @@ fn killer_move(b: &mut Boss, x: &mut Killer, cx: &mut Cx) {
 /// `PreDrawAnm` (0x003bf990): thrown, posed still; pressing, the clip
 /// forward twice in its first step (its own and the base's); else the
 /// base's. Drawn at its place, turned ZYX.
-fn killer_pre_draw(b: &mut Boss, cx: &mut Cx) {
+fn killer_pre_draw(b: &mut BossBase, cx: &mut Cx) {
     match b.act_num {
         killer_act::GENERATE => {}
         killer_act::BODY_PRESS => {
@@ -521,24 +521,24 @@ pub(crate) fn generate(p: &mut Part<Killer>, v: &KillerView, cx: &mut Cx) {
         let mut t = cx.party.members[k];
         cx.scene.chars[me].target_char = t;
         if !cx.valid(t) || t.is_some_and(|t| cx.scene.chars[t].cond[cond::DEAD] != 0) {
-            t = b.select_target(cx, 0, FAR);
+            t = b.base.select_target(cx, 0, FAR);
             cx.scene.chars[me].target_char = t;
         }
-        b.calc_target_info(cx);
+        b.base.calc_target_info(cx);
         cx.scene.chars[me].pos = v.dummy;
-        b.dirc = v.dirc;
+        b.base.dirc = v.dirc;
         set_base_param(cx, me, KILLER_ROW + k);
         let b = &mut p.b;
-        b.draw_sw = 1;
-        b.exit = 0;
-        b.body_hit_sw = 0;
-        b.transparency = 0;
-        b.set_transparency = 0;
-        super::restart(&mut b.anm, cx);
-        b.anm.forward();
-        b.move_spd = 0;
-        b.move_vector = VF0;
-        b.change_action(cx, killer_act::GENERATE, 3, true);
+        b.base.draw_sw = 1;
+        b.base.exit = 0;
+        b.base.body_hit_sw = 0;
+        b.base.transparency = 0;
+        b.base.set_transparency = 0;
+        super::restart(&mut b.base.anm, cx);
+        b.base.anm.forward();
+        b.base.move_spd = 0;
+        b.base.move_vector = VF0;
+        b.base.change_action(cx, killer_act::GENERATE, 3, true);
     });
 }
 
@@ -552,10 +552,10 @@ pub(crate) fn attack(p: &mut Part<Killer>, v: &KillerView, cx: &mut Cx) {
         45 => 14,
         _ => return,
     };
-    as_me(cx, p.me, |cx| exec_pattern(&mut p.b, &mut p.x, v, cx, pat, 0));
+    as_me(cx, p.me, |cx| exec_pattern(&mut p.b.base, &mut p.x, v, cx, pat, 0));
 }
 
-fn exec_pattern(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx, pat: i32, p0: i32) {
+fn exec_pattern(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx, pat: i32, p0: i32) {
     let tbl = [pat, p0, 0, 0, -1];
     exec_pattern_index(b, x, v, cx, &tbl, 0);
 }
@@ -566,7 +566,7 @@ fn killer_tbl(cx: &Cx, x: &Killer) -> Vec<i32> {
 
 /// `ChangeNextPattern` (0x003bfe00): held while the body pauses (pattern
 /// 2 -1, `m_pauseFlag` set); else the base's.
-fn change_next_pattern(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
+fn change_next_pattern(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     if v.paused {
         x.pause = true;
         exec_pattern(b, x, v, cx, 2, -1);
@@ -591,7 +591,7 @@ fn change_next_pattern(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx
 /// next word in `actProccess`), 14 a skill of `@2388` by `ccRand() % 13` on
 /// its target, 16 skill 154 on the body, 15 a compelled one of `@2391`, 17
 /// the press (act 4); the rest the base's.
-fn exec_pattern_index(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn exec_pattern_index(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let mut s = i + 1;
     let mut pat = word(tbl, i);
     b.move_spd = 0;
@@ -647,18 +647,18 @@ struct KillerHost<'a> {
 }
 
 impl super::Host for KillerHost<'_> {
-    fn change_action(&mut self, b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
         b.change_action(cx, n, forbid, af);
     }
 
-    fn exec_pattern(&mut self, b: &mut Boss, cx: &mut Cx, pat: i32, p0: i32) {
+    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
         exec_pattern(b, self.x, self.v, cx, pat, p0);
     }
 }
 
 /// The neutral (0x003c00e0): stopped, turning to its target (128); still
 /// while the body pauses; then its wait, and the next pattern.
-fn on_neutral(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     let me = cx.me;
     b.move_spd = 0;
     b.move_vector = VF0;
@@ -688,7 +688,7 @@ fn on_neutral(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
 /// annihilation; with no target the next pattern; held while stopped; for
 /// `actProccess` frames at 15 toward the target beyond 300, else round it
 /// a quarter turn off at 10.
-fn on_wander(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
+fn on_wander(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -735,7 +735,7 @@ fn on_wander(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
 /// bouncing on the ground (damped 0.8, the fall turned at 0.7) to a stop;
 /// 30 frames on facing its target and rising to 200; at 90 on its table,
 /// drawn, out, hit, on the lists, its HP full.
-fn on_generate(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
+fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -849,7 +849,7 @@ fn word_f(tbl: &[F], i: i32) -> F {
 /// 15 frames on its way back worked out; flying back (an after-image
 /// every other frame) to where it started, on the lists again and the
 /// next pattern. The target held all the while.
-fn on_body_press(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
+fn on_body_press(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -979,7 +979,7 @@ fn on_body_press(b: &mut Boss, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
 /// `OnThinkDead` (0x003c1520): its body off, still, the root drain at its
 /// place (`ccBossEffRootDrainCreate`), off the lists; fading over 60
 /// frames until the drain is over, then out.
-fn on_dead(mb: &mut Boss, b: &mut Boss, x: &mut Killer, cx: &mut Cx) {
+fn on_dead(mb: &mut BossBase, b: &mut BossBase, x: &mut Killer, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.body_hit_sw = 0;
@@ -1011,7 +1011,7 @@ fn on_dead(mb: &mut Boss, b: &mut Boss, x: &mut Killer, cx: &mut Cx) {
 }
 
 /// `ccBoss::OnExit` (0x0035fc30): exited (still drawn if it was).
-pub(crate) fn on_exit(b: &mut Boss, _cx: &mut Cx) {
+pub(crate) fn on_exit(b: &mut BossBase, _cx: &mut Cx) {
     b.exit = 1;
 }
 
@@ -1022,7 +1022,7 @@ pub(crate) fn on_exit(b: &mut Boss, _cx: &mut Cx) {
 /// 175 note 52; then its row's guard (`Exdefense` 1 a physical blow, 2 a
 /// spell) shows the shield, its height flattened. Any other type the
 /// base's.
-pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
+pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let (t, p0, p1, person) = {
         let a = &cx.scene.chars[me].affect;
@@ -1071,7 +1071,7 @@ pub fn dummy_at(world: &M4, dummy: V4) -> V4 {
 
 impl Third {
     /// The view an eye reads (`m` the body).
-    pub(crate) fn master_view(&self, b: &Boss, cx: &Cx) -> MasterView {
+    pub(crate) fn master_view(&self, b: &BossBase, cx: &Cx) -> MasterView {
         let me = cx.me;
         MasterView {
             pos_p: cx.scene.chars[me].pos_p,
@@ -1082,7 +1082,7 @@ impl Third {
         }
     }
 
-    pub(crate) fn killer_view(&self, b: &Boss, cx: &Cx) -> KillerView {
+    pub(crate) fn killer_view(&self, b: &BossBase, cx: &Cx) -> KillerView {
         KillerView { master: cx.me, paused: self.pause, dirc: b.dirc, dummy: dummy_at(&self.body_world, self.dummy) }
     }
 }

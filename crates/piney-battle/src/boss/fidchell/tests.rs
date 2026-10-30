@@ -97,7 +97,7 @@ impl Fight {
         let me = self.me;
         self.scene.chars[me].skill_id = 0;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        let mut out = b.take_pending();
+        let mut out = b.base.take_pending();
         out.extend(self.with_cx(|cx| {
             b.main(cx);
             std::mem::take(&mut cx.out)
@@ -145,11 +145,10 @@ impl Fight {
         self.fid().pred_id = pred;
         let me = self.me;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        let mut x = fidchell_of(&mut b);
-        self.with_cx(|cx| exec_pattern(&mut b, &mut x, cx, 15, 0));
-        b.class = Class::Fidchell(x);
+        let Class::Fidchell(x) = &mut b.class else { panic!("not Fidchell") };
+        self.with_cx(|cx| exec_pattern(&mut b.base, x, cx, 15, 0));
         self.scene.chars[me].foe_state_mut().unwrap().boss = Some(b);
-        self.until(3000, |f| f.boss().act_num != act::EXEC_PREDICTION)
+        self.until(3000, |f| f.boss().base.act_num != act::EXEC_PREDICTION)
     }
 }
 
@@ -160,12 +159,12 @@ fn stands_behind_kite_and_waits_its_first_pattern() {
     assert_eq!(f.scene.chars[me].pos[1], (-500.0f32).to_bits(), "500 behind Kite");
     assert_eq!(f.scene.chars[me].pos[2], 10.0f32.to_bits(), "10 up");
     assert!(f.scene.ene_list.contains(&me));
-    assert_eq!(f.boss().pat_tbl, Tbl::Normal);
-    assert_eq!(f.boss().act_num, act::NEUTRAL);
-    assert_eq!(f.boss().stop_time, 60, "the table's first word: wait 60");
-    assert_eq!(f.boss().cheat_hp, 1);
-    f.until(80, |f| f.boss().act_num != act::NEUTRAL);
-    assert_eq!(f.boss().act_num, act::CHASE, "then word 4: the chase");
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Normal);
+    assert_eq!(f.boss().base.act_num, act::NEUTRAL);
+    assert_eq!(f.boss().base.stop_time, 60, "the table's first word: wait 60");
+    assert_eq!(f.boss().base.cheat_hp, 1);
+    f.until(80, |f| f.boss().base.act_num != act::NEUTRAL);
+    assert_eq!(f.boss().base.act_num, act::CHASE, "then word 4: the chase");
 }
 
 #[test]
@@ -173,13 +172,13 @@ fn the_prediction_lays_its_skill_on_the_members_then_its_spell_comes() {
     let Some(mut f) = fight() else { return };
     let mut predicted = None;
     let outs = f.until(6000, |f| {
-        if f.boss().act_num == act::PREDICTION && predicted.is_none() && f.boss().act_proccess > 0 {
+        if f.boss().base.act_num == act::PREDICTION && predicted.is_none() && f.boss().base.act_proccess > 0 {
             predicted = Some(f.fid().pred_id);
         }
-        predicted.is_some() && f.boss().act_num == act::EXEC_PREDICTION
+        predicted.is_some() && f.boss().base.act_num == act::EXEC_PREDICTION
     });
     let Some(p) = predicted else { panic!("no prediction") };
-    assert_eq!(f.boss().act_num, act::EXEC_PREDICTION, "pattern 15 casts it");
+    assert_eq!(f.boss().base.act_num, act::EXEC_PREDICTION, "pattern 15 casts it");
     assert!(outs.contains(&Out::Cinema(Some(PRED_CINEMA[p as usize]))));
     let sid = f.data.fidchell.pred_skills[p as usize];
     assert_eq!(outs.iter().filter(|o| matches!(o, Out::Skill(_, s) if s.sid == sid)).count(), 2, "each member");
@@ -199,12 +198,12 @@ fn each_spell_makes_its_effect_and_ends_unlocked() {
         let Some(mut f) = fight() else { return };
         f.frame();
         let outs = f.cast(pred as i32);
-        assert_ne!(f.boss().act_num, act::EXEC_PREDICTION, "spell {pred} ends");
+        assert_ne!(f.boss().base.act_num, act::EXEC_PREDICTION, "spell {pred} ends");
         assert!(outs.iter().any(|o| matches!(o, Out::Effect { kind, .. } if made(kind))), "spell {pred}'s effect");
         assert!(outs.contains(&Out::Cinema(Some(SPELL_CINEMA[pred]))));
-        assert_eq!(f.boss().lock_player, 0);
-        assert_eq!(f.boss().draw_sw, 1, "shown again");
-        assert_eq!(f.boss().transparency, ONE, "faded back in");
+        assert_eq!(f.boss().base.lock_player, 0);
+        assert_eq!(f.boss().base.draw_sw, 1, "shown again");
+        assert_eq!(f.boss().base.transparency, ONE, "faded back in");
     }
 }
 
@@ -215,7 +214,7 @@ fn half_the_gauge_brings_the_super_table() {
     let max = f.t.bosses[ROW].max_pp;
     f.scene.param_mut(me).unwrap().pp = max;
     f.affect(1, 10);
-    assert_eq!(f.boss().pat_tbl, Tbl::Super);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Super);
     assert_eq!(f.fid().pat_mode, 1);
 }
 
@@ -226,24 +225,24 @@ fn drained_to_the_epitaph_then_dies_and_exits() {
     let me = f.me;
     f.affect(13, 0);
     f.frame();
-    assert_eq!(f.boss().act_num, act::EPITAPH);
-    assert_eq!(f.boss().epitaph, 1);
-    assert_eq!(f.boss().cheat_hp, 0);
-    assert_eq!(f.boss().pat_tbl, Tbl::Epitaph);
+    assert_eq!(f.boss().base.act_num, act::EPITAPH);
+    assert_eq!(f.boss().base.epitaph, 1);
+    assert_eq!(f.boss().base.cheat_hp, 0);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Epitaph);
     f.affect(21, 0);
     assert_eq!(f.scene.chars[me].hp, EPITAPH_HP);
     let mut dead = false;
     for _ in 0..3000 {
-        if f.boss().act_num != act::DEAD && f.boss().lock_player == 0 {
+        if f.boss().base.act_num != act::DEAD && f.boss().base.lock_player == 0 {
             f.affect(1, 1000);
         }
         f.frame();
-        dead |= f.boss().act_num == act::DEAD;
-        if f.boss().exit != 0 {
+        dead |= f.boss().base.act_num == act::DEAD;
+        if f.boss().base.exit != 0 {
             break;
         }
     }
     assert!(dead, "hit to death");
-    assert_eq!(f.boss().exit, 1, "the dead effect over, the task's exit");
+    assert_eq!(f.boss().base.exit, 1, "the dead effect over, the task's exit");
     assert!(!f.scene.ene_list.contains(&me));
 }

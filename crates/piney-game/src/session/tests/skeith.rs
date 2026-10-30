@@ -65,15 +65,15 @@ fn run_forcing(
             let clip = c.data.skeith.as_ref().and_then(|d| d.anm_tbl.get(act as usize).cloned().flatten());
             let clips = c.boss.as_ref().map(|r| r.clips.clone());
             if let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-                b.act_num = act;
-                b.act_proccess = 0;
-                b.act_count = 0;
+                b.base.act_num = act;
+                b.base.act_proccess = 0;
+                b.base.act_count = 0;
                 if let (Some(clip), Some(clips)) = (clip, clips) {
                     let (frames, looping) = clips.get(&clip).copied().unwrap_or((0, false));
-                    b.anm.clip = Some(clip);
-                    b.anm.time = 0;
-                    b.anm.frames = frames;
-                    b.anm.looping = looping;
+                    b.base.anm.clip = Some(clip);
+                    b.base.anm.time = 0;
+                    b.base.anm.frames = frames;
+                    b.base.anm.looping = looping;
                 }
             }
         }
@@ -84,7 +84,7 @@ fn run_forcing(
         if let Some(me) = c.boss_char()
             && let Some(b) = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref())
         {
-            seen.push((b.act_num, c.scene.chars[me].hp));
+            seen.push((b.base.act_num, c.scene.chars[me].hp));
         }
     }
     seen
@@ -233,7 +233,7 @@ fn skeith_shots() {
                 let c = a.world().combat();
                 c.boss_char()
                     .and_then(|me| c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()))
-                    .is_some_and(|b| matches!(b.act_num, 4 | 6 | 7 | 18))
+                    .is_some_and(|b| matches!(b.base.act_num, 4 | 6 | 7 | 18))
             }
             _ => false,
         };
@@ -453,21 +453,21 @@ fn event_30_ends_with_skeith() {
         since += 1;
         let kite = c.kite;
         let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) else { continue };
-        acts.insert(b.act_num);
-        exited |= b.exit != 0;
+        acts.insert(b.base.act_num);
+        exited |= b.base.exit != 0;
         // The boss camera (2) through the fight, the dead camera (3) from
         // BeginDeadEffect.
-        cams.insert((b.act_num == 14 || b.exit != 0, cam_id));
+        cams.insert((b.base.act_num == 14 || b.base.exit != 0, cam_id));
         // The menus open only with the player free (LockPlayer forbids
         // them): the drain in the boss's neutral stance.
-        if since >= 400 && !drained && b.act_num == 0 && b.lock_player == 0 {
+        if since >= 400 && !drained && b.base.act_num == 0 && b.base.lock_player == 0 {
             // The drain: the target menu's hold (13), then its 21.
-            b.queued.push((13, [0; 3], kite));
-            b.queued.push((21, [0; 3], kite));
+            b.base.queued.push((13, [0; 3], kite));
+            b.base.queued.push((21, [0; 3], kite));
             drained = true;
         }
-        if drained && since.is_multiple_of(20) && b.exit == 0 && b.lock_player == 0 && b.epitaph != 0 {
-            b.queued.push((1, [800, 0, 0], kite));
+        if drained && since.is_multiple_of(20) && b.base.exit == 0 && b.base.lock_player == 0 && b.base.epitaph != 0 {
+            b.base.queued.push((1, [800, 0, 0], kite));
         }
     }
     calls.dedup();
@@ -562,7 +562,7 @@ fn skeith_drained_through_the_menus() {
                 }
                 // Enough hits would have broken its protect.
                 if let Some(me) = c.boss_char()
-                    && c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.epitaph == 0)
+                    && c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.base.epitaph == 0)
                     && let Some(p) = c.scene.param_mut(me)
                 {
                     p.pp_count = p.pp_count.max(5);
@@ -578,7 +578,7 @@ fn skeith_drained_through_the_menus() {
                 .boss_char()
                 .and_then(|me| c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| (me, b)));
             if let Some((_, b)) = boss {
-                epitaph |= b.epitaph != 0;
+                epitaph |= b.base.epitaph != 0;
             }
             if epitaph {
                 break;
@@ -591,7 +591,7 @@ fn skeith_drained_through_the_menus() {
                 _ => Buttons::UP,
             };
             match (ui.menu_type(), boss) {
-                (-1, Some((me, b))) if b.lock_player == 0 && m.forbid == 0 => {
+                (-1, Some((me, b))) if b.base.lock_player == 0 && m.forbid == 0 => {
                     let k = c.kite.unwrap();
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let q = c.scene.chars[me].pos.map(f32::from_bits);
@@ -683,20 +683,20 @@ fn skeith_drains_a_member() {
         let Some(me) = c.boss_char() else { continue };
         let Some(f) = c.scene.chars[me].foe_state_mut() else { continue };
         let Some(b) = f.boss.as_mut() else { continue };
-        acts.insert(b.act_num);
-        if !hit && b.act_num == 0 && b.lock_player == 0 {
+        acts.insert(b.base.act_num);
+        if !hit && b.base.act_num == 0 && b.base.lock_player == 0 {
             // The gauge past half, then a hit: the Super table.
             let max = f.row.max_pp;
             if let Some(p) = f.param_mut() {
                 p.pp = max;
             }
             if let Some(b) = f.boss.as_mut() {
-                b.queued.push((1, [10, 0, 0], kite));
+                b.base.queued.push((1, [10, 0, 0], kite));
             }
             hit = true;
             continue;
         }
-        if menu74 && !open && b.act_num != 5 {
+        if menu74 && !open && b.base.act_num != 5 {
             after = true;
             break;
         }
@@ -754,13 +754,13 @@ fn member_drain_shots() {
         let kite = c.kite;
         let Some(me) = c.boss_char() else { continue };
         let Some(f) = c.scene.chars[me].foe_state_mut() else { continue };
-        if !hit && f.boss.as_ref().is_some_and(|b| b.act_num == 0 && b.lock_player == 0) {
+        if !hit && f.boss.as_ref().is_some_and(|b| b.base.act_num == 0 && b.base.lock_player == 0) {
             let max = f.row.max_pp;
             if let Some(p) = f.param_mut() {
                 p.pp = max;
             }
             if let Some(b) = f.boss.as_mut() {
-                b.queued.push((1, [10, 0, 0], kite));
+                b.base.queued.push((1, [10, 0, 0], kite));
             }
             hit = true;
         }
@@ -836,7 +836,7 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
                     ch.hp = 9999;
                 }
                 if let Some(me) = c.boss_char()
-                    && c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.epitaph == 0)
+                    && c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.base.epitaph == 0)
                     && let Some(p) = c.scene.param_mut(me)
                 {
                     p.pp_count = p.pp_count.max(5);
@@ -858,7 +858,7 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
             };
             match (ui.menu_type(), boss) {
                 _ if in_drain => press(Buttons::CROSS),
-                (-1, Some((me, b))) if b.lock_player == 0 && m.forbid == 0 => {
+                (-1, Some((me, b))) if b.base.lock_player == 0 && m.forbid == 0 => {
                     let k = c.kite.unwrap();
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let q = c.scene.chars[me].pos.map(f32::from_bits);
@@ -1102,15 +1102,20 @@ fn event_107_ends_with_innis() {
         let kite = c.kite;
         let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) else { continue };
         assert!(innis_epitaph(b).is_some(), "entry 7 1 made another boss");
-        acts.insert(b.act_num);
-        exited |= b.exit != 0;
-        if since >= 400 && !drained && b.act_num == 0 && b.lock_player == 0 {
-            b.queued.push((13, [0; 3], kite));
-            b.queued.push((21, [0; 3], kite));
+        acts.insert(b.base.act_num);
+        exited |= b.base.exit != 0;
+        if since >= 400 && !drained && b.base.act_num == 0 && b.base.lock_player == 0 {
+            b.base.queued.push((13, [0; 3], kite));
+            b.base.queued.push((21, [0; 3], kite));
             drained = true;
         }
-        if drained && since.is_multiple_of(20) && b.exit == 0 && b.lock_player == 0 && innis_epitaph(b) == Some(1) {
-            b.queued.push((1, [800, 0, 0], kite));
+        if drained
+            && since.is_multiple_of(20)
+            && b.base.exit == 0
+            && b.base.lock_player == 0
+            && innis_epitaph(b) == Some(1)
+        {
+            b.base.queued.push((1, [800, 0, 0], kite));
         }
     }
     println!("acts {acts:?}, eventStatus[0] {status}");
@@ -1190,12 +1195,12 @@ fn innis_drained_through_the_menus() {
             match (ui.menu_type(), boss) {
                 // A block playing (its menus banned): move its messages on.
                 (-1, _) if playing => press(Buttons::CROSS),
-                (-1, Some((me, b))) if b.lock_player == 0 && m.forbid == 0 => {
+                (-1, Some((me, b))) if b.base.lock_player == 0 && m.forbid == 0 => {
                     let k = c.kite.unwrap();
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let q = c.scene.chars[me].pos.map(f32::from_bits);
                     let (dx, dy) = (q[0] - p[0], q[1] - p[1]);
-                    if dx * dx + dy * dy < 600.0 * 600.0 && b.erase_target == 0 {
+                    if dx * dx + dy * dy < 600.0 * 600.0 && b.base.erase_target == 0 {
                         press(Buttons::TRIANGLE)
                     } else {
                         let cam_z = f32::from_bits(w.camera().rot()[2]);
@@ -1250,7 +1255,7 @@ fn kyvia_parts(c: &piney_world::combat::Combat) -> Option<(i16, i8, i16, i16, i8
     let b = c.scene.chars[me].foe_state()?.boss.as_ref()?;
     let Class::Kyvia(x) = &b.class else { return None };
     let cb = c.scene.chars[x.core].foe_state()?.boss.as_ref()?;
-    Some((b.act_num, b.exit, cb.act_num, c.scene.chars[x.core].hp, cb.exit, c.scene.listed(x.core)))
+    Some((b.base.act_num, b.base.exit, cb.base.act_num, c.scene.chars[x.core].hp, cb.base.exit, c.scene.listed(x.core)))
 }
 
 /// Event 108 on the disc: block 21 makes Kyvia (`entry 7 12`,
@@ -1305,7 +1310,7 @@ fn event_108_ends_with_kyvia() {
             && let Some(core) = core
             && let Some(b) = c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut())
         {
-            b.queued.push((1, [400, 1, 0], kite));
+            b.base.queued.push((1, [400, 1, 0], kite));
         }
     }
     println!("acts {acts:?}, the core's {core_acts:?}, eventStatus[0] {status}");
@@ -1399,15 +1404,20 @@ fn event_115_ends_with_magus() {
         let kite = c.kite;
         let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) else { continue };
         assert!(magus_epitaph(b).is_some(), "entry 7 2 made another boss");
-        acts.insert(b.act_num);
-        exited |= b.exit != 0;
-        if since >= 600 && !drained && b.lock_player == 0 && b.act_forbid != 2 {
-            b.queued.push((13, [0; 3], kite));
-            b.queued.push((21, [0; 3], kite));
+        acts.insert(b.base.act_num);
+        exited |= b.base.exit != 0;
+        if since >= 600 && !drained && b.base.lock_player == 0 && b.base.act_forbid != 2 {
+            b.base.queued.push((13, [0; 3], kite));
+            b.base.queued.push((21, [0; 3], kite));
             drained = true;
         }
-        if drained && since.is_multiple_of(20) && b.exit == 0 && b.lock_player == 0 && magus_epitaph(b) == Some(1) {
-            b.queued.push((1, [800, 0, 0], kite));
+        if drained
+            && since.is_multiple_of(20)
+            && b.base.exit == 0
+            && b.base.lock_player == 0
+            && magus_epitaph(b) == Some(1)
+        {
+            b.base.queued.push((1, [800, 0, 0], kite));
         }
     }
     println!("acts {acts:?}");
@@ -1493,7 +1503,7 @@ fn magus_under_the_autopilot() {
             println!("{f}: menu {menu} at {who}");
         }
         last_menu = menu;
-        let state = (magus_epitaph(b), b.cheat_hp, c.scene.chars[me].max_hp);
+        let state = (magus_epitaph(b), b.base.cheat_hp, c.scene.chars[me].max_hp);
         // The drain's 21 sets the HP: not a hit.
         if let Some(h) = last_hp
             && hp < h
@@ -1503,14 +1513,14 @@ fn magus_under_the_autopilot() {
         }
         last_hp = Some(hp);
         if last_state != Some(state) {
-            println!("{f}: Magus epitaph, cheat HP, max HP {state:?} (act {}, hp {hp})", b.act_num);
+            println!("{f}: Magus epitaph, cheat HP, max HP {state:?} (act {}, hp {hp})", b.base.act_num);
             last_state = Some(state);
         }
         drained |= magus_epitaph(b) == Some(1);
-        if b.act_num == 27 && last_act != 27 {
+        if b.base.act_num == 27 && last_act != 27 {
             rises += 1;
         }
-        last_act = b.act_num;
+        last_act = b.base.act_num;
         for &p in &r.parts {
             let h = c.scene.chars[p].hp;
             let was = leaf_hp.insert(p, h).unwrap_or(h);
@@ -1527,7 +1537,7 @@ fn magus_under_the_autopilot() {
             println!(
                 "{f}: Magus act {} hp {hp}/{} pp {} break {} drained {drained} - body -{body_dmg}, leaves -{leaf_dmg}, \
                  leaves killed {kills}, on the lists {down}",
-                b.act_num, c.scene.chars[me].max_hp, f2.pp, f2.pp_count,
+                b.base.act_num, c.scene.chars[me].max_hp, f2.pp, f2.pp_count,
             );
         }
     }
@@ -1613,12 +1623,12 @@ fn magus_drained_through_the_menus() {
                 // A block playing (its menus banned): move its messages on.
                 (-1, _) if playing => press(Buttons::CROSS),
                 (-1, _) if epitaph => still,
-                (-1, Some((me, b))) if b.lock_player == 0 && m.forbid == 0 => {
+                (-1, Some((me, b))) if b.base.lock_player == 0 && m.forbid == 0 => {
                     let k = c.kite.unwrap();
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let q = c.scene.chars[me].pos.map(f32::from_bits);
                     let (dx, dy) = (q[0] - p[0], q[1] - p[1]);
-                    if dx * dx + dy * dy < 600.0 * 600.0 && b.erase_target == 0 {
+                    if dx * dx + dy * dy < 600.0 * 600.0 && b.base.erase_target == 0 {
                         press(Buttons::TRIANGLE)
                     } else {
                         let cam_z = f32::from_bits(w.camera().rot()[2]);

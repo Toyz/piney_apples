@@ -638,8 +638,8 @@ fn circle_frame(view: &FxView, mc: &MagicCircle, spark: &Eff) -> CircleFrame {
 fn boss_spells(scene: &Scene) -> Vec<(i32, piney_battle::boss::fidchell::eff::Fx)> {
     let mut out = Vec::new();
     for ch in &scene.chars {
-        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
-        for (k, e) in b.effects.slots.iter().enumerate() {
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
+        for (k, e) in b.base.effects.slots.iter().enumerate() {
             if let Some(fx) = e.as_ref().and_then(|e| e.fidchell.as_deref()) {
                 out.push((k as i32, fx.clone()));
             }
@@ -655,8 +655,8 @@ type Flight = (i32, piney_battle::boss::innis::Element, i32, piney_battle::boss:
 fn innis_flights(scene: &Scene) -> Vec<Flight> {
     let mut out = Vec::new();
     for ch in &scene.chars {
-        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
-        for (k, e) in b.effects.slots.iter().enumerate() {
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
+        for (k, e) in b.base.effects.slots.iter().enumerate() {
             let Some(e) = e.as_ref() else { continue };
             if let (piney_battle::boss::EffKind::Missile { element, no, .. }, Some(m)) = (e.kind, e.missile.as_deref())
             {
@@ -683,7 +683,7 @@ fn kyvia_shows(scene: &Scene) -> KyviaShows {
     use piney_battle::boss::kyvia::Follow;
     let mut out = KyviaShows::default();
     for (c, ch) in scene.chars.iter().enumerate() {
-        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
         match &b.class {
             Class::Kyvia(x) => {
                 out.members.push((Follow::DeadSmoke, x.ded_dmg_vec));
@@ -695,7 +695,7 @@ fn kyvia_shows(scene: &Scene) -> KyviaShows {
             Class::Gomora(g) => out.members.push((Follow::Aura(c), g.aura_pos)),
             _ => {}
         }
-        for (k, e) in b.effects.slots.iter().enumerate() {
+        for (k, e) in b.base.effects.slots.iter().enumerate() {
             let Some(e) = e.as_ref() else { continue };
             if let Some(m) = e.meteorite.as_deref() {
                 out.meteors.push((k as i32, m.clone()));
@@ -728,16 +728,16 @@ fn magus_shows(scene: &Scene) -> MagusShows {
     use piney_battle::boss::Class;
     let mut out = MagusShows::default();
     for (c, ch) in scene.chars.iter().enumerate() {
-        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
         match &b.class {
             Class::MagusLeaf(l) => {
                 out.markers.push((c, l.marker_pos));
-                if b.act_num == piney_battle::boss::magus::leaf::act::FIRE {
+                if b.base.act_num == piney_battle::boss::magus::leaf::act::FIRE {
                     out.bursts.push(l.exp);
                 }
             }
             Class::Magus(_) => {
-                for (k, e) in b.effects.slots.iter().enumerate() {
+                for (k, e) in b.base.effects.slots.iter().enumerate() {
                     if let Some(n) = e.as_ref().and_then(|e| e.needle.as_deref()) {
                         out.needles.push((k as i32, n.clone()));
                     }

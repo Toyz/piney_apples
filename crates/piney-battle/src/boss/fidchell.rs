@@ -16,7 +16,7 @@ use piney_data::volume::Volume;
 
 use self::eff::{Fx, MeteoSworm, RockTower, ThunderStorm};
 use super::blur::{BlurFunc, Set};
-use super::{Anm, Boss, Class, Cx, EffKind, Out, Tbl, VF0};
+use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
 use crate::item;
@@ -218,16 +218,6 @@ pub struct Fidchell {
     pub cam3: (V4, V4),
 }
 
-fn fidchell_of(b: &mut Boss) -> Box<Fidchell> {
-    match std::mem::replace(&mut b.class, Class::Plain) {
-        Class::Fidchell(x) => x,
-        other => {
-            b.class = other;
-            Box::default()
-        }
-    }
-}
-
 // --- small rules ------------------------------------------------------------------------
 
 fn word(tbl: &[i32], i: i32) -> i32 {
@@ -238,7 +228,7 @@ fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
     cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
 }
 
-fn held(b: &Boss, cx: &Cx) -> bool {
+fn held(b: &BossBase, cx: &Cx) -> bool {
     b.stop != 0 || cx.scene.chars[cx.me].cond[cond::HOLD] != 0
 }
 
@@ -271,7 +261,7 @@ fn set_cam3(x: &mut Fidchell, cx: &mut Cx, pos: V4, view: V4) {
 
 /// `ccBoss::CalcTargetInfo` (OUT gcmn 0x0046ff20) with the volume's
 /// `ccGetDist`.
-fn calc_target_info(b: &mut Boss, cx: &mut Cx) {
+fn calc_target_info(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let Some(t) = cx.scene.chars[me].target_char.filter(|&t| cx.scene.listed(t)) else { return };
     b.target_pos_p = cx.scene.chars[t].pos_p;
@@ -281,7 +271,7 @@ fn calc_target_info(b: &mut Boss, cx: &mut Cx) {
     b.target_dist = super::dist(cx, pp, b.target_pos_p);
 }
 
-fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
+fn select(b: &mut BossBase, cx: &mut Cx, ty: i32) -> Option<usize> {
     let t = b.select_target(cx, ty, FAR);
     cx.scene.chars[cx.me].target_char = t;
     t
@@ -289,7 +279,7 @@ fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
 
 /// `ccBoss::IsValidArea(p)` (OUT gcmn 0x0046f100): the world place's x and
 /// y each under the centre's plus 2500, their signs lost to `fabs`.
-pub(super) fn valid_area(b: &Boss, cx: &Cx, p: V4) -> bool {
+pub(super) fn valid_area(b: &BossBase, cx: &Cx, p: V4) -> bool {
     let w = super::p2w(cx, p);
     let lx = ee::sub(ee::add(0x453b_8000, b.center_pos[0]), 0x43fa_0000);
     let ly = ee::sub(ee::add(0x453b_8000, b.center_pos[1]), 0x43fa_0000);
@@ -352,14 +342,13 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.pat_index = 0;
     x.pat_mode = 0;
     start_table(&mut b, &mut x, cx, Tbl::Normal);
-    b.class = Class::Fidchell(x);
-    b
+    Boss { base: b, class: Class::Fidchell(x) }
 }
 
 /// A table's start as the constructor, `Affect` and `OnThinkDrain` make it:
 /// a prediction reserved (and not drained) is cast at once (pattern 15);
 /// else the reserve goes and the table runs from its start.
-fn start_table(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
+fn start_table(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
     if b.epitaph == 0 && x.reserve_pred != 0 {
         exec_pattern(b, x, cx, 15, 0);
         return;
@@ -373,16 +362,14 @@ fn start_table(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
 
 /// `ccThBossEffect`'s pass and `ccBoss::Main` (OUT gcmn 0x0046d490) under
 /// Fidchell's `Think`.
-pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
-    let mut x = fidchell_of(b);
-    manager_pass(b, &mut x, cx);
-    frame(b, &mut x, cx);
-    b.class = Class::Fidchell(x);
+pub(super) fn main(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
+    manager_pass(b, x, cx);
+    frame(b, x, cx);
 }
 
 /// `ccBoss::Main` (OUT gcmn 0x0046d490): Outbreak's, `ccGetDist` its
 /// `sqrt.s`; `Action` and `Slave` are the base's (nothing).
-fn frame(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     if b.exit != 0 {
         return;
     }
@@ -432,7 +419,7 @@ fn frame(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
 /// order, a disabled one freed. A thunder storm's `Draw` makes a magic
 /// square, which the same pass then reaches if its slot comes later.
-fn manager_pass(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn manager_pass(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let mut k = 0;
     while k < b.effects.slots.len() {
         let Some(e) = b.effects.slots[k].as_mut() else {
@@ -478,7 +465,7 @@ fn manager_pass(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 }
 
 /// An effect of Fidchell's own made in the first free slot.
-fn make_fx(b: &mut Boss, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
+fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
     let id = b.effects.create(kind);
     if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
         e.fidchell = Some(Box::new(fx));
@@ -490,7 +477,7 @@ fn make_fx(b: &mut Boss, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
 // --- the patterns --------------------------------------------------------------------------------
 
 /// `ccBoss::ChangeNextPattern` (OUT gcmn 0x0046e490).
-fn change_next_pattern(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn change_next_pattern(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let tbl = cx.data.fidchell.words(b.pat_tbl).to_vec();
     if word(&tbl, b.pat_index) == -1 {
         b.pat_index = 0;
@@ -506,14 +493,14 @@ fn change_next_pattern(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 }
 
 /// `ccBoss::ExecPattern(pat, p0, 0, 0)` (OUT gcmn 0x0046e420).
-fn exec_pattern(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, pat: i32, p0: i32) {
+fn exec_pattern(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, pat: i32, p0: i32) {
     let tbl = [pat, p0, 0, 0, -1];
     exec_pattern_index(b, x, cx, &tbl, 0);
 }
 
 /// `ccBoss04::ExecPatternIndex(tbl, i)` (OUT gcmn 0x004a40b0), falling back
 /// on `ccBoss::ExecPatternIndex` (0x0046dd20): the next index.
-fn exec_pattern_index(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn exec_pattern_index(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let orig = i;
     let mut s = i;
     let mut pat = word(tbl, s);
@@ -597,7 +584,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, tbl: &[i32], 
 }
 
 /// `ccBoss::ExecPatternIndex` (OUT gcmn 0x0046dd20).
-fn base_exec_pattern_index(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn base_exec_pattern_index(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let orig = i;
     let mut i = i;
     let mut pat = word(tbl, i);
@@ -610,7 +597,7 @@ fn base_exec_pattern_index(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, tbl: &[i
     }
     b.pat_num = pat;
     let me = cx.me;
-    let neutral = |b: &mut Boss, cx: &mut Cx| {
+    let neutral = |b: &mut BossBase, cx: &mut Cx| {
         let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
         b.change_action(cx, n, 3, true);
     };
@@ -695,7 +682,7 @@ fn base_exec_pattern_index(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, tbl: &[i
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss04::Think` (OUT gcmn 0x004a3f00).
-fn think(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
         act::DMG0 | act::DMG1 => on_dmg(b, cx),
@@ -722,7 +709,7 @@ fn think(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 
 /// `OnThinkNeutral` (0x004a46b0) and `OnThinkEpitaph` (0x004a8140, which
 /// also counts): the wait, then the next pattern at the nearest.
-fn on_neutral(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     b.set_dirc(b.target_dirc);
@@ -737,13 +724,13 @@ fn on_neutral(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
     change_next_pattern(b, x, cx);
 }
 
-fn on_epitaph(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_epitaph(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.act_count += 1;
     on_neutral(b, x, cx);
 }
 
 /// `OnThinkDmg` (0x004a4810): back to the neutral at once.
-fn on_dmg(b: &mut Boss, cx: &mut Cx) {
+fn on_dmg(b: &mut BossBase, cx: &mut Cx) {
     let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
     b.change_action(cx, n, 1, true);
     b.spd_down(0, 0x40a0_0000);
@@ -751,7 +738,7 @@ fn on_dmg(b: &mut Boss, cx: &mut Cx) {
 
 /// `OnThinkWave` (0x004a48e0) and `OnThinkEpitaphWave` (0x004a82a0, its
 /// frames earlier): the wave, boss skill 13 by the clip's frame.
-fn on_wave(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, drained: bool) {
+fn on_wave(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, drained: bool) {
     match b.act_proccess {
         0 => {
             x.anm_w.set(super::ANM_WAVE, cx.clips);
@@ -791,7 +778,7 @@ fn on_wave(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, drained: bool) {
 }
 
 /// `OnThinkDrain` (0x004a4b70): drained; the Epitaph's table, act 12.
-fn on_drain(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_drain(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     b.cheat_hp = 0;
     b.pat_tbl = Tbl::Epitaph;
     b.pat_index = 0;
@@ -809,7 +796,7 @@ const SPELL_CINEMA: [i32; 4] = [14, 15, 17, 16];
 /// spells picked by the frame count (`m_predId`), its text shown and its
 /// voice heard, then its skill laid on each member; the spell comes with
 /// pattern 15.
-fn on_prediction(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -924,7 +911,7 @@ fn on_prediction(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 
 /// `OnThinkDrainAtk` (0x004a5550): a member drained through menu 74
 /// (stream 68).
-fn on_drain_atk(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_drain_atk(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -970,7 +957,7 @@ fn on_drain_atk(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 /// 1800 off the centre, `ANM_ex41act1` at 30, then 2000 behind the target
 /// (the boss camera's free mode for the quake), the spell until it ends,
 /// and a 15-frame fade back in.
-fn on_exec_prediction(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_exec_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1085,7 +1072,7 @@ fn spell_camera(x: &mut Fidchell, cx: &mut Cx, eye: V4, view: V4) {
 /// from `vp` turned by `d`; camera `camID` there, or for camera 2 the boss
 /// camera's free mode.
 #[allow(clippy::too_many_arguments)]
-fn on_magic_camera_at(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, vp: V4, d: V4, off: V4, cam: i32) {
+fn on_magic_camera_at(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, vp: V4, d: V4, off: V4, cam: i32) {
     let _ = b;
     let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
     let m = geom::rot_matrix_x(&m, d[0]);
@@ -1112,7 +1099,7 @@ fn on_magic_camera_at(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx, vp: V4, d: V4
 /// `OnMagicCamera(tp)` (0x004a6fc0) for the target: camera 3 1500 off
 /// the target toward the centre (`CalcEffectCameraPos`), looking 200 over
 /// it; `m_predInfo` anew with that eye and the target's place.
-fn on_magic_camera(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_magic_camera(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     cx.out(Out::CameraChange(3));
     let view = b.target_pos;
     let mut v2 = view;
@@ -1124,7 +1111,7 @@ fn on_magic_camera(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 
 /// `OffMagicCamera(mode)` (0x004a7300): the boss camera's mode 6, or
 /// camera 2 again.
-fn off_magic_camera(b: &mut Boss, cx: &mut Cx, mode: i32) {
+fn off_magic_camera(b: &mut BossBase, cx: &mut Cx, mode: i32) {
     let _ = b;
     if mode != 0 {
         if cx.boss_cam {
@@ -1138,7 +1125,7 @@ fn off_magic_camera(b: &mut Boss, cx: &mut Cx, mode: i32) {
 /// `OnMeteoSworm` (0x004a60b0): a magic square, Fidchell hidden, then 50
 /// meteors from 1000 behind the target and 3000 up (`ccBossEffMeteoSworm`),
 /// the camera's view following the last; boss skill 14 once they land.
-fn on_meteo_sworm(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
+fn on_meteo_sworm(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
     if x.act_sub_proccess != 0 {
         let v = x.pred.cam_view;
         cx.out(Out::CameraView { cam: 3, view: v });
@@ -1185,7 +1172,7 @@ fn on_meteo_sworm(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
 /// `OnIceBreak` (0x004a6330): Skeith's magic: the force generators over
 /// each member, the ring, the ice at each member (the screen reversed while
 /// it lasts), then boss skill 2 at the target.
-fn on_ice_break(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
+fn on_ice_break(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
     let me = cx.me;
     match x.act_sub_proccess {
         0 => {
@@ -1298,7 +1285,7 @@ fn on_ice_break(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
 /// `OnThunderStorm` (0x004a6ae0): a magic square, then at 30 sixteen
 /// thunders 200 round the target (`ccBossEffThunderStorm`) with a flash,
 /// Fidchell hidden; boss skill 17 once they end.
-fn on_thunder_storm(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
+fn on_thunder_storm(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
     match x.act_sub_proccess {
         0 => {
             let s = x.act_sub_count;
@@ -1336,7 +1323,7 @@ fn on_thunder_storm(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
 /// `OnGroundQuake` (0x004a6d20): 128 rock towers round the target
 /// (`ccBossEffRockTower`), Fidchell hidden, the free camera 1000 off the
 /// centre; a quake each frame, and boss skill 16 once they fall.
-fn on_ground_quake(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
+fn on_ground_quake(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
     match x.act_sub_proccess {
         0 => {
             let at = b.target_pos;
@@ -1367,7 +1354,7 @@ fn on_ground_quake(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) -> bool {
 
 /// `OnThinkBackDash` (0x004a7360): back off the camera's way at 150 for 31
 /// frames, turning 60 degrees either side every tenth, off the targets.
-fn on_back_dash(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_back_dash(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1408,7 +1395,7 @@ fn on_back_dash(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 /// `OnThinkChase` (0x004a76f0): at 100 toward where the target stood,
 /// after-images, until within 200 or 151 frames; out of the arena, a dash
 /// of 500.
-fn on_chase(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_chase(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -1458,7 +1445,7 @@ fn on_chase(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 /// `OnThinkEscape` (0x004a79a0): away at 100 (50 from frame 61) for 150
 /// frames while the target is within 1500; out of the arena after 30, a
 /// dash of 1500. Its heading is whatever `moveDirc` was.
-fn on_escape(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_escape(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -1493,7 +1480,7 @@ fn on_escape(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 
 /// `OnThinkDashCenter` (0x004a8530): the base's dash (act 7) at 50 to
 /// `dashPos`, 121 frames at most, off the targets.
-fn on_dash_center(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_dash_center(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     b.spd_up(0x4248_0000, 0x4248_0000);
     match b.act_proccess {
@@ -1536,7 +1523,7 @@ fn on_dash_center(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 
 /// `OnThinkDead` (0x004a8750): off the lists, the dead effect; exit once
 /// it and the clip end.
-fn on_dead(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_dead(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             b.move_spd = 0;
@@ -1560,7 +1547,7 @@ fn on_dead(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 
 /// `OnThinkSkill` (0x004a8860): one of `@2048` on the target under camera
 /// 3, its start effect and cinema; the skill 30 frames on, then 65 more.
-fn on_skill(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     b.set_dirc(b.target_dirc);
     match b.act_proccess {
@@ -1635,7 +1622,7 @@ fn on_skill(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 /// `OnThinkMagic` (0x004a8c40): one of `@2081` by the frame count on the
 /// target under camera 3, the stage darkened; the spell at 60, the stage
 /// back when it is over (60, 150 or 90 frames by spell).
-fn on_magic(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_magic(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1702,7 +1689,7 @@ fn on_magic(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 /// fade out spinning, to the centre 1000 up, a force generator, down
 /// spinning as it fades in, then the neutral. The after-image it fills
 /// every tenth frame is never entered.
-fn on_transfer(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+fn on_transfer(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     const SIXTIETH: F = 0x3c88_8889;
     const STEP: F = 0x3f20_d97c;
     let me = cx.me;
@@ -1809,13 +1796,7 @@ fn on_transfer(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
 /// `ccBoss04::Affect` (OUT gcmn 0x004a3d00): `ccBoss::Affect`, then the
 /// drain's 5000 HP, and the Super table once a hit leaves the gauge half
 /// full.
-pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
-    let mut x = fidchell_of(b);
-    affect_of(b, &mut x, cx);
-    b.class = Class::Fidchell(x);
-}
-
-fn affect_of(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
+pub(super) fn affect(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
     let me = cx.me;
     let t = cx.scene.chars[me].affect.ty;
     if t != 21 && (b.act_forbid == 2 || b.lock_player != 0) {

@@ -172,8 +172,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, lv: i16) -> Boss {
         x.gomoras.push(g);
     }
     x.anm_w.set("ANM_xx11wave", cx.clips);
-    b.class = Class::KyviaCore(Box::new(x));
-    b
+    Boss { base: b, class: Class::KyviaCore(Box::new(x)) }
 }
 
 /// `SetCoreBaseParam(lv, attr)` (MUT gcmn 0x004f8770, OUT 0x004f5150): the
@@ -234,10 +233,10 @@ pub(crate) fn kyvia_ex_mode_on(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: 
     c.x.ex = 1;
     c.x.core_state = 10;
     c.x.alpha = ONE;
-    c.b.draw_sw = 0;
+    c.b.base.draw_sw = 0;
     cx.scene.chars[c.me].pos = [0, 0xc42f_0000, 0x4461_0000, 0x4000_0000];
-    c.b.dirc = VF0;
-    c.b.change_action(cx, act::NEUTRAL, 1, true);
+    c.b.base.dirc = VF0;
+    c.b.base.change_action(cx, act::NEUTRAL, 1, true);
     c.x.gomora_kpos = [0x433e_0000, 0xc506_a000, 0x446d_8000, ONE];
     for g in gs.iter_mut() {
         gomora::kyvia_ex_mode_on(&mut g.x, c.x.gomora_kpos);
@@ -251,7 +250,7 @@ pub(crate) fn end_fade_ex(c: &mut Part<Core>, cx: &mut Cx) {
     c.x.core_state = c.x.temp_state;
     c.x.alpha = ONE;
     c.x.fade_flg = 1;
-    c.b.entry_cmnd_target(cx);
+    c.b.base.entry_cmnd_target(cx);
 }
 
 /// `ResetData` (MUT gcmn 0x004f80f0): the core as its death leaves it for
@@ -289,24 +288,24 @@ fn reset_data(x: &mut Core, cx: &mut Cx, me: usize) {
 /// `Main`s after its own.
 pub(crate) fn main(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     let me = c.me;
-    if c.b.exit != 0 {
+    if c.b.base.exit != 0 {
         return;
     }
     as_me(cx, me, |cx| {
-        super::head(&mut c.b, cx);
+        super::head(&mut c.b.base, cx);
         fade_core(c, cx);
         think(c, gs, cx);
         action(c, gs, cx);
-        c.b.move_(cx);
-        if c.b.draw_sw != 0 {
-            c.b.anm_status = i8::from(c.b.anm.forward());
-            c.b.transparency = c.x.alpha;
-            c.b.set_transparency = c.x.alpha;
-            c.b.draw(cx);
+        c.b.base.move_(cx);
+        if c.b.base.draw_sw != 0 {
+            c.b.base.anm_status = i8::from(c.b.base.anm.forward());
+            c.b.base.transparency = c.x.alpha;
+            c.b.base.set_transparency = c.x.alpha;
+            c.b.base.draw(cx);
         }
     });
     for k in 0..gs.len() {
-        let acts: Vec<i16> = gs.iter().map(|g| g.b.act_num).collect();
+        let acts: Vec<i16> = gs.iter().map(|g| g.b.base.act_num).collect();
         gomora::main(&mut gs[k], me, &acts, cx);
     }
 }
@@ -325,7 +324,7 @@ fn fade_core(c: &mut Part<Core>, cx: &mut Cx) {
                 x.core_state = x.temp_state;
                 x.alpha = ONE;
                 x.fade_flg = 1;
-                c.b.entry_cmnd_target(cx);
+                c.b.base.entry_cmnd_target(cx);
             }
         }
         8 => {
@@ -356,7 +355,7 @@ fn think(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
                 action_start(c, cx);
             }
         }
-        let d = &mut c.b.dirc[2];
+        let d = &mut c.b.base.dirc[2];
         *d = wrap(ee::add(*d, 0x3cf5_c28f));
         judgment_dmg_anm(c, cx);
         check_count_gomora(c, gs, cx);
@@ -375,7 +374,7 @@ fn think(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
         check_count_gomora(c, gs, cx);
         check_count_atk_time(c, gs, cx);
     }
-    match c.b.act_num {
+    match c.b.base.act_num {
         1..=5 | 11..=14 | 20 | 21 => {}
         act::NEUTRAL => {
             if c.x.end_flg == 0 {
@@ -385,14 +384,14 @@ fn think(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
             if c.x.end_flg == 1 {
                 // ActionDecision: ccRand() % 15 with its sign.
                 let ty = cx.cc.rand() % 15;
-                let t = c.b.select_target(cx, ty, crate::boss::FAR);
+                let t = c.b.base.select_target(cx, ty, crate::boss::FAR);
                 cx.scene.chars[me].target_char = t;
             }
             if cx.scene.chars[me].cond[cond::HOLD] == 0 {
                 switch_action_pattern(c, gs, cx);
             }
         }
-        _ => c.b.change_action(cx, act::NEUTRAL, 0, true),
+        _ => c.b.base.change_action(cx, act::NEUTRAL, 0, true),
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
@@ -424,7 +423,7 @@ fn start_init(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     let v = geom::apply_matrix(&m, [0, r, 0, ONE]);
     let pos = geom::vadd(v, c.x.disc_pos);
     cx.scene.chars[c.me].pos = pos;
-    c.b.draw_sw = 1;
+    c.b.base.draw_sw = 1;
     super::particles(cx, Gen::CoreRise, Place::Follows(Follow::Char(c.me), VF0), None);
     c.x.dead_flg = 0;
     c.x.time_mode = 1;
@@ -509,7 +508,7 @@ fn action_start_k(c: &mut Part<Core>, cx: &mut Cx) {
 /// `JudgmentDmgAnm` (MUT gcmn 0x004fb860): hurt (act 2), one time in five
 /// the body flinches too (`kDmgFlg` 4).
 fn judgment_dmg_anm(c: &mut Part<Core>, cx: &mut Cx) {
-    if c.b.act_num == act::DAMAGE2 && (cx.cc.rand() % 10).abs() < 2 {
+    if c.b.base.act_num == act::DAMAGE2 && (cx.cc.rand() % 10).abs() < 2 {
         c.x.k_dmg_flg = 4;
     }
 }
@@ -530,7 +529,7 @@ fn check_count_atk_time(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx
     if due {
         c.x.time_flg = 0;
         let n = kill_gomora(c, gs, cx);
-        c.b.erase_cmnd_target(cx);
+        c.b.base.erase_cmnd_target(cx);
         if n == 0 && cx.scene.chars[me].cond[cond::HOLD] == 0 && get_gomora_state(gs, 3) {
             c.x.time_flg = ONE;
             c.x.dmg_count = i32::from(cx.scene.chars[me].hp);
@@ -539,7 +538,7 @@ fn check_count_atk_time(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx
             c.x.temp_state = c.x.core_state;
             c.x.core_state = 4;
             if flg == 2 {
-                c.b.erase_cmnd_target(cx);
+                c.b.base.erase_cmnd_target(cx);
             }
             c.x.k_atk_flg = flg;
             step_gomora_list(gs, cx);
@@ -636,7 +635,7 @@ fn think_escape(c: &mut Part<Core>, cx: &mut Cx) {
             c.x.think_proccess += 1;
             c.x.temp_time = c.x.time_count;
             c.x.time_count = ee::mul(0x40a0_0000, c.x.time_count);
-            c.b.erase_cmnd_target(cx);
+            c.b.base.erase_cmnd_target(cx);
             c.x.escape_cou = 0;
             if c.x.attr == 0 {
                 c.x.aura_stop = c.x.aura || c.x.aura_stop;
@@ -663,7 +662,7 @@ fn think_escape(c: &mut Part<Core>, cx: &mut Cx) {
                 c.x.time_count = c.x.temp_time;
                 c.x.think_proccess = 0;
                 change_attribute(c, cx);
-                c.b.change_action(cx, act::NEUTRAL, 0, true);
+                c.b.base.change_action(cx, act::NEUTRAL, 0, true);
             }
         }
         _ => {}
@@ -765,52 +764,52 @@ fn set_sp_point(c: &mut Part<Core>, cx: &mut Cx) {
 
 /// `kyviaCore::Action` (MUT gcmn 0x004f8cd0).
 fn action(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
-    match c.b.act_num {
+    match c.b.base.act_num {
         act::NEUTRAL | act::DRAINED_WAIT | 4 | 5 => {}
         act::DAMAGE | act::DAMAGE2 => {
-            if c.b.anm_status != 0 {
-                c.b.change_action(cx, act::NEUTRAL, 0, true);
+            if c.b.base.anm_status != 0 {
+                c.b.base.change_action(cx, act::NEUTRAL, 0, true);
             }
-            c.b.spd_down(0, 0x40a0_0000);
+            c.b.base.spd_down(0, 0x40a0_0000);
         }
         act::HOLD => {
             char_hold_on(c, cx, 5000, 5000);
-            match c.b.act_proccess {
+            match c.b.base.act_proccess {
                 0 => {
                     atk_gomora(gs);
-                    c.b.act_proccess += 1;
+                    c.b.base.act_proccess += 1;
                 }
                 1 => {
                     if get_gomora_state(gs, 0) {
-                        c.b.change_action(cx, act::NEUTRAL, 1, true);
+                        c.b.base.change_action(cx, act::NEUTRAL, 1, true);
                     }
-                    c.b.spd_down(0, 0x40a0_0000);
+                    c.b.base.spd_down(0, 0x40a0_0000);
                 }
                 _ => {}
             }
         }
         act::ENTRY_GOMORA => {
             entry_gomora(c, gs, cx);
-            c.b.change_action(cx, act::NEUTRAL, 1, true);
+            c.b.base.change_action(cx, act::NEUTRAL, 1, true);
         }
         act::START_GOMORA => {
             start_gomora(c, gs, cx);
-            c.b.change_action(cx, act::ENTRY_GOMORA, 3, true);
+            c.b.base.change_action(cx, act::ENTRY_GOMORA, 3, true);
         }
         act::DRAINED => {
-            c.b.cheat_hp = 0;
-            c.b.change_action(cx, act::DRAINED_WAIT, 3, true);
-            c.b.move_spd = 0;
+            c.b.base.cheat_hp = 0;
+            c.b.base.change_action(cx, act::DRAINED_WAIT, 3, true);
+            c.b.base.move_spd = 0;
         }
         act::WAVE => {
-            match c.b.act_proccess {
+            match c.b.base.act_proccess {
                 0 => {
                     c.x.anm_w.set("ANM_xx11wave", cx.clips);
-                    c.b.act_proccess += 1;
+                    c.b.base.act_proccess += 1;
                 }
                 1 => {
-                    let n = c.b.act_count;
-                    c.b.act_count += 1;
+                    let n = c.b.base.act_count;
+                    c.b.base.act_count += 1;
                     if n == 25 {
                         for m in cx.party.members.into_iter().flatten() {
                             cx.affect(m, 1, 10);
@@ -819,15 +818,15 @@ fn action(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
                     let done = c.x.anm_w.forward();
                     cx.out(Out::DrawWave);
                     if done {
-                        c.b.change_action(cx, act::DRAINED_WAIT, 3, true);
+                        c.b.base.change_action(cx, act::DRAINED_WAIT, 3, true);
                     }
                 }
                 _ => {}
             }
-            c.b.spd_down(0, 0x40a0_0000);
+            c.b.base.spd_down(0, 0x40a0_0000);
         }
         act::DEAD => dead(c, gs, cx),
-        _ => c.b.change_action(cx, act::NEUTRAL, 0, true),
+        _ => c.b.base.change_action(cx, act::NEUTRAL, 0, true),
     }
 }
 
@@ -836,7 +835,7 @@ fn action(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
 /// to rise again.
 fn dead(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     let me = c.me;
-    match c.b.act_proccess {
+    match c.b.base.act_proccess {
         0 => {
             crate::fellow::delete_cmnd(cx.scene, me);
             // Both auras killed and let go.
@@ -853,19 +852,20 @@ fn dead(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
             c.x.dead_pos = cx.scene.chars[me].pos;
             c.x.dead_rot = VF0;
             c.x.cone_voice_cou = 0;
-            c.b.act_proccess += 1;
+            c.b.base.act_proccess += 1;
         }
         1 => {
             kill_gomora(c, gs, cx);
             if get_gomora_state(gs, 3) {
-                c.b.act_proccess = if c.x.kyvia_lv == 5 && c.x.dead_count == 3 { 10 } else { c.b.act_proccess + 1 };
+                c.b.base.act_proccess =
+                    if c.x.kyvia_lv == 5 && c.x.dead_count == 3 { 10 } else { c.b.base.act_proccess + 1 };
             }
         }
         2 => {
             c.x.off_set = [0, 0, 0x4348_0000, ONE];
             c.x.dead_pos = geom::vadd(c.x.dead_pos, c.x.off_set);
             super::particles(cx, Gen::CoreDeath(0), Place::At(c.x.dead_pos), None);
-            c.b.act_proccess += 1;
+            c.b.base.act_proccess += 1;
             c.x.off_set[2] = 0;
             dead_fade(c, gs, cx);
         }
@@ -874,10 +874,10 @@ fn dead(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
             c.x.alpha = 0;
             c.x.dead_count += 1;
             c.x.dead_flg = 1;
-            c.b.exit = 1;
+            c.b.base.exit = 1;
             reset_data(&mut c.x, cx, me);
             c.x.dead_pos = VF0;
-            c.b.change_action(cx, act::NEUTRAL, 1, true);
+            c.b.base.change_action(cx, act::NEUTRAL, 1, true);
         }
         _ => {}
     }
@@ -891,8 +891,8 @@ fn dead_fade(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
         core_voice(c, cx, 1);
     }
     c.x.dead_rot = cx.cam.rot;
-    let n = c.b.act_count;
-    c.b.act_count += 1;
+    let n = c.b.base.act_count;
+    c.b.base.act_count += 1;
     if n == 30 {
         super::particles(cx, Gen::CoreDeath(1), Place::At(c.x.dead_pos), None);
     }
@@ -900,11 +900,11 @@ fn dead_fade(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
         c.x.alpha = 0;
         c.x.dead_count += 1;
         c.x.dead_flg = 1;
-        c.b.exit = 1;
+        c.b.base.exit = 1;
         reset_data(&mut c.x, cx, me);
         c.x.dead_pos = VF0;
         step_all_gomora_list(c, gs, cx);
-        c.b.change_action(cx, act::NEUTRAL, 1, true);
+        c.b.base.change_action(cx, act::NEUTRAL, 1, true);
     }
 }
 
@@ -932,10 +932,10 @@ fn char_hold_on(c: &mut Part<Core>, cx: &mut Cx, rx: i32, ry: i32) {
 pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
     let me = cx.me;
     let t = cx.scene.chars[me].affect.ty;
-    if t != 21 && (b.act_forbid == 2 || b.lock_player != 0) {
+    if t != 21 && (b.base.act_forbid == 2 || b.base.lock_player != 0) {
         return;
     }
-    let hit = super::part_affect(b, cx);
+    let hit = super::part_affect(&mut b.base, cx);
     let Class::KyviaCore(x) = &b.class else { return };
     if !hit || x.ex != 0 {
         return;
@@ -976,7 +976,7 @@ pub(crate) fn set_core_state(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &m
             // `CoreState != 8 || CoreState != 6`: always.
             c.x.temp_state = c.x.core_state;
             c.x.time_flg = 0;
-            as_me(cx, me, |cx| c.b.erase_cmnd_target(cx));
+            as_me(cx, me, |cx| c.b.base.erase_cmnd_target(cx));
             c.x.core_state = 8;
             fade_gomoras(gs, cx, 6);
             c.x.fade_flg = 0;
@@ -1000,7 +1000,7 @@ fn fade_gomoras(gs: &mut [Part<Gomora>], cx: &mut Cx, n: i32) {
 /// `GetActNum` (MUT gcmn 0x004fc4c0): the core at rest (act 0 or 14) and
 /// its gomoras too.
 pub(crate) fn get_act_num(c: &Part<Core>, gs: &[Part<Gomora>]) -> bool {
-    let rest = matches!(c.b.act_num, act::NEUTRAL | act::DEAD);
+    let rest = matches!(c.b.base.act_num, act::NEUTRAL | act::DEAD);
     let g = get_gomora_state(gs, 0);
     rest && g
 }
@@ -1018,9 +1018,9 @@ pub(crate) fn get_gomora_state(gs: &[Part<Gomora>], mode: i32) -> bool {
         return false;
     }
     match mode {
-        0 => gs.iter().all(|g| matches!(g.b.act_num, 0 | 14)),
-        1 | 3 => gs.iter().all(|g| g.b.exit != 0),
-        2 => gs.iter().all(|g| g.b.exit != 0 || g.x.life_flg != 0),
+        0 => gs.iter().all(|g| matches!(g.b.base.act_num, 0 | 14)),
+        1 | 3 => gs.iter().all(|g| g.b.base.exit != 0),
+        2 => gs.iter().all(|g| g.b.base.exit != 0 || g.x.life_flg != 0),
         _ => false,
     }
 }
@@ -1035,12 +1035,12 @@ fn kill_gomora(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) -> i32 
     let mut first = true;
     let pos = cx.scene.chars[c.me].pos;
     for g in gs.iter_mut() {
-        if g.b.exit != 0 || matches!(g.x.state, 2 | 3) {
+        if g.b.base.exit != 0 || matches!(g.x.state, 2 | 3) {
             continue;
         }
         let me = g.me;
         cx.scene.chars[me].hp = 0;
-        as_me(cx, me, |cx| g.b.change_action(cx, gomora::act::DEAD, 2, true));
+        as_me(cx, me, |cx| g.b.base.change_action(cx, gomora::act::DEAD, 2, true));
         g.x.dead_voice_flg = 0;
         if first {
             cx.out(Out::Se3dNote { se: 194, pos, note: 48 });
@@ -1093,14 +1093,14 @@ fn entry_gomora(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
 fn entry_slave(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx, on: i32) -> i32 {
     let core_pos = cx.scene.chars[c.me].pos;
     for g in gs.iter_mut() {
-        if g.b.exit == 0 {
+        if g.b.base.exit == 0 {
             continue;
         }
         // SetMasterPos: the core's place (the EX turn's `GomoraKpos`).
         let at = if c.x.ex != 0 { c.x.gomora_kpos } else { core_pos };
         let pos = geom::vadd(at, g.x.off_set);
         cx.scene.chars[g.me].pos = pos;
-        g.b.exit = 0;
+        g.b.base.exit = 0;
         g.x.order_num = on;
         return g.x.slave_id;
     }

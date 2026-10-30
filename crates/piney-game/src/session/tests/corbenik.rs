@@ -57,7 +57,7 @@ fn corbenik_trace() {
         let c = a.world().combat();
         let Some(me) = c.boss_char() else { return };
         let ch = &c.scene.chars[me];
-        let act = ch.foe_state().and_then(|f| f.boss.as_ref()).map(|b| (b.act_num, b.exit, b.draw_sw));
+        let act = ch.foe_state().and_then(|f| f.boss.as_ref()).map(|b| (b.base.act_num, b.base.exit, b.base.draw_sw));
         eprintln!(
             "F {f} hp {}/{} act {act:?} listed {} enemies {:?} target {:?} | {}",
             ch.hp,
@@ -120,7 +120,7 @@ fn corbenik_fight_to_its_end() {
         if let Class::Corbenik(x) = &b.class {
             for (i, &k) in x.seed_me.iter().enumerate() {
                 let Some(sb) = c.scene.chars[k].foe_state().and_then(|x| x.boss.as_ref()) else { continue };
-                let now = sb.act_num;
+                let now = sb.base.act_num;
                 if now != seed_acts[i] {
                     match now {
                         seed::act::FIRE => seeds.1 += 1,
@@ -165,7 +165,10 @@ fn corbenik_fight_to_its_end() {
             );
         }
         if trace && hp != last {
-            eprintln!("F {f} act {} {} party {hp:?} boss {}", b.act_num, b.act_proccess, c.scene.chars[me].hp);
+            eprintln!(
+                "F {f} act {} {} party {hp:?} boss {}",
+                b.base.act_num, b.base.act_proccess, c.scene.chars[me].hp
+            );
             let at = |k: usize| c.scene.chars[k].pos.map(f32::from_bits);
             let kite = c.members.first().map(|&(_, k)| at(k)).unwrap_or_default();
             let d = |q: [f32; 4]| (q[0] - kite[0]).hypot(q[1] - kite[1]) as i32;
@@ -173,7 +176,8 @@ fn corbenik_fight_to_its_end() {
                 let seeds: Vec<String> = (x.seed_me.iter())
                     .filter_map(|&k| {
                         let sb = c.scene.chars[k].foe_state()?.boss.as_ref()?;
-                        (sb.exit == 0).then(|| format!("{}:{} d{}", sb.act_num, c.scene.chars[k].hp, d(at(k))))
+                        (sb.base.exit == 0)
+                            .then(|| format!("{}:{} d{}", sb.base.act_num, c.scene.chars[k].hp, d(at(k))))
                     })
                     .collect();
                 let mates: Vec<i32> = c.members.iter().skip(1).map(|&(_, k)| d(at(k))).collect();

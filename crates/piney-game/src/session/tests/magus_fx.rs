@@ -84,7 +84,7 @@ fn fight_heard(
             })
             .count();
         let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) else { continue };
-        let neutral = b.act_num == act::NEUTRAL;
+        let neutral = b.base.act_num == act::NEUTRAL;
         let Class::Magus(x) = &mut b.class else { continue };
         if neutral && dropped == 0 && i >= laser_at {
             x.reserve_laser = 1;
@@ -93,9 +93,9 @@ fn fight_heard(
         if i % 1500 == 1499 {
             x.dmg_count = 0;
         }
-        let shocks = if b.act_num == act::LASER { x.shock_at.iter().flatten().count() } else { 0 };
+        let shocks = if b.base.act_num == act::LASER { x.shock_at.iter().flatten().count() } else { 0 };
         let now = Seen {
-            act: b.act_num,
+            act: b.base.act_num,
             draws: census.boss_draws,
             anchored: census.anchored_generators,
             particles: census.particles,

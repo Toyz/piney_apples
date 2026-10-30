@@ -122,7 +122,7 @@ pub(super) fn play(
         let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| boss(&b.class)) else {
             continue;
         };
-        p.acts.insert(b.act_num);
+        p.acts.insert(b.base.act_num);
         if p.levels.is_empty() {
             p.levels = c.members.iter().filter_map(|&(_, k)| c.scene.chars[k].spc()).map(|q| q.base.level).collect();
         }
@@ -130,10 +130,15 @@ pub(super) fn play(
         if hp.len() == last_hp.len() {
             for (k, (now, was)) in hp.iter().zip(&last_hp).enumerate() {
                 if now < was {
-                    *p.hurt.entry(b.act_num).or_default() += i32::from(was - now);
+                    *p.hurt.entry(b.base.act_num).or_default() += i32::from(was - now);
                     if std::env::var_os("PINEY_TRACE_HITS").is_some() {
                         let m = &c.scene.chars[c.members[k].1];
-                        eprintln!("HIT {f} act {} member {k} -{} -> {now} cond {:?}", b.act_num, was - now, m.cond.v);
+                        eprintln!(
+                            "HIT {f} act {} member {k} -{} -> {now} cond {:?}",
+                            b.base.act_num,
+                            was - now,
+                            m.cond.v
+                        );
                     }
                 }
             }
@@ -146,14 +151,14 @@ pub(super) fn play(
             let d = (k[0] - q[0]).hypot(k[1] - q[1]) as i32;
             eprintln!(
                 "KITE {f} boss {} d {d} kite {kite:?} target {:?} | {}",
-                b.act_num,
+                b.base.act_num,
                 w.command_target_code(),
                 pilot.doing()
             );
         }
         if std::env::var_os("PINEY_TRACE_BOSS").is_some() && f.is_multiple_of(60) {
             let pp = c.scene.param(me).map_or(0, |q| q.pp);
-            eprintln!("BOSS {f} act {} pp {pp} | {} | {}", b.act_num, pilot.doing(), fighters(a));
+            eprintln!("BOSS {f} act {} pp {pp} | {} | {}", b.base.act_num, pilot.doing(), fighters(a));
         }
     }
     p
@@ -199,7 +204,7 @@ pub(super) fn god_shots_for(
         let act = match &s.stage {
             Stage::Area(a) => {
                 let c = a.world().combat();
-                c.boss_char().and_then(|me| c.scene.chars[me].foe_state()?.boss.as_ref().map(|b| b.act_num))
+                c.boss_char().and_then(|me| c.scene.chars[me].foe_state()?.boss.as_ref().map(|b| b.base.act_num))
             }
             _ => None,
         };

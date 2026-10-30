@@ -10,7 +10,7 @@ use piney_data::field::ee;
 
 use super::{Follow, Gen, GenOp, Held, Place, beam};
 use crate::boss::blur::Set;
-use crate::boss::{Anm, Boss, Cx, EffKind, Out, VF0};
+use crate::boss::{Anm, BossBase, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::rand::Rng;
@@ -341,7 +341,7 @@ pub trait HellHost {
 
 /// The fight's: the manager's blur, `Kyvia_HellE_Damage`.
 pub(crate) struct FightHell<'a, 'c> {
-    pub b: &'a mut Boss,
+    pub b: &'a mut BossBase,
     pub cx: &'a mut Cx<'c>,
     pub slot: usize,
     /// The blur as this frame's writes left it.
@@ -396,7 +396,7 @@ fn slot_held(h: Held, _slot: usize) -> Held {
 /// `HellSpecialExpressCreate(pos, &data)` into the manager: the camera
 /// (its free mode) and the blur (0x65808080 at 1.01) set, the generators
 /// made.
-pub(super) fn create(b: &mut Boss, cx: &mut Cx, pos: V4, target: Option<usize>, kyvia_lv: i32) {
+pub(super) fn create(b: &mut BossBase, cx: &mut Cx, pos: V4, target: Option<usize>, kyvia_lv: i32) {
     let rot = cx.cam.rot;
     let h = Hell::new(cx.cc, pos, rot, target, kyvia_lv, cx.clips);
     let kind = EffKind::HellExpress;

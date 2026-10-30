@@ -108,7 +108,7 @@ impl Fight {
         let mut ev = Events::new();
         affect::entry_affect(&self.t, &mut self.scene, &actx, me, kite, ty, [p0, sid, 0], &mut self.rand, &mut ev);
         self.cc = cc.into_inner();
-        self.boss().take_pending()
+        self.boss().base.take_pending()
     }
 
     fn boss(&mut self) -> &mut Boss {
@@ -132,7 +132,7 @@ impl Fight {
         while frames < n {
             frames += 1;
             let (alive, out) = self.with_cx(|cx| {
-                let alive = fx.draw(cx, &mut b);
+                let alive = fx.draw(cx, &mut b.base);
                 (alive, std::mem::take(&mut cx.out))
             });
             outs.extend(out);
@@ -150,8 +150,8 @@ fn stands_behind_kite_under_the_physical_guard() {
     let Some(mut f) = fight() else { return };
     let me = f.me;
     assert_eq!(f.scene.chars[me].pos[1], 0xc3fa_0000, "500 behind Kite");
-    assert_eq!(f.boss().pat_tbl, Tbl::Normal);
-    assert_eq!(f.boss().cheat_hp, 1);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Normal);
+    assert_eq!(f.boss().base.cheat_hp, 1);
     let x = f.tarvos();
     assert_eq!((x.pattern_mode, x.def_mode, x.stage_eff), (0, 0, -1));
     let guard = f.t.bosses[GUARD_ROWS[0]].elm;
@@ -175,7 +175,7 @@ fn half_the_gauge_brings_the_super_table() {
     let max = f.t.bosses[GUARD_ROWS[0]].max_pp;
     f.scene.param_mut(me).unwrap().pp = max;
     f.affect(1, 10, 0);
-    assert_eq!(f.boss().pat_tbl, Tbl::Super);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Super);
     assert_eq!(f.tarvos().pattern_mode, 1);
 }
 
@@ -184,8 +184,8 @@ fn the_drain_drops_the_guard_for_the_epitaph() {
     let Some(mut f) = fight() else { return };
     let me = f.me;
     f.affect(21, 0, 0);
-    assert_eq!(f.boss().act_num, act::EPITAPH);
-    assert_eq!(f.boss().pat_tbl, Tbl::Epitaph);
+    assert_eq!(f.boss().base.act_num, act::EPITAPH);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Epitaph);
     assert_eq!(f.tarvos().def_mode, 2);
     assert_eq!((f.scene.chars[me].hp, f.scene.chars[me].max_hp), (EPITAPH_HP, EPITAPH_HP));
     assert_eq!(f.scene.param(me).unwrap().pp, -1);

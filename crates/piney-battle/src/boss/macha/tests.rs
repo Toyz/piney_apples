@@ -101,7 +101,7 @@ impl Fight {
         let me = self.me;
         self.scene.chars[me].skill_id = 0;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        let mut out = b.take_pending();
+        let mut out = b.base.take_pending();
         out.extend(self.with_cx(|cx| {
             b.main(cx);
             std::mem::take(&mut cx.out)
@@ -145,11 +145,11 @@ fn starts_on_its_normal_table_with_the_cheat() {
     let Some(mut f) = fight() else { return };
     let me = f.me;
     assert!(f.scene.ene_list.contains(&me));
-    assert_eq!(f.boss().pat_tbl, Tbl::Normal);
-    assert_eq!(f.boss().act_num, act::NEUTRAL);
-    assert_eq!(f.boss().cheat_hp, 1);
-    f.until(600, |f| f.boss().act_num != act::NEUTRAL);
-    assert_ne!(f.boss().act_num, act::NEUTRAL, "a pattern within ten seconds");
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Normal);
+    assert_eq!(f.boss().base.act_num, act::NEUTRAL);
+    assert_eq!(f.boss().base.cheat_hp, 1);
+    f.until(600, |f| f.boss().base.act_num != act::NEUTRAL);
+    assert_ne!(f.boss().base.act_num, act::NEUTRAL, "a pattern within ten seconds");
 }
 
 #[test]
@@ -169,7 +169,7 @@ fn half_the_gauge_brings_the_expert_table() {
     let max = f.t.bosses[ROW].max_pp;
     f.scene.param_mut(me).unwrap().pp = max;
     f.affect(1, 10);
-    assert_eq!(f.boss().pat_tbl, Tbl::Super);
+    assert_eq!(f.boss().base.pat_tbl, Tbl::Super);
 }
 
 #[test]

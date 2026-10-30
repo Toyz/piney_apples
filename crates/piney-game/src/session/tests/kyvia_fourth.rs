@@ -103,7 +103,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
                 _ => None,
             });
             let hp = core.map(|k| (c.scene.chars[k].hp, c.scene.listed(k)));
-            eprintln!("KYVIA {n} act {:?} st {st:?} core {hp:?}", b.map(|b| (b.act_num, b.act_proccess)));
+            eprintln!("KYVIA {n} act {:?} st {st:?} core {hp:?}", b.map(|b| (b.base.act_num, b.base.act_proccess)));
         }
         // The core's time cut short (its attack turn sooner), and while it
         // can be hit a blow of an eighth of its MaxHP from Kite each 300
@@ -121,7 +121,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         }
         let c = a.world_mut().combat_mut();
         if let Some(b) = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()) {
-            p.acts.insert(b.act_num);
+            p.acts.insert(b.base.act_num);
         }
         p.music += u32::from(music);
         let mut names = census.boss_draws.clone();

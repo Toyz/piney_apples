@@ -171,7 +171,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, dummy: V4, t:
                 }
                 8 => {
                     if let Some(b) = scene.chars[me].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                        (b.act_num, b.act_proccess, b.act_count) = (p0, 0, 0);
+                        (b.base.act_num, b.base.act_proccess, b.base.act_count) = (p0, 0, 0);
                     }
                 }
                 9 => affect::entry_affect(tables, &mut scene, actx, me, kite, 3, [p0, 0, 0], &mut rand, &mut ev),
@@ -194,11 +194,11 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, dummy: V4, t:
         }
         cc = cell.into_inner();
         if let Some(b) = scene.chars[me].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-            out.extend(b.take_pending());
+            out.extend(b.base.take_pending());
         }
         for &k in &killers {
             if let Some(b) = scene.chars[k].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                out.extend(b.take_pending());
+                out.extend(b.base.take_pending());
             }
         }
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
@@ -293,10 +293,10 @@ fn third_json(b: &Boss, x: &Third) -> String {
         v3(&x.dead_pos),
         v3(&x.act_pos),
         format!("[{}]", lasers.join(",")),
-        b.stop_time.to_string(),
-        b.stop_counter.to_string(),
-        b.pat_index.to_string(),
-        b.pat_num.to_string(),
+        b.base.stop_time.to_string(),
+        b.base.stop_counter.to_string(),
+        b.base.pat_index.to_string(),
+        b.base.pat_num.to_string(),
     ];
     v.join(",")
 }
@@ -308,17 +308,17 @@ fn eye_json(scene: &Scene, e: usize) -> String {
     let x: &Eye = x;
     format!(
         "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]",
-        b.act_num,
-        b.act_proccess,
-        b.act_forbid,
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_forbid,
         v3(&ch.pos),
-        v3(&b.dirc),
+        v3(&b.base.dirc),
         v3(&x.pos_b),
         v3(&x.rot_dirc),
-        b.exit,
-        b.draw_sw,
-        b.transparency,
-        b.set_transparency,
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.transparency,
+        b.base.set_transparency,
         x.color_blend,
         v3(&x.from),
         v3(&x.to),
@@ -335,33 +335,33 @@ fn killer_json(scene: &Scene, k: usize) -> String {
     let x: &Killer = x;
     format!(
         "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{},{}]",
-        b.act_num,
-        b.act_proccess,
-        b.act_count,
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_count,
         v3(&ch.pos),
         v3(&ch.pos_p),
-        v3(&b.dirc),
+        v3(&b.base.dirc),
         ch.hp,
         ch.max_hp,
-        b.exit,
-        b.draw_sw,
-        b.body_hit_sw,
-        b.act_forbid,
-        b.transparency,
-        b.set_transparency,
-        b.move_spd,
-        b.move_dirc,
-        v3(&b.move_vector),
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.body_hit_sw,
+        b.base.act_forbid,
+        b.base.transparency,
+        b.base.set_transparency,
+        b.base.move_spd,
+        b.base.move_dirc,
+        v3(&b.base.move_vector),
         ch.target_char.map_or(-1, |t| t as i64),
         u8::from(scene.listed(k)),
         u8::from(x.pause),
         v3(&x.spin),
         x.press_r,
         x.press_step,
-        b.anm.clip.as_deref().unwrap_or(""),
-        b.anm.frame(),
-        b.stop_time,
-        b.pat_index,
+        b.base.anm.clip.as_deref().unwrap_or(""),
+        b.base.anm.frame(),
+        b.base.stop_time,
+        b.base.pat_index,
         v3(&x.act_pos),
     )
 }
@@ -378,6 +378,7 @@ fn frame_json(
     let Class::CorbenikC(x) = &b.class else { return "{}".into() };
     let ch = &scene.chars[me];
     let effs: Vec<String> = b
+        .base
         .effects
         .slots
         .iter()
@@ -397,39 +398,39 @@ fn frame_json(
          \"hp\":[{},{}],\"flags\":[{},{},{},{},{},{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\
          \"anm\":[\"{}\",{},{}],\"third\":[{}],\"eyes\":[{}],\"killers\":[{}],\"eff\":[{}],\
          \"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
-        b.act_num,
-        b.act_proccess,
-        b.act_count,
-        b.move_spd,
-        b.move_dirc,
-        v3(&b.move_vector),
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_count,
+        b.base.move_spd,
+        b.base.move_dirc,
+        v3(&b.base.move_vector),
         ch.target_char.map_or(-1, |t| t as i64),
-        b.target_dist,
-        b.target_dirc,
-        v3(&b.target_pos),
+        b.base.target_dist,
+        b.base.target_dirc,
+        v3(&b.base.target_pos),
         v3(&ch.pos),
         v3(&ch.pos_p),
-        v3(&b.dirc),
+        v3(&b.base.dirc),
         ch.hp,
         ch.max_hp,
-        b.act_forbid,
-        b.anm_status,
-        b.stop,
-        b.cheat_hp,
-        b.exit,
-        b.draw_sw,
-        b.body_hit_sw,
-        b.lock_player,
-        b.erase_target,
-        b.reserve_forbid_menu,
-        u8::from(b.reserve_forbid_chat_except != 0),
-        b.stop_count,
+        b.base.act_forbid,
+        b.base.anm_status,
+        b.base.stop,
+        b.base.cheat_hp,
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.body_hit_sw,
+        b.base.lock_player,
+        b.base.erase_target,
+        b.base.reserve_forbid_menu,
+        u8::from(b.base.reserve_forbid_chat_except != 0),
+        b.base.stop_count,
         u8::from(scene.listed(me)),
-        b.transparency,
-        b.set_transparency,
-        b.anm.clip.as_deref().unwrap_or(""),
-        b.anm.frame(),
-        b.anm.speed,
+        b.base.transparency,
+        b.base.set_transparency,
+        b.base.anm.clip.as_deref().unwrap_or(""),
+        b.base.anm.frame(),
+        b.base.anm.speed,
         third_json(b, x),
         eyes.join(","),
         killers.join(","),

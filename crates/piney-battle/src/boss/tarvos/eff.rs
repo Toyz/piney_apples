@@ -9,7 +9,7 @@
 use piney_data::field::ee;
 
 use super::{Out, Pic};
-use crate::boss::{Boss, Cx, EffKind};
+use crate::boss::{BossBase, Cx, EffKind};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 
@@ -32,7 +32,7 @@ pub enum Fx {
 impl Fx {
     /// The effect's `Draw` (taken out of its slot of `b`'s manager while
     /// it runs): whether it is still enabled.
-    pub fn draw(&mut self, cx: &mut Cx, b: &mut Boss) -> bool {
+    pub fn draw(&mut self, cx: &mut Cx, b: &mut BossBase) -> bool {
         match self {
             Fx::Spikes(s) => s.draw(cx, b),
             Fx::Phantom(p) => p.draw(cx, b),
@@ -115,7 +115,7 @@ impl SpikeRain {
     /// (`_SpikeShotCB(target, pos, index)`, the index 31 for the first) and
     /// fades a fifteenth a frame. The target gone, all fade. Over once
     /// every spike is gone; a frame with hits sounds 171.
-    fn draw(&mut self, cx: &mut Cx, b: &mut Boss) -> bool {
+    fn draw(&mut self, cx: &mut Cx, b: &mut BossBase) -> bool {
         let aim_p = crate::boss::w2p(cx, self.aim);
         let t = self.target;
         if !(cx.valid(Some(t)) && !cx.dead(t)) {
@@ -308,7 +308,7 @@ impl Phantom {
     /// frames' wait; 5 their falls, waits of 5 a pair, into the ground
     /// (bursts, a quake each; at three a radiate and an explosion); 6 25
     /// frames, the camera back, the effect off.
-    fn draw(&mut self, cx: &mut Cx, b: &mut Boss) -> bool {
+    fn draw(&mut self, cx: &mut Cx, b: &mut BossBase) -> bool {
         let cam = cx.boss_cam;
         let mut view = self.pos;
         match self.state {

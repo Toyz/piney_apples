@@ -15,7 +15,7 @@ use piney_data::libm;
 use piney_data::volume::Volume;
 
 use self::eff::Fx;
-use super::{Anm, Boss, Class, Cx, EffKind, Out, Tbl, VF0};
+use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -192,16 +192,6 @@ pub struct Tarvos {
     pub blend_rate: F,
 }
 
-fn tarvos_of(b: &mut Boss) -> Box<Tarvos> {
-    match std::mem::replace(&mut b.class, Class::Plain) {
-        Class::Tarvos(x) => x,
-        other => {
-            b.class = other;
-            Box::default()
-        }
-    }
-}
-
 // --- small rules ------------------------------------------------------------------------
 
 fn word(tbl: &[i32], i: i32) -> i32 {
@@ -217,7 +207,7 @@ fn cursor(cx: &mut Cx, on: bool) {
     cx.out(Out::CursorOff(on));
 }
 
-fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
+fn select(b: &mut BossBase, cx: &mut Cx, ty: i32) -> Option<usize> {
     let t = b.select_target(cx, ty, FAR);
     cx.scene.chars[cx.me].target_char = t;
     t
@@ -241,7 +231,7 @@ fn magic_camera(cx: &mut Cx, vp: V4, d: V4, off: V4) {
 
 /// The skill's and the magic's camera: the eye 1500 out and 70 up from
 /// the target along `targetDirc`, looking at the target 200 up.
-fn spell_camera(b: &Boss, cx: &mut Cx) {
+fn spell_camera(b: &BossBase, cx: &mut Cx) {
     let mut vp = b.target_pos;
     vp[2] = 0x4348_0000;
     let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
@@ -290,12 +280,11 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     cx.out(Out::Blur(super::blur::Set::Func(super::blur::BlurFunc::Boss03)));
     set_pattern_mode(&mut b, &mut x, cx, 0);
     set_def_mode(&mut x, cx, 0);
-    b.class = Class::Tarvos(x);
-    b
+    Boss { base: b, class: Class::Tarvos(x) }
 }
 
 /// `SetPatternMode(m)` (0x003a8e00): `@1201[m]` set and run from its start.
-fn set_pattern_mode(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, m: i32) {
+fn set_pattern_mode(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx, m: i32) {
     let t = match m {
         0 => Tbl::Normal,
         1 => Tbl::Super,
@@ -334,10 +323,9 @@ fn set_def_mode(x: &mut Tarvos, cx: &mut Cx, d: i32) {
 // --- the frame --------------------------------------------------------------------------------
 
 /// `ccThBossEffect`'s pass and `ccBoss07::Main` (0x003a91e0).
-pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
-    let mut x = tarvos_of(b);
+pub(super) fn main(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     manager_pass(b, cx);
-    frame(b, &mut x, cx);
+    frame(b, x, cx);
     let me = cx.me;
     cx.scene.chars[me].cond[cond::HOLD] = 0;
     if b.lock_player != 0
@@ -347,13 +335,12 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
     {
         p.pp_count += 1;
     }
-    b.class = Class::Tarvos(x);
 }
 
 /// `ccBoss::Main` (QUA gcmn, Outbreak's code) under Tarvos's `Think` and
 /// `PreDrawAnm` (0x003a96b0: the body not posed while the transfer's
 /// stream plays; the transfer's fog).
-fn frame(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     if b.exit != 0 {
         return;
     }
@@ -408,7 +395,7 @@ fn frame(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
 /// order, a disabled one freed. The spikes' hits call `_SpikeShotCB`
 /// (0x003ab560) as they land; the phantom makes its ring as it draws.
-fn manager_pass(b: &mut Boss, cx: &mut Cx) {
+fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
     let mut k = 0;
     while k < b.effects.slots.len() {
         let Some(e) = b.effects.slots[k].as_mut() else {
@@ -437,7 +424,7 @@ fn manager_pass(b: &mut Boss, cx: &mut Cx) {
 /// `_SpikeShotCB(ch, pos, index)` (0x003ab560): boss skill 24 on a living
 /// target; every eighth spike sounds 171 and erupts (`ccBossEffEruption`,
 /// made off: its slot goes at the next pass).
-fn spike_hit(b: &mut Boss, cx: &mut Cx, t: usize, pos: V4, index: i32) {
+fn spike_hit(b: &mut BossBase, cx: &mut Cx, t: usize, pos: V4, index: i32) {
     if !target_ok(cx, Some(t)) {
         return;
     }
@@ -454,7 +441,7 @@ fn spike_hit(b: &mut Boss, cx: &mut Cx, t: usize, pos: V4, index: i32) {
 }
 
 /// An effect of Tarvos's own made in the first free slot.
-fn make_fx(b: &mut Boss, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
+fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
     let id = b.effects.create(kind);
     if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
         e.tarvos = Some(Box::new(fx));
@@ -466,7 +453,7 @@ fn make_fx(b: &mut Boss, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
 // --- the patterns --------------------------------------------------------------------------------
 
 /// `ccBoss::ChangeNextPattern` (QUA gcmn 0x00361e30, Outbreak's).
-fn change_next_pattern(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn change_next_pattern(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let tbl = cx.data.tarvos.words(b.pat_tbl).to_vec();
     if word(&tbl, b.pat_index) == -1 {
         b.pat_index = 0;
@@ -482,7 +469,7 @@ fn change_next_pattern(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 }
 
 /// `ccBoss::ExecPattern(pat, p0, 0, 0)` (QUA gcmn 0x00360d30).
-fn exec_pattern(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, pat: i32, p0: i32) {
+fn exec_pattern(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx, pat: i32, p0: i32) {
     let tbl = [pat, p0, 0, 0, -1];
     exec_pattern_index(b, x, cx, &tbl, 0);
 }
@@ -491,7 +478,7 @@ fn exec_pattern(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, pat: i32, p0: i32) {
 /// `ccBoss::ExecPatternIndex`: the next index. As Macha's, every operand
 /// of its own patterns (2, 9, 10, 11) is read from `patTbl` at the running
 /// index, whatever `tbl` is.
-fn exec_pattern_index(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn exec_pattern_index(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let orig = i;
     let mut s = i;
     let mut pat = word(tbl, s);
@@ -581,7 +568,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, tbl: &[i32], i:
 }
 
 /// `ccBoss::ExecPatternIndex` (QUA gcmn, Outbreak's code).
-fn base_exec_pattern_index(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+fn base_exec_pattern_index(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
     let orig = i;
     let mut i = i;
     let mut pat = word(tbl, i);
@@ -594,7 +581,7 @@ fn base_exec_pattern_index(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, tbl: &[i32
     }
     b.pat_num = pat;
     let me = cx.me;
-    let neutral = |b: &mut Boss, cx: &mut Cx| {
+    let neutral = |b: &mut BossBase, cx: &mut Cx| {
         let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
         b.change_action(cx, n, 3, true);
     };
@@ -679,7 +666,7 @@ fn base_exec_pattern_index(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx, tbl: &[i32
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss07::Think` (0x003a9750).
-fn think(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL | act::EPITAPH => on_neutral(b, x, cx),
         act::DAMAGE0 | act::DAMAGE1 => b.change_action(cx, act::NEUTRAL, 1, false),
@@ -708,7 +695,7 @@ fn think(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// `OnThinkNeutral` (0x003a9920) and `OnThinkEpitaph` (0x003ac5f0), the
 /// same code: turned to the target, the wait, then the next pattern at
 /// the nearest.
-fn on_neutral(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     b.set_dirc(b.target_dirc);
     b.move_spd = 0;
     b.move_vector = VF0;
@@ -726,7 +713,7 @@ fn on_neutral(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// `OnThinkDrain` (0x003a9a80): drained. The Epitaph (act 12), the guard
 /// dropped (`SetDefMode(2)`: row 6 whole), 7000 HP, the Epitaph's table,
 /// the aura off.
-fn on_drain(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_drain(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     b.cheat_hp = 0;
     b.change_action(cx, act::EPITAPH, 3, true);
@@ -744,7 +731,7 @@ fn on_drain(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 
 /// `OnThinkDead` (0x003a9bc0): off the lists, the dead effect; exit once
 /// it ends.
-fn on_dead(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_dead(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     match b.act_proccess {
@@ -763,7 +750,7 @@ fn on_dead(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// register's) under the magic camera and a dark stage; at 30 frames
 /// stream 103 on it; once the menu closes the stage back and 9999 on it
 /// (`EntryAffect(this, 1, 9999)`); 60 frames on, the neutral.
-fn on_sacrifice(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_sacrifice(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -830,7 +817,7 @@ fn on_sacrifice(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// 224 at the body's frames 6 and 35; at 40 a WaveShock; boss skill 23
 /// fifteen frames on; the wave drawn and the camera shaken every frame
 /// from 40, the next pattern as the body's clip ends.
-fn on_wave(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             x.anm_w.set(super::ANM_WAVE, cx.clips);
@@ -873,7 +860,7 @@ fn on_wave(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// under the free eye, the stage dark; SE 245 at 30, the skill's start at
 /// 60, the skill once the start ends; the stage back 50 frames on, the
 /// neutral 15 after.
-fn on_skill(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_skill(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -948,7 +935,7 @@ fn on_skill(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 
 /// `OnThinkDashCenter` (0x003aa7b0): the base's dash at 50 to `dashPos`,
 /// 121 frames at most, off the targets.
-fn on_dash_center(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_dash_center(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     b.spd_up(0x4248_0000, 0x4248_0000);
     match b.act_proccess {
@@ -992,7 +979,7 @@ fn on_dash_center(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// the free eye, the stage dark; SE 245 at 30, the spell at 75; the camera
 /// shaken from 100 to 160 frames on (the screen breaking up every 20), the
 /// stage back at 240 (120 for spells 268 and 276), the neutral 15 after.
-fn on_magic(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_magic(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1061,7 +1048,7 @@ fn on_magic(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// `OnThinkPhantom` (0x003aaea0): at Kite (else the nearest), the phantom
 /// (`ccBossEffPhantomCreate(pos, centerDirc)`); once it is off, boss skill
 /// 25 from where Tarvos stands.
-fn on_phantom(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_phantom(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             let kite = cx.world.player;
@@ -1103,7 +1090,7 @@ fn on_phantom(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 }
 
 /// `OnThinkDataDrainAtk` (0x003ab0d0): a member drained through stream 104.
-fn on_data_drain_atk(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_data_drain_atk(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1149,7 +1136,7 @@ fn on_data_drain_atk(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// `OnThinkSpikeShot` (0x003ab360): SE 245 (note 57) at the target; at
 /// 30 frames the spike rain; the target held (`EntryAffect(this, 5)`)
 /// while it falls, the next pattern once it is off.
-fn on_spike_shot(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_spike_shot(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1189,7 +1176,7 @@ fn on_spike_shot(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 
 /// `OnThinkWander` (0x003ab620): at 5 a random way for 60-89 frames, then
 /// act 15 (the neutral the next frame); out of the arena, a wait of 30.
-fn on_wander(b: &mut Boss, cx: &mut Cx) {
+fn on_wander(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     b.move_spd = 0x40a0_0000;
     if b.stop != 0 || cx.scene.chars[me].cond[cond::HOLD] != 0 {
@@ -1227,7 +1214,7 @@ fn on_wander(b: &mut Boss, cx: &mut Cx) {
 /// the clip's end a random place within 2000 of the centre, `ANM_ex71out0`
 /// and the trans effect again; the fog thinning from the clip's 80 to 100;
 /// at its end the other guard (`SetDefMode`) and the next pattern.
-fn on_transfer(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_transfer(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     let f = b.anm.frame();
     match b.act_proccess {
@@ -1332,7 +1319,7 @@ fn on_transfer(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// 100, an after-image every fourth frame (SE 57 with the first); ended
 /// within 150, after 150 frames, out of the arena or with the target
 /// down.
-fn on_chase(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_chase(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -1377,7 +1364,7 @@ fn on_chase(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// `OnThinkEscape` (0x003ac210): away from the target at 30, turned a
 /// quarter off it every 32 frames (toward the centre out of the arena),
 /// for 300 frames. Macha's code.
-fn on_escape(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_escape(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -1426,7 +1413,7 @@ fn on_escape(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 
 /// `OnThinkReturn` (0x003ac4d0): toward the centre at 5 for 90-119
 /// frames, then act 15 with a wait of 30.
-fn on_return(b: &mut Boss, cx: &mut Cx) {
+fn on_return(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     b.move_spd = 0x40a0_0000;
     b.move_dirc = b.center_dirc;
@@ -1458,7 +1445,7 @@ fn on_return(b: &mut Boss, cx: &mut Cx) {
 /// WaveShock and a flash, boss skill 23 at 45; the wave drawn through
 /// `DrawParts` and the camera shaken every frame from 29, the next pattern
 /// once both clips end.
-fn on_epitaph_wave(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+fn on_epitaph_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             x.anm_w.set(super::ANM_WAVE, cx.clips);
@@ -1506,13 +1493,7 @@ fn on_epitaph_wave(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
 /// guarded boss) is dropped; the rest are the base's. Then, not drained,
 /// on a blow: half the gauge brings the super table, and a blow of the
 /// kind the guard holds off shows the shield (0.7 its size, 80 up).
-pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
-    let mut x = tarvos_of(b);
-    affect_of(b, &mut x, cx);
-    b.class = Class::Tarvos(x);
-}
-
-fn affect_of(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
+pub(super) fn affect(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     let me = cx.me;
     if b.lock_player != 0 {
         return;

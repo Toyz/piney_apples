@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use super::first::{self, First};
 use super::{Pic, SEED_ROW};
 use crate::boss::kyvia::{Part, as_me, plain_boss, set_base_param};
-use crate::boss::{Boss, Class, Cx, EffKind, Out, VF0};
+use crate::boss::{Boss, BossBase, Class, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::param::cond;
@@ -112,47 +112,47 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32) -> Part<Seed> {
     let hit = CharHit { radius: base.width, height: base.height, kind: base.ty as u32, ..CharHit::default() };
     as_me(cx, me, |cx| b.change_action(cx, act::WAIT, 3, true));
     let x = Seed { master, slave_id: k, hit, exp_count: 150, blink_time: 30, ..Seed::default() };
-    Part { b: Box::new(b), x: Box::new(x), me }
+    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
 }
 
 /// `ccBoss08Seed::Main` (0x003b06a0), `x.seeds[k]` its own frame: the
 /// base's head, `Think`, its own `Move`, the clip forward. `mb` is the
 /// first form's `ccBoss` (its effects the manager's).
-pub(crate) fn main(mb: &mut Boss, x: &mut First, k: usize, cx: &mut Cx) {
+pub(crate) fn main(mb: &mut BossBase, x: &mut First, k: usize, cx: &mut Cx) {
     let mut p = std::mem::take(&mut x.seeds[k]);
     as_me(cx, p.me, |cx| frame(mb, x, &mut p, cx));
     x.seeds[k] = p;
 }
 
-fn frame(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
+fn frame(mb: &mut BossBase, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
     let b = &mut p.b;
-    if b.exit != 0 {
+    if b.base.exit != 0 {
         return;
     }
     let me = cx.me;
-    b.calc_real(cx);
-    b.calc_target_info(cx);
-    b.center_pos_p = crate::boss::w2p(cx, b.center_pos);
+    b.base.calc_real(cx);
+    b.base.calc_target_info(cx);
+    b.base.center_pos_p = crate::boss::w2p(cx, b.base.center_pos);
     let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = crate::boss::dist(cx, pp, b.center_pos_p);
-    b.center_dirc = crate::enemy_ai::get_dirc(pp, b.center_pos_p);
+    b.base.center_dist = crate::boss::dist(cx, pp, b.base.center_pos_p);
+    b.base.center_dirc = crate::enemy_ai::get_dirc(pp, b.base.center_pos_p);
     // `lockPlayer` and the menu's forbid: a seed never locks.
-    if b.stop != 0 {
-        b.stop_count += 1;
-        if b.stop_count >= 61 {
-            b.stop_count = 0;
-            b.stop = 0;
+    if b.base.stop != 0 {
+        b.base.stop_count += 1;
+        if b.base.stop_count >= 61 {
+            b.base.stop_count = 0;
+            b.base.stop = 0;
         }
-        b.move_spd = 0;
+        b.base.move_spd = 0;
     } else {
-        b.stop_count = 0;
+        b.base.stop_count = 0;
     }
     think(mb, x, p, cx);
     move_(p, cx);
-    if p.b.draw_sw != 0 {
+    if p.b.base.draw_sw != 0 {
         // `PreDrawAnm` (0x003b09f0): the clip forward, drawn 50 up at 3x.
-        p.b.anm_status = i8::from(p.b.anm.forward());
-        p.b.draw(cx);
+        p.b.base.anm_status = i8::from(p.b.base.anm.forward());
+        p.b.base.draw(cx);
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
@@ -164,13 +164,13 @@ fn move_(p: &mut Part<Seed>, cx: &mut Cx) {
     let me = p.me;
     let b = &mut p.b;
     let mut pp = crate::boss::w2p(cx, cx.scene.chars[me].pos);
-    if !geom::eq(0, b.move_spd) {
-        pp[0] = ee::add(pp[0], ee::mul(b.move_spd, piney_data::libm::sinf(b.move_dirc)));
-        pp[1] = ee::sub(pp[1], ee::mul(b.move_spd, piney_data::libm::cosf(b.move_dirc)));
+    if !geom::eq(0, b.base.move_spd) {
+        pp[0] = ee::add(pp[0], ee::mul(b.base.move_spd, piney_data::libm::sinf(b.base.move_dirc)));
+        pp[1] = ee::sub(pp[1], ee::mul(b.base.move_spd, piney_data::libm::cosf(b.base.move_dirc)));
     }
-    pp = geom::vadd(pp, b.move_vector);
+    pp = geom::vadd(pp, b.base.move_vector);
     let mut pos = crate::boss::p2w(cx, pp);
-    let on = b.body_hit_sw != 0;
+    let on = b.base.body_hit_sw != 0;
     cx.part_hits.switch(me, &mut p.x.hit, on);
     if on {
         p.x.hit.pos = pos;
@@ -188,12 +188,12 @@ fn move_(p: &mut Part<Seed>, cx: &mut Cx) {
     ch.pos = pos;
 }
 
-fn think(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
-    match p.b.act_num {
-        act::FLY => on_fly(&mut p.b, &mut p.x, cx),
-        act::COUNT_DOWN => on_count_down(&mut p.b, &mut p.x, x.pause_cnt_down, cx),
+fn think(mb: &mut BossBase, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
+    match p.b.base.act_num {
+        act::FLY => on_fly(&mut p.b.base, &mut p.x, cx),
+        act::COUNT_DOWN => on_count_down(&mut p.b.base, &mut p.x, x.pause_cnt_down, cx),
         act::FIRE => on_fire(mb, x, p, cx),
-        act::DEAD => on_dead(&mut p.b, &mut p.x, cx),
+        act::DEAD => on_dead(&mut p.b.base, &mut p.x, cx),
         _ => {}
     }
 }
@@ -202,7 +202,7 @@ fn think(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
 /// 60 a frame, between 54 and 72 degrees down from level, any way round,
 /// spinning by `rand()`), back on the field off the targets; 4 still: on
 /// the lists, its count and the charge; 5 the charge off, set off once.
-pub(crate) fn order(b: &mut Boss, x: &mut Seed, cx: &mut Cx, n: i32, master_pos: V4) {
+pub(crate) fn order(b: &mut BossBase, x: &mut Seed, cx: &mut Cx, n: i32, master_pos: V4) {
     let me = cx.me;
     match n {
         3 => {
@@ -261,7 +261,7 @@ fn charge_off(x: &mut Seed, cx: &mut Cx) {
 
 /// `OnExit` (0x003b1440): exited, hidden, its body off, off the lists, the
 /// charge off.
-fn on_exit(b: &mut Boss, x: &mut Seed, cx: &mut Cx) {
+fn on_exit(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
     b.exit = 1;
     b.draw_sw = 0;
     b.body_hit_sw = 0;
@@ -281,7 +281,7 @@ fn spin(a: F, d: u16) -> F {
 /// throw damped (0.8, the fall turned at half); still enough, it lies
 /// down and counts (`Order(4)`). No land under it: off the field, fading
 /// out over 15 frames.
-fn on_fly(b: &mut Boss, x: &mut Seed, cx: &mut Cx) {
+fn on_fly(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
     let me = cx.me;
     b.act_count += 1;
     if !x.range_out && ee::lt(b.move_vector[2], 0xc0e0_0000) {
@@ -343,7 +343,7 @@ fn on_fly(b: &mut Boss, x: &mut Seed, cx: &mut Cx) {
 /// body holds the count, a frame off, and past 0 set off (`Order(5)`);
 /// an after-image each time its blink runs out, sooner as the count
 /// falls (never under 10 frames apart).
-fn on_count_down(b: &mut Boss, x: &mut Seed, paused: bool, cx: &mut Cx) {
+fn on_count_down(b: &mut BossBase, x: &mut Seed, paused: bool, cx: &mut Cx) {
     let mut tag = cx.pos();
     tag[2] = ee::add(tag[2], 0x42c8_0000);
     let n = ee::to_int(ee::div(ee::from_int(x.exp_count + 29), 0x41f0_0000));
@@ -374,10 +374,10 @@ fn on_count_down(b: &mut Boss, x: &mut Seed, paused: bool, cx: &mut Cx) {
 /// `OnThinkFire` (0x003b17b0): the flush (1000 to 0); once it is over the
 /// burst (SE 35, note 53), every other seed in its area set off, off the
 /// targets and the body off; 15 frames on boss skill 31 there, and out.
-fn on_fire(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
+fn on_fire(mb: &mut BossBase, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
     let b = &mut p.b;
     let pos = cx.pos();
-    match b.act_proccess {
+    match b.base.act_proccess {
         0 => {
             let f = super::eff::Flush::new(pos, 0x447a_0000, 0);
             let id = mb.effects.create(EffKind::Flush);
@@ -387,28 +387,34 @@ fn on_fire(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
             }
             cx.out(Out::Effect { id, kind: EffKind::Flush, pos, dirc: VF0 });
             p.x.eff_flush = Some(id);
-            b.act_proccess += 1;
+            b.base.act_proccess += 1;
         }
         1 => {
             if mb.effects.enabled(p.x.eff_flush) {
                 return;
             }
             p.x.eff_flush = None;
-            cx.out(Out::Corbenik(Pic::Burst { pos, spd: b.move_vector, scale: ONE, kind: 0, grow: Some(super::GROW) }));
+            cx.out(Out::Corbenik(Pic::Burst {
+                pos,
+                spd: b.base.move_vector,
+                scale: ONE,
+                kind: 0,
+                grow: Some(super::GROW),
+            }));
             cx.out(Out::Se3dNote { se: 35, pos, note: 53 });
             let at = cx.scene.chars[p.me].pos_p;
             let from = usize::try_from(p.x.slave_id).unwrap_or(usize::MAX);
             first::send_message(x, from, at, cx);
-            b.act_proccess += 1;
-            b.erase_cmnd_target(cx);
-            b.body_hit_sw = 0;
+            b.base.act_proccess += 1;
+            b.base.erase_cmnd_target(cx);
+            b.base.body_hit_sw = 0;
         }
         2 => {
-            let c = b.act_count;
-            b.act_count += 1;
+            let c = b.base.act_count;
+            b.base.act_count += 1;
             if c == 15 {
-                b.skill_damage(cx, None, Some(pos), 31);
-                on_exit(b, &mut p.x, cx);
+                b.base.skill_damage(cx, None, Some(pos), 31);
+                on_exit(&mut b.base, &mut p.x, cx);
             }
         }
         _ => {}
@@ -417,7 +423,7 @@ fn on_fire(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
 
 /// `OnThinkDead` (0x003b1970): off the lists and the body off, faded out
 /// over 30 frames.
-fn on_dead(b: &mut Boss, x: &mut Seed, cx: &mut Cx) {
+fn on_dead(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             crate::fellow::delete_cmnd(cx.scene, cx.me);
@@ -443,7 +449,7 @@ fn on_dead(b: &mut Boss, x: &mut Seed, cx: &mut Cx) {
 /// down (with cheat HP a fifth, never under half), at 0 its conditions
 /// cleared and dead; then a spell on it shows the shield. Any other
 /// type the base's.
-pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
+pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;
     let (t, p0, p1, person) = {
         let a = &cx.scene.chars[me].affect;

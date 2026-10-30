@@ -392,7 +392,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         pos: scene.chars[me].pos,
         ..CharHit::default()
     };
-    if boss.body_hit_sw != 0 {
+    if boss.base.body_hit_sw != 0 {
         list.borrow_mut().chars.push((me, body));
     }
     // ccBoss::Move's CollisionDetection of the body; after a push its hit
@@ -445,7 +445,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             };
             let Some(on) = on else { continue };
             let alive = scene.chars[on].cond[cond::DEAD] == 0
-                && scene.chars[on].foe_state().and_then(|x| x.boss.as_ref()).is_some_and(|b| b.exit == 0);
+                && scene.chars[on].foe_state().and_then(|x| x.boss.as_ref()).is_some_and(|b| b.base.exit == 0);
             if !alive {
                 continue;
             }
@@ -454,7 +454,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             let ty = if kind == 2 { 7 } else { 1 };
             affect::entry_affect(tables, &mut scene, &actx, on, kite, ty, [p0, p1, 0], &mut rand, &mut ev);
             if let Some(b) = scene.chars[on].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                let p = b.take_pending();
+                let p = b.base.take_pending();
                 outs.extend(p.iter().filter_map(kout));
                 out.extend(p);
             }
@@ -465,7 +465,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             }
         }
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        let pending = boss.take_pending();
+        let pending = boss.base.take_pending();
         outs.extend(pending.iter().filter_map(kout));
         out.extend(pending);
         // The affects' writes, then the manager's pass (the effects, then
@@ -738,25 +738,25 @@ fn boss_json(b: &Boss, scene: &Scene, who: usize) -> String {
     let ch = &scene.chars[who];
     format!(
         "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{}",
-        b.exit,
-        b.draw_sw,
-        b.act_num,
-        b.act_proccess,
-        b.act_count,
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_count,
         v3(&ch.pos),
-        v3(&b.dirc),
+        v3(&b.base.dirc),
         ch.hp,
         ch.max_hp,
         ch.target_char.map_or(-1, |t| t as i64),
-        b.act_forbid,
-        b.stop,
-        b.cheat_hp,
-        b.erase_target,
+        b.base.act_forbid,
+        b.base.stop,
+        b.base.cheat_hp,
+        b.base.erase_target,
         u8::from(scene.listed(who)),
-        b.anm.clip.as_deref().unwrap_or(""),
-        b.anm.frame(),
-        b.transparency,
-        b.set_transparency,
+        b.base.anm.clip.as_deref().unwrap_or(""),
+        b.base.anm.frame(),
+        b.base.transparency,
+        b.base.set_transparency,
     )
 }
 
@@ -947,7 +947,7 @@ fn with_ball(line: &str, b: &Boss) -> String {
 /// the target, `BungAnm`'s frame, the spline, the eye, and each soul's
 /// `Pos`, `time` and `ActProccess`.
 fn hell_json(b: &Boss) -> String {
-    let Some(h) = b.effects.slots.iter().flatten().find_map(|e| e.hell.as_ref()) else { return "null".into() };
+    let Some(h) = b.base.effects.slots.iter().flatten().find_map(|e| e.hell.as_ref()) else { return "null".into() };
     let mut v: Vec<String> = [h.hell_act, h.hell_cou, h.end_count, h.soul_num, i32::from(h.bung_start), h.kyvia_lv]
         .iter()
         .map(|n| n.to_string())
@@ -970,7 +970,7 @@ fn hell_json(b: &Boss) -> String {
 /// each plasma's `time`, `Mode`, `SetT`, `TempT`, three `SBpoint`s,
 /// `PlaPos` and `PlaPos2`.
 fn ball_json(b: &Boss) -> String {
-    let Some(ball) = b.effects.slots.iter().flatten().find_map(|e| e.ball.as_ref()) else { return "null".into() };
+    let Some(ball) = b.base.effects.slots.iter().flatten().find_map(|e| e.ball.as_ref()) else { return "null".into() };
     let mut v: Vec<String> = [
         ball.eff_mode,
         ball.delay,
@@ -1011,6 +1011,7 @@ fn frame_json(
     let Class::Kyvia(x) = &b.class else { return "{}".into() };
     let ch = &scene.chars[me];
     let effs: Vec<String> = b
+        .base
         .effects
         .slots
         .iter()
@@ -1044,22 +1045,22 @@ fn frame_json(
         "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
          \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{},{},{}],\"blur\":{},\
          \"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
-        b.act_num,
-        b.act_proccess,
-        b.act_count,
+        b.base.act_num,
+        b.base.act_proccess,
+        b.base.act_count,
         v3(&ch.pos),
-        b.act_forbid,
-        b.anm_status,
-        b.stop,
-        b.exit,
-        b.draw_sw,
-        b.lock_player,
-        b.reserve_forbid_menu,
-        b.reserve_forbid_chat_except,
-        b.transparency,
-        b.set_transparency,
-        b.anm.clip.as_deref().unwrap_or(""),
-        b.anm.frame(),
+        b.base.act_forbid,
+        b.base.anm_status,
+        b.base.stop,
+        b.base.exit,
+        b.base.draw_sw,
+        b.base.lock_player,
+        b.base.reserve_forbid_menu,
+        b.base.reserve_forbid_chat_except,
+        b.base.transparency,
+        b.base.set_transparency,
+        b.base.anm.clip.as_deref().unwrap_or(""),
+        b.base.anm.frame(),
         x.anm_w.clip.as_deref().unwrap_or(""),
         x.anm_w.frame(),
         kyvia_json(x),

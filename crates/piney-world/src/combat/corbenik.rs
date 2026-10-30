@@ -124,7 +124,7 @@ impl Combat {
         hits: &mut crate::hit::Hits,
     ) -> Option<Vec<Out>> {
         let run = self.boss.as_ref()?;
-        if run.code != super::boss::CORBENIK || b.exit == 0 || !matches!(b.class, Class::Corbenik(_)) {
+        if run.code != super::boss::CORBENIK || b.base.exit == 0 || !matches!(b.class, Class::Corbenik(_)) {
             return None;
         }
         let (me, center, clips) = (run.me, run.center, run.clips.clone());
@@ -156,7 +156,7 @@ impl Combat {
             AffectCtx { party: &party, menu: true, skill_check: check, boss: Some(&benv), volume: self.data.volume };
         let mut none = |_| None;
         let mut land = |p: V4| p[2];
-        let effects = std::mem::take(&mut b.effects);
+        let effects = std::mem::take(&mut b.base.effects);
         let mut cx = boss::Cx {
             t: &d.t,
             data,
@@ -333,8 +333,8 @@ pub fn shown(
 ) -> Vec<Shown> {
     use boss::corbenik::Pic;
     let mut v = Vec::new();
-    let body_clip = b.anm.clip.clone().unwrap_or_default();
-    let alpha = ee::f(b.set_transparency);
+    let body_clip = b.base.anm.clip.clone().unwrap_or_default();
+    let alpha = ee::f(b.base.set_transparency);
     let hit_clip = match &b.class {
         Class::CorbenikB(x) => x.anm_barrier.clip.clone(),
         _ => None,
