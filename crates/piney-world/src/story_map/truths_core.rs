@@ -18,8 +18,9 @@ use crate::area::AreaCore;
 use crate::draw::{self, Draw};
 use crate::ee::{ONE, V4};
 use crate::hit::HitModel;
+use crate::sprite::{EffSprite, EffState};
 use crate::story_map::StoryMap;
-use crate::story_map::holy_ground::{StorySprite, layer};
+use crate::story_map::holy_ground::layer;
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, model_hits};
 use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
@@ -187,7 +188,7 @@ impl StoryMap for Area13 {
     /// `Draw`: `DrawBG` (the clump at the identity, fog off), then on
     /// `objLayer` `DrawObj2`, `DrawObj`, `DrawFloor` and the type-0 rows,
     /// then the glows on `effLayer`.
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
         if let Some((_, models)) = &self.bg {
             for &m in models {
                 self.clump_draw(layers, layer::BG0, to_screen, m);
@@ -228,18 +229,7 @@ impl StoryMap for Area13 {
         self.glows
             .iter()
             .zip(frames)
-            .map(|(g, pat)| StorySprite {
-                file: FILE,
-                eff: EFF,
-                pos: g.pos,
-                layer: layer::EFF,
-                pat: pat as u16,
-                scale: ONE,
-                rotate: 0,
-                transparency: ONE,
-                flare: false,
-                fog: false,
-            })
+            .map(|(g, pat)| EffSprite::new(FILE, EFF, g.pos, pat as u16, layer::EFF, EffState::NO_FOG))
             .collect()
     }
 }
@@ -282,7 +272,7 @@ mod tests {
         let mut layers = Layers::default();
         let sprites = a.draw(&mut layers, Mat4::IDENTITY, &TownView::default(), true);
         assert_eq!(sprites.len(), 7);
-        assert!(sprites.iter().all(|s| !s.fog && !s.flare && s.layer == layer::EFF));
+        assert!(sprites.iter().all(|s| s.state == EffState::NO_FOG && s.layer == layer::EFF));
         assert!(!layers.flatten().is_empty());
     }
 }

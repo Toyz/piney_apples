@@ -8,6 +8,7 @@
 //! walk ([`FxTasks::spell`]); docs/engine/effects.md.
 
 mod ambient;
+pub(crate) mod sprites;
 
 use std::sync::Arc;
 
@@ -23,12 +24,8 @@ use piney_effect::portal::{CircleFrame, MagicCircle};
 use piney_effect::{CharRef, Effects, Host, ONE, V4, flyfont, vu};
 use piney_world::combat::{FxTasks, FxWorld, Look, Show, SpellDamage, SpellOut, SpellRun};
 use piney_world::field::world::{FieldFx, FxView};
-use piney_world::story_map::holy_ground::StorySprite;
+use piney_world::sprite::EffSprite;
 use piney_world::town::merchant::SysopEvent;
-
-/// An ambient sprite's `ccEff` by file, name, fog bit, depth test and
-/// palette change (`piney_world::field::ambient::Sprite`).
-type AmbientKey = (&'static str, &'static str, bool, bool, Option<(&'static str, &'static str)>);
 
 /// The effects of an area and what they draw with.
 pub struct AreaFx {
@@ -41,15 +38,10 @@ pub struct AreaFx {
     /// The effects' calls into the rest of the game since the runtime
     /// last took them (sounds, shakes, noise).
     pub events: Vec<piney_effect::Event>,
-    /// A story map's `ccEff`s by file and name as its constructor made them
-    /// (area 15's lens flare, an arena's fireflies, whose file is the
-    /// stage's; a flare's render state is its own), and the disc their
-    /// file is read from.
-    story: std::collections::HashMap<(&'static str, &'static str, bool, bool), Option<Eff>>,
-    /// A field's weather's `ccEff`s (and a dungeon's sparks and glows) by
-    /// file, name, fog bit, depth test and palette change, and its smoke
+    /// The `ccEff`s of the sprites the world asks for (a story map's,
+    /// the weather's, a dungeon's, a breath's), and the weather's smoke
     /// puffs waiting for the next effect task ([`ambient`]).
-    ambient: std::collections::HashMap<AmbientKey, Option<Eff>>,
+    sprites: sprites::EffSprites,
     ambient_smoke: Vec<piney_world::field::ambient::Op>,
     archive: Arc<Archive>,
     /// Each character's condition effect (`ccChar` +0x2c), by scene index.
@@ -176,8 +168,7 @@ impl AreaFx {
             font,
             circle,
             events: Vec::new(),
-            story: Default::default(),
-            ambient: Default::default(),
+            sprites: Default::default(),
             ambient_smoke: Vec::new(),
             conditions: std::collections::HashMap::new(),
             archive: archive.clone(),
@@ -187,31 +178,6 @@ impl AreaFx {
             ending: None,
             fog: None,
         })
-    }
-
-    /// A story map's `ccEff` for a sprite: `Init(chunk, 1)`; for a flare
-    /// then `SetRenderState(CCRS_ZENABLE, 0)` (no depth test) and PRIM's
-    /// fog bit cleared, as `EVENTAREA02`'s constructor leaves each.
-    fn story_eff(&mut self, s: &StorySprite) -> Option<Eff> {
-        let assets = &mut self.fx.assets;
-        let archive = &self.archive;
-        self.story
-            .entry((s.file, s.eff, s.flare, s.fog))
-            .or_insert_with(|| {
-                assets.add_file(archive, s.file).ok()?;
-                let o = assets.find(s.file, s.eff)?;
-                let (j, chunk) = assets.eff_chunk(o)?;
-                let mut e = Eff::init(o.file, j, chunk, true, &assets.alpha_blend);
-                if s.flare {
-                    e.test &= !0x1_0000;
-                    e.prim &= !0x20;
-                }
-                if !s.fog {
-                    e.prim &= !0x20;
-                }
-                Some(e)
-            })
-            .clone()
     }
 
     /// The starters for the shows, in order.
@@ -556,19 +522,10 @@ impl FieldFx for AreaFx {
     }
 
     /// A story map's sprites (`EVENTAREA02::DrawLensFlare`,
-    /// `EVENTAREAB0`'s fireflies): each `ccEff::Draw(pos, pat)` on its
-    /// layer.
-    fn story_sprites(&mut self, sprites: &[StorySprite], camera: &piney_world::camera::Camera, ctx: &mut Ctx) {
+    /// `EVENTAREAB0`'s fireflies).
+    fn sprites(&mut self, sprites: &[EffSprite], camera: &piney_world::camera::Camera, ctx: &mut Ctx) {
         let cam = FxCamera::from_field(camera).fogged(self.fog);
-        for s in sprites {
-            let Some(mut e) = self.story_eff(s) else { continue };
-            e.pos = s.pos;
-            e.scale_x = s.scale;
-            e.scale_y = s.scale;
-            e.rotate = s.rotate;
-            e.transparency = s.transparency;
-            e.render(&self.fx.assets, &mut ctx.layers, s.layer, s.pat, &cam);
-        }
+        self.sprites.draw(&mut self.fx.assets, &self.archive, sprites, &cam, &mut ctx.layers);
     }
 
     fn field_ambient(

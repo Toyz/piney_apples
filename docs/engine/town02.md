@@ -465,7 +465,7 @@ Obj2 and Obj, Models of Floor), Map, Models(Other), LensFlare, Clouds
 `Town::step` runs them with a `TownView` (the eye, the player, the
 active camera, the flare's camera, `puppetShow`, `world_screen`); each
 system puts its pieces in the frame, and `Town::requests` hands them back
-as generic draws (models, a `ccAnm`, a `ccEff` as `TownSprite`) which the
+as generic draws (models, a `ccAnm`, a `ccEff` as `EffSprite`) which the
 world paints the same way for every town and `piney-game`'s `town_fx`
 draws the sprites of through piney-effect's `ccEff::Draw`. `town::water_st`
 is `waterUVModifi2`, `WaterZero` the texture coordinates it leaves; water 0

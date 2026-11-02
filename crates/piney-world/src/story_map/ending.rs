@@ -15,8 +15,8 @@ use piney_desktop::layers::Layers;
 
 use crate::area::AreaCore;
 use crate::ee::V4;
+use crate::sprite::EffSprite;
 use crate::story_map::event_hits;
-use crate::story_map::holy_ground::StorySprite;
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{StoryFrame, StoryMap, StoryRequest};
 use crate::town::{TownLights, TownView};
@@ -61,7 +61,7 @@ impl StoryMap for EndArea {
     fn frame(&mut self, x: &mut StoryFrame) {
         x.out.push(StoryRequest::PanelStatus(3));
     }
-    fn draw(&mut self, _layers: &mut Layers, _to_screen: Mat4, _v: &TownView, _step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, _layers: &mut Layers, _to_screen: Mat4, _v: &TownView, _step: bool) -> Vec<EffSprite> {
         Vec::new()
     }
 }

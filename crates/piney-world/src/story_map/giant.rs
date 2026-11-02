@@ -25,8 +25,9 @@ use crate::ee::{self, F, ONE, V4};
 use crate::hit::{HitModel, UNIT};
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare::{self, FLARES};
+use crate::sprite::{EffSprite, EffState};
 use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{MoveTex, StaticModel, StaticObject, StorySprite, clump_models, layer};
+use crate::story_map::holy_ground::{MoveTex, StaticModel, StaticObject, clump_models, layer};
 use crate::story_map::{Enter, StartSpread, StoryMap};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, light_group};
@@ -397,7 +398,7 @@ impl Giant {
     /// `EVENTAREA07::Draw` into the field's layers, stepping only when
     /// `step` (the tasks awake); the clouds' and the flares' sprites for
     /// the effects to draw. The background clumps have their fog off.
-    pub fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
+    pub fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
         let pieces = if step {
             self.select(v)
         } else {
@@ -450,31 +451,23 @@ impl Giant {
                 }
                 Piece::Cloud { k } => {
                     let c = &self.clouds[k];
-                    sprites.push(StorySprite {
-                        file: EFF_FILE,
-                        eff: cloud::EFF_SMOKE,
-                        pos: c.pos,
-                        layer: layer::EFF,
-                        pat: c.pattern as u16,
-                        scale: c.eff.scale_x,
+                    sprites.push(EffSprite {
+                        scale: [c.eff.scale_x; 2],
                         rotate: c.eff.rotate,
                         transparency: c.eff.transparency,
-                        flare: true,
-                        fog: true,
+                        ..EffSprite::new(
+                            EFF_FILE,
+                            cloud::EFF_SMOKE,
+                            c.pos,
+                            c.pattern as u16,
+                            layer::EFF,
+                            EffState::FLARE,
+                        )
                     });
                 }
-                Piece::Flare { k, pos } => sprites.push(StorySprite {
-                    file: EFF_FILE,
-                    eff: FLARES[k],
-                    pos,
-                    layer: layer::EFF,
-                    pat: 0,
-                    scale: ONE,
-                    rotate: 0,
-                    transparency: ONE,
-                    flare: true,
-                    fog: true,
-                }),
+                Piece::Flare { k, pos } => {
+                    sprites.push(EffSprite::new(EFF_FILE, FLARES[k], pos, 0, layer::EFF, EffState::FLARE))
+                }
             }
         }
         sprites
@@ -519,7 +512,7 @@ impl StoryMap for Giant {
             Some(b) => Enter::Block(b),
         })
     }
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
         Giant::draw(self, layers, to_screen, v, step)
     }
 }

@@ -287,7 +287,7 @@ EventArea::select         Draw's pieces in order with their layers, the
                           scrolls and animations stepped
 EventArea::lens_flare     DrawLensFlare's positions
 EventArea::draw           the pieces into the layers; the flares handed back
-                          as StorySprites
+                          as EffSprites
 EventArea::enter          Enter on area 15's door
 EventArea::start_positions  SetCharPosition in the map
 Kept                      what WORLD_MAN keeps between scenes: the dungeon,
@@ -299,7 +299,7 @@ for area 15 (or takes the kept one after a door), stands the party with
 `start_positions`, runs the same frame as a field (the battle's tasks
 over the map's collision, `Hits::event_area`), calls `EventArea::enter`
 from `WORLD_MAN::Enter`, draws it in `ccThFieldDisp`'s place, and hands
-the flares to `FieldFx::story_sprites`, which `piney-game`'s `AreaFx`
+the flares to `FieldFx::sprites`, which `piney-game`'s `AreaFx`
 draws with piney-effect's `ccEff::Draw`. The session keeps the map
 across the church's set-up in the slot that keeps a dungeon.
 `piney-game --mode field:15` starts on the holy ground; the Chaos Gate's
@@ -395,7 +395,7 @@ Mutation's event 115 goes to field 13 (MUT gcmn 0x00414110 constructor,
 **The port.** `piney_world::story_map::truths_core::Area13`, a `StoryMap` on
 an `AreaCore` (`AreaCore::read`) with the volume's `StaticModels` and
 `StaticObjects` (`piney_world::systems::statics`). The glows are
-`StorySprite`s with `fog` off.
+`EffSprite`s in `EffState::NO_FOG`.
 
 ## Area 43: EVENTAREA03
 
@@ -515,7 +515,7 @@ from the dungeon, `GO(1)` makes a new one, which stands the party at
 
 The port is `crates/piney-world/src/story_map/giant.rs`, held as
 `field_world::Place::Giant`. The clouds and flares are story sprites
-(`StorySprite` carries a cloud's turn). `the_giants_blocks`,
+(`EffSprite`s, a cloud's with its turn). `the_giants_blocks`,
 `the_background_bobs` and the session's
 `the_giants_door_to_its_dungeon_and_back` check it.
 
@@ -680,8 +680,7 @@ battle's tasks over its collision, drawing it in `ccThFieldDisp`'s place.
 The arena draws on from the game's `fieldrand` (below); the fireflies
 (`piney_world::sky::firefly`, type 0) are made in the constructor from it and
 drawn and moved in `Draw` with the player's position. Their sprites go to
-the effects' `story_sprites` (`EFF_se1_5fir1` of `se1_5`, `Init(chunk,
-1)`'s render state, the scale, transparency and pattern) on effLayer.
+the effects' `sprites` (`EFF_se1_5fir1` of `se1_5`, `EffState::INIT`, the scale, transparency and pattern) on effLayer.
 `piney-game --mode field:1` starts there, with area 27's `WORLD_MAN` on town
 1.
 

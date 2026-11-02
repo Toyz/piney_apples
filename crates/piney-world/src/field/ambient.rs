@@ -11,6 +11,7 @@ use piney_desktop::FIELD_AMBIENT;
 
 use crate::ee::{self, F, ONE, V4};
 use crate::field::area::{p2w, w2p};
+use crate::sprite::{EffSprite, EffState};
 
 /// `GetWeather()` of `WORLD_MAN` (main 0x0019f190): the weather of field
 /// type `ty` with background row `b`: 0 fine, 1 cloudy, 2 rain, 3 storm, 4
@@ -138,38 +139,10 @@ impl Env<'_> {
 /// effects, 5 TOBJ and BIRD, 6 the heat haze.
 pub type Layer = u8;
 
-/// A `ccEff::Draw` as the sprite then stands: its name, place, pattern,
-/// scale, turn, transparency and fog bit (`+0x62` bit 5), and whether it
-/// is depth-tested (the lens flare's are not: `SetRenderState(
-/// CCRS_ZENABLE, 0)`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Sprite {
-    pub layer: Layer,
-    /// The CCS file the sprite's chunk is in: `field_eff`, or the field's
-    /// own (`fieldccs[type]`) for the snow and embers.
-    pub file: &'static str,
-    pub name: &'static str,
-    pub pos: V4,
-    pub pattern: u16,
-    pub scale: [F; 2],
-    pub rotate: F,
-    pub transparency: F,
-    pub fog: bool,
-    pub ztest: bool,
-    /// The `ccEff`'s colour (+0x2c) when its code changes it (a symbol's
-    /// fires); None: as `Init` left it.
-    pub colour: Option<u32>,
-    /// `ccEff::ChangeClut(new, old)` (main 0x0013bb20) as (new, old)
-    /// palette names in `file`: the sprite draws with `new` if its palette
-    /// is `old` (a dungeon's sparks, `DUNGEON::ChangeClut`); with `old` ""
-    /// it draws with `new` whatever (an enemy's breath sets it outright).
-    pub clut: Option<(&'static str, &'static str)>,
-}
-
 /// One picture the drawing asks for, in order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
-    Sprite(Sprite),
+    Sprite(EffSprite),
     /// `effSmoke(pos, v, s, life, t, in, out)` (main 0x001ce300).
     Smoke {
         pos: V4,
@@ -401,19 +374,11 @@ impl Eff {
 
     /// `Draw(pos, pattern)`.
     pub fn draw_at(&self, layer: Layer, pos: V4, pattern: u16) -> Op {
-        Op::Sprite(Sprite {
-            layer,
-            file: self.file,
-            name: self.name,
-            pos,
-            pattern,
+        let layer = crate::field::area::ambient_layer(layer);
+        Op::Sprite(EffSprite {
             scale: self.scale,
-            rotate: 0,
             transparency: self.transparency,
-            fog: self.fog,
-            ztest: true,
-            colour: None,
-            clut: None,
+            ..EffSprite::new(self.file, self.name, pos, pattern, layer, EffState::fogged(self.fog))
         })
     }
 }
@@ -1323,20 +1288,8 @@ pub fn field_flare(dummy: V4, cam: &crate::story_map::holy_ground::FlareCamera, 
     let sun = env.p2w(dummy);
     for (k, p) in crate::sky::lensflare::points(sun, cam).into_iter().enumerate() {
         let p = env.p2w(env.w2p(p));
-        out.push(Op::Sprite(Sprite {
-            layer: 3,
-            file: EFF_FILE,
-            name: crate::sky::lensflare::FLARES[k],
-            pos: p,
-            pattern: 0,
-            scale: [ONE; 2],
-            rotate: 0,
-            transparency: ONE,
-            fog: false,
-            ztest: false,
-            colour: None,
-            clut: None,
-        }));
+        let flare = crate::sky::lensflare::FLARES[k];
+        out.push(Op::Sprite(EffSprite::new(EFF_FILE, flare, p, 0, crate::draw::EFF_LAYER, EffState::FLARE)));
     }
 }
 
@@ -1563,19 +1516,17 @@ impl Ambient {
                         let mut draws = Vec::new();
                         r.draw_in(&fly, &mut draws);
                         out.extend(draws.into_iter().map(|d| {
-                            Op::Sprite(Sprite {
-                                layer: 3,
-                                file: EFF_FILE,
-                                name: "EFF_sfzfir1",
-                                pos: d.pos,
-                                pattern: d.pattern,
+                            Op::Sprite(EffSprite {
                                 scale: [d.scale; 2],
-                                rotate: 0,
                                 transparency: d.transparency,
-                                fog: true,
-                                ztest: true,
-                                colour: None,
-                                clut: None,
+                                ..EffSprite::new(
+                                    EFF_FILE,
+                                    "EFF_sfzfir1",
+                                    d.pos,
+                                    d.pattern,
+                                    crate::draw::EFF_LAYER,
+                                    EffState::INIT,
+                                )
                             })
                         }));
                     }

@@ -227,10 +227,13 @@ Where the code does by hand, per kind, what a system should do once:
       `cinema`, the merchant camera, and `CamView.active` threaded by hand
       (worklog 512). One camera list with the active id, each camera kind a
       member, every reader asking the list.
-- [ ] **A sprite and effect-request system.** Four sprite types do one job
+- [x] **A sprite and effect-request system.** Four sprite types do one job
       (`TownSprite`, `StorySprite`, `breath::Flame`, `field::ambient::Sprite`)
       with two Eff caches (`town_fx.rs`, `fx.rs`, one of them keyed without
       the file, worklog 509); one `EffSprite` request and one cache.
+      (worklog 564: `piney_world::sprite::EffSprite` with its `EffState`,
+      what the owner's code did to the `ccEff`; one `fx::sprites::EffSprites`
+      cache both effect hosts draw through.)
 - [ ] **A carry system.** What outlives a scene is scattered over
       `SaveState` and the session: the scroll statics, `move_tex`,
       `field_rand`, the field ambient's kept state, the kept dummies, the
@@ -255,9 +258,9 @@ Where the code does by hand, per kind, what a system should do once:
       def; `TownMap` branches on no town. Left: the story maps' own
       `StaticModel` / `StaticObject` (holy ground, giant, abyss, boss
       arena, disc) on the statics systems, the story maps' and fields'
-      clouds, flares and scrolls as these systems (one sprite request
-      for `TownSprite` and `StorySprite` first), fireflies, lights, the
-      fields' ambient, the dungeons'.)
+      clouds, flares and scrolls as these systems (the one sprite request
+      is in, worklog 564), fireflies, lights, the fields' ambient, the
+      dungeons'.)
 - [ ] **Scene transitions.** The session's `change`, `leave`, `enter_world`
       and the modes' `change_area` / `scene_change` / `leave` repeat the
       same request handling (worklog 503 had the console's `town` skip it);

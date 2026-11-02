@@ -1319,6 +1319,13 @@ pub fn ambient_layer(k: u8) -> i16 {
     }
 }
 
+/// The `SetActiveLayer` number of a layer [`ambient_layer`] gives. sysLayer
+/// and objLayer are one layer here; their sprites are sysLayer's (the snow
+/// on 0), none goes on objLayer.
+pub fn active_layer(layer: i16) -> u8 {
+    (0..=6).find(|&k| ambient_layer(k) == layer).unwrap_or(0)
+}
+
 /// `SetLake`'s three animations of `ANM_sfwat1_1a` (`field_eff`), in step
 /// (each set up alike and stepped once a frame before its draw): their
 /// clip, the second's `OBJ_water00` as `waterUVModifi` leaves it, and the

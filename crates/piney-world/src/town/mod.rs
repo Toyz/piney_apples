@@ -388,27 +388,6 @@ impl TownView {
     }
 }
 
-/// A `ccEff` a town's `Draw` draws (the lens flare, the clouds, Lia Fail's
-/// glows), for the host's effects: `ccEff::Draw(pos, pattern)` of
-/// `file`'s `eff` on `layer` as `Init(chunk, 1)` left it, with the scale,
-/// turn and transparency given.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TownSprite {
-    pub file: &'static str,
-    pub eff: &'static str,
-    pub pos: V4,
-    pub pattern: u16,
-    pub layer: i16,
-    pub scale: [F; 2],
-    pub rotate: F,
-    pub transparency: F,
-    /// Whether it keeps `Init`'s depth test and fog. `LENSFLARE`'s and
-    /// `CLOUD`'s constructors turn both off (`SetRenderState(CCRS_ZENABLE,
-    /// 0)` and PRIM's fog bit); `ROOTTOWN05`'s glows keep them, so the
-    /// buildings hide them.
-    pub depth: bool,
-}
-
 /// A clump's models as `ccClump::Draw` draws them: each node's own
 /// (morph targets, mtype bit 3, left out), in object order.
 pub(crate) fn clump_models(file: &SceneFile, name: &str) -> Vec<u32> {

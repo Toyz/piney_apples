@@ -8,7 +8,7 @@ use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, Step
 use crate::draw::EFF_LAYER;
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare;
-use crate::town::TownSprite;
+use crate::sprite::{EffSprite, EffState};
 
 /// How many clouds the first `Draw` makes and of which type.
 #[derive(Clone, Copy, Debug)]
@@ -67,16 +67,11 @@ impl MapSystem for Clouds {
     fn draw<'a>(&'a self, piece: Piece, _: &DrawCx<'a>) -> Option<Request<'a>> {
         let Piece::Sprite { k, pattern, pos } = piece else { return None };
         let c = self.clouds.get(k)?;
-        Some(Request::Sprite(TownSprite {
-            file: lensflare::FILE,
-            eff: cloud::EFF_SMOKE,
-            pos,
-            pattern,
-            layer: EFF_LAYER,
+        Some(Request::Sprite(EffSprite {
             scale: [c.eff.scale_x, c.eff.scale_y],
             rotate: c.eff.rotate,
             transparency: c.eff.transparency,
-            depth: false,
+            ..EffSprite::new(lensflare::FILE, cloud::EFF_SMOKE, pos, pattern, EFF_LAYER, EffState::FLARE)
         }))
     }
 }

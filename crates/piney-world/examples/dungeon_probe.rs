@@ -125,8 +125,8 @@ fn dress(d: &DungeonArea) -> String {
         format!("[{}]", items.join(", "))
     };
     let clut = match d.spark_clut() {
-        Some((n, o)) => format!("[\"{n}\", \"{o}\"]"),
-        None => "null".into(),
+        Some(piney_world::sprite::Clut::Change { new, old }) => format!("[\"{new}\", \"{old}\"]"),
+        _ => "null".into(),
     };
     let fireflies: Vec<String> =
         d.lake.iter().flat_map(|l| &l.fireflies).map(|f| format!("[{}, {}]", list(&f.base[..3]), f.pattern)).collect();
@@ -329,7 +329,7 @@ fn main() {
                         .iter()
                         .filter_map(|o| match o {
                             piney_world::field::ambient::Op::Sprite(s) => {
-                                Some(format!("[\"{}\", {}, {}, {}]", s.name, list(&s.pos), s.pattern, s.transparency))
+                                Some(format!("[\"{}\", {}, {}, {}]", s.eff, list(&s.pos), s.pattern, s.transparency))
                             }
                             _ => None,
                         })

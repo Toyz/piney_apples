@@ -13,6 +13,7 @@ use crate::draw::{EFF_LAYER, OBJ_LAYER};
 use crate::ee::{F, ONE, V4};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::sky::cloud;
+use crate::sprite::{EffSprite, EffState};
 use crate::systems::scrolls::ScrollsDef;
 use crate::systems::sky::{SkyClump, SkyDef};
 use crate::systems::statics::ModelsDef;
@@ -20,7 +21,7 @@ use crate::systems::{
     BuildCx, DRAW_BG, DrawCx, Hook, Kind, MapSystem, Others, PASSES, Piece, Request, Step, StepCx, SystemDef,
 };
 use crate::town::scroll_statics as statics;
-use crate::town::{BASE_TOWN, FogParams, TownDef, TownSprite};
+use crate::town::{BASE_TOWN, FogParams, TownDef};
 
 pub const FILE: &str = "town05";
 /// `DrawBG`'s clump, on `bgLayer[0]` (+0x494).
@@ -205,17 +206,7 @@ impl MapSystem for Glows {
     /// buildings hide it.
     fn draw<'a>(&'a self, piece: Piece, _: &DrawCx<'a>) -> Option<Request<'a>> {
         let Piece::Sprite { pattern, pos, .. } = piece else { return None };
-        Some(Request::Sprite(TownSprite {
-            file: FILE,
-            eff: GLOW,
-            pos,
-            pattern,
-            layer: EFF_LAYER,
-            scale: [ONE; 2],
-            rotate: 0,
-            transparency: ONE,
-            depth: true,
-        }))
+        Some(Request::Sprite(EffSprite::new(FILE, GLOW, pos, pattern, EFF_LAYER, EffState::INIT)))
     }
 }
 

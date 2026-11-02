@@ -20,11 +20,12 @@ use piney_desktop::layers::Layers;
 
 use crate::area::AreaCore;
 use crate::draw::{self, Draw};
-use crate::ee::{F, ONE, V4};
+use crate::ee::{F, V4};
 use crate::hit::HitModel;
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare::{self, FLARES};
-use crate::story_map::holy_ground::{MoveTex, StorySprite, layer};
+use crate::sprite::{EffSprite, EffState};
+use crate::story_map::holy_ground::{MoveTex, layer};
 use crate::story_map::{Enter, StartSpread, StoryMap};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, model_hits};
@@ -382,7 +383,7 @@ impl SkyMap {
 
     /// The pieces into the field's layers; the flares and clouds come back
     /// as sprites.
-    fn draw_pieces(&self, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) -> Vec<StorySprite> {
+    fn draw_pieces(&self, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) -> Vec<EffSprite> {
         let k = self.class.kind();
         let mut sprites = Vec::new();
         for &piece in pieces {
@@ -402,31 +403,23 @@ impl SkyMap {
                         paint(layers, to_screen, &r, &mut Vec::new());
                     }
                 }
-                Piece::Flare(i, pos) => sprites.push(StorySprite {
-                    file: EFF_FILE,
-                    eff: FLARES[i],
-                    pos,
-                    layer: layer::EFF,
-                    pat: 0,
-                    scale: ONE,
-                    rotate: 0,
-                    transparency: ONE,
-                    flare: true,
-                    fog: true,
-                }),
+                Piece::Flare(i, pos) => {
+                    sprites.push(EffSprite::new(EFF_FILE, FLARES[i], pos, 0, layer::EFF, EffState::FLARE))
+                }
                 Piece::Cloud(i) => {
                     let c = &self.clouds[i];
-                    sprites.push(StorySprite {
-                        file: EFF_FILE,
-                        eff: cloud::EFF_SMOKE,
-                        pos: c.pos,
-                        layer: layer::EFF,
-                        pat: c.pattern as u16,
-                        scale: c.eff.scale_x,
+                    sprites.push(EffSprite {
+                        scale: [c.eff.scale_x; 2],
                         rotate: c.eff.rotate,
                         transparency: c.eff.transparency,
-                        flare: true,
-                        fog: true,
+                        ..EffSprite::new(
+                            EFF_FILE,
+                            cloud::EFF_SMOKE,
+                            c.pos,
+                            c.pattern as u16,
+                            layer::EFF,
+                            EffState::FLARE,
+                        )
                     });
                 }
             }
@@ -483,7 +476,7 @@ impl StoryMap for SkyMap {
             _ => Enter::Stay,
         })
     }
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
         if step {
             let pieces = self.select(v);
             return self.draw_pieces(layers, to_screen, &pieces);

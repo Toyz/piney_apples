@@ -27,6 +27,7 @@ pub mod hit;
 pub mod map;
 pub mod mt;
 pub mod sky;
+pub mod sprite;
 pub mod story_map;
 pub mod systems;
 pub mod town;
@@ -275,7 +276,7 @@ pub struct World {
     start: (V4, V4),
     /// The `ccEff`s the town's last draw asked for (Dun Loireag's lens
     /// flare and clouds), for the host's effects.
-    town_sprites: Vec<town::TownSprite>,
+    town_sprites: Vec<sprite::EffSprite>,
     // --- the Flag Race (grunty/race.rs, town/ride.rs), from Mutation on ---
     /// Its three flags (`0x00774a90`), its task (`0x0038bd44`) and the
     /// riding Grunty's (`pcgs`); what they asked of the game.
@@ -1262,7 +1263,7 @@ impl World {
         &self.kite
     }
 
-    pub fn take_town_sprites(&mut self) -> Vec<town::TownSprite> {
+    pub fn take_town_sprites(&mut self) -> Vec<sprite::EffSprite> {
         std::mem::take(&mut self.town_sprites)
     }
 

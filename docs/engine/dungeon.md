@@ -645,8 +645,8 @@ nothing to draw.
 - `RoomFile`'s models leave out those without mmats (no hits for them).
 - `draw` draws the dressing whether or not the player's cell is the room's
   and steps it while awake. `DrawEff`'s sprites go to the effects as the
-  fields' ambient ones do (`field_ambient::Sprite`, the palette change in
-  `clut`).
+  fields' ambient ones do (`EffSprite`, the palette change its state's
+  `Clut::Change`).
 - The glows' omni lights join `lights` and flicker with their glows.
 - Water 0 samples the frame drawn so far, not the copy made after it.
 - `u` lives as long as the dungeon.

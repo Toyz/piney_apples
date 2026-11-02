@@ -25,8 +25,9 @@ use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
 use crate::sky::cloud::{self, Cloud};
+use crate::sprite::EffSprite;
 use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{StaticModel, StaticObject, StorySprite, clump_models, layer};
+use crate::story_map::holy_ground::{StaticModel, StaticObject, clump_models, layer};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{StartSpread, StoryMap, party_starts};
 use crate::story_map::{event_hits, light_group};
@@ -765,7 +766,7 @@ impl StoryMap for DiscArea {
     fn clear(&self) -> [u8; 3] {
         BG_COLOR
     }
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
         let mut cc = piney_battle::rand::Genrand::default();
         self.draw_rand(layers, to_screen, v, step, &mut cc)
     }
@@ -776,7 +777,7 @@ impl StoryMap for DiscArea {
         v: &TownView,
         step: bool,
         cc: &mut dyn CcRand,
-    ) -> Vec<StorySprite> {
+    ) -> Vec<EffSprite> {
         let pieces = if step {
             self.select(v, cc)
         } else {

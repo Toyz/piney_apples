@@ -17,29 +17,18 @@ use piney_battle::geom::{F, M4};
 
 use super::Combat;
 use super::stage::{PlayerFrame, Show};
+use crate::draw::EFF_LAYER;
 use crate::ee::V4;
-use crate::field::ambient::{Op, Sprite};
+use crate::field::ambient::Op;
 use crate::hit::Hits;
-
-/// A flame as the frame drew it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Flame {
-    pub file: &'static str,
-    pub eff: &'static str,
-    pub clut: Option<&'static str>,
-    pub pos: V4,
-    pub pattern: u16,
-    pub scale: [F; 2],
-    pub rotate: F,
-    pub alpha: F,
-}
+use crate::sprite::{Clut, EffSprite, EffState};
 
 /// The enemies' breaths by (scene index, slot), and the frame's flames
 /// and bursts.
 #[derive(Clone, Debug, Default)]
 pub struct Breaths {
     pub map: HashMap<(usize, usize), Breath>,
-    pub flames: Vec<Flame>,
+    pub flames: Vec<EffSprite>,
     pub smoke: Vec<Op>,
     /// For tests: the flames drawn and the bursts so far.
     pub drawn: u64,
@@ -114,15 +103,12 @@ impl Combat {
                             BreathOut::Draw { pos, scale, rotate, alpha, pattern, .. } => {
                                 self.breaths.drawn += 1;
                                 if let Some(file) = file {
-                                    self.breaths.flames.push(Flame {
-                                        file,
-                                        eff,
-                                        clut,
-                                        pos,
-                                        pattern,
+                                    let state = EffState { clut: clut.map(Clut::Set), ..EffState::NO_FOG };
+                                    self.breaths.flames.push(EffSprite {
                                         scale,
                                         rotate,
-                                        alpha,
+                                        transparency: alpha,
+                                        ..EffSprite::new(file, eff, pos, pattern, EFF_LAYER, state)
                                     });
                                 }
                             }
@@ -157,27 +143,7 @@ impl Combat {
     /// 0)`: no fog; the palette chunk set outright), then the bursts'
     /// puffs, taken.
     pub fn breath_ops(&mut self) -> Vec<Op> {
-        let mut ops: Vec<Op> = self
-            .breaths
-            .flames
-            .drain(..)
-            .map(|f| {
-                Op::Sprite(Sprite {
-                    layer: 3,
-                    file: f.file,
-                    name: f.eff,
-                    pos: f.pos,
-                    pattern: f.pattern,
-                    scale: f.scale,
-                    rotate: f.rotate,
-                    transparency: f.alpha,
-                    fog: false,
-                    ztest: true,
-                    colour: None,
-                    clut: f.clut.map(|c| (c, "")),
-                })
-            })
-            .collect();
+        let mut ops: Vec<Op> = self.breaths.flames.drain(..).map(Op::Sprite).collect();
         ops.append(&mut self.breaths.smoke);
         ops
     }

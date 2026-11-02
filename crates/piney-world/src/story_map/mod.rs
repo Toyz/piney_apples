@@ -37,7 +37,8 @@ use crate::area::AreaCore;
 use crate::camera::Camera;
 use crate::ee::{F, V4};
 use crate::hit::{HitModel, Hits};
-use crate::story_map::holy_ground::{Kept, StorySprite};
+use crate::sprite::EffSprite;
+use crate::story_map::holy_ground::Kept;
 use crate::town::{TownLights, TownView};
 
 /// What `WORLD_MAN::Enter` does from a story map's door.
@@ -113,7 +114,7 @@ pub trait StoryMap: Any {
     fn frame(&mut self, _x: &mut StoryFrame) {}
     /// `Draw` into the field's layers, stepping only when `step`; the
     /// sprites for the effects to draw.
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite>;
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite>;
     /// [`StoryMap::draw`] with the game's `ccRand` (the battle's), for a
     /// map whose `Draw` draws from it (`EVENTAREAB8`'s rocks).
     fn draw_rand(
@@ -123,7 +124,7 @@ pub trait StoryMap: Any {
         v: &TownView,
         step: bool,
         _cc: &mut dyn piney_battle::rand::Rng,
-    ) -> Vec<StorySprite> {
+    ) -> Vec<EffSprite> {
         self.draw(layers, to_screen, v, step)
     }
     /// `WORLD_MAN::GetTransMode()` and `GetTransCenter`: the centre the

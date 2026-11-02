@@ -1,29 +1,28 @@
-//! The `ccEff`s a Root Town draws itself (`piney_world::town::TownSprite`:
-//! lens flares, clouds, Lia Fail's glows) through piney-effect's `ccEff::Draw`,
-//! each made once as `ccEff::Init(chunk, 1)` leaves it, the flares and clouds
-//! with no depth test and no fog. And the town's `ccEffectCtrl(0)` with
+//! The `ccEff`s a Root Town draws itself (`piney_world::sprite::EffSprite`:
+//! lens flares, clouds, Lia Fail's glows) through the one sprite cache
+//! (`crate::fx::sprites`). And the town's `ccEffectCtrl(0)` with
 //! `ccThEffect` (80) and `ccThParticle` (98): the transfers through the Chaos
 //! Gate (`effTransfer`, `effWarpTransfer`) the characters start, run after the
 //! town's tasks, so their `rand()` draws come after the frame's others.
 
 use piney_world::town::FogParams;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use piney_data::archive::Archive;
 use piney_desktop::anm::Ctx;
 use piney_effect::draw::Camera as FxCamera;
-use piney_effect::eff::Eff;
 use piney_effect::files::Assets;
 use piney_effect::{CharRef, Effects, F, Host, ONE, V4};
 use piney_world::camera::Camera;
-use piney_world::town::TownSprite;
+use piney_world::sprite::EffSprite;
+
+use crate::fx::sprites::EffSprites;
 
 /// The effects' files and the sprites made so far, and the town's effects.
 pub struct TownFx {
     assets: Assets,
     archive: Arc<Archive>,
-    effs: HashMap<(&'static str, &'static str, bool), Option<Eff>>,
+    sprites: EffSprites,
     fx: Effects,
 }
 
@@ -124,7 +123,7 @@ impl TownFx {
         Ok(TownFx {
             assets: Assets::read(archive, volume)?,
             archive: archive.clone(),
-            effs: HashMap::new(),
+            sprites: EffSprites::default(),
             fx: Effects::new(archive, volume)?,
         })
     }
@@ -202,37 +201,9 @@ impl TownFx {
         self.fx.draw(&mut ctx.layers, &FxCamera::from_field(camera).fogged(fog));
     }
 
-    /// The `ccEff` of a sprite as its owner's constructor left it.
-    fn eff(&mut self, s: &TownSprite) -> Option<Eff> {
-        let assets = &mut self.assets;
-        let archive = &self.archive;
-        self.effs
-            .entry((s.file, s.eff, s.depth))
-            .or_insert_with(|| {
-                assets.add_file(archive, s.file).ok()?;
-                let o = assets.find(s.file, s.eff)?;
-                let (j, chunk) = assets.eff_chunk(o)?;
-                let mut e = Eff::init(o.file, j, chunk, true, &assets.alpha_blend);
-                if !s.depth {
-                    e.test &= !0x1_0000;
-                    e.prim &= !0x20;
-                }
-                Some(e)
-            })
-            .clone()
-    }
-
     /// Each sprite's `ccEff::Draw(pos, pattern)` on its layer.
-    pub fn draw(&mut self, sprites: &[TownSprite], camera: &Camera, fog: Option<FogParams>, ctx: &mut Ctx) {
+    pub fn draw(&mut self, sprites: &[EffSprite], camera: &Camera, fog: Option<FogParams>, ctx: &mut Ctx) {
         let cam = FxCamera::from_field(camera).fogged(fog);
-        for s in sprites {
-            let Some(mut e) = self.eff(s) else { continue };
-            e.pos = s.pos;
-            e.scale_x = s.scale[0];
-            e.scale_y = s.scale[1];
-            e.rotate = s.rotate;
-            e.transparency = s.transparency;
-            e.render(&self.assets, &mut ctx.layers, s.layer, s.pattern, &cam);
-        }
+        self.sprites.draw(&mut self.assets, &self.archive, sprites, &cam, &mut ctx.layers);
     }
 }

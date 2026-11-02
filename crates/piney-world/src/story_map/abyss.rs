@@ -22,8 +22,9 @@ use crate::camera::{Camera, id};
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
+use crate::sprite::EffSprite;
 use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{StaticModel, StorySprite, layer};
+use crate::story_map::holy_ground::{StaticModel, layer};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{StoryFrame, StoryMap, StoryRequest};
 use crate::story_map::{event_hits, model_hits};
@@ -179,7 +180,7 @@ impl StoryMap for Area43 {
     }
     /// `Draw`'s models: `DrawFloor` (the floor models inside `BLT_floor`:
     /// none, both rows are pass 0), then the pass-0 models on `objLayer`.
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, _v: &TownView, _step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, _v: &TownView, _step: bool) -> Vec<EffSprite> {
         for m in self.models.iter().filter(|m| m.pass == DrawPass::Floor) {
             self.model_draw(layers, to_screen, m);
         }

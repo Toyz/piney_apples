@@ -10,8 +10,9 @@
 use piney_data::dungeon::Rng;
 
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Env, Op, Sprite};
+use crate::field::ambient::{Env, Op};
 use crate::sky::firefly::{Firefly, Fly};
+use crate::sprite::{EffSprite, EffState};
 
 /// One key of an `NSPLINE` (28 bytes): its value, the cubic's
 /// coefficients, the key's span as a float and its frame.
@@ -364,18 +365,9 @@ fn fly<'a>(env: &'a Env<'a>) -> Fly<'a> {
 
 fn sprite(name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, fog: bool) -> Op {
     let file = crate::field::ambient::EFF_FILE;
-    Op::Sprite(Sprite {
-        layer: 3,
-        file,
-        name,
-        pos,
-        pattern,
+    Op::Sprite(EffSprite {
         scale: [scale; 2],
-        rotate: 0,
         transparency,
-        fog,
-        ztest: true,
-        colour: None,
-        clut: None,
+        ..EffSprite::new(file, name, pos, pattern, crate::draw::EFF_LAYER, EffState::fogged(fog))
     })
 }

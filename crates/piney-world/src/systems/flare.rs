@@ -8,7 +8,7 @@ use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, Step
 use crate::draw::EFF_LAYER;
 use crate::ee::{ONE, V4};
 use crate::sky::lensflare::{self, FLARES};
-use crate::town::TownSprite;
+use crate::sprite::{EffSprite, EffState};
 
 /// The dummy the sun stands at.
 #[derive(Clone, Copy, Debug)]
@@ -59,16 +59,6 @@ impl MapSystem for LensFlare {
 
     fn draw<'a>(&'a self, piece: Piece, _: &DrawCx<'a>) -> Option<Request<'a>> {
         let Piece::Sprite { k, pos, .. } = piece else { return None };
-        Some(Request::Sprite(TownSprite {
-            file: lensflare::FILE,
-            eff: FLARES[k],
-            pos,
-            pattern: 0,
-            layer: EFF_LAYER,
-            scale: [ONE; 2],
-            rotate: 0,
-            transparency: ONE,
-            depth: false,
-        }))
+        Some(Request::Sprite(EffSprite::new(lensflare::FILE, FLARES[k], pos, 0, EFF_LAYER, EffState::FLARE)))
     }
 }

@@ -17,9 +17,10 @@ use super::{Anm, DungeonArea, Instance, Slot, invers};
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Op, Sprite};
+use crate::field::ambient::Op;
 use crate::field::area::REF_LAYER;
 use crate::hit::{HitModel, UNIT};
+use crate::sprite::{Clut, EffSprite, EffState};
 use crate::town::{Light, WaterZero, water_rows};
 
 /// `object[10]`, `anmobj[10]`, `anmobj2[10]`: at most ten of each.
@@ -385,11 +386,11 @@ impl DungeonArea {
     /// (clutType 3) or `"c2"` (clutType 4) asks of each spark: types 0
     /// and 1 only; `ccEff::ChangeClut` changes it only while the spark's
     /// palette is the old one.
-    pub fn spark_clut(&self) -> Option<(&'static str, &'static str)> {
+    pub fn spark_clut(&self) -> Option<Clut> {
         let names = SPARK_CLUT.get(usize::from(self.dtype))?;
         match self.tex_clut.clut_type {
-            3 => Some((names[1], names[0])),
-            4 => Some((names[2], names[0])),
+            3 => Some(Clut::Change { new: names[1], old: names[0] }),
+            4 => Some(Clut::Change { new: names[2], old: names[0] }),
             _ => None,
         }
     }
@@ -615,20 +616,11 @@ impl DungeonArea {
         let mut out = Vec::new();
         let clut = self.spark_clut();
         let file = self.file_name;
-        let sprite = |name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, fog: bool| {
-            Op::Sprite(Sprite {
-                layer: 3,
-                file,
-                name,
-                pos,
-                pattern,
+        let sprite = |name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, state: EffState| {
+            Op::Sprite(EffSprite {
                 scale: [scale; 2],
-                rotate: 0,
                 transparency,
-                fog,
-                ztest: true,
-                colour: None,
-                clut: None,
+                ..EffSprite::new(file, name, pos, pattern, crate::draw::EFF_LAYER, state)
             })
         };
         for s in &mut self.dress.sparks {
@@ -636,20 +628,16 @@ impl DungeonArea {
                 s.step(&mut self.rng);
                 s.fade();
             }
-            let mut op = sprite(SPARK, s.eff_pos, 0, HALF, s.transparency, false);
-            if let Op::Sprite(sp) = &mut op {
-                sp.clut = clut;
-            }
-            out.push(op);
+            out.push(sprite(SPARK, s.eff_pos, 0, HALF, s.transparency, EffState { clut, ..EffState::NO_FOG }));
         }
         let file_ccs = &self.file.ccs;
         for rl in self.dress.lights.iter_mut().take(ROOM_LIGHTS) {
             if step {
                 rl.shown = (rl.pat, rl.pat2);
             }
-            out.push(sprite(rl.eff, rl.pos, rl.shown.0, ONE, ONE, false));
+            out.push(sprite(rl.eff, rl.pos, rl.shown.0, ONE, ONE, EffState::NO_FOG));
             if let Some((e2, pos2)) = rl.eff2 {
-                out.push(sprite(e2, pos2, rl.shown.1, ONE, ONE, true));
+                out.push(sprite(e2, pos2, rl.shown.1, ONE, ONE, EffState::INIT));
             }
             if !step {
                 continue;

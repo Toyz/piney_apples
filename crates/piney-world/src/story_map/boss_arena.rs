@@ -25,8 +25,9 @@ use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
 use crate::sky::firefly::{Firefly, FireflyDraw};
+use crate::sprite::{EffSprite, EffState};
 use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{StaticModel, StorySprite, clump_models, layer};
+use crate::story_map::holy_ground::{StaticModel, clump_models, layer};
 use crate::story_map::{Made, MapDef, StoryMap};
 use crate::story_map::{event_hits, light_group, model_hits};
 use crate::town::TownView;
@@ -386,7 +387,7 @@ impl Arena {
     /// `EVENTAREAB0::Draw` into the field's layers, stepping only when
     /// `step` (the tasks awake); the fireflies' sprites for the effects to
     /// draw.
-    pub fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, player: V4, step: bool) -> Vec<StorySprite> {
+    pub fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, player: V4, step: bool) -> Vec<EffSprite> {
         let pieces = if step {
             self.select(player)
         } else {
@@ -434,17 +435,10 @@ impl Arena {
                         self.file_draw(&l.file, layers, layer, to_screen, m, Mat4::IDENTITY);
                     }
                 }
-                Piece::Firefly { draw, layer } => sprites.push(StorySprite {
-                    file: self.stage,
-                    eff,
-                    pos: draw.pos,
-                    layer,
-                    pat: draw.pattern,
-                    scale: draw.scale,
-                    rotate: 0,
+                Piece::Firefly { draw, layer } => sprites.push(EffSprite {
+                    scale: [draw.scale; 2],
                     transparency: draw.transparency,
-                    flare: false,
-                    fog: true,
+                    ..EffSprite::new(self.stage, eff, draw.pos, draw.pattern, layer, EffState::INIT)
                 }),
             }
         }
@@ -487,7 +481,7 @@ impl StoryMap for Arena {
     fn clear(&self) -> [u8; 3] {
         crate::story_map::boss_arena::BG_COLOR
     }
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
         Arena::draw(self, layers, to_screen, v.player, step)
     }
 }

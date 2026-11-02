@@ -32,9 +32,10 @@ use crate::ee::{self, F, ONE, V4};
 use crate::event::talk;
 use crate::field::area::FieldArea;
 use crate::hit::Hits;
+use crate::sprite::{EffSprite, EffState};
 use crate::story_map::StoryMap;
 use crate::story_map::boss_arena::Arena;
-use crate::story_map::holy_ground::{EventArea, Kept, StorySprite};
+use crate::story_map::holy_ground::{EventArea, Kept};
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
 use piney_data::store::Table;
 
@@ -2593,19 +2594,11 @@ impl FieldWorld {
                     // The symbols' fires (ccSymFire::main's ccEff::Draw on
                     // layer 3): EFF_x008 of XGSYMBOL.CCS, Init(chunk, 0).
                     ops.extend(self.combat.symbol_fires.iter().map(|&(pos, pattern, scale, colour)| {
-                        crate::field::ambient::Op::Sprite(crate::field::ambient::Sprite {
-                            layer: 3,
-                            file: "xgsymbol",
-                            name: piney_battle::gimmick::SYMBOL_FIRE,
-                            pos,
-                            pattern,
+                        let fire = piney_battle::gimmick::SYMBOL_FIRE;
+                        crate::field::ambient::Op::Sprite(EffSprite {
                             scale,
-                            rotate: 0,
-                            transparency: ee::ONE,
-                            fog: false,
-                            ztest: true,
                             colour: Some(colour),
-                            clut: None,
+                            ..EffSprite::new("xgsymbol", fire, pos, pattern, crate::draw::EFF_LAYER, EffState::NO_FOG)
                         })
                     }));
                     // The enemies' breaths' flames and bursts.
@@ -2644,7 +2637,7 @@ impl FieldWorld {
                         world_screen: self.camera.world_screen,
                     };
                     let sprites = m.draw_rand(&mut ctx.layers, to_screen, &v, awake, &mut self.combat.cc);
-                    self.fx.story_sprites(&sprites, &self.camera, ctx);
+                    self.fx.sprites(&sprites, &self.camera, ctx);
                 }
             }
             for r in story_out {
@@ -4235,9 +4228,9 @@ pub trait FieldFx {
     fn take_ending_asks(&mut self) -> Vec<EndingAsk> {
         Vec::new()
     }
-    /// A story map's `ccEff` sprites of the frame (area 15's lens flare),
-    /// after its draw.
-    fn story_sprites(&mut self, _sprites: &[StorySprite], _camera: &Camera, _ctx: &mut Ctx) {}
+    /// The `ccEff` sprites a story map's draw asked for (area 15's lens
+    /// flare, an arena's fireflies), after its draw.
+    fn sprites(&mut self, _sprites: &[EffSprite], _camera: &Camera, _ctx: &mut Ctx) {}
     /// A field's weather and ambient pictures of the frame, after its
     /// draw ([`crate::field::ambient`]): the `ccEff` sprites on their
     /// layers, and with `fresh` (a frame the tasks ran, not one drawn again

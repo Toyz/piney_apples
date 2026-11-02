@@ -33,15 +33,15 @@ fn op_json(op: &Op) -> String {
     match op {
         Op::Sprite(s) => format!(
             "[\"eff\",{},\"{}\",{},{},{},{},{},{},{}]",
-            s.layer,
-            s.name,
+            piney_world::field::area::active_layer(s.layer),
+            s.eff,
             list(&s.pos),
             s.pattern,
             s.scale[0],
             s.scale[1],
             s.rotate,
             s.transparency,
-            u8::from(s.fog)
+            u8::from(s.state.fog)
         ),
         Op::Smoke { pos, v, s, life, t, fade_in, fade_out } => {
             format!("[\"smoke\",{},{},{},{},{},{},{}]", list(pos), list(v), s, life, t, fade_in, fade_out)

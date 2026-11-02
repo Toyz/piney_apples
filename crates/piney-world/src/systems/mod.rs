@@ -30,7 +30,8 @@ use crate::area::AreaCore;
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, Fogging};
 use crate::ee::V4;
-use crate::town::{TownEvent, TownSprite, TownView, anm_pieces, object_morph};
+use crate::sprite::EffSprite;
+use crate::town::{TownEvent, TownView, anm_pieces, object_morph};
 
 /// The executable's scroll statics (`crate::town::scroll_statics`).
 pub type Statics = [u32; piney_desktop::SCROLL_STATICS];
@@ -141,11 +142,11 @@ pub enum Request<'a> {
         edit: Option<(u32, Arc<piney_draw::VertexEdits>)>,
     },
     /// A `ccEff` for the host's effects.
-    Sprite(TownSprite),
+    Sprite(EffSprite),
 }
 
 /// `r` into the layers; a sprite goes to `sprites` for the host.
-pub fn paint(layers: &mut Layers, to_screen: Mat4, r: &Request, sprites: &mut Vec<TownSprite>) {
+pub fn paint(layers: &mut Layers, to_screen: Mat4, r: &Request, sprites: &mut Vec<EffSprite>) {
     match r {
         Request::Models { file, models, world, layer, rows, fog } => {
             for &model in *models {

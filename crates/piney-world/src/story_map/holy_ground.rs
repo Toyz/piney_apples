@@ -4,8 +4,7 @@
 //! a generated field. Its scene `se1_2` holds two blocks: 0 the holy ground
 //! outside, 1 the church, swapped by `WORLD_MAN::Enter` on the door. Each
 //! block's floor model carries its whole collision; the map is not a torus
-//! and has no height map. Also [`StorySprite`] and the pieces the other story
-//! maps share (docs/engine/evarea.md).
+//! and has no height map. Also the pieces the other story maps share (docs/engine/evarea.md).
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -24,6 +23,7 @@ use crate::chara::pose::Play;
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
+use crate::sprite::{EffSprite, EffState};
 use crate::story_map::{Enter, StoryMap};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, light_group, model_hits};
@@ -231,31 +231,6 @@ pub enum Piece {
     Rev { layer: i16, time: u32 },
     /// `DrawLensFlare`: `LensFlare[k]->Draw(pos, 0)`.
     Flare { k: usize, layer: i16, pos: V4 },
-}
-
-/// A `ccEff` sprite a story map draws ([`EventArea::draw`] and
-/// [`crate::story_map::boss_arena::Arena::draw`] hand them to the effects, which draw
-/// sprites): `eff` of scene file `file`, drawn with `ccEff::Draw(pos, pat)`
-/// on `layer` at its scale and transparency, as `Init(chunk, 1)` left it
-/// (fog on, the depth test) - and for a lens flare `flare`, as its
-/// constructor's `SetRenderState(0, 0)` left it too (no depth test, no
-/// fog).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StorySprite {
-    pub file: &'static str,
-    pub eff: &'static str,
-    pub pos: V4,
-    pub layer: i16,
-    pub pat: u16,
-    pub scale: F,
-    /// `ccEff` +0x28 (a `CLOUD`'s turn); 0 for the others.
-    pub rotate: F,
-    pub transparency: F,
-    /// `LENSFLARE`'s and `CLOUD`'s: no depth test and no fog.
-    pub flare: bool,
-    /// Whether it keeps `Init`'s fog (`EVENTAREA01`'s effects clear PRIM's
-    /// fog bit, and keep the depth test).
-    pub fog: bool,
 }
 
 /// What the camera gives `DrawLensFlare`.
@@ -606,7 +581,7 @@ impl EventArea {
         cam: &FlareCamera,
         puppet_show: bool,
         step: bool,
-    ) -> Vec<StorySprite> {
+    ) -> Vec<EffSprite> {
         let pieces = if step {
             self.select(eye, player, cam, puppet_show)
         } else {
@@ -664,18 +639,9 @@ impl EventArea {
                         self.depth_fog(),
                     );
                 }
-                Piece::Flare { k, layer, pos } => sprites.push(StorySprite {
-                    file: EFF_FILE,
-                    eff: FLARES[k],
-                    pos,
-                    layer,
-                    pat: 0,
-                    scale: ONE,
-                    rotate: 0,
-                    transparency: ONE,
-                    flare: true,
-                    fog: true,
-                }),
+                Piece::Flare { k, layer, pos } => {
+                    sprites.push(EffSprite::new(EFF_FILE, FLARES[k], pos, 0, layer, EffState::FLARE))
+                }
             }
         }
         sprites
@@ -728,7 +694,7 @@ impl StoryMap for EventArea {
     fn enter(&mut self, block: i32, _area_prev: i32) -> Result<Enter> {
         EventArea::enter(self, block).map(Enter::Block)
     }
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
+    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
         EventArea::draw(self, layers, to_screen, v.eye, v.player, &v.flare, v.puppet_show, step)
     }
 }
