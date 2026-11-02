@@ -8,7 +8,7 @@
 use piney_data::classes::BossGameClass;
 
 use super::systems::{Hook, Kind, Step};
-use super::{Boss, BossBase, Class, Cx, F, ONE, V4};
+use super::{Boss, BossBase, Cx, F, ONE, V4};
 use super::{corbenik, fidchell, gorre, innis, kyvia, macha, magus, skeith, tarvos};
 
 /// Which body draws a clip of the boss's own.
@@ -101,7 +101,7 @@ impl BossDef {
 
 /// A bare `ccBoss` at the scene's boss.
 fn bare(_: &mut Cx, _: &Spawn) -> Boss {
-    Boss::of(&BASE_BOSS, BossBase::default(), Class::Plain)
+    Boss::build(&BASE_BOSS, BossBase::default())
 }
 
 /// `ccBoss`: `x11`'s `CMP_trall` for a look, no camera.
@@ -118,14 +118,14 @@ pub static BASE_BOSS: BossDef = BossDef {
     radius: None,
     make: bare,
     systems: &[],
-    order: &[Step::Class(Hook::Main)],
-    affect: &[Step::Class(Hook::Affect)],
-    pass: &[Step::Class(Hook::Pass)],
-    hand_over: &[Step::Class(Hook::HandOver)],
+    order: &[Step::Live(&[Step::Prologue, Step::TickStop, Step::LockParty, Step::Move, Step::ForwardAndDraw])],
+    affect: &[Step::BaseAffect],
+    pass: &[],
+    hand_over: &[],
 };
 
 /// A part: a `ccBoss` of its own character whose frame its master runs.
-pub static BASE_PART: BossDef = BossDef { ..BASE_BOSS };
+pub static BASE_PART: BossDef = BossDef { order: &[], ..BASE_BOSS };
 
 /// `InitBossCamera(z, y)`'s `transfer`: (200, 1000), the eye 1000 behind
 /// Kite and 200 up at its nearest (Skeith's, Tarvos's, Corbenik's second
@@ -159,8 +159,6 @@ pub static SKEITH: BossDef = BossDef {
         Step::Run(Kind::Skeith, Hook::Late),
     ],
     affect: &[Step::Run(Kind::Skeith, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -195,8 +193,6 @@ pub static INNIS: BossDef = BossDef {
         ]),
     ],
     affect: &[Step::Run(Kind::Innis, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -238,8 +234,6 @@ pub static MAGUS: BossDef = BossDef {
         Step::Run(Kind::Leaves, Hook::Return),
     ],
     affect: &[Step::Run(Kind::Magus, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -271,8 +265,6 @@ pub static FIDCHELL: BossDef = BossDef {
         ]),
     ],
     affect: &[Step::Run(Kind::Fidchell, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -300,8 +292,6 @@ pub static GORRE: BossDef = BossDef {
         Step::Run(Kind::Brothers, Hook::Return),
     ],
     affect: &[],
-    pass: &[],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -335,8 +325,6 @@ pub static MACHA: BossDef = BossDef {
         Step::Run(Kind::Macha, Hook::Late),
     ],
     affect: &[Step::Run(Kind::Macha, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -370,8 +358,6 @@ pub static TARVOS: BossDef = BossDef {
         Step::Run(Kind::Tarvos, Hook::Late),
     ],
     affect: &[Step::Run(Kind::Tarvos, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -417,7 +403,6 @@ pub static CORBENIK: BossDef = BossDef {
         Step::Run(Kind::CorbenikFirst, Hook::Affect),
         Step::Run(Kind::CorbenikFirst, Hook::Return),
     ],
-    pass: &[],
     hand_over: &[Step::Run(Kind::CorbenikFirst, Hook::HandOver)],
     ..BASE_BOSS
 };
@@ -449,7 +434,6 @@ pub static CORBENIK_SECOND: BossDef = BossDef {
         Step::Run(Kind::CorbenikSecond, Hook::Return),
     ],
     affect: &[Step::Run(Kind::CorbenikSecond, Hook::Affect)],
-    pass: &[],
     hand_over: &[],
     ..CORBENIK
 };
@@ -485,7 +469,6 @@ pub static CORBENIK_THIRD: BossDef = BossDef {
         Step::Run(Kind::CorbenikThird, Hook::Affect),
         Step::Run(Kind::CorbenikThird, Hook::Return),
     ],
-    pass: &[],
     hand_over: &[],
     ..CORBENIK
 };
@@ -526,7 +509,6 @@ pub static KYVIA: BossDef = BossDef {
         Step::Run(Kind::Gomoras, Hook::Return),
         Step::Run(Kind::SlaveCore, Hook::Return),
     ],
-    affect: &[Step::BaseAffect],
     pass: &[
         Step::Run(Kind::SlaveCore, Hook::Lend),
         Step::Run(Kind::Gomoras, Hook::Lend),
@@ -534,7 +516,6 @@ pub static KYVIA: BossDef = BossDef {
         Step::Run(Kind::Gomoras, Hook::Return),
         Step::Run(Kind::SlaveCore, Hook::Return),
     ],
-    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -596,10 +577,7 @@ pub static KYVIA_FOURTH: BossDef = BossDef {
 pub static LEAF: BossDef = BossDef {
     class: BossGameClass::CcBoss03Leaf,
     systems: &[Kind::Leaf],
-    order: &[],
     affect: &[Step::Run(Kind::Leaf, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_PART
 };
 /// Kyvia's core (`kyviaCore`): its own, its `Affect` its own; its frame
@@ -607,10 +585,7 @@ pub static LEAF: BossDef = BossDef {
 pub static CORE: BossDef = BossDef {
     class: BossGameClass::KyviaCore,
     systems: &[Kind::KyviaCore],
-    order: &[],
     affect: &[Step::Run(Kind::KyviaCore, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_PART
 };
 /// A gomora (`kyviaGomora`): its own, its `Affect` its own; its frame the
@@ -618,10 +593,7 @@ pub static CORE: BossDef = BossDef {
 pub static GOMORA: BossDef = BossDef {
     class: BossGameClass::KyviaGomora,
     systems: &[Kind::Gomora],
-    order: &[],
     affect: &[Step::Run(Kind::Gomora, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_PART
 };
 /// A Gorre brother (`ccBoss05Brother`): its own, its `Affect` its own;
@@ -629,10 +601,7 @@ pub static GOMORA: BossDef = BossDef {
 pub static BROTHER: BossDef = BossDef {
     class: BossGameClass::CcBoss05Brother,
     systems: &[Kind::Brother],
-    order: &[],
     affect: &[Step::Run(Kind::Brother, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_PART
 };
 /// Corbenik's seed (`ccBoss08Seed`): its own, its `Affect` its own; its
@@ -640,41 +609,19 @@ pub static BROTHER: BossDef = BossDef {
 pub static SEED: BossDef = BossDef {
     class: BossGameClass::CcBoss08Seed,
     systems: &[Kind::Seed],
-    order: &[],
     affect: &[Step::Run(Kind::Seed, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_PART
 };
 /// A root of the second form (`ccBoss08Root`): its own; its `Affect`
 /// `ccBoss`'s.
-pub static ROOT: BossDef = BossDef {
-    class: BossGameClass::CcBoss08Root,
-    systems: &[Kind::Root],
-    order: &[],
-    affect: &[Step::BaseAffect],
-    pass: &[],
-    hand_over: &[],
-    ..BASE_PART
-};
+pub static ROOT: BossDef = BossDef { class: BossGameClass::CcBoss08Root, systems: &[Kind::Root], ..BASE_PART };
 /// The third form's eye (`ccBoss08Eye`): its own; its `Affect` `ccBoss`'s.
-pub static EYE: BossDef = BossDef {
-    class: BossGameClass::CcBoss08Eye,
-    systems: &[Kind::Eye],
-    order: &[],
-    affect: &[Step::BaseAffect],
-    pass: &[],
-    hand_over: &[],
-    ..BASE_PART
-};
+pub static EYE: BossDef = BossDef { class: BossGameClass::CcBoss08Eye, systems: &[Kind::Eye], ..BASE_PART };
 /// A killer eye (`ccBoss08KillerEye`): its own, its `Affect` its own.
 pub static KILLER_EYE: BossDef = BossDef {
     class: BossGameClass::CcBoss08KillerEye,
     systems: &[Kind::Killer],
-    order: &[],
     affect: &[Step::Run(Kind::Killer, Hook::Affect)],
-    pass: &[],
-    hand_over: &[],
     ..BASE_PART
 };
 

@@ -6,8 +6,8 @@
 //! frames, `PINEY_SURVEY_CALLS` the last host calls, `PINEY_SURVEY_GOD` the
 //! party kept up (and the infection at 0), `PINEY_DEBUG_PILOT` the pilot's trace.
 
+use piney_battle::boss::defs;
 use piney_battle::enemy_ai::act as enemy_act;
-use piney_data::classes::BossGameClass;
 use piney_world::area::kind;
 use piney_world::field::world::Place;
 
@@ -2889,15 +2889,15 @@ pub(super) fn levels_for_boss(s: &mut Session) {
     let Stage::Area(a) = &s.stage else { return };
     let w = a.world();
     let c = w.combat();
-    let boss = c.boss.as_ref().filter(|r| !r.exit).map(|r| r.look.def.class);
+    let boss = c.boss.as_ref().filter(|r| !r.exit).map(|r| r.look.def);
     let alone = || {
         w.scene().area == kind::DUNGEON
             && c.members.len() == 1
             && a.vm().is_some_and(|vm| story_wants(vm, &w.state().save).contains(&Want::Alone))
     };
     let level = match boss {
-        Some(BossGameClass::CcBoss04) => FIDCHELL_LEVEL,
-        Some(BossGameClass::CcBoss05) => GORRE_LEVEL,
+        Some(d) if d == &defs::FIDCHELL => FIDCHELL_LEVEL,
+        Some(d) if d == &defs::GORRE => GORRE_LEVEL,
         _ if focus(c).is_some() => BOSS_PARTS_LEVEL,
         _ if alone() => LONE_LEVEL,
         _ => return,
@@ -3401,7 +3401,7 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
 /// (Gorre itself is never listed; its brothers carry the protect gauge).
 fn drain_candidates(c: &piney_world::combat::Combat) -> Vec<usize> {
     let mut v = c.enemies();
-    if let Some(r) = c.boss.as_ref().filter(|r| !r.exit && r.look.def.class == BossGameClass::CcBoss05) {
+    if let Some(r) = c.boss.as_ref().filter(|r| !r.exit && r.look.def == &defs::GORRE) {
         v.extend(r.parts.iter().copied().filter(|&p| c.scene.listed(p)));
     }
     v
@@ -3740,7 +3740,7 @@ fn prey(c: &piney_world::combat::Combat, skip: &[usize]) -> Option<usize> {
 /// frames left. Magic cannot touch them (mDef 9990); blows can (250 HP).
 fn live_seeds(c: &piney_world::combat::Combat) -> Vec<(usize, i32)> {
     use piney_battle::boss::corbenik::seed::act;
-    let Some(r) = c.boss.as_ref().filter(|r| !r.exit && r.look.def.class == BossGameClass::CcBoss08) else {
+    let Some(r) = c.boss.as_ref().filter(|r| !r.exit && r.look.def == &defs::CORBENIK) else {
         return Vec::new();
     };
     (r.parts.iter().copied())
@@ -3822,13 +3822,10 @@ fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
 fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
     let w = a.world();
     let c = w.combat();
-    let r = c.boss.as_ref().filter(|r| {
-        !r.exit
-            && matches!(
-                r.look.def.class,
-                BossGameClass::CcBoss04 | BossGameClass::CcBoss05 | BossGameClass::CcBoss06 | BossGameClass::CcBoss07
-            )
-    })?;
+    let r = c
+        .boss
+        .as_ref()
+        .filter(|r| !r.exit && [&defs::FIDCHELL, &defs::GORRE, &defs::MACHA, &defs::TARVOS].contains(&r.look.def))?;
     let me = &c.scene.chars[r.me];
     if !c.scene.listed(r.me) || me.hp <= 0 || me.cond[piney_battle::param::cond::DEAD] != 0 {
         return None;
@@ -3855,7 +3852,7 @@ fn kyvia_trace(a: &crate::area::AreaMode, f: u64) {
     use piney_battle::boss::kyvia::{Disc, Kyvia, SlaveCore};
     let w = a.world();
     let c = w.combat();
-    let Some(r) = c.boss.as_ref().filter(|r| r.look.def.class == BossGameClass::CcBossKyvia04) else { return };
+    let Some(r) = c.boss.as_ref().filter(|r| r.look.def == &defs::KYVIA_FOURTH) else { return };
     let Some(b) = c.scene.chars[r.me].foe_state().and_then(|f| f.boss.as_ref()) else { return };
     let s = &b.systems;
     let (Some(x), Some(d), Some(pl), Some(me)) =
@@ -3887,7 +3884,7 @@ fn kyvia_place(a: &crate::area::AreaMode) -> Option<Raw> {
     use piney_battle::boss::kyvia::fourth::Places;
     let w = a.world();
     let c = w.combat();
-    let r = c.boss.as_ref().filter(|r| !r.exit && r.look.def.class == BossGameClass::CcBossKyvia04)?;
+    let r = c.boss.as_ref().filter(|r| !r.exit && r.look.def == &defs::KYVIA_FOURTH)?;
     let b = c.scene.chars[r.me].foe_state()?.boss.as_ref()?;
     let riding = b.systems.get::<Disc>().is_some_and(|d| d.st_flg == 1);
     let f = b.systems.get::<Places>().filter(|f| riding && f.rising == 0)?;
@@ -3908,7 +3905,7 @@ fn flee_wave(a: &crate::area::AreaMode) -> Option<Raw> {
     use piney_battle::boss::macha::act;
     let w = a.world();
     let c = w.combat();
-    let r = c.boss.as_ref().filter(|r| !r.exit && r.look.def.class == BossGameClass::CcBoss06)?;
+    let r = c.boss.as_ref().filter(|r| !r.exit && r.look.def == &defs::MACHA)?;
     let me = &c.scene.chars[r.me];
     let b = me.foe_state()?.boss.as_ref()?;
     if !matches!(b.base.act_num, act::WAVE | act::EPITAPH_WAVE) {

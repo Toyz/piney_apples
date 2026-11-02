@@ -13,6 +13,7 @@ mod tests;
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::tables::combat;
+use piney_data::volume::Volume;
 
 use self::eff::Fx;
 use super::blur::{BlurFunc, Set};
@@ -89,8 +90,8 @@ pub mod act {
 /// row 1, `boss06SuperActTbl`, is a lone -1 nothing selects), each through
 /// its closing -1, as `patTbl` points at them: `Super` stands for the
 /// expert one.
-fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
-    let c = combat::of(cx.volume());
+fn words(v: Volume, t: Tbl) -> &'static [i32] {
+    let c = combat::of(v);
     match t {
         Tbl::None => &[],
         Tbl::Normal => c.macha_normal,
@@ -234,7 +235,7 @@ pub const WHITE_IMAGE: AfterImageParams = AfterImageParams {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = combat::of(cx.volume()).macha_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = combat::of(cx.volume()).macha_anims;
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -275,7 +276,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = words(cx, t);
+    let tbl = words(cx.volume(), t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -313,8 +314,8 @@ fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
 impl Patterns for Macha {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        words(cx, b.pat_tbl)
+    fn words(&self, b: &BossBase, v: Volume) -> &'static [i32] {
+        words(v, b.pat_tbl)
     }
 
     /// `ccBoss06::ExecPatternIndex(tbl, i)` (0x003a3bb0), falling back on
@@ -337,7 +338,7 @@ impl Patterns for Macha {
         }
         b.pat_num = pat;
         let me = cx.me;
-        let own = words(cx, b.pat_tbl);
+        let own = words(cx.volume(), b.pat_tbl);
         match pat {
             18 => b.change_action(cx, act::MAGIC, 3, true),
             17 => b.change_action(cx, act::DATA_DRAIN_ATK, 3, true),

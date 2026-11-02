@@ -10,7 +10,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::blur::{Blur, BlurFunc, Reflex, Statics};
 use piney_battle::boss::skeith::{self, Skeith};
 use piney_battle::boss::systems::wave::Wave;
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, FxCall, Out, Tbl};
+use piney_battle::boss::{Boss, BossEnv, CamView, Cx, EffKind, FxCall, Out, Tbl};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -28,12 +28,11 @@ use crate::{Toks, read_char};
 type Clips = std::collections::HashMap<String, (u32, bool)>;
 
 thread_local! {
-    static DATA: std::cell::RefCell<Option<(BossData, Clips)>> = const { std::cell::RefCell::new(None) };
+    static DATA: std::cell::RefCell<Option<Clips>> = const { std::cell::RefCell::new(None) };
 }
 
-fn load(iso_path: &str) -> (BossData, Clips) {
+fn load(iso_path: &str) -> Clips {
     let mut iso = Iso::open(iso_path).expect("the ISO");
-    let data = BossData::of(iso.volume().expect("the volume"));
     let arc = Archive::new(iso.read_path("DATA/DATA.BIN").expect("DATA.BIN")).expect("DATA.BIN");
     let mut clips = std::collections::HashMap::new();
     for stem in ["x11", "xeffect"] {
@@ -45,7 +44,7 @@ fn load(iso_path: &str) -> (BossData, Clips) {
             }
         }
     }
-    (data, clips)
+    clips
 }
 
 /// Answers a command this module knows; None for any other.
@@ -58,7 +57,7 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
     Some(match cmd {
         "bossclips" => DATA.with(|d| {
             let d = d.borrow();
-            let (_, clips) = d.as_ref().unwrap();
+            let clips = d.as_ref().unwrap();
             let mut v: Vec<_> = clips.iter().collect();
             v.sort();
             let body: Vec<String> = v.iter().map(|(k, (f, l))| format!("\"{k}\":[{f},{}]", u8::from(*l))).collect();
@@ -66,8 +65,8 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
         }),
         "boss" => DATA.with(|d| {
             let d = d.borrow();
-            let (data, clips) = d.as_ref().unwrap();
-            run(tables, data, clips, t)
+            let clips = d.as_ref().unwrap();
+            run(tables, clips, t)
         }),
         "bossblur" => blur_main(t),
         _ => return None,
@@ -78,7 +77,7 @@ fn v4(t: &mut Toks) -> [u32; 4] {
     std::array::from_fn(|_| t.u32())
 }
 
-fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
+fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
     for _ in 0..n {
@@ -119,14 +118,13 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let mut none = |_| None;
     let mut land = |p: [u32; 4]| p[2];
     let mut cx = Cx {
         t: tables,
-        data,
         scene: &mut scene,
         party: &party,
         world: World { player: members[0], frame: &IDENTITY, ..World::default() },
@@ -158,7 +156,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     );
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx {
             party: &party,
             menu: true,
@@ -189,7 +187,6 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         let pre = out.len();
         let mut cx = Cx {
             t: tables,
-            data,
             scene: &mut scene,
             party: &party,
             world: World { player: members[0], frame: &IDENTITY, ..World::default() },

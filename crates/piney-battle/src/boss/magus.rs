@@ -15,6 +15,7 @@ mod tests;
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::tables::combat;
+use piney_data::volume::Volume;
 
 use self::leaf::Leaf;
 use super::blur::Set;
@@ -518,7 +519,7 @@ fn held(b: &BossBase, cx: &Cx) -> bool {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = combat::of(cx.volume()).magus_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = combat::of(cx.volume()).magus_anims;
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -801,7 +802,7 @@ fn change_action(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, n: i16, forbid: i
         return;
     }
     let Some(Some(clip)) = usize::try_from(n).ok().and_then(|k| b.anm_tbl.get(k)).cloned() else { return };
-    b.anm.set(&clip, cx.clips);
+    b.anm.set(clip, cx.clips);
     // SetupLeafObjPtr unless drained: the body's leaves found anew (every
     // clip of Magus's has them).
     if n == act::NEUTRAL {
@@ -814,8 +815,8 @@ fn change_action(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, n: i16, forbid: i
 impl Patterns for Magus {
     const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, _b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        combat::of(cx.volume()).magus_epitaph
+    fn words(&self, _b: &BossBase, v: Volume) -> &'static [i32] {
+        combat::of(v).magus_epitaph
     }
 
     fn epitaph(&self, _b: &BossBase) -> bool {
@@ -1752,7 +1753,7 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, l: &mut Laser, cx: &mut Cx) {
             b.act_count += 1;
             if c == 0 {
                 if let Some(Some(clip)) = b.anm_tbl.get(act::LASER as usize).cloned() {
-                    b.anm.set(&clip, cx.clips);
+                    b.anm.set(clip, cx.clips);
                 }
                 if b.anm.clip.is_some() {
                     b.anm.forward();

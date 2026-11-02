@@ -135,7 +135,7 @@ fn on_report_affect(b: &mut BossBase, x: &mut G<'_>, from: usize, cx: &mut Cx) {
             if x.own.pat_mode == 0 && gp >= max >> 1 {
                 b.set_pattern_tbl(Tbl::Super);
                 x.own.pat_mode = 1;
-                let tbl = words(cx, Tbl::Super);
+                let tbl = words(cx.volume(), Tbl::Super);
                 b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
             }
         }

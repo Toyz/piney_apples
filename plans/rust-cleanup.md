@@ -296,7 +296,7 @@ Where the code does by hand, per kind, what a system should do once:
       behind `Shape::sword_trail`. Left for the next item: `BossData`'s
       field per boss, `Class`'s default, the world's `SKEITH_DEF` as the
       other rows' base and fallback look, `act`, `FAR`, `SKILL_*`.)
-- [ ] **Bosses as defs and systems.** A boss is a `BossDef` naming its
+- [x] **Bosses as defs and systems.** A boss is a `BossDef` naming its
       systems and their order, like a town:
       ```rust
       pub const INNIS: BossDef = BossDef {
@@ -372,6 +372,11 @@ Where the code does by hand, per kind, what a system should do once:
       lent, the first's hand-over its system's; a seed, a root, an eye
       and a killer eye each its own system; `CorbenikData` gone, and with
       it the last of `BossData`'s fields.)
+      (worklog 556: `Class`, `each_class!`, `BossClass`, `Step::Class`,
+      `Hook::Main`, `PartClass` and `BossData` (with `Cx::data`) gone;
+      `BASE_BOSS` is `ccBoss::Main`'s blocks and `ccBoss::Affect`, a part's
+      def no frame of its own; `Patterns::words` takes the volume;
+      `actAnmTbl` a static slice.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

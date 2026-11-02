@@ -7,6 +7,7 @@
 //! falls under 4000 (the message's wait).
 
 use piney_data::field::ee;
+use piney_data::volume::Volume;
 
 use super::eff::{self, Fx};
 use super::{Pic, manager_pass, word, wrap_hi, wrap_lo};
@@ -221,7 +222,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     let mut b = plain_boss();
     b.effects = effects;
     set_base_param(cx, me, ROW);
-    b.anm_tbl = super::clips(super::tables(cx).corbenik_b_anims);
+    b.anm_tbl = super::tables(cx).corbenik_b_anims;
     b.exit = 0;
     b.draw_sw = 1;
     b.body_hit_sw = 1;
@@ -266,9 +267,9 @@ fn new_root(cx: &mut Cx, me: usize, k: usize) -> Part<Root> {
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
     b.anm_tbl = if cx.cc.rand() & 1 != 0 {
-        super::clips(super::tables(cx).corbenik_root_anims_a)
+        super::tables(cx).corbenik_root_anims_a
     } else {
-        super::clips(super::tables(cx).corbenik_root_anims_b)
+        super::tables(cx).corbenik_root_anims_b
     };
     b.anm.speed = 512;
     b.body_hit_sw = 0;
@@ -302,7 +303,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = super::words_b(cx, t);
+    let tbl = super::words_b(cx.volume(), t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -400,8 +401,8 @@ fn slave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
 impl Patterns for Second {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        super::words_b(cx, b.pat_tbl)
+    fn words(&self, b: &BossBase, v: Volume) -> &'static [i32] {
+        super::words_b(v, b.pat_tbl)
     }
 
     /// `ccBoss08_b::ChangeNextPattern` (0x003b3200): a barrier asked for is

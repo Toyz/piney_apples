@@ -3,12 +3,11 @@
 //! [`innis`], Magus (2) [`magus`], Fidchell (3) [`fidchell`], Kyvia (12, 13)
 //! [`kyvia`]. `ccBossEntryStart(code)` (0x0045b2a0) starts the effect
 //! manager ([`Effects`]) and `bossFunc[code]`, which makes the boss and runs
-//! [`Boss::main`] each frame. The tables come from the build ([`BossData`]);
-//! sounds, the camera and the pictures are [`Out`]s. docs/engine/boss.md
+//! [`Boss::main`] each frame. Each boss's tables are views of the volume's
+//! `tables::combat`; sounds, the camera and the pictures are [`Out`]s. docs/engine/boss.md
 //! and boss-innis.md, boss-magus.md, boss-kyvia.md, boss-fidchell.md.
 
 pub mod blur;
-mod class;
 pub mod corbenik;
 pub mod defs;
 pub mod fidchell;
@@ -40,7 +39,7 @@ use crate::tables::Tables;
 use crate::world::CharHit;
 pub use defs::BossDef;
 pub use output::{AnmLayer, Blend, BodyDraw, Figure, Follow, Output, PicFile, Picture, Root, Spot, Trail};
-pub use part::{Part, PartClass, Parts};
+pub use part::{Part, Parts};
 use systems::patterns::{BaseActs, Patterns, base_change_next_pattern, base_exec_pattern_index, word};
 pub use systems::{Hook, Kind, Step, System, SystemKind, Systems};
 
@@ -84,26 +83,6 @@ pub mod act {
     pub const RETURN: i16 = 17;
     pub const CHASE: i16 = 18;
     pub const RAND_DRIVE: i16 = 21;
-}
-
-/// Every boss's tables, for the volume: none of its own now, each boss's
-/// a view of the volume's `tables::combat`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct BossData;
-
-impl BossData {
-    /// The volume's.
-    pub fn of(_volume: piney_data::volume::Volume) -> BossData {
-        BossData
-    }
-}
-
-/// Which class a [`Boss`] is (`ccBoss`'s vtable): what its `Main` and
-/// `Affect` run.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Class {
-    /// A bare `ccBoss` (a slave's base).
-    Plain,
 }
 
 /// Which table `patTbl` points at.
@@ -936,21 +915,19 @@ impl From<Picture> for Out {
 }
 
 /// A boss: what it is ([`BossDef`]), `ccBoss`'s members every system
-/// shares, its systems ([`Systems`]: its class's own members, by kind) and,
-/// for a class not yet made of systems, its class ([`Class`]); and what it
-/// shows ([`Output`]).
+/// shares, its systems ([`Systems`]: its class's own members, by kind) and
+/// what it shows ([`Output`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boss {
     pub def: &'static BossDef,
     pub base: BossBase,
-    pub class: Class,
     pub systems: Systems,
     pub output: Output,
 }
 
 impl Default for Boss {
     fn default() -> Boss {
-        Boss::of(&defs::BASE_BOSS, BossBase::default(), Class::Plain)
+        Boss::build(&defs::BASE_BOSS, BossBase::default())
     }
 }
 
@@ -960,7 +937,7 @@ impl Default for Boss {
 pub struct BossBase {
     // ccBoss
     /// `actAnmTbl` (+0x1a8): the act's clip, by act (none for some).
-    pub anm_tbl: Vec<Option<String>>,
+    pub anm_tbl: &'static [Option<&'static str>],
     pub target_pos: V4,
     pub target_pos_p: V4,
     pub target_dist: F,
@@ -1030,7 +1007,6 @@ pub struct BossBase {
 /// player's frame, both generators and what a frame knows.
 pub struct Cx<'a> {
     pub t: &'a Tables,
-    pub data: &'a BossData,
     pub scene: &'a mut Scene,
     pub party: &'a Party,
     pub world: World<'a>,
@@ -1351,15 +1327,10 @@ pub(crate) fn hit_hp(hp: i16, p0: i16, cheat: Option<i16>, mhp: i16) -> i16 {
 }
 
 impl Boss {
-    /// A boss of `def` with these members, nothing shown yet.
-    pub fn of(def: &'static BossDef, base: BossBase, class: Class) -> Boss {
-        Boss { def, base, class, systems: Systems::of(def.systems), output: Output::default() }
-    }
-
     /// A boss of `def` with these `ccBoss` members and its systems as its
-    /// class's constructor starts them.
+    /// class's constructor starts them, nothing shown yet.
     pub fn build(def: &'static BossDef, base: BossBase) -> Boss {
-        Boss::of(def, base, Class::Plain)
+        Boss { def, base, systems: Systems::of(def.systems), output: Output::default() }
     }
 }
 
@@ -1411,8 +1382,7 @@ impl BossBase {
         self.act_proccess = 0;
         self.act_count = 0;
         if af && let Some(Some(clip)) = usize::try_from(n).ok().and_then(|k| self.anm_tbl.get(k)) {
-            let clip = clip.clone();
-            self.anm.set(&clip, cx.clips);
+            self.anm.set(clip, cx.clips);
         }
         if self.epitaph == 0 && self.act_num == act::EPITAPH_NEUTRAL {
             self.epitaph = 1;
@@ -1957,7 +1927,6 @@ impl BossBase {
 /// What a boss's affect needs from outside the scene ([`AffectCtx::boss`]).
 pub struct BossEnv<'a> {
     pub t: &'a Tables,
-    pub data: &'a BossData,
     pub clips: &'a dyn Fn(&str) -> Option<(u32, bool)>,
     pub env: &'a Env,
     /// `compulsionGameOver`.
@@ -1995,7 +1964,6 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
     let mut land = |_| 0;
     let mut cx = Cx {
         t: benv.t,
-        data: benv.data,
         scene: &mut *scene,
         party: ctx.party,
         world: World::default(),

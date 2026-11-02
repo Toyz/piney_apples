@@ -7,6 +7,7 @@
 //! fight on their own tables until the body's pauses hold them.
 
 use piney_data::field::ee;
+use piney_data::volume::Volume;
 
 use super::third::Third;
 use super::{Pic, word};
@@ -135,7 +136,7 @@ pub struct MasterView {
 pub(crate) fn new_eye(cx: &mut Cx, me: usize) -> Part<Eye> {
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
-    b.anm_tbl = super::clips(super::tables(cx).corbenik_eye_anims);
+    b.anm_tbl = super::tables(cx).corbenik_eye_anims;
     b.exit = 0;
     b.draw_sw = 1;
     let pos = cx.scene.chars[me].pos;
@@ -345,7 +346,7 @@ pub struct Killer {
 pub(crate) fn new_killer(cx: &mut Cx, me: usize, kite_pos: V4, kite_dirc: V4) -> Part<Killer> {
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
-    b.anm_tbl = super::clips(super::tables(cx).corbenik_killer_anims);
+    b.anm_tbl = super::tables(cx).corbenik_killer_anims;
     b.exit = 1;
     b.draw_sw = 0;
     b.body_hit_sw = 0;
@@ -356,8 +357,7 @@ pub(crate) fn new_killer(cx: &mut Cx, me: usize, kite_pos: V4, kite_dirc: V4) ->
     let base = cx.scene.chars[me].base();
     let hit = CharHit { pos, radius: 0x42c8_0000, height: 0x4348_0000, kind: base.ty as u32, ..CharHit::default() };
     if let Some(Some(c)) = b.anm_tbl.first() {
-        let c = c.clone();
-        b.anm.set(&c, cx.clips);
+        b.anm.set(c, cx.clips);
     }
     let eai = AfterImageParams { color: 0xffff_ffff, ss: VF0, es: VF0, ..AfterImageParams::default() };
     let x = Killer { hit, eai, spin: VF0, press_start: VF0, ..Killer::default() };
@@ -535,8 +535,8 @@ impl<'a> KillerRules<'a> {
 impl Patterns for KillerRules<'_> {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, _b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        super::killer_acts(cx, self.slot)
+    fn words(&self, _b: &BossBase, v: Volume) -> &'static [i32] {
+        super::killer_acts(v, self.slot)
     }
 
     /// `ExecPatternIndex` (0x003bfe90): 7 the wander (act 8, its length the
@@ -764,7 +764,7 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
             b.pat_tbl = Tbl::Normal;
             b.pat_index = 0;
             let mut r = KillerRules::new(x, v);
-            let tbl = r.words(b, cx);
+            let tbl = r.words(b, cx.volume());
             b.pat_index = r.exec_pattern_index(b, cx, tbl, 0);
             b.draw_sw = 1;
             b.exit = 0;

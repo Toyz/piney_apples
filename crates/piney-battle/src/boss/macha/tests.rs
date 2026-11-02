@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::affect::{self, AffectCtx};
-use crate::boss::{BossData, BossEnv, CamView, FxCall};
+use crate::boss::{BossEnv, CamView, FxCall};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -16,7 +16,6 @@ use piney_data::volume::Volume;
 
 struct Fight {
     t: Tables,
-    data: BossData,
     scene: Scene,
     party: Party,
     me: usize,
@@ -44,7 +43,6 @@ fn fight() -> Option<Fight> {
         return None;
     }
     let t = Tables::of(Volume::Qua);
-    let data = BossData::of(Volume::Qua);
     let mut scene = Scene::default();
     let kite = scene.add(pc(7, 0, 0.0), 0);
     let member = scene.add(pc(6, 1, 300.0), 0);
@@ -53,7 +51,7 @@ fn fight() -> Option<Fight> {
     ch.affect.func = AffectFunc::Boss;
     let me = scene.add(ch, 3);
     let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
-    let mut f = Fight { t, data, scene, party, me, rand: Rand(11), cc: Genrand::seeded(4357), count: 0 };
+    let mut f = Fight { t, scene, party, me, rand: Rand(11), cc: Genrand::seeded(4357), count: 0 };
     let b = f.with_cx(|cx| new(cx, [0, 0, 0, ONE], VF0, VF0));
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
     Some(f)
@@ -64,14 +62,13 @@ impl Fight {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Qua };
         let mut none = |_| None;
         let mut land = |_| 0;
         let mut cx = Cx {
             t: &self.t,
-            data: &self.data,
             scene: &mut self.scene,
             party: &self.party,
             world: World { player: self.party.members[0], frame: &IDENTITY, ..World::default() },
@@ -117,7 +114,7 @@ impl Fight {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Qua };
         let mut ev = Events::new();

@@ -6,6 +6,7 @@
 //! body press have no pattern of their own (no table holds their words).
 
 use piney_data::field::ee;
+use piney_data::volume::Volume;
 
 use super::eff::{self, Fx};
 use super::seed::{self, Seed};
@@ -125,7 +126,7 @@ fn seeds_targetable(x: &mut First, cx: &mut Cx, on: bool) {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = crate::boss::kyvia::plain_boss();
-    b.anm_tbl = super::clips(super::tables(cx).corbenik_anims);
+    b.anm_tbl = super::tables(cx).corbenik_anims;
     b.exit = 0;
     b.draw_sw = 1;
     b.body_hit_sw = 1;
@@ -169,7 +170,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut First, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = super::words(cx, t);
+    let tbl = super::words(cx.volume(), t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -248,8 +249,8 @@ fn pre_draw_anm(b: &mut BossBase) {
 impl Patterns for First {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        super::words(cx, b.pat_tbl)
+    fn words(&self, b: &BossBase, v: Volume) -> &'static [i32] {
+        super::words(v, b.pat_tbl)
     }
 
     fn change_next_pattern(&mut self, b: &mut BossBase, cx: &mut Cx) {

@@ -296,7 +296,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     }
     let me = cx.me;
     let mut b = BossBase {
-        anm_tbl: data.innis_anims.iter().map(|a| a.map(str::to_string)).collect(),
+        anm_tbl: data.innis_anims,
         wait_pat_num: -2,
         pat_num: 13,
         use_stage_eff: true,
@@ -1844,7 +1844,7 @@ fn action(b: &mut BossBase, x: &mut Innis, wave: &mut Anm, ims: &mut Images, cx:
                 if c < 121 {
                     if b.anm_status != 0 {
                         if let Some(Some(clip)) = b.anm_tbl.get(act::SHAKE as usize).cloned() {
-                            b.anm.set(&clip, cx.clips);
+                            b.anm.set(clip, cx.clips);
                         }
                         let note = (67 + cx.cc.rand() % 4) as u8;
                         let pos = cx.pos();
@@ -2155,7 +2155,7 @@ impl Slave {
             if let Some(Some(clip)) = tbl.first() {
                 self.b.anm.set(clip, cx.clips);
             }
-            self.b.anm_tbl = tbl.iter().map(|a| a.map(str::to_string)).collect();
+            self.b.anm_tbl = &tbl[..];
             self.mirror.models = Some(id);
         }
         self.samon_id = id;
@@ -2227,7 +2227,7 @@ impl Slave {
                         self.end_flg = 1;
                         sb.act_num = 0;
                         sb.exit = 1;
-                        sb.anm_tbl = Vec::new();
+                        sb.anm_tbl = &[];
                     }
                 }
             }
@@ -2470,7 +2470,7 @@ impl Mirror {
 mod tests {
     use super::*;
     use crate::affect::{self, AffectCtx};
-    use crate::boss::{BossData, BossEnv, CamView};
+    use crate::boss::{BossEnv, CamView};
     use crate::chara::{Char, Env};
     use crate::enemy_ai::{Genrand, IDENTITY, World};
     use crate::event::Events;
@@ -2484,7 +2484,6 @@ mod tests {
     /// Innis over Kite and a member, 500 apart, on Mutation's tables.
     struct Fight {
         t: Tables,
-        data: BossData,
         scene: Scene,
         party: Party,
         me: usize,
@@ -2512,7 +2511,6 @@ mod tests {
             return None;
         }
         let t = Tables::of(Volume::Mut);
-        let data = BossData::of(Volume::Mut);
         let mut scene = Scene::default();
         let kite = scene.add(pc(7, 0, 0.0), 0);
         let member = scene.add(pc(6, 1, 500.0), 0);
@@ -2521,7 +2519,7 @@ mod tests {
         ch.affect.func = AffectFunc::Boss;
         let me = scene.add(ch, 3);
         let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
-        let mut f = Fight { t, data, scene, party, me, rand: Rand(7), cc: Genrand::seeded(4357), count: 0 };
+        let mut f = Fight { t, scene, party, me, rand: Rand(7), cc: Genrand::seeded(4357), count: 0 };
         let b = f.with_cx(|cx| new(cx, [0, 0, 0, ONE], VF0, VF0));
         f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
         Some(f)
@@ -2532,7 +2530,7 @@ mod tests {
             let clip = |_: &str| Some((60, false));
             let env = Env { count: self.count, menu_type: -1, ..Env::default() };
             let check = |_: usize| 0;
-            let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false, cc: None };
+            let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
             let actx = AffectCtx {
                 party: &self.party,
                 menu: true,
@@ -2544,7 +2542,6 @@ mod tests {
             let mut land = |_| 0;
             let mut cx = Cx {
                 t: &self.t,
-                data: &self.data,
                 scene: &mut self.scene,
                 party: &self.party,
                 world: World { player: self.party.members[0], frame: &IDENTITY, ..World::default() },
@@ -2588,7 +2585,7 @@ mod tests {
             let clip = |_: &str| Some((60, false));
             let env = Env { count: self.count, menu_type: -1, ..Env::default() };
             let check = |_: usize| 0;
-            let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false, cc: None };
+            let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
             let actx = AffectCtx {
                 party: &self.party,
                 menu: true,

@@ -34,8 +34,6 @@ pub enum Step {
     Live(&'static [Step]),
     /// A system's step.
     Run(Kind, Hook),
-    /// The class's rules, for a boss whose class is not yet its systems.
-    Class(Hook),
 }
 
 /// Which of a system's steps a [`Step::Run`] runs.
@@ -68,8 +66,6 @@ pub enum Hook {
     Return,
     /// Its parts' effect slots counted (the manager's one array).
     Tick,
-    /// A class's whole `Main` ([`Step::Class`]).
-    Main,
 }
 
 /// What a system does: its steps on the shared members and its siblings,
@@ -296,8 +292,8 @@ impl<'a> Others<'a> {
 }
 
 impl Boss {
-    /// The steps in order: the base's blocks on the `ccBoss` members, the
-    /// systems' own steps, the class's rules where it is not yet systems.
+    /// The steps in order: the base's blocks on the `ccBoss` members and
+    /// the systems' own steps.
     fn run(&mut self, steps: &'static [Step], cx: &mut Cx) {
         for &s in steps {
             let b = &mut self.base;
@@ -326,15 +322,6 @@ impl Boss {
                     let k = self.systems.0.iter().position(|s| s.kind() == kind).expect("a system the def names");
                     let (s, mut others) = self.systems.at(k);
                     s.step(hook, &mut self.base, &mut others, cx);
-                }
-                Step::Class(hook) => {
-                    let Boss { base, class, .. } = self;
-                    class.with_rules(|r| match hook {
-                        Hook::Main => r.main(base, cx),
-                        Hook::Affect => r.affect(base, cx),
-                        Hook::Pass => r.effects_pass(base, cx),
-                        _ => {}
-                    });
                 }
             }
         }
@@ -367,10 +354,6 @@ impl Boss {
                     let k = self.systems.0.iter().position(|s| s.kind() == kind).expect("a system the def names");
                     self.systems.0[k].hand_over(&mut self.base, cx)
                 }
-                Step::Class(_) => {
-                    let Boss { base, class, .. } = self;
-                    class.with_rules(|r| r.next(base, cx))
-                }
                 _ => None,
             };
             if let Some(next) = next {
@@ -383,10 +366,9 @@ impl Boss {
     /// What the frame shows ([`Output`]), read after it: `ccBoss::Draw`'s
     /// body, then each system's draw in order; then each part's own.
     pub fn show(&mut self, cx: &mut Cx) {
-        let Boss { base, class, systems, output, .. } = self;
+        let Boss { base, systems, output, .. } = self;
         output.clear();
         output.body = base.body_draw(cx);
-        class.with_rules(|r| r.show(base, cx, output));
         for s in &systems.0 {
             s.draw(base, systems, cx, output);
         }

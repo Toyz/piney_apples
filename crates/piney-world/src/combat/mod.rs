@@ -65,8 +65,6 @@ pub struct BattleData {
     pub mt: MotionTables,
     pub st: SpawnTables,
     pub md: MotionData,
-    /// Every boss's tables (`piney_battle::boss::BossData`).
-    pub bosses: Option<piney_battle::boss::BossData>,
 }
 
 impl BattleData {
@@ -75,15 +73,7 @@ impl BattleData {
         let t = Tables::read(iso)?;
         let st = SpawnTables::of(volume);
         let md = MotionData::read_iso(iso, &t)?;
-        Ok(BattleData {
-            volume,
-            t,
-            kt: KiteTables::of(volume),
-            mt: MotionTables::of(volume),
-            st,
-            md,
-            bosses: Some(piney_battle::boss::BossData::of(volume)),
-        })
+        Ok(BattleData { volume, t, kt: KiteTables::of(volume), mt: MotionTables::of(volume), st, md })
     }
 }
 
@@ -2775,9 +2765,8 @@ impl Combat {
         let clips = self.boss.as_ref().filter(|r| !r.exit).map(|r| r.clips.clone());
         let clip = |name: &str| clips.as_ref().and_then(|c| c.get(name).copied());
         let cc = RefCell::new(std::mem::take(&mut self.cc));
-        let benv = d.bosses.as_ref().filter(|_| clips.is_some()).map(|data| piney_battle::boss::BossEnv {
+        let benv = clips.is_some().then(|| piney_battle::boss::BossEnv {
             t: &d.t,
-            data,
             clips: &clip,
             env: &self.env,
             game_over: false,

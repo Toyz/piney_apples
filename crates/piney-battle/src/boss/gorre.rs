@@ -14,6 +14,7 @@ mod tests;
 
 use piney_data::field::ee;
 use piney_data::tables::combat;
+use piney_data::volume::Volume;
 
 use self::brother::Brother;
 use super::systems::{BossSystem, Hook, Others, Systems};
@@ -83,8 +84,8 @@ fn brother_image(b: &BossBase, who: usize, cx: &mut Cx) {
 /// Gorre's tables, the volume's (`tables::combat`): `boss05NormalActTbl`,
 /// `boss05SuperActTbl`, `boss05EpitaphActTbl`, each through its closing
 /// -1, as `patTbl` points at them.
-fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
-    let c = combat::of(cx.volume());
+fn words(v: Volume, t: Tbl) -> &'static [i32] {
+    let c = combat::of(v);
     match t {
         Tbl::None => &[],
         Tbl::Normal => c.gorre_normal,
@@ -290,7 +291,7 @@ fn focus_camera(cx: &mut Cx, vp: V4, d: V4, off: V4) {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = combat::of(cx.volume()).gorre_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = combat::of(cx.volume()).gorre_anims;
     b.exit = 0;
     b.draw_sw = 1;
     // `OffBodyHit()` (vtable +0x60), not On: Gorre itself takes no direct
@@ -332,7 +333,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     own.pat_mode = 0;
     br.me = brother_me;
     br.parts = Parts::take(cx, &brother_me);
-    let tbl = words(cx, Tbl::Normal);
+    let tbl = words(cx.volume(), Tbl::Normal);
     b.pat_index = G { own, brothers: &mut br.parts, kerse }.exec_pattern_index(b, cx, tbl, 0);
     br.parts.put(cx);
     boss
@@ -401,8 +402,8 @@ fn calc_real_ex(b: &mut BossBase, x: &G<'_>, cx: &mut Cx) {
 impl Patterns for G<'_> {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        words(cx, b.pat_tbl)
+    fn words(&self, b: &BossBase, v: Volume) -> &'static [i32] {
+        words(v, b.pat_tbl)
     }
 
     fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
@@ -559,7 +560,7 @@ fn on_drain(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     change_action(b, x, cx, act::EPITAPH, 3, true);
     b.set_pattern_tbl(Tbl::Epitaph);
     x.own.pat_mode = 2;
-    let tbl = words(cx, Tbl::Epitaph);
+    let tbl = words(cx.volume(), Tbl::Epitaph);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 

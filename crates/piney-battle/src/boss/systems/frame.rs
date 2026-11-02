@@ -10,20 +10,6 @@ use crate::enemy_ai::get_dirc;
 use crate::geom;
 
 impl BossBase {
-    /// `ccBoss::Main` (0x0045c270) with the class's `Think` and `Action` in
-    /// `class`: the building blocks below in `ccBoss`'s order.
-    pub(crate) fn base_main(&mut self, cx: &mut Cx, class: &mut dyn FnMut(&mut BossBase, &mut Cx)) {
-        if self.exit != 0 {
-            return;
-        }
-        self.prologue(cx);
-        self.tick_stop();
-        class(self, cx);
-        self.lock_party(cx);
-        self.move_(cx);
-        self.forward_and_draw(cx);
-    }
-
     /// `CalcReal`, `CalcTargetInfo` and the centre ([`Self::centre`]).
     pub(crate) fn prologue(&mut self, cx: &mut Cx) {
         self.calc_real(cx);

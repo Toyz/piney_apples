@@ -163,7 +163,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, lv: i16) -> Part<Core> 
     b.dirc = VF0;
     let attr = x.attr;
     set_core_base_param(cx, &mut x, me, lv, attr);
-    b.anm_tbl = combat::of(cx.volume()).kyvia_core_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = combat::of(cx.volume()).kyvia_core_anims;
     x.dmg_count = i32::from(cx.scene.chars[me].max_hp);
     b.anm.set("ANM_ex0cnut0", cx.clips);
     b.change_action(cx, act::NEUTRAL, 0, true);

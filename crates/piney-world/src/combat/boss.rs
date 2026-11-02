@@ -401,7 +401,7 @@ impl Combat {
         let code = look.code;
         let Some(def) = BossDef::of(code).filter(|_| self.boss.is_none()) else { return };
         let d = self.data.clone();
-        let (Some(data), Some(kite)) = (d.bosses.as_ref(), self.kite) else { return };
+        let Some(kite) = self.kite else { return };
         let Some(row) = d.t.bosses.get(code as usize).cloned() else { return };
         let mut ch = piney_battle::Char::foe(row);
         // ccChar::ccChar: no condition (conditionNum -1).
@@ -414,14 +414,13 @@ impl Combat {
         let clip = |name: &str| clips.get(name).copied();
         let party = self.party;
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &d.t, data, clips: &clip, env, game_over: false, cc: None };
+        let benv = BossEnv { t: &d.t, clips: &clip, env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: self.data.volume };
         let mut none = |_| None;
         let mut land = |p: V4| p[2];
         let mut cx = boss::Cx {
             t: &d.t,
-            data,
             scene: &mut self.scene,
             party: &party,
             world: World { player: Some(kite), ..World::default() },
@@ -561,10 +560,9 @@ impl Combat {
         let shake = shake_range(camera, &world, self.scene.chars[me].pos);
         let cv = cam_view(camera, run.cam.as_ref(), shake);
         let d = self.data.clone();
-        let Some(data) = d.bosses.as_ref() else { return ev };
         let clip = |name: &str| clips.get(name).copied();
         let party = self.party;
-        let benv = BossEnv { t: &d.t, data, clips: &clip, env, game_over: false, cc: None };
+        let benv = BossEnv { t: &d.t, clips: &clip, env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &party, menu: true, skill_check: check, boss: Some(&benv), volume: self.data.volume };
         // The frame's hits on the boss, with the fight's ccRand.
@@ -618,7 +616,6 @@ impl Combat {
         let gen_alive = |k: u32| alive.as_ref().is_none_or(|s| s.contains(&k));
         let mut cx = boss::Cx {
             t: &d.t,
-            data,
             scene: &mut self.scene,
             party: &party,
             world,

@@ -13,7 +13,7 @@ use piney_battle::boss::kyvia::fourth::Places;
 use piney_battle::boss::kyvia::gomora::Gomora;
 use piney_battle::boss::kyvia::{Disc, Fight, Gen, GenOp, Held, Kyvia, Place, SlaveCore};
 use piney_battle::boss::{
-    Boss, BossData, BossEnv, CamView, Cx, DiscView, EffKind, FadeView, Field, Follow, Fx, FxCall, Out, Picture,
+    Boss, BossEnv, CamView, Cx, DiscView, EffKind, FadeView, Field, Follow, Fx, FxCall, Out, Picture,
 };
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
@@ -37,12 +37,11 @@ type Clips = std::collections::HashMap<String, (u32, bool)>;
 type V4 = [u32; 4];
 
 thread_local! {
-    static DATA: std::cell::RefCell<Option<(Fight, BossData, Clips)>> = const { std::cell::RefCell::new(None) };
+    static DATA: std::cell::RefCell<Option<(Fight, Clips)>> = const { std::cell::RefCell::new(None) };
 }
 
-fn load(iso_path: &str, fight: Fight) -> (Fight, BossData, Clips) {
+fn load(iso_path: &str, fight: Fight) -> (Fight, Clips) {
     let mut iso = Iso::open(iso_path).expect("the ISO");
-    let data = BossData::of(iso.volume().expect("the volume"));
     let arc = Archive::new(iso.read_path("DATA/DATA.BIN").expect("DATA.BIN")).expect("DATA.BIN");
     let mut clips = std::collections::HashMap::new();
     for stem in [fight.file(), "xeffect", "particle"] {
@@ -55,7 +54,7 @@ fn load(iso_path: &str, fight: Fight) -> (Fight, BossData, Clips) {
             }
         }
     }
-    (fight, data, clips)
+    (fight, clips)
 }
 
 /// Answers `kyviaclips` and `kyvia`; None for any other command.
@@ -71,14 +70,14 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
     });
     Some(DATA.with(|d| {
         let d = d.borrow();
-        let (fight, data, clips) = d.as_ref().unwrap();
+        let (fight, clips) = d.as_ref().unwrap();
         if cmd == "kyviaclips" {
             let mut v: Vec<_> = clips.iter().collect();
             v.sort();
             let body: Vec<String> = v.iter().map(|(k, (f, l))| format!("\"{k}\":[{f},{}]", u8::from(*l))).collect();
             format!("{{{}}}", body.join(","))
         } else {
-            run(*fight, tables, data, clips, t)
+            run(*fight, tables, clips, t)
         }
     }))
 }
@@ -274,7 +273,7 @@ struct Case {
     delay: i32,
 }
 
-fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
+fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
     for _ in 0..n {
@@ -354,7 +353,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let list = RefCell::new(HitList { volume: crate::probe_volume(), chars: Vec::new() });
@@ -362,7 +361,6 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     let mut land = |p: V4| p[2];
     let mut cx = Cx {
         t: tables,
-        data,
         scene: &mut scene,
         party: &party,
         world: World { player: members[0], frame: &IDENTITY, ..World::default() },
@@ -422,7 +420,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     lines.push(with_ball(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx {
             party: &party,
             menu: true,
@@ -484,7 +482,6 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         blur.apply(&out);
         let mut cx = Cx {
             t: tables,
-            data,
             scene: &mut scene,
             party: &party,
             world: World { player: members[0], frame: &IDENTITY, ..World::default() },

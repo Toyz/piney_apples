@@ -11,7 +11,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::gorre;
 use piney_battle::boss::gorre::brother::Brother;
 use piney_battle::boss::gorre::{Brothers, Gorre};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, Out};
+use piney_battle::boss::{Boss, BossEnv, CamView, Cx, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -30,12 +30,11 @@ type Clips = std::collections::HashMap<String, (u32, bool)>;
 type V4 = [u32; 4];
 
 thread_local! {
-    static DATA: std::cell::RefCell<Option<(BossData, Clips)>> = const { std::cell::RefCell::new(None) };
+    static DATA: std::cell::RefCell<Option<Clips>> = const { std::cell::RefCell::new(None) };
 }
 
-fn load(iso_path: &str) -> (BossData, Clips) {
+fn load(iso_path: &str) -> Clips {
     let mut iso = Iso::open(iso_path).expect("the ISO");
-    let data = BossData::of(iso.volume().expect("the volume"));
     let arc = Archive::new(iso.read_path("DATA/DATA.BIN").expect("DATA.BIN")).expect("DATA.BIN");
     let mut clips = std::collections::HashMap::new();
     for stem in [gorre::FILE, "xeffect"] {
@@ -48,7 +47,7 @@ fn load(iso_path: &str) -> (BossData, Clips) {
             }
         }
     }
-    (data, clips)
+    clips
 }
 
 /// Answers `gorreclips` and `gorre`; None for any other command.
@@ -63,14 +62,14 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
     });
     Some(DATA.with(|d| {
         let d = d.borrow();
-        let (data, clips) = d.as_ref().unwrap();
+        let clips = d.as_ref().unwrap();
         if cmd == "gorreclips" {
             let mut v: Vec<_> = clips.iter().collect();
             v.sort();
             let body: Vec<String> = v.iter().map(|(k, (f, l))| format!("\"{k}\":[{f},{}]", u8::from(*l))).collect();
             format!("{{{}}}", body.join(","))
         } else {
-            run(tables, data, clips, t)
+            run(tables, clips, t)
         }
     }))
 }
@@ -85,7 +84,7 @@ fn shake(m: i64, f: usize) -> bool {
     !(m > 0 && f as i64 % m == 0)
 }
 
-fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
+fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
     for _ in 0..n {
@@ -148,13 +147,12 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let volume = crate::probe_volume();
-    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
     let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
     let mut none = |_| None;
     let mut land = |p: V4| p[2];
     let mut cx = Cx {
         t: tables,
-        data,
         scene: &mut scene,
         party: &party,
         world: World { player: members[0], frame: &IDENTITY, ..World::default() },
@@ -188,7 +186,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
         let mut out = Vec::new();
         let brothers = boss.systems.get::<Brothers>().expect("Gorre's brothers").me;
@@ -248,7 +246,6 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         let mut pushed = move |_: V4| pushing.then_some([0u32; 4]);
         let mut cx = Cx {
             t: tables,
-            data,
             scene: &mut scene,
             party: &party,
             world: World { player: members[0], frame: &IDENTITY, ..World::default() },

@@ -153,8 +153,7 @@ pub(super) fn new(cx: &mut Cx, k: i32) -> usize {
     set_base_param(cx, me, LEAF_ROW);
     let mut b = plain_boss();
     b.cheat_hp = 0;
-    b.anm_tbl =
-        piney_data::tables::combat::of(cx.volume()).magus_leaf_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = piney_data::tables::combat::of(cx.volume()).magus_leaf_anims;
     b.anm = Anm::new();
     b.change_action(cx, act::NEUTRAL, 3, true);
     b.anm_status = 0;

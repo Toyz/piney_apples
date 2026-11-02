@@ -82,7 +82,7 @@ pub const IMAGE: crate::boss::AfterImageParams = crate::boss::AfterImageParams {
 pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32) -> Part<Seed> {
     let mut b = plain_boss();
     set_base_param(cx, me, SEED_ROW);
-    b.anm_tbl = super::clips(super::tables(cx).corbenik_seed_anims);
+    b.anm_tbl = super::tables(cx).corbenik_seed_anims;
     cx.scene.chars[me].pos = VF0;
     b.dirc = VF0;
     let base = cx.scene.chars[me].base();

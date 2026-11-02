@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::second::{self, Second};
 use piney_battle::boss::corbenik::{self, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, Cx, Effects, FxCall, Out};
+use piney_battle::boss::{Boss, BossEnv, Cx, Effects, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -54,7 +54,7 @@ impl piney_battle::boss::Field for Land {
     }
 }
 
-pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
+pub(crate) fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
     for _ in 0..n {
@@ -107,14 +107,13 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let volume = crate::probe_volume();
-    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
     let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
     let mut none = |_| None;
     let mut land = |p: V4| p[2];
     let mut hits = Land;
     let mut cx = Cx {
         t: tables,
-        data,
         scene: &mut scene,
         party: &party,
         world: World { player: members[0], frame: &IDENTITY, ..World::default() },
@@ -145,7 +144,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
     for f in 0..frames {
         frame_no.set(f);
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let mut out = Vec::new();
@@ -196,7 +195,6 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
         let pre = all.len();
         let mut cx = Cx {
             t: tables,
-            data,
             scene: &mut scene,
             party: &party,
             world: World { player: members[0], frame: &IDENTITY, ..World::default() },

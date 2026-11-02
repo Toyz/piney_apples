@@ -147,7 +147,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32, lv: i16) -> Par
         ..Gomora::default()
     };
     set_base_param(cx, me, 16);
-    b.anm_tbl = combat::of(cx.volume()).kyvia_gomora_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = combat::of(cx.volume()).kyvia_gomora_anims;
     cx.scene.chars[me].pos = VF0;
     b.dirc = VF0;
     b.dirc[0] = 0x3fc9_0fdb;

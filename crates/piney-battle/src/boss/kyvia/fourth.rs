@@ -470,7 +470,7 @@ fn ex_on(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     if reborn {
         b.change_action(cx, act::NEUTRAL, 0, true);
     } else {
-        b.anm_tbl = combat::of(cx.volume()).kyvia04_anims_ex.iter().map(|a| a.map(str::to_string)).collect();
+        b.anm_tbl = combat::of(cx.volume()).kyvia04_anims_ex;
     }
 }
 

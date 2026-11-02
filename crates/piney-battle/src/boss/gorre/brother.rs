@@ -115,7 +115,7 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
     b.draw_sw = 1;
     let c = piney_data::tables::combat::of(cx.volume());
     let anims = if id == 0 { c.gorre_brother_anims } else { c.gorre_brother2_anims };
-    b.anm_tbl = anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = anims;
     // `pos_p` is left at 0: only the first `Move` derives it.
     cx.scene.chars[me].pos = geom::apply_matrix(&translate(cx.scene.chars[master_me].pos), offset);
     b.dirc = dirc;
@@ -396,7 +396,7 @@ fn strike(b: &mut BossBase, x: &mut Brother, kind: Wave, cx: &mut Cx) {
     if b.anm_status != 0 && over {
         let slot = if kind == Wave::Plain { 0 } else { 12 };
         if let Some(Some(clip)) = b.anm_tbl.get(slot).cloned() {
-            b.anm.set(&clip, cx.clips);
+            b.anm.set(clip, cx.clips);
         }
         b.act_proccess += 1;
         b.act_count = 0;

@@ -673,7 +673,7 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
         Fight::Third => (t.kyvia03_anims, "ANM_ex03nut0"),
         Fight::Fourth => (t.kyvia04_anims, "ANM_ex04nut0"),
     };
-    b.anm_tbl = anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = anims;
     // OffExit, OnDraw, OnBodyHit (not the fourth's), OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;

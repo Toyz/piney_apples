@@ -13,6 +13,7 @@ mod tests;
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::tables::combat;
+use piney_data::volume::Volume;
 
 use self::eff::{Fx, MeteoSworm, RockTower, ThunderStorm};
 use super::blur::{BlurFunc, Set};
@@ -81,8 +82,8 @@ pub const PRED_TEXT_LAYER: i16 = 254;
 /// Fidchell's tables, the volume's (`tables::combat`): `boss04NormalActTbl`,
 /// `boss04SuperActTbl`, `boss04EpitaphActTbl` as `patTbl` points at them,
 /// each to its -1.
-fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
-    let c = combat::of(cx.volume());
+fn words(v: Volume, t: Tbl) -> &'static [i32] {
+    let c = combat::of(v);
     match t {
         Tbl::None => &[],
         Tbl::Normal => c.fidchell_normal,
@@ -250,7 +251,7 @@ fn wrap_lo(v: F) -> F {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = combat::of(cx.volume()).fidchell_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = combat::of(cx.volume()).fidchell_anims;
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -291,7 +292,7 @@ fn start_table(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
         return;
     }
     x.reserve_pred = 0;
-    let tbl = words(cx, t);
+    let tbl = words(cx.volume(), t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -345,8 +346,8 @@ fn manager_pass(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
 impl Patterns for Fidchell {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        words(cx, b.pat_tbl)
+    fn words(&self, b: &BossBase, v: Volume) -> &'static [i32] {
+        words(v, b.pat_tbl)
     }
 
     /// `ccBoss04::ExecPatternIndex(tbl, i)` (OUT gcmn 0x004a40b0), falling back

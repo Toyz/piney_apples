@@ -21,6 +21,7 @@ pub mod third;
 
 use piney_data::field::ee;
 use piney_data::tables::combat::{self, Combat};
+use piney_data::volume::Volume;
 
 use super::{BaseActs, BossBase, Cx, Fx as BossFx, PassMode, Tbl, word};
 use crate::geom::V4;
@@ -69,44 +70,39 @@ fn tables(cx: &Cx) -> &'static Combat {
     combat::of(cx.volume())
 }
 
-/// A clip table (`boss08AnmTbl`, ...) as `actAnmTbl` holds it.
-fn clips(t: &[Option<&str>]) -> Vec<Option<String>> {
-    t.iter().map(|a| a.map(str::to_string)).collect()
-}
-
 /// The first form's table by [`Tbl`] (`boss08ActNormalTbl` for mode 0,
 /// `SetPatternMode(0)`'s; any other mode a null table).
-pub(crate) fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
+pub(crate) fn words(v: Volume, t: Tbl) -> &'static [i32] {
     match t {
-        Tbl::Normal => tables(cx).corbenik_normal,
+        Tbl::Normal => combat::of(v).corbenik_normal,
         _ => &[],
     }
 }
 
 /// The second form's table by [`Tbl`] (`boss08BNormalActTbl`,
 /// `boss08BSuperActTbl`).
-pub(crate) fn words_b(cx: &Cx, t: Tbl) -> &'static [i32] {
+pub(crate) fn words_b(v: Volume, t: Tbl) -> &'static [i32] {
     match t {
-        Tbl::Normal => tables(cx).corbenik_b_normal,
-        Tbl::Super => tables(cx).corbenik_b_super,
+        Tbl::Normal => combat::of(v).corbenik_b_normal,
+        Tbl::Super => combat::of(v).corbenik_b_super,
         _ => &[],
     }
 }
 
 /// The third form's table by [`Tbl`] (mode 0 its first, from half its HP
 /// the normal).
-pub(crate) fn words_c(cx: &Cx, t: Tbl) -> &'static [i32] {
+pub(crate) fn words_c(v: Volume, t: Tbl) -> &'static [i32] {
     match t {
-        Tbl::Normal => tables(cx).corbenik_c_first,
-        Tbl::Super => tables(cx).corbenik_c_normal,
+        Tbl::Normal => combat::of(v).corbenik_c_first,
+        Tbl::Super => combat::of(v).corbenik_c_normal,
         _ => &[],
     }
 }
 
 /// A killer eye's pattern table by its slot (the killer, the downer and
 /// the rips tables).
-pub(crate) fn killer_acts(cx: &Cx, slot: usize) -> &'static [i32] {
-    let t = tables(cx);
+pub(crate) fn killer_acts(v: Volume, slot: usize) -> &'static [i32] {
+    let t = combat::of(v);
     [t.corbenik_killer_acts, t.corbenik_downner_acts, t.corbenik_rips_acts].get(slot).copied().unwrap_or(&[])
 }
 

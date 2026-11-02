@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-555 entries: audio 44, battle 156, build 29, content 3, decomp 28, disc 5, engine 26, format 17, iop 3, render 130, save 16, script 62, test 240, tooling 58, ui 104, video 17, volumes 95, world 154. 144 entries still have open questions - [listed below](#still-open).
+556 entries: audio 44, battle 157, build 29, content 3, decomp 28, disc 5, engine 26, format 17, iop 3, render 130, save 16, script 62, test 240, tooling 58, ui 104, video 17, volumes 95, world 154. 145 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -567,9 +567,11 @@ The [reference](docs/README.md) says what is true now.
 | 553 | [Bosses as defs: Kyvia made of systems, its core and gomoras lent, its disc and the fourth's places; the baselines taken anew at 9aaea16](worklog/0553-bosses-as-defs-kyvia-made-of-systems-its-core-and-gomoras.md) | 2026-11-02 | battle |
 | 554 | [Bosses as defs: Innis made of systems, its wave, its missiles' pass, its images and its own; the images' Main written out](worklog/0554-bosses-as-defs-innis-made-of-systems-its-wave-its-missiles.md) | 2026-11-02 | battle |
 | 555 | [Bosses as defs: Corbenik made of systems, each form its own with its parts lent, the first's hand-over its system's; seeds, roots, eyes and killer eyes each a system](worklog/0555-bosses-as-defs-corbenik-made-of-systems-each-form-its-own.md) | 2026-11-02 | battle |
+| 556 | [Bosses as defs: the class machinery and BossData out; a bare ccBoss its own def's steps, Patterns::words by the volume, actAnmTbl a static slice](worklog/0556-bosses-as-defs-the-class-machinery-and-bossdata-out-a-bare.md) | 2026-11-02 | battle |
 
 ## Still open
 
+- [556. Bosses as defs: the class machinery and BossData out; a bare ccBoss its own def's steps, Patterns::words by the volume, actAnmTbl a static slice](worklog/0556-bosses-as-defs-the-class-machinery-and-bossdata-out-a-bare.md) - nothing this step opened.
 - [555. Bosses as defs: Corbenik made of systems, each form its own with its parts lent, the first's hand-over its system's; seeds, roots, eyes and killer eyes each a system](worklog/0555-bosses-as-defs-corbenik-made-of-systems-each-form-its-own.md) - nothing this step opened; the class machinery and BossData are left to take out (worklog 556).
 - [554. Bosses as defs: Innis made of systems, its wave, its missiles' pass, its images and its own; the images' Main written out](worklog/0554-bosses-as-defs-innis-made-of-systems-its-wave-its-missiles.md) - nothing this step opened; Corbenik remains to convert, then Class, each_class! and BossData out.
 - [553. Bosses as defs: Kyvia made of systems, its core and gomoras lent, its disc and the fourth's places; the baselines taken anew at 9aaea16](worklog/0553-bosses-as-defs-kyvia-made-of-systems-its-core-and-gomoras.md) - nothing this step opened; Innis and Corbenik remain to convert, then Class, each_class! and BossData out.

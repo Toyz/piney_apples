@@ -13,6 +13,7 @@ mod tests;
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::tables::combat;
+use piney_data::volume::Volume;
 
 use self::eff::Fx;
 use super::systems::wave::Wave;
@@ -89,8 +90,8 @@ pub mod act {
 /// `boss07SuperActTbl`, `boss07EpitaphActTbl` (`@1201`'s three: mode 0
 /// normal, 1 super, 2 epitaph), each through its closing -1, as `patTbl`
 /// points at them.
-fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
-    let c = combat::of(cx.volume());
+fn words(v: Volume, t: Tbl) -> &'static [i32] {
+    let c = combat::of(v);
     match t {
         Tbl::None => &[],
         Tbl::Normal => c.tarvos_normal,
@@ -242,7 +243,7 @@ fn spell_camera(b: &BossBase, cx: &mut Cx) {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = combat::of(cx.volume()).tarvos_anims.iter().map(|a| a.map(str::to_string)).collect();
+    b.anm_tbl = combat::of(cx.volume()).tarvos_anims;
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -280,7 +281,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx, m: i32) {
     x.pattern_mode = m;
     b.pat_tbl = t;
     b.pat_index = 0;
-    let tbl = words(cx, t);
+    let tbl = words(cx.volume(), t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -358,8 +359,8 @@ fn spike_hit(b: &mut BossBase, cx: &mut Cx, t: usize, pos: V4, index: i32) {
 impl Patterns for Tarvos {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        words(cx, b.pat_tbl)
+    fn words(&self, b: &BossBase, v: Volume) -> &'static [i32] {
+        words(v, b.pat_tbl)
     }
 
     /// `ccBoss07::ExecPatternIndex(tbl, i)` (0x003a8700), falling back on
@@ -381,7 +382,7 @@ impl Patterns for Tarvos {
         }
         b.pat_num = pat;
         let me = cx.me;
-        let own = words(cx, b.pat_tbl);
+        let own = words(cx.volume(), b.pat_tbl);
         match pat {
             19 => b.change_action(cx, act::MAGIC, 3, true),
             21 => b.change_action(cx, act::PHANTOM, 3, true),

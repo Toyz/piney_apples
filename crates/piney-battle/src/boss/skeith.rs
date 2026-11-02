@@ -5,6 +5,7 @@
 //! `ccBoss` as its base), so nothing here is shared.
 
 use piney_data::tables::combat;
+use piney_data::volume::Volume;
 
 use super::systems::wave::Wave;
 use super::systems::{BossSystem, Hook, Others, Systems};
@@ -110,7 +111,7 @@ fn wave<'a>(o: &'a mut Others) -> &'a mut Wave {
 /// area's `DMY_center01` (`center`, world).
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let mut b = BossBase {
-        anm_tbl: anims().iter().map(|a| a.map(str::to_string)).collect(),
+        anm_tbl: anims(),
         wait_pat_num: -2,
         pat_num: 13,
         // InitStageEffect: the stage fader and its layer made.
@@ -154,7 +155,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 impl Patterns for Skeith {
     const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0 };
 
-    fn words<'d>(&self, b: &BossBase, _: &Cx<'d>) -> &'d [i32] {
+    fn words(&self, b: &BossBase, _: Volume) -> &'static [i32] {
         words(b.pat_tbl)
     }
 

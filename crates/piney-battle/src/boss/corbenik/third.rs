@@ -6,6 +6,7 @@
 //! above (the tera laser), and its eye entry throws out the killer eyes.
 
 use piney_data::field::ee;
+use piney_data::volume::Volume;
 
 use super::eff::Fx;
 use super::eye::{self, Eye, Killer};
@@ -154,7 +155,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     });
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
-    b.anm_tbl = super::clips(super::tables(cx).corbenik_c_anims);
+    b.anm_tbl = super::tables(cx).corbenik_c_anims;
     b.exit = 0;
     b.draw_sw = 1;
     b.body_hit_sw = 1;
@@ -166,8 +167,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     cx.scene.chars[me].pos_p = pp;
     b.dirc[2] = get_dirc(pp, w2p(cx, kite_pos));
     if let Some(Some(c)) = b.anm_tbl.first() {
-        let c = c.clone();
-        b.anm.set(&c, cx.clips);
+        b.anm.set(c, cx.clips);
     }
     let mut x = Box::new(Third {
         killer_me,
@@ -330,8 +330,7 @@ pub(crate) fn change_action(b: &mut BossBase, x: &mut Third, cx: &mut Cx, n: i16
         as_me(cx, p.me, |cx| eye::order(&mut p.b.base, &mut p.x, cx, n));
     }
     if af && let Some(Some(clip)) = usize::try_from(n).ok().and_then(|k| b.anm_tbl.get(k)) {
-        let clip = clip.clone();
-        b.anm.set(&clip, cx.clips);
+        b.anm.set(clip, cx.clips);
         if b.epitaph == 0 && b.act_num == 12 {
             b.epitaph = 1;
         }
@@ -348,15 +347,15 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Third, cx: &mut Cx, m: i32) {
     };
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = x.words(b, cx);
+    let tbl = x.words(b, cx.volume());
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 impl Patterns for Third {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        super::words_c(cx, b.pat_tbl)
+    fn words(&self, b: &BossBase, v: Volume) -> &'static [i32] {
+        super::words_c(v, b.pat_tbl)
     }
 
     fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {

@@ -7,14 +7,6 @@ use std::ops::{Deref, DerefMut};
 
 use super::{Boss, BossBase, BossDef, Cx, SystemKind};
 
-/// A part's own members, as its boss holds them: its [`Class`] variant,
-/// or its system on the def's list.
-pub trait PartClass: Default + Sized {
-    /// The members out of the boss, None when it holds none.
-    fn take_from(b: &mut Boss) -> Option<Box<Self>>;
-    fn put_into(b: &mut Boss, x: Box<Self>);
-}
-
 /// One of the fight's parts as the master's frame holds it: its `ccBoss`,
 /// its own members and its character.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -24,12 +16,20 @@ pub struct Part<T> {
     pub me: usize,
 }
 
-impl<T: PartClass> Part<T> {
+impl<T: SystemKind + Default> Part<T> {
+    /// A part of `def` at character `me`: its boss with the def's other
+    /// systems as their constructors start them, `x` its own.
+    pub fn of(def: &'static BossDef, base: BossBase, x: T, me: usize) -> Part<T> {
+        let mut b = Boss::build(def, base);
+        let _ = b.systems.take::<T>();
+        Part { b: Box::new(b), x: Box::new(x), me }
+    }
+
     /// The part taken out of character `me`. A slot with no boss, or with
     /// another class, is left as it was.
     pub fn take(cx: &mut Cx, me: usize) -> Option<Part<T>> {
         let mut b = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take())?;
-        match T::take_from(&mut b) {
+        match b.systems.take::<T>() {
             Some(x) => Some(Part { b, x, me }),
             None => {
                 if let Some(f) = cx.scene.chars[me].foe_state_mut() {
@@ -43,7 +43,7 @@ impl<T: PartClass> Part<T> {
     /// The part put back into its character.
     pub fn put(self, cx: &mut Cx) {
         let Part { mut b, x, me } = self;
-        T::put_into(&mut b, x);
+        b.systems.put(b.def, x);
         if let Some(f) = cx.scene.chars[me].foe_state_mut() {
             f.boss = Some(b);
         }
@@ -75,7 +75,7 @@ pub struct Parts<T> {
     found: Vec<bool>,
 }
 
-impl<T: PartClass> Parts<T> {
+impl<T: SystemKind + Default> Parts<T> {
     /// Each of `mes` taken out of its character, in order.
     pub fn take(cx: &mut Cx, mes: &[usize]) -> Parts<T> {
         let (list, found) = mes.iter().map(|&me| Part::take_or_stand_in(cx, me)).unzip();
@@ -133,40 +133,4 @@ impl<'a, T> IntoIterator for &'a mut Parts<T> {
     fn into_iter(self) -> Self::IntoIter {
         self.list.iter_mut()
     }
-}
-
-impl<T: SystemKind + Default> Part<T> {
-    /// A part of `def` at character `me`: its boss with the def's other
-    /// systems as their constructors start them, `x` its own.
-    pub fn of(def: &'static BossDef, base: BossBase, x: T, me: usize) -> Part<T> {
-        let mut b = Boss::build(def, base);
-        let _ = b.systems.take::<T>();
-        Part { b: Box::new(b), x: Box::new(x), me }
-    }
-}
-
-/// `PartClass` for the parts that are systems on their def's list.
-macro_rules! part_system {
-    ($($t:ty),* $(,)?) => {$(
-        impl PartClass for $t {
-            fn take_from(b: &mut Boss) -> Option<Box<Self>> {
-                b.systems.take::<$t>()
-            }
-
-            fn put_into(b: &mut Boss, x: Box<Self>) {
-                b.systems.put(b.def, x);
-            }
-        }
-    )*};
-}
-
-part_system! {
-    super::gorre::brother::Brother,
-    super::magus::leaf::Leaf,
-    super::kyvia::core::Core,
-    super::kyvia::gomora::Gomora,
-    super::corbenik::seed::Seed,
-    super::corbenik::second::Root,
-    super::corbenik::eye::Eye,
-    super::corbenik::eye::Killer,
 }
