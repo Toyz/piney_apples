@@ -8,12 +8,14 @@
 
 use piney_data::field::ee;
 use piney_data::libm;
+use piney_data::tables::combat;
 
 use super::{
     Gen, GenOp, GenRow, Held, Kyvia, Place, Table, Tree, act, as_me, core_fade_check, core_ready, core_state,
     core_state_is, gen_op, particles,
 };
 use crate::boss::blur::Set;
+use crate::boss::systems::{BossSystem, Hook, Others};
 use crate::boss::{BossBase, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
@@ -94,11 +96,30 @@ impl Make {
 }
 
 /// `ccBossKyvia04`'s own members (Infection's DWARF; Quarantine's
-/// +0x29614 and +0x29618 the rebirth's flag and count).
+/// +0x29614 and +0x29618 the rebirth's flag and count) beside its places.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Fourth {
     /// `FightFlg`: the EX turn on.
     pub fight_flg: u8,
+    pub dead_set_pos: V4,
+    pub rebirth_flg: i32,
+    pub rebirth_cnt: i32,
+    /// `FadeNum`: the `scFadeDef` element `MagicBallAtk` flashed with (the
+    /// first free one then).
+    pub fade_num: i32,
+}
+
+impl Fourth {
+    /// The constructor's (QUA gcmn 0x003d9c40).
+    pub(super) fn new() -> Fourth {
+        Fourth { dead_set_pos: [0x40e0_0000, 0xc4c1_2000, 0x447a_0000, ONE], ..Fourth::default() }
+    }
+}
+
+/// The fourth fight's places, the disc's stages there: where each core
+/// rises, the walls and gates between them, and how far Kite has come.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Places {
     /// +0x29351: Kite at the core's place, its rise running.
     pub rising: u8,
     pub core_lv_count: i32,
@@ -108,23 +129,18 @@ pub struct Fourth {
     pub core_appear_pos: [V4; 4],
     pub wall_pos: [V4; 4],
     pub wall_pos2: [V4; 4],
-    pub dead_set_pos: V4,
-    pub rebirth_flg: i32,
-    pub rebirth_cnt: i32,
     pub wall_gp_flg: i32,
     /// `WallGp`, `WallGp2`, `CoreAppGp`, `CoreAppGp2` made, by place.
     pub made: [[bool; 4]; 4],
-    /// `FadeNum`: the `scFadeDef` element `MagicBallAtk` flashed with (the
-    /// first free one then).
-    pub fade_num: i32,
 }
 
-impl Fourth {
+impl Default for Places {
     /// The constructor's (QUA gcmn 0x003d9c40).
-    pub(super) fn new() -> Fourth {
+    fn default() -> Places {
         let v = |x, y, z| [x, y, z, ONE];
-        Fourth {
-            wall_gp_flg: 1,
+        Places {
+            rising: 0,
+            core_lv_count: 0,
             core_appear_pos: [
                 v(0xc410_0000, 0xc61a_bc00, 0x4463_8000),
                 v(0xc539_f000, 0xc5f1_a800, 0x4463_8000),
@@ -143,17 +159,29 @@ impl Fourth {
                 v(0x4180_0000, 0xc580_f000, 0x447a_0000),
                 VF0,
             ],
-            dead_set_pos: v(0x40e0_0000, 0xc4c1_2000, 0x447a_0000),
-            ..Fourth::default()
+            wall_gp_flg: 1,
+            made: [[false; 4]; 4],
         }
     }
+}
 
+impl Places {
     /// `CoreAppearPos[k]`: past the four, `CoreLvCount`'s bits and the
     /// object's padding (zeros here).
     fn appear(&self, k: i32) -> V4 {
         match usize::try_from(k).ok().and_then(|k| self.core_appear_pos.get(k)) {
             Some(&p) => p,
             None => [self.core_lv_count as u32, 0, 0, 0],
+        }
+    }
+}
+
+impl BossSystem for Places {
+    /// The head of the fourth fight's `Think`: on its first frame, each
+    /// place's light and walls.
+    fn step(&mut self, hook: Hook, _b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Think && self.wall_gp_flg != 0 {
+            init_wall_gp_start(self, cx);
         }
     }
 }
@@ -176,8 +204,7 @@ fn add(a: V4, b: V4) -> V4 {
 /// `InitWallGpStart` (QUA gcmn 0x003dbef0), the first frame: each place's
 /// light and walls made (from `WallPos` to `WallPos2`), then all but the
 /// first place's held still (`pauseFlag`).
-fn init_wall_gp_start(x: &mut Kyvia, cx: &mut Cx) {
-    let f = fourth_of(x);
+fn init_wall_gp_start(f: &mut Places, cx: &mut Cx) {
     let one = [0, 0, 0, ONE];
     for k in 0..3u8 {
         let i = usize::from(k);
@@ -217,13 +244,12 @@ fn init_wall_gp_start(x: &mut Kyvia, cx: &mut Cx) {
 /// `SwitchGateON(n)` (QUA gcmn 0x003decf0), as core `n` falls: field
 /// 12's `body[n - 1]` let through (`HitDisable`), its walls held and the
 /// next place's walls and light let run.
-fn switch_gate_on(x: &mut Kyvia, cx: &mut Cx, n: i16) {
+fn switch_gate_on(f: &Places, cx: &mut Cx, n: i16) {
     let Ok(k) = u8::try_from(n - 1) else { return };
     if k > 2 {
         return;
     }
     cx.out(Out::FieldBodyHit { n: usize::from(k), on: false });
-    let f = fourth_of(x);
     gen_op(cx, Held::Wall(k), GenOp::Pause(true));
     gen_op(cx, Held::Wall2(k), GenOp::Pause(true));
     let j = k + 1;
@@ -238,7 +264,7 @@ fn switch_gate_on(x: &mut Kyvia, cx: &mut Cx, n: i16) {
 /// `SwitchGateOFF(n)` (QUA gcmn 0x003defc0), as core `n` rises: the place
 /// behind closed (`body[n - 2]`'s `HitEnable`), its walls let run, and
 /// the walls two back (and the fourth place's) killed.
-fn switch_gate_off(x: &mut Kyvia, cx: &mut Cx, n: i16) {
+fn switch_gate_off(f: &Places, cx: &mut Cx, n: i16) {
     let Ok(k) = u8::try_from(n - 2) else { return };
     if k > 2 {
         return;
@@ -246,7 +272,6 @@ fn switch_gate_off(x: &mut Kyvia, cx: &mut Cx, n: i16) {
     cx.out(Out::FieldBodyHit { n: usize::from(k), on: true });
     gen_op(cx, Held::Wall(k), GenOp::Pause(false));
     gen_op(cx, Held::Wall2(k), GenOp::Pause(false));
-    let f = fourth_of(x);
     match k {
         1 => {
             gen_op(cx, Held::Wall(0), GenOp::Kill);
@@ -266,22 +291,17 @@ fn switch_gate_off(x: &mut Kyvia, cx: &mut Cx, n: i16) {
 
 // --- the frame ---------------------------------------------------------------------------
 
-/// The fourth fight's `Think` (QUA gcmn 0x003dbcf0) before its turn.
-pub(super) fn think_head(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
-    if fourth_of(x).wall_gp_flg != 0 {
-        init_wall_gp_start(x, cx);
-    }
-    x.af_cou += 1;
-    if x.af_timing < x.af_cou {
-        x.af_cou = 0;
-    }
-    check_disc_move(b, x, t, cx);
+/// The fourth fight's `Think` (QUA gcmn 0x003dbcf0) after its walls
+/// ([`Places`]), its count and `CheckDiscMove` ([`super::Disc`]): the
+/// EX turn's death, then its turn.
+pub(super) fn think(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     dead_check(b, x, t, cx);
+    think_turn(b, x, t, cx);
 }
 
 /// `Think`'s turn: the EX turn's pattern or the places' (neither once the
 /// party is gone or the game is over), idle in the attacks.
-pub(super) fn think_turn(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+fn think_turn(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => {
             if cx.annihilated() || cx.game_over {
@@ -300,12 +320,13 @@ pub(super) fn think_turn(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut
 
 /// `CheckCorePoint` (QUA gcmn 0x003dec60): Kite within 250 of the next
 /// place.
-fn check_core_point(x: &Kyvia, cx: &Cx) -> bool {
-    let f = x.fourth.as_deref().expect("the fourth fight");
-    if f.core_lv_count > i32::from(x.disc_lv) {
+fn check_core_point(t: &mut Tree, cx: &Cx) -> bool {
+    let (pos, lv) = (t.disc.pos, t.disc.lv);
+    let f = t.places();
+    if f.core_lv_count > i32::from(lv) {
         return false;
     }
-    let d = super::super::dist(cx, x.disc_pos, f.appear(f.core_lv_count));
+    let d = super::super::dist(cx, pos, f.appear(f.core_lv_count));
     !ee::le(0x437a_0000, d)
 }
 
@@ -314,36 +335,36 @@ fn check_core_point(x: &Kyvia, cx: &Cx) -> bool {
 /// gathered there; at 30 the core risen and the place behind closed, or at
 /// the last place the body's scene, then the EX turn. Once a core falls
 /// the next place opened.
-fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
-    let kite = cx.world.player.map_or(x.disc_pos, |k| cx.scene.chars[k].pos);
-    x.disc_pos = kite;
-    if x.st_flg != 1 {
-        if t.core.as_ref().is_some_and(|c| c.x.dead_flg != 0) && x.disc_lv < x.disc_max_lv {
-            x.wait_disc_count += 1;
-            if x.wait_disc_count == 1 {
-                let lv = x.disc_lv;
-                switch_gate_on(x, cx, lv);
-                x.st_flg = 1;
-                x.disc_lv += 1;
-                x.wait_disc_count = 0;
+pub(super) fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+    let kite = cx.world.player.map_or(t.disc.pos, |k| cx.scene.chars[k].pos);
+    t.disc.pos = kite;
+    if t.disc.st_flg != 1 {
+        if t.core.as_ref().is_some_and(|c| c.x.dead_flg != 0) && t.disc.lv < t.disc.max_lv {
+            t.disc.wait_count += 1;
+            if t.disc.wait_count == 1 {
+                let lv = t.disc.lv;
+                switch_gate_on(t.places(), cx, lv);
+                t.disc.st_flg = 1;
+                t.disc.lv += 1;
+                t.disc.wait_count = 0;
                 x.atk_pat_mode = 1;
             }
         }
         return;
     }
-    if check_core_point(x, cx) {
-        fourth_of(x).rising = 1;
+    if check_core_point(t, cx) {
+        t.places().rising = 1;
     }
-    if fourth_of(x).rising == 0 {
+    if t.places().rising == 0 {
         return;
     }
-    x.wait_disc_count += 1;
-    if x.wait_disc_count == 1 {
+    t.disc.wait_count += 1;
+    if t.disc.wait_count == 1 {
         b.change_action(cx, act::NEUTRAL, 0, true);
         cx.out(Out::FlashFade { t_in: 10, t_out: 5, hold: Some(10), colour: 0x80ff_ffff });
         b.lock_player(cx, false);
-        let lv = i32::from(x.disc_lv);
-        let f = fourth_of(x);
+        let lv = i32::from(t.disc.lv);
+        let f = t.places();
         if f.core_lv_count < lv {
             let k = f.core_lv_count as u8;
             gen_op(cx, Held::CoreApp(k), GenOp::Kill);
@@ -354,29 +375,29 @@ fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             f.made[3][usize::from(k)] = false;
         }
     }
-    if x.wait_disc_count == 20 {
-        let k = (x.disc_lv - 1) as usize;
-        let mut at = fourth_of(x).core_appear_pos[k];
+    if t.disc.wait_count == 20 {
+        let k = (t.disc.lv - 1) as usize;
+        let mut at = t.places().core_appear_pos[k];
         together_char_pos(cx, &mut at, 0);
-        fourth_of(x).core_appear_pos[k] = at;
+        t.places().core_appear_pos[k] = at;
     }
-    if fourth_of(x).core_lv_count + 1 < i32::from(x.disc_max_lv) {
-        if x.wait_disc_count == 30 {
-            x.st_flg = 0;
-            fourth_of(x).rising = 0;
-            x.wait_disc_count = 0;
+    if t.places().core_lv_count + 1 < i32::from(t.disc.max_lv) {
+        if t.disc.wait_count == 30 {
+            t.disc.st_flg = 0;
+            t.places().rising = 0;
+            t.disc.wait_count = 0;
             entry_slave(x, t, cx, 1);
             let core = t.core.as_ref().map_or(cx.me, |c| c.me);
             x.max_hp = i32::from(cx.scene.chars[core].max_hp);
             x.switch_hp = x.max_hp / 5;
             b.unlock_player();
-            let lv = x.disc_lv;
-            switch_gate_off(x, cx, lv);
+            let lv = t.disc.lv;
+            switch_gate_off(t.places(), cx, lv);
         }
-    } else if kyvia_scene(b, x, cx) {
-        x.st_flg = 0;
-        fourth_of(x).rising = 0;
-        x.wait_disc_count = 0;
+    } else if kyvia_scene(b, x, t, cx) {
+        t.disc.st_flg = 0;
+        t.places().rising = 0;
+        t.disc.wait_count = 0;
         ex_on(b, x, t, cx);
         b.unlock_player();
     }
@@ -387,15 +408,15 @@ fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
 /// body; from 40 the eye rising 5 (3 from 155) while it holds; at 155 the
 /// body's light and roar (`ANM_ex04act0`); at 280 the camera back. True
 /// at 280.
-fn kyvia_scene(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) -> bool {
-    let c = x.wait_disc_count;
+fn kyvia_scene(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) -> bool {
+    let c = t.disc.wait_count;
     if c % 40 == 0 {
         cx.out(Out::Se { se: 232 });
         cx.out(Out::Se { se: 232 });
     }
     if c == 10 {
-        let lv = x.disc_lv;
-        switch_gate_off(x, cx, lv);
+        let lv = t.disc.lv;
+        switch_gate_off(t.places(), cx, lv);
     }
     // `DMY_marker01`'s chunk is fetched and its place never read: the
     // body's point is (0, -700, 1100) of the field.
@@ -449,7 +470,7 @@ fn ex_on(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     if reborn {
         b.change_action(cx, act::NEUTRAL, 0, true);
     } else {
-        b.anm_tbl = cx.data.kyvia.anims_fourth_ex.clone();
+        b.anm_tbl = combat::of(cx.volume()).kyvia04_anims_ex.iter().map(|a| a.map(str::to_string)).collect();
     }
 }
 
@@ -476,7 +497,7 @@ pub(super) fn entry_slave(x: &mut Kyvia, t: &mut Tree, cx: &mut Cx, on: i32) -> 
         let gs = &mut t.gomoras;
         as_me(cx, c.me, |cx| super::core::kyvia_ex_mode_on(c, gs, cx));
     }
-    let f = fourth_of(x);
+    let f = t.places.as_deref_mut().expect("the fourth fight's def has its places");
     c.x.disc_pos = f.appear(f.core_lv_count);
     f.core_lv_count += 1;
     c.x.slave_id
@@ -518,7 +539,7 @@ fn switch_action_pattern(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut
     use super::thunder::Kind;
     let (pick, next): (Option<(i32, i16, Option<Kind>)>, i32) = match x.atk_pat_mode {
         1 => (
-            match x.disc_lv {
+            match t.disc.lv {
                 1 | 2 => Some((44, act::HAND, None)),
                 3 | 4 => Some((42, act::MAGIC_BALL, None)),
                 _ => None,
@@ -526,7 +547,7 @@ fn switch_action_pattern(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut
             x.atk_pat_mode + 1,
         ),
         2 => (
-            match x.disc_lv {
+            match t.disc.lv {
                 1 => Some((50, act::THUNDER, Some(Kind::Strike))),
                 2 => Some((50, act::THUNDER, Some(Kind::Wide))),
                 3 => Some((50, act::THUNDER, Some(Kind::Storm))),
@@ -535,7 +556,7 @@ fn switch_action_pattern(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut
             x.atk_pat_mode + 1,
         ),
         3 => (
-            match x.disc_lv {
+            match t.disc.lv {
                 1 => Some((50, act::THUNDER, Some(Kind::Strike))),
                 2 => Some((42, act::MAGIC_BALL, None)),
                 3 => Some((62, act::HELL, None)),
@@ -605,7 +626,7 @@ fn kyvia_switch_action_pattern(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx
     if flg != 2 {
         return;
     }
-    if x.disc_lv == x.disc_max_lv && x.atk_pat_mode == 5 {
+    if t.disc.lv == t.disc.max_lv && x.atk_pat_mode == 5 {
         b.lock_player(cx, false);
         if cx.env.menu_type != -1 {
             return;
@@ -739,7 +760,7 @@ pub(super) fn hell_e_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut
             if ex {
                 b.act_proccess += 1;
                 b.lock_player(cx, false);
-            } else if t.core.as_ref().is_some_and(|c| super::core::get_act_num(c, &t.gomoras)) {
+            } else if t.core.as_ref().is_some_and(|c| super::core::get_act_num(c, t.gomoras)) {
                 core_state(t, cx, 8);
                 b.act_proccess += 1;
                 b.lock_player(cx, false);
@@ -750,13 +771,13 @@ pub(super) fn hell_e_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut
                 return;
             }
             let target = rnd_target(b, cx);
-            let lv = i32::from(x.disc_lv);
-            let k = (x.disc_lv - 1) as usize;
-            let mut at = fourth_of(x).core_appear_pos[k];
+            let lv = i32::from(t.disc.lv);
+            let k = (t.disc.lv - 1) as usize;
+            let mut at = t.places().core_appear_pos[k];
             super::hell::create(b, cx, at, target, lv - 1);
             together_char_pos(cx, &mut at, if ex { 0 } else { 1 });
             if !ex {
-                fourth_of(x).core_appear_pos[k] = at;
+                t.places().core_appear_pos[k] = at;
             }
             b.act_proccess += 1;
         }
@@ -882,7 +903,7 @@ pub(super) fn skill_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut 
                 let target = rnd_target(b, cx);
                 cx.scene.chars[cx.me].target_char = target;
                 let k = (cx.cc.rand() % 7).unsigned_abs() as usize;
-                let sid = cx.data.kyvia.kyvia_various.get(k).copied().unwrap_or(1);
+                let sid = combat::of(cx.volume()).kyvia_skills_various.get(k).copied().unwrap_or(1);
                 if let (Some(c), Some(tg)) = (t.core.as_ref(), target) {
                     let user = c.me;
                     if let Some(skill) =
@@ -926,7 +947,7 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
     match b.act_proccess {
         0 => {
             if b.act_count == 0 {
-                particles(cx, Gen::Fourth(Make::Ball(0)), Place::At(x.disc_pos), None);
+                particles(cx, Gen::Fourth(Make::Ball(0)), Place::At(t.disc.pos), None);
             }
             if b.act_count == 20 {
                 b.act_proccess += 1;
@@ -940,15 +961,15 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
         }
         1 => {
             if b.act_count == 11 {
-                let k = (x.disc_lv - 1) as usize;
-                let mut at = fourth_of(x).core_appear_pos[k];
+                let k = (t.disc.lv - 1) as usize;
+                let mut at = t.places().core_appear_pos[k];
                 together_char_pos(cx, &mut at, 0);
-                fourth_of(x).core_appear_pos[k] = at;
+                t.places().core_appear_pos[k] = at;
             }
             if b.act_count == 35 {
                 b.act_proccess += 1;
                 b.act_count = 0;
-                particles(cx, Gen::Fourth(Make::Ball(1)), Place::At(x.disc_pos), None);
+                particles(cx, Gen::Fourth(Make::Ball(1)), Place::At(t.disc.pos), None);
             }
             b.act_count += 1;
         }
@@ -982,7 +1003,7 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
             } else if core_state_is(t, 6) {
                 b.act_proccess += 1;
                 let me = cx.me;
-                let d = super::super::dist(cx, cx.scene.chars[me].pos, x.disc_pos);
+                let d = super::super::dist(cx, cx.scene.chars[me].pos, t.disc.pos);
                 cx.out(Out::CamModeRange { mode: 3, range: ee::add(0x44fa_0000, d) });
                 cx.out(Out::Blur(Set::Abgr(0x6080_8080)));
                 cx.out(Out::SeNote { se: 191, note: 60 });
@@ -991,7 +1012,7 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
         7 => {
             if ex || cx.cam.reset == 0 {
                 b.act_proccess += 1;
-                super::magic_ball::create(b, x, cx);
+                super::magic_ball::create(b, t.disc.pos, cx);
                 if ex {
                     x.quake_vector[..3].copy_from_slice(&[0x4120_0000; 3]);
                 }

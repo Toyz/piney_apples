@@ -360,6 +360,10 @@ Where the code does by hand, per kind, what a system should do once:
       system, `Part<T>` lending it off its boss's list; 547: Magus, its
       wave, leaves, laser, needles and own, a system's draw seeing its
       siblings, `Others::take`.)
+      (worklog 553: Kyvia's four fights, its core and the core's gomoras
+      lent (`SlaveCore`, `Gomoras`), its disc and the fourth's places,
+      its own and its effects' pass as the def's `pass`; the core and a
+      gomora each its own system; `KyviaData` gone.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

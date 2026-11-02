@@ -3,7 +3,7 @@ title: Bosses - Kyvia's second fight
 status: partial
 volumes: OUT
 covers: OUT gcmn.prg:0x00616d60 bossFunc (code 13), 0x004d5870 ccThKyvia02, 0x004d5940 ccBossKyvia02::ccBossKyvia02, 0x004d60f0 Action, 0x004d6b90 DeadKyviaVoice, 0x004d6eb0 DeadKyviaCam, 0x004d7300 Main, 0x004d76a0 Think, 0x004d7790 SwitchActionPattern, 0x004d7b00 SwitchDeadCheck, 0x004d7ca0 CheckDiscMove, 0x004d8410 CheckDmgSmokeEff, 0x004d86e0 KyviaMagicDamage, 0x004d8780 SetBPos, 0x004d8c70 HandAtk, 0x004d94a0 LightAtk, 0x004dc000 MegidFlame, 0x004dc6b0 ThunderboltAtk, 0x004dd3f0 ThunderDmg, 0x004ddd40 ThunderSound, 0x004ddf00 Slave, 0x004ddfd0 EntrySlave, 0x004d0780 ccBossKyvia01::Main, 0x00419c80 EVENTAREAB8::Move, 0x00419d10 EVENTAREAB8::IsMove, 0x00477410 ccBossEffThunderbolt::ccBossEffThunderbolt, 0x004776e0 UnitPoint, 0x00477820 SetBreakPoint, 0x004778b0 Draw, 0x00489540 ccBossEffThunderboltCreate, 0x004f5150 kyviaCore::SetCoreBaseParam, 0x004fa3e0 StepAllGomoraList, 0x004fafa0 kyviaGomora::GomoraInit, 0x004fd810 ListStepUp, 0x00619050 AllGomoraList_2, 0x00618c70 Kyvia02AnmTbl, 0x0061d0d0 KyviaGenerator; QUA gcmn.prg:0x003622f0 ccBoss::InitBossCamera, 0x003649a0 ccBossCam::ccBossCam, 0x00363810 CamMain; MUT gcmn.prg:0x004e0790 ThunderboltAtk's cameraGetPos(camID), 0x005615fc VenderMenu's SetMerchantCamera, 0x00544e00 SetMerchantCamera, 0x005603f0 SpcMenu; INF SLUS_202.67:0x001617f0 changeCamera, 0x00161610 cameraGetRot
-worklog: 304, 420
+worklog: 304, 420, 553
 ---
 
 # Bosses - Kyvia's second fight
@@ -133,7 +133,7 @@ and attack times are the first fight's code.
 
 `piney_battle::boss::kyvia` with `Fight::Second` (`kyvia::new(cx,
 fight)`), `kyvia::thunder` (the attack and `Bolt`, whose `Draw` the
-manager's pass runs for its `ccRand` draws), `KyviaData::gomora_lists_of`
+manager's pass runs for its `ccRand` draws), `gomora::lists_of`
 (`kyvia_gomora_lists_2`, `kyvia02_anims` in the combat group) and
 `Core::row_hp`. `piney_world::combat::boss` starts code 13 with `x02`'s
 `CMP_trallex02`, `CMP_trall2` and `CMP_trall3`, the gomoras bent by

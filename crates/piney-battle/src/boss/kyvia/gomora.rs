@@ -7,12 +7,12 @@
 //! docs/engine/boss-kyvia.md, boss-kyvia-fourth.md.
 
 use piney_data::field::ee;
+use piney_data::tables::combat::{self, Combat};
 
-use super::{
-    Follow, Gen, GenOp, Held, KyviaData, Place, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param, wrap,
-};
+use super::{Follow, Gen, GenOp, Held, Place, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param, wrap};
 use crate::boss::Part;
-use crate::boss::{Anm, Boss, BossBase, Class, Cx, Out, VF0};
+use crate::boss::systems::{BossSystem, Hook, Others, Systems};
+use crate::boss::{Anm, BodyDraw, BossBase, Cx, Out, Output, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::param::cond;
@@ -123,7 +123,7 @@ pub const GOMORA_AFTERIMAGE: crate::boss::AfterImageParams = crate::boss::AfterI
 
 /// `kyviaGomora::kyviaGomora` (MUT gcmn 0x004ff220, `InitData` 0x004fdf10),
 /// `GomoraInit(lv)` (0x004fe460) and `SetMaster(core, k)`.
-pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32, lv: i16) -> Boss {
+pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32, lv: i16) -> Part<Gomora> {
     let mut b = plain_boss();
     let x = Gomora {
         master,
@@ -147,7 +147,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32, lv: i16) -> Bos
         ..Gomora::default()
     };
     set_base_param(cx, me, 16);
-    b.anm_tbl = cx.data.kyvia.gomora_anims.clone();
+    b.anm_tbl = combat::of(cx.volume()).kyvia_gomora_anims.iter().map(|a| a.map(str::to_string)).collect();
     cx.scene.chars[me].pos = VF0;
     b.dirc = VF0;
     b.dirc[0] = 0x3fc9_0fdb;
@@ -155,7 +155,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32, lv: i16) -> Bos
     b.change_action(cx, act::NEUTRAL, 0, true);
     let mut x = x;
     x.anm_w.set("ANM_xx11wave", cx.clips);
-    Boss::of(&crate::boss::defs::GOMORA, b, Class::Gomora(Box::new(x)))
+    Part::of(&crate::boss::defs::GOMORA, b, x, me)
 }
 
 /// `ResetData` (MUT gcmn 0x004fe260).
@@ -184,28 +184,42 @@ fn reset_data(x: &mut Gomora) {
     x.sp_vec = [VF0; 4];
 }
 
+/// `AllGomoraList_lv[step]` (`tables::combat`): the lists a gomora of
+/// level `lv` takes after the core's `step`th death, each its slaves'
+/// attributes; none past the table (a null). `AllGomoraList_1` has only
+/// its first.
+pub fn lists_of(t: &Combat, lv: i16, step: usize) -> Option<&'static [&'static [i16]]> {
+    match (lv, step) {
+        (1, 0) => Some(t.kyvia_gomora_lists),
+        (2, _) => t.kyvia_gomora_lists_2.get(step).copied(),
+        (3, _) => t.kyvia_gomora_lists_3.get(step).copied(),
+        (4, _) => t.kyvia_gomora_lists_4.get(step).copied(),
+        _ => None,
+    }
+}
+
 /// `MasterList[n]`: the list `n` of the gomora's `AllGomoraList_lv` step,
 /// or none past them (the null).
-fn list_at(x: &Gomora, data: &KyviaData, n: usize) -> Option<[i16; 5]> {
-    data.gomora_lists_of(x.kyvia_lv, x.master_list)?.get(n).copied()
+fn list_at(x: &Gomora, t: &Combat, n: usize) -> Option<&'static [i16]> {
+    lists_of(t, x.kyvia_lv, x.master_list)?.get(n).copied()
 }
 
 /// `GetAttribute` (MUT gcmn 0x004fe6c0): its attribute in the list now.
-pub(crate) fn get_attribute(g: &mut Part<Gomora>, data: &KyviaData) -> i32 {
-    if list_at(&g.x, data, g.x.now_list_num).is_none() {
+pub(crate) fn get_attribute(g: &mut Part<Gomora>, t: &Combat) -> i32 {
+    if list_at(&g.x, t, g.x.now_list_num).is_none() {
         g.x.now_list_num = 0;
     }
-    attribute_of(&g.x, data)
+    attribute_of(&g.x, t)
 }
 
 /// Its slave's attribute in `MasterList[NowListNum]`, 4 (none) past them.
-fn attribute_of(x: &Gomora, data: &KyviaData) -> i32 {
-    list_at(x, data, x.now_list_num).and_then(|l| l.get(x.slave_id as usize).copied()).map_or(4, i32::from)
+fn attribute_of(x: &Gomora, t: &Combat) -> i32 {
+    list_at(x, t, x.now_list_num).and_then(|l| l.get(x.slave_id as usize).copied()).map_or(4, i32::from)
 }
 
 /// `NextGList` (MUT gcmn 0x00500be0): the next list, or the first again.
 pub(crate) fn next_g_list(g: &mut Part<Gomora>, cx: &Cx) {
-    if list_at(&g.x, &cx.data.kyvia, g.x.now_list_num + 1).is_some() {
+    if list_at(&g.x, combat::of(cx.volume()), g.x.now_list_num + 1).is_some() {
         g.x.now_list_num += 1;
     } else {
         g.x.now_list_num = 0;
@@ -215,9 +229,9 @@ pub(crate) fn next_g_list(g: &mut Part<Gomora>, cx: &Cx) {
 /// `ListStepUp(n)` (MUT gcmn 0x00500c50, OUT 0x004fd810):
 /// `AllGomoraList_lv[n]` when it is not null (level 1 has only the first,
 /// level 2 two).
-pub(crate) fn list_step_up(g: &mut Part<Gomora>, data: &KyviaData, n: i32) {
+pub(crate) fn list_step_up(g: &mut Part<Gomora>, t: &Combat, n: i32) {
     if let Ok(n) = usize::try_from(n)
-        && data.gomora_lists_of(g.x.kyvia_lv, n).is_some()
+        && lists_of(t, g.x.kyvia_lv, n).is_some()
     {
         g.x.master_list = n;
     }
@@ -447,7 +461,7 @@ fn hit(g: &mut Part<Gomora>, cx: &mut Cx, on: bool) {
 /// core: a spline up and away from it, its particles. False for none.
 fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
     let me = g.me;
-    let attr = attribute_of(&g.x, &cx.data.kyvia);
+    let attr = attribute_of(&g.x, combat::of(cx.volume()));
     g.x.my_attribute = attr;
     let lv = g.x.kyvia_lv;
     if attr == 4 {
@@ -780,13 +794,13 @@ fn check_count_atk_time(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
             g.b.base.change_action(cx, act::SKILL, 0, true);
         }
         1 | 2 => {
-            let d = &cx.data.kyvia;
+            let d = combat::of(cx.volume());
             let sid = if attr == 1 {
                 let k = (cx.cc.rand() % 7).unsigned_abs() as usize;
-                d.various.get(k).copied().unwrap_or(1)
+                d.kyvia_various_skills.get(k).copied().unwrap_or(1)
             } else {
                 let k = (cx.cc.rand() % 12).unsigned_abs() as usize;
-                d.downer.get(k).copied().unwrap_or(1)
+                d.kyvia_downer_skills.get(k).copied().unwrap_or(1)
             };
             if let Some(t) = cx.scene.chars[me].target_char
                 && let Some(skill) =
@@ -1005,20 +1019,19 @@ fn dead(g: &mut Part<Gomora>, cx: &mut Cx) {
     }
 }
 
-impl crate::boss::BossClass for Gomora {
-    /// Its aura's place, which its generators follow.
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
-        out.follow.push((crate::boss::Follow::Aura(cx.me), self.aura_pos));
+impl BossSystem for Gomora {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Affect {
+            affect(b, cx);
+        }
     }
 
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, cx);
+    /// Its body where it stands, and its aura's place, which its
+    /// generators follow.
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut Output) {
+        out.body =
+            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
+        out.follow.push((Follow::Aura(cx.me), self.aura_pos));
     }
 }
 

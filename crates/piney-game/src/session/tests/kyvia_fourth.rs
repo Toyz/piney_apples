@@ -6,7 +6,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use piney_battle::boss::Class;
+use piney_battle::boss::kyvia::core::Core;
+use piney_battle::boss::kyvia::fourth::Places;
+use piney_battle::boss::kyvia::{Disc, Kyvia, SlaveCore};
 use piney_input::{Buttons, Raw};
 
 use super::kyvia_fx::event_312_disc;
@@ -79,16 +81,18 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         // While the body waits for Kite (`StFlg` 1), Kite stands at the
         // next place (`CoreAppearPos[CoreLvCount]`), as a player walks
         // there past the opened gate.
-        let (core, place) = match c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
-            Some(Class::Kyvia(x)) => {
+        let body = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref());
+        let (core, place) = match body.map(|b| (b.systems.get::<Kyvia>(), &b.systems)) {
+            Some((Some(x), s)) => {
                 p.ex |= x.fourth.as_ref().is_some_and(|f| f.fight_flg != 0);
-                let place = x.fourth.as_ref().filter(|f| x.st_flg == 1 && f.rising == 0).and_then(|f| {
+                let riding = s.get::<Disc>().is_some_and(|d| d.st_flg == 1);
+                let place = s.get::<Places>().filter(|f| riding && f.rising == 0).and_then(|f| {
                     usize::try_from(f.core_lv_count)
                         .ok()
                         .and_then(|k| f.core_appear_pos.get(k))
                         .map(|&at| (f.core_lv_count, at))
                 });
-                (Some(x.core), place)
+                (s.get::<SlaveCore>().map(|c| c.me), place)
             }
             _ => (None, None),
         };
@@ -98,9 +102,9 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         }
         if std::env::var_os("PINEY_DEBUG_KYVIA").is_some() && n.is_multiple_of(100) {
             let b = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref());
-            let st = b.and_then(|b| match &b.class {
-                Class::Kyvia(x) => Some((x.st_flg, x.disc_lv, x.fourth.as_ref().map(|f| (f.core_lv_count, f.rising)))),
-                _ => None,
+            let st = b.and_then(|b| {
+                let d = b.systems.get::<Disc>()?;
+                Some((d.st_flg, d.lv, b.systems.get::<Places>().map(|f| (f.core_lv_count, f.rising))))
             });
             let hp = core.map(|k| (c.scene.chars[k].hp, c.scene.listed(k)));
             eprintln!("KYVIA {n} act {:?} st {st:?} core {hp:?}", b.map(|b| (b.base.act_num, b.base.act_proccess)));
@@ -110,8 +114,10 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         // frames (`EntryAffect` 1, as the console's `kill`).
         let blow = core.filter(|&k| c.scene.listed(k) && n.is_multiple_of(300) && c.scene.chars[k].hp > 0);
         if let Some(core) = core
-            && let Some(Class::KyviaCore(x)) =
-                c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+            && let Some(x) = c.scene.chars[core]
+                .foe_state_mut()
+                .and_then(|f| f.boss.as_mut())
+                .and_then(|b| b.systems.get_mut::<Core>())
         {
             x.now_dmg_time = x.now_dmg_time.max(x.dmg_time - 1);
         }

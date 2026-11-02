@@ -9,10 +9,11 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::kyvia::core::Core;
+use piney_battle::boss::kyvia::fourth::Places;
 use piney_battle::boss::kyvia::gomora::Gomora;
-use piney_battle::boss::kyvia::{Fight, Gen, GenOp, Held, Kyvia, Place};
+use piney_battle::boss::kyvia::{Disc, Fight, Gen, GenOp, Held, Kyvia, Place, SlaveCore};
 use piney_battle::boss::{
-    Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, FadeView, Field, Follow, Fx, FxCall, Out, Picture,
+    Boss, BossData, BossEnv, CamView, Cx, DiscView, EffKind, FadeView, Field, Follow, Fx, FxCall, Out, Picture,
 };
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
@@ -566,24 +567,18 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
 
 /// The core's and the gomoras' characters, from the body.
 fn roles(b: &Boss, scene: &Scene) -> (Option<usize>, Vec<usize>) {
-    let Class::Kyvia(x) = &b.class else { return (None, Vec::new()) };
-    let gs = match scene.chars[x.core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
-        Some(Class::KyviaCore(c)) => c.gomoras.clone(),
-        _ => Vec::new(),
+    let Some(core) = b.systems.get::<SlaveCore>().map(|c| c.me) else { return (None, Vec::new()) };
+    let gs = match scene.chars[core].foe_state().and_then(|f| f.boss.as_ref()).and_then(|b| b.systems.get::<Core>()) {
+        Some(c) => c.gomoras.clone(),
+        None => Vec::new(),
     };
-    (Some(x.core), gs)
+    (Some(core), gs)
 }
 
 /// The core's and the gomoras' characters.
 fn parts(scene: &Scene, me: usize) -> (Option<usize>, Vec<usize>) {
     let Some(b) = scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()) else { return (None, Vec::new()) };
-    let Class::Kyvia(x) = &b.class else { return (None, Vec::new()) };
-    let core = x.core;
-    let gs = match scene.chars[core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
-        Some(Class::KyviaCore(c)) => c.gomoras.clone(),
-        _ => Vec::new(),
-    };
-    (Some(core), gs)
+    roles(b, scene)
 }
 
 fn v3(v: &V4) -> String {
@@ -890,11 +885,12 @@ fn gomora_json(g: &Gomora, me: usize) -> String {
     v.join(",")
 }
 
-fn kyvia_json(x: &Kyvia) -> String {
+fn kyvia_json(b: &Boss) -> String {
+    let (Some(x), Some(d)) = (b.systems.get::<Kyvia>(), b.systems.get::<Disc>()) else { return String::new() };
     let mut v: Vec<String> = vec![
-        x.st_flg.to_string(),
-        x.wait_disc_count.to_string(),
-        x.disc_lv.to_string(),
+        d.st_flg.to_string(),
+        d.wait_count.to_string(),
+        d.lv.to_string(),
         x.live_flg.to_string(),
         x.atk_pat_mode.to_string(),
         x.dmg_anm_flg.to_string(),
@@ -904,7 +900,7 @@ fn kyvia_json(x: &Kyvia) -> String {
         x.time_mode.to_string(),
         x.max_hp.to_string(),
         x.switch_hp.to_string(),
-        v3(&x.disc_pos),
+        v3(&d.pos),
         v3(&x.l_offset),
         v3(&x.atk_vec),
         x.z.to_string(),
@@ -937,12 +933,12 @@ fn kyvia_json(x: &Kyvia) -> String {
     if x.fight == Fight::Third {
         v.push(x.pat_count.to_string());
     }
-    if let Some(f) = &x.fourth {
-        v.extend([f.fight_flg, f.rising].map(|n| n.to_string()));
-        v.push(f.core_lv_count.to_string());
-        v.extend(f.core_appear_pos.iter().map(v3));
+    if let (Some(f), Some(p)) = (&x.fourth, b.systems.get::<Places>()) {
+        v.extend([f.fight_flg, p.rising].map(|n| n.to_string()));
+        v.push(p.core_lv_count.to_string());
+        v.extend(p.core_appear_pos.iter().map(v3));
         v.push(v3(&f.dead_set_pos));
-        v.extend([f.rebirth_flg, f.rebirth_cnt, f.wall_gp_flg].map(|n| n.to_string()));
+        v.extend([f.rebirth_flg, f.rebirth_cnt, p.wall_gp_flg].map(|n| n.to_string()));
         for k in 0..4u8 {
             for h in [Held::Wall(k), Held::Wall2(k), Held::CoreApp(k), Held::CoreApp2(k)] {
                 v.push(holds(h));
@@ -1036,7 +1032,9 @@ fn frame_json(
     cam: &FakeCam,
     blur: &str,
 ) -> String {
-    let Class::Kyvia(x) = &b.class else { return "{}".into() };
+    let (Some(x), Some(core)) = (b.systems.get::<Kyvia>(), b.systems.get::<SlaveCore>().map(|c| c.me)) else {
+        return "{}".into();
+    };
     let ch = &scene.chars[me];
     let effs: Vec<String> = b
         .base
@@ -1051,23 +1049,21 @@ fn frame_json(
         .iter()
         .map(|&c| format!("[{},{},{}]", scene.chars[c].hp, scene.chars[c].cond[1], scene.chars[c].cond[0]))
         .collect();
-    let core = x.core;
     let cb = scene.chars[core].foe_state().and_then(|f| f.boss.as_ref());
-    let (core_s, gs) = match cb.map(|b| &b.class) {
-        Some(Class::KyviaCore(c)) => {
-            let cb = cb.unwrap();
+    let (core_s, gs) = match cb.and_then(|cb| Some((cb, cb.systems.get::<Core>()?))) {
+        Some((cb, c)) => {
             let gs: Vec<String> = c
                 .gomoras
                 .iter()
                 .map(|&g| {
                     let gb = scene.chars[g].foe_state().and_then(|f| f.boss.as_ref()).unwrap();
-                    let Class::Gomora(gx) = &gb.class else { return "[]".into() };
+                    let Some(gx) = gb.systems.get::<Gomora>() else { return "[]".into() };
                     format!("[{},{}]", boss_json(gb, scene, g), gomora_json(gx, g))
                 })
                 .collect();
             (format!("[{},{}]", boss_json(cb, scene, core), core_json(c)), gs)
         }
-        _ => ("[]".into(), Vec::new()),
+        None => ("[]".into(), Vec::new()),
     };
     format!(
         "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
@@ -1091,7 +1087,7 @@ fn frame_json(
         b.base.anm.frame(),
         x.anm_w.clip.as_deref().unwrap_or(""),
         x.anm_w.frame(),
-        kyvia_json(x),
+        kyvia_json(b),
         core_s,
         gs.join(","),
         cam.reset,

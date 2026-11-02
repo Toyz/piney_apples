@@ -3,7 +3,7 @@ title: Bosses - Kyvia's fourth fight
 status: partial
 volumes: QUA
 covers: QUA gcmn.prg:0x003d9b70 ccThKyvia04 (bossFunc code 15), 0x003d9c40 ccBossKyvia04::ccBossKyvia04, 0x003da6d0 Action, 0x003dadb0 DeadKyviaVoice, 0x003dafe0 DeadKyviaCam, 0x003db430 DeadKyviaRipus, 0x003db820 Move, 0x003db950 Main, 0x003dbcf0 Think, 0x003dbef0 InitWallGpStart, 0x003dc7a0 DeadCheck, 0x003dc8e0 KyviaSwitchActionPattern, 0x003dcd70 KyviaExOn, 0x003dcf40 SwitchActionPattern, 0x003dd450 SwitchDeadCheck, 0x003dd590 CheckDiscMove, 0x003dda00 KyviaScene, 0x003dde40 act 24, 0x003de350 act 14, 0x003de820 CheckDmgSmokeEff, 0x003deb10 KyviaRndTarget, 0x003dec60 CheckCorePoint, 0x003decf0 SwitchGateON, 0x003defc0 SwitchGateOFF, 0x003df1b0 TogetherCharPos, 0x003df330 KyviaMagicDamage, 0x003df3d0 KyviaMagicalBallDamage, 0x003df4a0 Kyvia_HellE_Damage, 0x003df610 SetBPos, 0x003dfb00 HandAtk, 0x003e0490 LightAtk, 0x003e34c0 MegidFlame, 0x003e3c60 MagicBallAtk, 0x003e4370 ThunderboltAtk, 0x003e5470 BIGMegidFlame, 0x003e5a20 HellE_Atk, 0x003e5dc0 Skill_Atk, 0x003e62f0 ThunderDmg, 0x003e6d10 ThunderSound, 0x003e6ed0 Slave, 0x003e6fa0 EntrySlave, 0x0036ccd0 HellSpecialExpress::Clear, 0x0036cdc0 Init, 0x0036d790 HellStartScene, 0x0036da40 Draw, 0x0037bf40 HellSpecialExpressCreate, 0x003e97b0 kyviaCore::ActionStart_K, 0x003e9b30 kyviaCore::KyviaExModeOn, 0x003ea8b0 kyviaCore::EndFadeEX, 0x003eb490 CheckCountGomoraEX, 0x003ed830 kyviaGomora::KyviaExModeOn_G, 0x0030c620 EVENTAREAB8 body hit off, 0x0030c690 body hit on, 0x00363c60 ccBossCam::QuakeCam, 0x00360ea8 ccBoss::ChangeAction, 0x001225f8 __ieee754_atan2f
-worklog: 434
+worklog: 434, 553
 ---
 
 # Bosses - Kyvia's fourth fight
@@ -201,7 +201,10 @@ So the port keeps the rows' changes on the fight (`Core::row_hp`,
 ## The port
 
 - piney-battle: `boss::kyvia` with `Fight::Fourth` (code 15, row 15,
-  level 4, skills 44, 52, 38) and `kyvia::fourth` (the places, gates,
+  level 4, skills 44, 52, 38) and `kyvia::fourth` (the places, a system
+  of `KYVIA_FOURTH`'s own: `Places`, whose `Think` makes the walls on the
+  first frame, before the disc's `CheckDiscMove`; its `Move` and the hold
+  let go after `Slave()` in its def's order; the gates,
   scene, EX turn, rebirth, death, `BIGMegidFlame`, `Skill_Atk`,
   `HellE_Atk`, the fourth ball), `kyvia::hell` (`Hell` on a `HellHost`,
   `HellGen`), the core's and gomoras' EX mode, the acts 20-24.

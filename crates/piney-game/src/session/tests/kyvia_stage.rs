@@ -84,7 +84,8 @@ fn kyvia(s: &Session) -> Option<usize> {
     let Stage::Area(a) = &s.stage else { return None };
     let c = a.world().combat();
     let me = c.boss_char()?;
-    matches!(c.scene.chars[me].foe_state()?.boss.as_ref()?.class, piney_battle::boss::Class::Kyvia(_)).then_some(me)
+    let b = c.scene.chars[me].foe_state()?.boss.as_ref()?;
+    b.systems.get::<piney_battle::boss::kyvia::Kyvia>().is_some().then_some(me)
 }
 
 /// Issue #72: area 47's last door is `ChangeArea(1, 9)` on area 47's

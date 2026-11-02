@@ -3530,12 +3530,12 @@ fn foes(c: &piney_world::combat::Combat) -> Vec<usize> {
 /// attribute 0 (its attack heals Kyvia's core 200), Gorre's brother of the
 /// lower physical PP defence, else the core (the first part).
 fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
-    use piney_battle::boss::Class;
+    use piney_battle::boss::kyvia::gomora::Gomora;
     let r = c.boss.as_ref().filter(|r| !r.exit)?;
     let up = |p: usize| c.scene.listed(p) && c.scene.chars[p].hp > 0;
     let healer = r.parts.iter().skip(1).copied().filter(|&p| up(p)).find(|&p| {
         let b = c.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref());
-        matches!(b.map(|b| &b.class), Some(Class::Gomora(g)) if g.my_attribute == 0)
+        b.and_then(|b| b.systems.get::<Gomora>()).is_some_and(|g| g.my_attribute == 0)
     });
     // Gorre's brothers share one protect gauge: the one a physical hit
     // fills (row 41's physical PP defence is 2000, row 40's 9990).
@@ -3851,24 +3851,30 @@ fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
 
 /// Kyvia's fourth fight a line (`PINEY_DEBUG_PILOT`).
 fn kyvia_trace(a: &crate::area::AreaMode, f: u64) {
-    use piney_battle::boss::Class;
+    use piney_battle::boss::kyvia::fourth::Places;
+    use piney_battle::boss::kyvia::{Disc, Kyvia, SlaveCore};
     let w = a.world();
     let c = w.combat();
     let Some(r) = c.boss.as_ref().filter(|r| r.look.def.class == BossGameClass::CcBossKyvia04) else { return };
     let Some(b) = c.scene.chars[r.me].foe_state().and_then(|f| f.boss.as_ref()) else { return };
-    let Class::Kyvia(x) = &b.class else { return };
-    let core = &c.scene.chars[x.core];
+    let s = &b.systems;
+    let (Some(x), Some(d), Some(pl), Some(me)) =
+        (s.get::<Kyvia>(), s.get::<Disc>(), s.get::<Places>(), s.get::<SlaveCore>().map(|c| c.me))
+    else {
+        return;
+    };
+    let core = &c.scene.chars[me];
     let p = w.player().body.pos.map(|v| f32::from_bits(v) as i32);
-    let fourth = x.fourth.as_ref().map(|f| (f.core_lv_count, f.rising, f.fight_flg));
+    let fourth = x.fourth.as_ref().map(|f| (pl.core_lv_count, pl.rising, f.fight_flg));
     eprintln!(
         "KYVIA {f} exit {} act {} st {} disc {} fourth {fourth:?} core {}/{} listed {} kite {p:?} | {}",
         r.exit,
         b.base.act_num,
-        x.st_flg,
-        x.disc_lv,
+        d.st_flg,
+        d.lv,
         core.hp,
         core.max_hp,
-        c.scene.listed(x.core),
+        c.scene.listed(me),
         fighters(a)
     );
 }
@@ -3877,13 +3883,14 @@ fn kyvia_trace(a: &crate::area::AreaMode, f: u64) {
 /// to the next place it opened (`CoreAppearPos[CoreLvCount]`), to within
 /// 100, as a player goes on past the opened gate.
 fn kyvia_place(a: &crate::area::AreaMode) -> Option<Raw> {
-    use piney_battle::boss::Class;
+    use piney_battle::boss::kyvia::Disc;
+    use piney_battle::boss::kyvia::fourth::Places;
     let w = a.world();
     let c = w.combat();
     let r = c.boss.as_ref().filter(|r| !r.exit && r.look.def.class == BossGameClass::CcBossKyvia04)?;
     let b = c.scene.chars[r.me].foe_state()?.boss.as_ref()?;
-    let Class::Kyvia(x) = &b.class else { return None };
-    let f = x.fourth.as_ref().filter(|f| x.st_flg == 1 && f.rising == 0)?;
+    let riding = b.systems.get::<Disc>().is_some_and(|d| d.st_flg == 1);
+    let f = b.systems.get::<Places>().filter(|f| riding && f.rising == 0)?;
     let at = *f.core_appear_pos.get(usize::try_from(f.core_lv_count).ok()?)?;
     let p = w.player().body.pos.map(f32::from_bits);
     let q = at.map(f32::from_bits);

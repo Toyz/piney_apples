@@ -47,9 +47,6 @@ macro_rules! each_class {
         match $class {
             Class::Plain => $plain,
             Class::Innis($x) => $each,
-            Class::Kyvia($x) => $each,
-            Class::KyviaCore($x) => $each,
-            Class::Gomora($x) => $each,
             Class::Corbenik($x) => $each,
             Class::CorbenikSeed($x) => $each,
             Class::CorbenikB($x) => $each,

@@ -9,6 +9,7 @@ use crate::param::{Base, SpcParam};
 use crate::rand::Rand;
 use crate::scene::Scene;
 use crate::tables::Tables;
+use piney_data::tables::combat;
 use piney_data::volume::Volume;
 
 /// Kyvia over Kite and a member on its volume's tables, the disc at the
@@ -118,9 +119,16 @@ impl Bout {
     }
 
     fn kyvia(&self) -> &Kyvia {
-        let b = self.scene.chars[self.me].foe_state().unwrap().boss.as_ref().unwrap();
-        let Class::Kyvia(x) = &b.class else { panic!("not Kyvia") };
-        x
+        self.part(self.me).systems.get::<Kyvia>().expect("Kyvia's own")
+    }
+
+    fn disc(&self) -> &Disc {
+        self.part(self.me).systems.get::<Disc>().expect("Kyvia's disc")
+    }
+
+    /// The core's character.
+    fn core_me(&self) -> usize {
+        self.part(self.me).systems.get::<SlaveCore>().expect("Kyvia's core").me
     }
 
     fn part(&self, who: usize) -> &Boss {
@@ -128,14 +136,12 @@ impl Bout {
     }
 
     fn core(&self) -> &Core {
-        let Class::KyviaCore(x) = &self.part(self.kyvia().core).class else { panic!("not the core") };
-        x
+        self.part(self.core_me()).systems.get::<Core>().expect("the core's own")
     }
 
     fn gomora(&self, k: usize) -> (&Boss, &Gomora) {
         let b = self.part(self.core().gomoras[k]);
-        let Class::Gomora(x) = &b.class else { panic!("not a gomora") };
-        (b, x)
+        (b, b.systems.get::<Gomora>().expect("a gomora's own"))
     }
 }
 
@@ -145,11 +151,11 @@ fn stands_at_the_marker_with_its_core_and_gomoras() {
     let me = f.me;
     assert_eq!(f.scene.chars[me].pos, f.disc.marker, "DMY_marker01");
     let x = f.kyvia();
-    assert_eq!((x.st_flg, x.atk_pat_mode, x.disc_max_lv), (1, 1, 1));
+    assert_eq!((f.disc().st_flg, x.atk_pat_mode, f.disc().max_lv), (1, 1, 1));
     let c = f.core();
     assert_eq!(c.gomoras.len(), 5);
     assert_eq!(c.kyvia_lv, 1);
-    let core = x.core;
+    let core = f.core_me();
     assert_eq!(f.part(core).base.exit, 1, "the core waits for the disc");
     assert_eq!(x.max_hp, i32::from(f.scene.chars[core].max_hp));
     assert_eq!(x.switch_hp, x.max_hp / 4);
@@ -158,7 +164,7 @@ fn stands_at_the_marker_with_its_core_and_gomoras() {
         let (b, g) = f.gomora(k);
         assert_eq!((b.base.exit, g.state, g.slave_id), (1, 2, k as i32));
     }
-    assert_eq!(f.data.kyvia.gomora_lists[0], [3, 3, 3, 2, 0]);
+    assert_eq!(combat::of(f.volume).kyvia_gomora_lists[0], [3, 3, 3, 2, 0]);
     assert!(!f.scene.listed(core), "no target before it rises");
 }
 
@@ -173,8 +179,8 @@ fn the_core_rises_once_the_disc_stops() {
     for _ in 0..49 {
         f.frame();
     }
-    let core = f.kyvia().core;
-    assert_eq!(f.kyvia().st_flg, 0);
+    let core = f.core_me();
+    assert_eq!(f.disc().st_flg, 0);
     assert_eq!(f.part(core).base.exit, 0, "EntrySlave after 50 frames");
     // Its fade in: 0.02 a frame, then ActionStart puts it on the lists.
     for _ in 0..60 {
@@ -213,7 +219,7 @@ fn a_hit_on_the_core_shows_its_resistance() {
     for _ in 0..160 {
         f.frame();
     }
-    let core = f.kyvia().core;
+    let core = f.core_me();
     let kite = f.party.members[0];
     let hp = f.scene.chars[core].hp;
     let clip = |_: &str| Some((60, false));
@@ -267,36 +273,39 @@ fn the_meteors_fall_on_the_disc() {
 fn the_second_fight_has_two_stages_and_a_level_2_core() {
     let Some(f) = bout(Volume::Out, Fight::Second) else { return };
     let x = f.kyvia();
-    assert_eq!((x.fight, x.disc_lv, x.disc_max_lv, x.ex_argb), (Fight::Second, 1, 2, 0x7080_8080));
+    assert_eq!((x.fight, f.disc().lv, f.disc().max_lv, x.ex_argb), (Fight::Second, 1, 2, 0x7080_8080));
     assert_eq!(f.core().kyvia_lv, 2);
     assert_eq!(x.switch_hp, x.max_hp / 5, "a fifth of the core's HP");
     assert!(x.thunder.is_some());
     assert_eq!(f.part(f.me).base.anm.clip.as_deref(), Some("ANM_ex02nut0"));
     // AllGomoraList_2: two steps of three lists, none after.
-    let d = &f.data.kyvia;
-    assert_eq!(d.gomora_lists_of(2, 0).map(<[_]>::len), Some(3));
-    assert_eq!(d.gomora_lists_of(2, 1).unwrap()[2], [0, 0, 3, 3, 1]);
-    assert!(d.gomora_lists_of(2, 2).is_none());
+    let d = combat::of(f.volume);
+    assert_eq!(gomora::lists_of(d, 2, 0).map(<[_]>::len), Some(3));
+    assert_eq!(gomora::lists_of(d, 2, 1).unwrap()[2], [0, 0, 3, 3, 1]);
+    assert!(gomora::lists_of(d, 2, 2).is_none());
 }
 
 #[test]
 fn the_first_stage_calls_thunder_for_the_beams() {
     let Some(mut f) = bout(Volume::Out, Fight::Second) else { return };
     let me = f.me;
-    let core = f.kyvia().core;
     let mut b = f.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
     let (act, kind) = f.with_cx(|cx| {
-        let Class::Kyvia(x) = &mut b.class else { panic!("not Kyvia") };
+        let Boss { base, systems, .. } = &mut *b;
+        let (x, mut o) = systems.split::<Kyvia>().expect("Kyvia's own");
         x.atk_pat_mode = 2;
-        let mut t = Tree::take(cx, core);
+        let mut t = Tree::of(&mut o, None);
+        *t.core = Part::take(cx, t.core_me);
         if let Some(c) = t.core.as_mut() {
             c.x.k_atk_flg = 2;
             c.x.core_state = 0;
         }
-        switch_action_pattern(&mut b.base, x, &mut t, cx);
-        t.put(cx);
+        switch_action_pattern(base, x, &mut t, cx);
+        if let Some(c) = t.core.take() {
+            c.put(cx);
+        }
         let kind = x.thunder.map(|t| t.kind);
-        (b.base.act_num, kind)
+        (base.act_num, kind)
     });
     assert_eq!(act, act::THUNDER);
     assert_eq!(kind, Some(thunder::Kind::Strike));

@@ -50,6 +50,9 @@ pub enum Hook {
     Early,
     /// Its `Move` in place of `ccBoss`'s.
     Move,
+    /// Its lock of the party in place of `ccBoss`'s (what it does as the
+    /// party is let go).
+    Lock,
     /// Its `PreDrawAnm` before the body's.
     PreDraw,
     /// What its `Main` does after `ccBoss::Main`'s.
@@ -197,6 +200,16 @@ systems! {
     Macha(super::macha::Macha),
     /// Tarvos's own (`ccBoss07`).
     Tarvos(super::tarvos::Tarvos),
+    /// Kyvia's own (`ccBossKyvia01`-`04`), its core and the core's
+    /// gomoras lent, its disc and the fourth fight's places.
+    Kyvia(super::kyvia::Kyvia),
+    SlaveCore(super::kyvia::SlaveCore),
+    Gomoras(super::kyvia::Gomoras),
+    Disc(super::kyvia::Disc),
+    Places(super::kyvia::fourth::Places),
+    /// Kyvia's core's own (`kyviaCore`) and a gomora's (`kyviaGomora`).
+    KyviaCore(super::kyvia::core::Core),
+    Gomora(super::kyvia::gomora::Gomora),
 }
 
 /// A boss's systems, in its def's order.

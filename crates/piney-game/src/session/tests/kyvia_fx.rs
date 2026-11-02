@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 
-use piney_battle::boss::Class;
+use piney_battle::boss::kyvia::SlaveCore;
+use piney_battle::boss::kyvia::core::Core;
+use piney_battle::boss::kyvia::gomora::Gomora;
 use piney_input::{Buttons, Raw};
 use piney_world::camera::id::BATTLE;
 use piney_world::combat::Combat;
@@ -81,10 +83,7 @@ pub(super) struct Seen {
 
 /// The core's character.
 fn core_of(c: &Combat, me: usize) -> Option<usize> {
-    match &c.scene.chars[me].foe_state()?.boss.as_ref()?.class {
-        Class::Kyvia(x) => Some(x.core),
-        _ => None,
-    }
+    c.scene.chars[me].foe_state()?.boss.as_ref()?.systems.get::<SlaveCore>().map(|s| s.me)
 }
 
 /// The fight for `frames` frames from the body's coming, the party kept
@@ -99,8 +98,8 @@ pub(super) fn fight(s: &mut Session, frames: u32, each: impl FnMut(&Session, &Fr
 /// The core's time cut short: its damage time at its end.
 pub(super) fn hurry(c: &mut Combat, core: usize, _: u32) {
     if c.scene.listed(core)
-        && let Some(Class::KyviaCore(x)) =
-            c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+        && let Some(x) =
+            c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut()).and_then(|b| b.systems.get_mut::<Core>())
     {
         x.now_dmg_time = x.now_dmg_time.max(x.dmg_time - 1);
     }
@@ -292,15 +291,12 @@ fn gomora_hits(s: &Session) -> Vec<piney_battle::world::CharHit> {
     let Stage::Area(a) = &s.stage else { return Vec::new() };
     let c = a.world().combat();
     let Some(core) = c.boss_char().and_then(|me| core_of(c, me)) else { return Vec::new() };
-    let Some(Class::KyviaCore(x)) = c.scene.chars[core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+    let Some(x) = c.scene.chars[core].foe_state().and_then(|f| f.boss.as_ref()).and_then(|b| b.systems.get::<Core>())
     else {
         return Vec::new();
     };
     (x.gomoras.iter())
-        .filter_map(|&g| match &c.scene.chars[g].foe_state()?.boss.as_ref()?.class {
-            Class::Gomora(gx) => Some(gx.hit),
-            _ => None,
-        })
+        .filter_map(|&g| c.scene.chars[g].foe_state()?.boss.as_ref()?.systems.get::<Gomora>().map(|gx| gx.hit))
         .collect()
 }
 

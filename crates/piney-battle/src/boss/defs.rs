@@ -387,7 +387,12 @@ pub static CORBENIK_THIRD: BossDef = BossDef {
 /// Kyvia's fights (`ccBossKyvia01`-`04`): the body in the fight's file,
 /// and its core's and gomoras' clumps there (the same names in each),
 /// whose objects their clips (`ANM_ex0cnut0`, `ANM_ex0gnut0`) draw and
-/// morph. `InitBossCamera(450, 1050)`, the fourth fight's (250, 700).
+/// morph. `InitBossCamera(450, 1050)`, the fourth fight's (250, 700). Its
+/// core and the core's gomoras, its disc and its own; `ccBossKyvia01::Main`
+/// (MUT gcmn 0x004d4410): the core and gomoras lent, `ccBoss::Main` around
+/// `CheckDiscMove` and its `Think` and `Action`, its lock (the cinema off as
+/// the party is let go), then `Slave()` (the core's `Main`). Its `Affect`
+/// is `ccBoss`'s; the effects' pass before the blur is its own.
 pub static KYVIA: BossDef = BossDef {
     code: Some(12),
     class: BossGameClass::CcBossKyvia01,
@@ -397,6 +402,33 @@ pub static KYVIA: BossDef = BossDef {
     cam: CamDef::Transfer([0, 0x4483_4000, 0x43e1_0000, ONE]),
     radius: Some(kyvia::BODY_RADIUS),
     make: |cx, _| kyvia::new(cx, kyvia::Fight::First),
+    systems: &[Kind::SlaveCore, Kind::Gomoras, Kind::Disc, Kind::Kyvia],
+    order: &[
+        Step::Run(Kind::SlaveCore, Hook::Lend),
+        Step::Run(Kind::Gomoras, Hook::Lend),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Disc, Hook::Think),
+            Step::Run(Kind::Kyvia, Hook::Think),
+            Step::Run(Kind::Kyvia, Hook::Action),
+            Step::Move,
+            Step::Run(Kind::Kyvia, Hook::Lock),
+            Step::ForwardAndDraw,
+            Step::Run(Kind::SlaveCore, Hook::Action),
+        ]),
+        Step::Run(Kind::Gomoras, Hook::Return),
+        Step::Run(Kind::SlaveCore, Hook::Return),
+    ],
+    affect: &[Step::BaseAffect],
+    pass: &[
+        Step::Run(Kind::SlaveCore, Hook::Lend),
+        Step::Run(Kind::Gomoras, Hook::Lend),
+        Step::Run(Kind::Kyvia, Hook::Pass),
+        Step::Run(Kind::Gomoras, Hook::Return),
+        Step::Run(Kind::SlaveCore, Hook::Return),
+    ],
+    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -418,6 +450,9 @@ pub static KYVIA_THIRD: BossDef = BossDef {
     ..KYVIA
 };
 
+/// The fourth fight (`Main` QUA gcmn 0x003db950) has its places beside the disc
+/// (their walls first in its `Think`) and its own `Move`, and lets the
+/// body's hold go after `Slave()`.
 pub static KYVIA_FOURTH: BossDef = BossDef {
     code: Some(15),
     class: BossGameClass::CcBossKyvia04,
@@ -425,6 +460,26 @@ pub static KYVIA_FOURTH: BossDef = BossDef {
     clump: "CMP_trallex04",
     cam: CamDef::Transfer([0, 0x442f_0000, 0x437a_0000, ONE]),
     make: |cx, _| kyvia::new(cx, kyvia::Fight::Fourth),
+    systems: &[Kind::SlaveCore, Kind::Gomoras, Kind::Disc, Kind::Places, Kind::Kyvia],
+    order: &[
+        Step::Run(Kind::SlaveCore, Hook::Lend),
+        Step::Run(Kind::Gomoras, Hook::Lend),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Places, Hook::Think),
+            Step::Run(Kind::Disc, Hook::Think),
+            Step::Run(Kind::Kyvia, Hook::Think),
+            Step::Run(Kind::Kyvia, Hook::Action),
+            Step::Run(Kind::Kyvia, Hook::Move),
+            Step::Run(Kind::Kyvia, Hook::Lock),
+            Step::ForwardAndDraw,
+            Step::Run(Kind::SlaveCore, Hook::Action),
+            Step::ClearHold,
+        ]),
+        Step::Run(Kind::Gomoras, Hook::Return),
+        Step::Run(Kind::SlaveCore, Hook::Return),
+    ],
     ..KYVIA
 };
 
@@ -441,9 +496,28 @@ pub static LEAF: BossDef = BossDef {
     hand_over: &[],
     ..BASE_PART
 };
-/// Kyvia's core (`kyviaCore`) and gomoras (`kyviaGomora`).
-pub static CORE: BossDef = BossDef { class: BossGameClass::KyviaCore, ..BASE_PART };
-pub static GOMORA: BossDef = BossDef { class: BossGameClass::KyviaGomora, ..BASE_PART };
+/// Kyvia's core (`kyviaCore`): its own, its `Affect` its own; its frame
+/// the body's `Slave()`.
+pub static CORE: BossDef = BossDef {
+    class: BossGameClass::KyviaCore,
+    systems: &[Kind::KyviaCore],
+    order: &[],
+    affect: &[Step::Run(Kind::KyviaCore, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
+/// A gomora (`kyviaGomora`): its own, its `Affect` its own; its frame the
+/// core's `Slave()`.
+pub static GOMORA: BossDef = BossDef {
+    class: BossGameClass::KyviaGomora,
+    systems: &[Kind::Gomora],
+    order: &[],
+    affect: &[Step::Run(Kind::Gomora, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
 /// A Gorre brother (`ccBoss05Brother`): its own, its `Affect` its own;
 /// its frame Gorre's `Slave`.
 pub static BROTHER: BossDef = BossDef {

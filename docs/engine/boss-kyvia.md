@@ -3,7 +3,7 @@ title: Bosses - Kyvia's first fight
 status: partial
 volumes: MUT
 covers: MUT gcmn.prg:0x006192c0 bossFunc (code 12), 0x00480540 SetupSkillName, 0x00473350 ccBoss::DrawParts, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x004d29a0 ccThKyvia01, 0x004d2a80 ccBossKyvia01::ccBossKyvia01, 0x004d4410 ccBossKyvia01::Main, 0x004d47c0 Think, 0x004d48a0 SwitchActionPattern, 0x004d4a80 SwitchDeadCheck, 0x004d4c10 CheckDiscMove, 0x004d5140 CheckDmgSmokeEff, 0x004d3330 Action, 0x004d3cf0 DeadKyviaVoice, 0x004d3fc0 DeadKyviaCam, 0x004d53b0 KyviaMagicDamage, 0x004d5450 SetBPos, 0x004d5930 HandAtk, 0x004d60a0 LightAtk, 0x004d8bb0 MegidFlame, 0x004d91e0 Slave, 0x004d92b0 EntrySlave, 0x004f7e80 kyviaCore::InitData, 0x004f80f0 ResetData, 0x004f82c0 CoreInit, 0x004f8770 SetCoreBaseParam, 0x004f8a30 kyviaCore::kyviaCore, 0x004f8cd0 Action, 0x004f9630 Main, 0x004f99c0 Affect, 0x004f9dc0 StartInit, 0x004f9f40 ActionStart, 0x004fa960 CoreVoice, 0x004faac0 Think, 0x004fae40 ThinkESCAPE, 0x004fb110 ChangeAttribute, 0x004fb1f0 CharHoldON, 0x004fb360 FadeCore, 0x004fb550 FadeCheck, 0x004fb5e0 GetGomoraState, 0x004fb860 JudgmentDmgAnm, 0x004fb8e0 CheckCountAtkTime, 0x004fbba0 CheckCountGomora, 0x004fc300 SetCoreState, 0x004fc4c0 GetActNum, 0x004fc5e0 SwitchActionPattern, 0x004fc8b0 MoveSpline, 0x004fca70 SetSpPoint, 0x004fd630 Slave, 0x004fd700 EntrySlave, 0x004fd980 KillGomora, 0x004fdc90 EntryGomora, 0x004fdda0 StartGomora, 0x004fde50 CheckGomoraSkillAct, 0x004fdf10 kyviaGomora::InitData, 0x004fe260 ResetData, 0x004fe460 GomoraInit, 0x004fe6c0 GetAttribute, 0x004fe740 StartInit, 0x004ff3d0 SetGomoraState, 0x004ff480 Affect, 0x004ff800 Action, 0x005004d0 Main, 0x00500850 Move, 0x005009a0 DepartureMove, 0x00500be0 NextGList, 0x00500c50 ListStepUp, 0x00500d50 Think, 0x00501370 TimeAuraCount, 0x005017c0 CheckCountAtkTime, 0x00501de0 RndTarget, 0x00501f20 GetRndSkill, 0x00501fe0 MoveGomora, 0x00502220 FadeGomora, 0x00502530 MoveSpline, 0x00502670 SetSpPoint, 0x00503640 SetAtkPoint, 0x0047aa90 ccBossEffMeteoriteMissile::ccBossEffMeteoriteMissile, 0x0047b330 Draw, 0x0047b910 Spline, 0x0048d9f0 ccBossEffMeteoriteMissileCreate, 0x00475ae0 ccBossCam::SetMode, 0x00475a40 SetRotXLimit, 0x00476380 SetTransfer, 0x00475cf0 Pad_Control, 0x004755a0 CamMain, 0x00500850 kyviaGomora::Move, main 0x001534f0 ccCharHit::CollisionDetection, 0x0061b190 Kyvia01AnmTbl, 0x0061b360 kyviaCoreAnmTbl, 0x0061b620 kyviaGomoraAnmTbl, 0x0061b510 AllGomoraList_1[0], 0x0061f650 KyviaGenerator, 0x0061fce0 KyviaDmgGenerator, 0x0061f3d0 CoreGenerator, 0x0061eec0 GomoraGenerator, 0x0061f1b0 GomoraAuraGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator, 0x00472e50 ccBoss::Draw; MUT SLUS_205.62:0x00150fd0 ccAnm::SetAnm, 0x0014e760 ccStream::DecodeF_Morpher
-worklog: 272, 420, 425, 426, 427, 549
+worklog: 272, 420, 425, 426, 427, 549, 553
 ---
 
 # Bosses - Kyvia's first fight
@@ -331,10 +331,30 @@ What the fight does to those it keeps:
 
 `piney_battle::boss::kyvia` (the body), `kyvia::core`, `kyvia::gomora`.
 The core and each gomora are a character and `Boss` of their own
-(`AffectFunc::Boss`), taken out of their characters for the body's frame
-(`Tree`). The tables (`kyvia01_anims`, `kyvia_core_anims`,
+(`AffectFunc::Boss`, defs `CORE` and `GOMORA`, each its own system and
+its `Affect`). The body's def (worklog 553) names its systems: its core
+(`SlaveCore`: the core's character, lent for the frame; its `Action` is
+`Slave()`, the core's `Main`), the core's gomoras (`Gomoras`, lent with
+it), its disc (`Disc`: `DiscPos`, the stages, the ride's count;
+`CheckDiscMove` its `Think`) and its own (`Kyvia`). The body's code
+reaches the others through one view (`Tree`). The fourth fight adds its
+places (`fourth::Places`). Its frame:
+
+```text
+order:  SlaveCore.Lend, Gomoras.Lend, Live[Prologue, TickStop, Disc.Think,
+        Kyvia.Think, Kyvia.Action, Move, Kyvia.Lock, ForwardAndDraw,
+        SlaveCore.Action], Gomoras.Return, SlaveCore.Return
+affect: BaseAffect
+pass:   SlaveCore.Lend, Gomoras.Lend, Kyvia.Pass, Gomoras.Return, SlaveCore.Return
+draw:   ccBoss::Draw's body, SlaveCore (the core), Gomoras (the gomoras),
+        Kyvia (the body where it stands, what its generators follow)
+```
+
+`Kyvia.Lock` is `ccBoss::Main`'s lock with the cinema turned off as the
+party is let go. The tables (`kyvia01_anims`, `kyvia_core_anims`,
 `kyvia_gomora_anims`, `kyvia_various_skills`, `kyvia_downer_skills`,
-`kyvia_gomora_lists`) are the build's combat group.
+`kyvia_gomora_lists`) are the build's combat group, viewed by volume
+(`gomora::lists_of`).
 `piney_world::combat::boss` starts it for code 12 with the disc
 (`DiscView`: `IsMove`, `discPrevPos`, `DMY_marker01`), draws the core and
 gomoras (`CMP_trall2`, `CMP_trall3` of the fight's file), runs the queued

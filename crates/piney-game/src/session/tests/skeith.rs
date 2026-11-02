@@ -1250,12 +1250,11 @@ fn event_108_disc() -> Option<Session> {
 /// Kyvia's body, core and gomoras as a frame leaves them: the body's act
 /// and exit, the core's act, HP, exit and whether it is on the lists.
 fn kyvia_parts(c: &piney_world::combat::Combat) -> Option<(i16, i8, i16, i16, i8, bool)> {
-    use piney_battle::boss::Class;
     let me = c.boss.as_ref()?.me;
     let b = c.scene.chars[me].foe_state()?.boss.as_ref()?;
-    let Class::Kyvia(x) = &b.class else { return None };
-    let cb = c.scene.chars[x.core].foe_state()?.boss.as_ref()?;
-    Some((b.base.act_num, b.base.exit, cb.base.act_num, c.scene.chars[x.core].hp, cb.base.exit, c.scene.listed(x.core)))
+    let core = b.systems.get::<piney_battle::boss::kyvia::SlaveCore>()?.me;
+    let cb = c.scene.chars[core].foe_state()?.boss.as_ref()?;
+    Some((b.base.act_num, b.base.exit, cb.base.act_num, c.scene.chars[core].hp, cb.base.exit, c.scene.listed(core)))
 }
 
 /// Event 108 on the disc: block 21 makes Kyvia (`entry 7 12`,

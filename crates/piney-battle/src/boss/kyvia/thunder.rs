@@ -386,7 +386,7 @@ fn core_damage_at(t: &mut Tree, cx: &mut Cx, pos: V4, i: usize) {
 
 /// The core and its gomoras at rest (`GetActNum`), whatever its state.
 fn core_at_rest(t: &Tree) -> bool {
-    t.core.as_ref().is_some_and(|c| super::core::get_act_num(c, &t.gomoras))
+    t.core.as_ref().is_some_and(|c| super::core::get_act_num(c, t.gomoras))
 }
 
 /// `ThunderboltAtk` (OUT gcmn 0x004dc6b0, QUA 0x003d7fa0).
@@ -439,21 +439,21 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
                 // 3800 off turned 0.7 over the body (the third's 3500
                 // turned 0.6 over the disc).
                 let (tilt, far, view) = if third {
-                    (0x3f19_999a, 0x455a_c000, x.disc_pos)
+                    (0x3f19_999a, 0x455a_c000, t.disc.pos)
                 } else {
                     (0x3f33_3333, 0x456d_8000, cx.scene.chars[me].pos)
                 };
                 let rx = geom::rot_matrix_x(&geom::unit_matrix(), tilt);
                 let m = geom::rot_matrix_z(&rx, cx.cam.rot[2]);
-                let eye = geom::vadd(geom::apply_matrix(&m, [0, far, 0, ONE]), x.disc_pos);
+                let eye = geom::vadd(geom::apply_matrix(&m, [0, far, 0, ONE]), t.disc.pos);
                 cx.out(Out::FreeCam { pos: eye, view });
                 b.act_count = 0;
             } else {
                 b.act_proccess = 2;
                 // The fourth's by Kite: 2000 past it (1800 at the third
                 // place, none at the last; the EX turn's none at the third).
-                let near = |far: F| ee::add(far, super::super::dist(cx, cx.scene.chars[me].pos, x.disc_pos));
-                let range = match (x.fight, x.disc_lv) {
+                let near = |far: F| ee::add(far, super::super::dist(cx, cx.scene.chars[me].pos, t.disc.pos));
+                let range = match (x.fight, t.disc.lv) {
                     (Fight::Fourth, 3) if ex => None,
                     (Fight::Fourth, 4) if !ex => None,
                     (Fight::Fourth, 3) => Some(near(0x44e1_0000)),
@@ -461,7 +461,7 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
                     (Fight::Third, 1) => Some(0x45bb_8000),
                     (Fight::Third, 2) => Some(0x451c_4000),
                     (Fight::Third, _) => Some(0x458c_a000),
-                    _ if x.disc_lv != x.disc_max_lv => Some(0x457a_0000),
+                    _ if t.disc.lv != t.disc.max_lv => Some(0x457a_0000),
                     _ => Some(0x453b_8000),
                 };
                 if let Some(range) = range {
@@ -480,9 +480,9 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
             if thunder_sound(b, x.fight, cx) {
                 b.act_proccess = 3;
                 b.act_count = 0;
-                bolt(b, cx, x.disc_pos, (th.time, th.range, th.num), &th.dat, Some(off));
+                bolt(b, cx, t.disc.pos, (th.time, th.range, th.num), &th.dat, Some(off));
                 if !third {
-                    cx.out(Out::Se3d { se: 41, pos: x.disc_pos });
+                    cx.out(Out::Se3d { se: 41, pos: t.disc.pos });
                 }
             }
         }
@@ -491,7 +491,7 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
                 x.thunder = Some(th);
                 return;
             }
-            cx.out(if third { Out::Se { se: 41 } } else { Out::Se3d { se: 41, pos: x.disc_pos } });
+            cx.out(if third { Out::Se { se: 41 } } else { Out::Se3d { se: 41, pos: t.disc.pos } });
             for m in cx.party.members {
                 let Some(m) = m.filter(|&m| cx.valid(Some(m)) && cx.scene.chars[m].hp > 0) else { continue };
                 let p = cx.scene.chars[m].pos;
@@ -503,7 +503,7 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
                 }
             }
             if th.kind == Kind::Wide {
-                bolt(b, cx, x.disc_pos, (th.time, th.range, th.num), &th.dat, Some(off));
+                bolt(b, cx, t.disc.pos, (th.time, th.range, th.num), &th.dat, Some(off));
             }
             b.act_proccess = 3;
         }

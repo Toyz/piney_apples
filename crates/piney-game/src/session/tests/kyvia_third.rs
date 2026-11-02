@@ -6,7 +6,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use piney_battle::boss::Class;
+use piney_battle::boss::kyvia::core::Core;
+use piney_battle::boss::kyvia::{Disc, SlaveCore};
 use piney_input::{Buttons, Raw};
 
 use super::kyvia_fx::event_308_disc;
@@ -93,24 +94,21 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         // can be hit a blow of an eighth of its MaxHP from Kite each 300
         // frames (`EntryAffect` 1, as the console's `kill`), for the
         // party's (the god's party alone takes long).
-        let core = match c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
-            Some(Class::Kyvia(x)) => Some(x.core),
-            _ => None,
-        };
+        let body = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref());
+        let core = body.and_then(|b| b.systems.get::<SlaveCore>()).map(|s| s.me);
         // At the last stage the blows wait below 60% of MaxHP until the
         // magical ball has come (it needs the core below 70%).
-        let last = match c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
-            Some(Class::Kyvia(x)) => x.disc_lv == x.disc_max_lv,
-            _ => false,
-        };
+        let last = body.and_then(|b| b.systems.get::<Disc>()).is_some_and(|d| d.lv == d.max_lv);
         let wait = |k: usize| {
             let ch = &c.scene.chars[k];
             last && !p.acts.contains(&20) && i32::from(ch.hp) * 10 < i32::from(ch.max_hp) * 6
         };
         let blow = core.filter(|&k| c.scene.listed(k) && n.is_multiple_of(300) && c.scene.chars[k].hp > 0 && !wait(k));
         if let Some(core) = core
-            && let Some(Class::KyviaCore(x)) =
-                c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+            && let Some(x) = c.scene.chars[core]
+                .foe_state_mut()
+                .and_then(|f| f.boss.as_mut())
+                .and_then(|b| b.systems.get_mut::<Core>())
         {
             x.now_dmg_time = x.now_dmg_time.max(x.dmg_time - 1);
         }
@@ -122,8 +120,8 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         let c = a.world_mut().combat_mut();
         if let Some(b) = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()) {
             p.acts.insert(b.base.act_num);
-            if let Class::Kyvia(x) = &b.class {
-                p.stages.insert(x.disc_lv);
+            if let Some(d) = b.systems.get::<Disc>() {
+                p.stages.insert(d.lv);
             }
             if b.base.effects.slots.iter().flatten().any(|e| matches!(e.fx, Some(piney_battle::boss::Fx::Ball(_))))
                 && census.anchored_generators > 0

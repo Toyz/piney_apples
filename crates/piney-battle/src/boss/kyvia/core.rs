@@ -7,13 +7,15 @@
 //! docs/engine/boss-kyvia.md, boss-kyvia-fourth.md.
 
 use piney_data::field::ee;
+use piney_data::tables::combat;
 
 use super::gomora::{self, Gomora};
 use super::{
     Follow, Gen, GenOp, Held, Place, as_me, dp, fabs, fp, new_char, plain_boss, rand_abs, set_base_param, wrap,
 };
 use crate::boss::Part;
-use crate::boss::{Anm, Boss, BossBase, Class, Cx, Out, VF0};
+use crate::boss::systems::{BossSystem, Hook, Others};
+use crate::boss::{Anm, BossBase, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::param::cond;
@@ -150,7 +152,7 @@ impl Core {
 /// and the master's `SetMaster(master, 0)`: the core at Kite's place, not
 /// drawn, exited, with its five gomoras made (`GomoraInit(lv)`), each a
 /// character and boss of its own. `me` is the core's character.
-pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, lv: i16) -> Boss {
+pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, lv: i16) -> Part<Core> {
     let mut b = plain_boss();
     let mut x = Core::init();
     x.master = master;
@@ -161,25 +163,21 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, lv: i16) -> Boss {
     b.dirc = VF0;
     let attr = x.attr;
     set_core_base_param(cx, &mut x, me, lv, attr);
-    b.anm_tbl = cx.data.kyvia.core_anims.clone();
+    b.anm_tbl = combat::of(cx.volume()).kyvia_core_anims.iter().map(|a| a.map(str::to_string)).collect();
     x.dmg_count = i32::from(cx.scene.chars[me].max_hp);
     b.anm.set("ANM_ex0cnut0", cx.clips);
     b.change_action(cx, act::NEUTRAL, 0, true);
     for k in 0..GOMORAS {
         let g = new_char(cx, 16);
-        let mut gb = gomora::new(cx, g, me, k as i32, lv);
-        if let Class::Gomora(gx) = &mut gb.class {
-            gx.state = 2;
-            // `LifeFlg = &GomoraFlg[i] != 0`: the address, so always 1.
-            gx.life_flg = 1;
-        }
-        if let Some(f) = cx.scene.chars[g].foe_state_mut() {
-            f.boss = Some(Box::new(gb));
-        }
+        let mut gp = gomora::new(cx, g, me, k as i32, lv);
+        gp.x.state = 2;
+        // `LifeFlg = &GomoraFlg[i] != 0`: the address, so always 1.
+        gp.x.life_flg = 1;
+        gp.put(cx);
         x.gomoras.push(g);
     }
     x.anm_w.set("ANM_xx11wave", cx.clips);
-    Boss::of(&crate::boss::defs::CORE, b, Class::KyviaCore(Box::new(x)))
+    Part::of(&crate::boss::defs::CORE, b, x, me)
 }
 
 /// `SetCoreBaseParam(lv, attr)` (MUT gcmn 0x004f8770, OUT 0x004f5150): the
@@ -941,9 +939,11 @@ fn char_hold_on(c: &mut Part<Core>, cx: &mut Cx, rx: i32, ry: i32) {
 
 // --- Affect ------------------------------------------------------------------------------
 
-impl crate::boss::BossClass for Core {
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
+impl BossSystem for Core {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Affect {
+            affect(b, self, cx);
+        }
     }
 }
 
@@ -1091,7 +1091,7 @@ fn step_gomora_list(gs: &mut [Part<Gomora>], cx: &mut Cx) {
 /// life.
 fn step_all_gomora_list(c: &Part<Core>, gs: &mut [Part<Gomora>], cx: &Cx) {
     for g in gs.iter_mut() {
-        gomora::list_step_up(g, &cx.data.kyvia, c.x.dead_count);
+        gomora::list_step_up(g, combat::of(cx.volume()), c.x.dead_count);
         g.x.kyvia_step += 1;
     }
 }
@@ -1100,7 +1100,7 @@ fn step_all_gomora_list(c: &Part<Core>, gs: &mut [Part<Gomora>], cx: &Cx) {
 /// that is waiting or dead gets the disc; the first exited one comes out
 /// (`EntrySlave(0, 1)`), which is `NowGomoraNum`.
 fn entry_gomora(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
-    let data = &cx.data.kyvia;
+    let data = combat::of(cx.volume());
     let Some(k) = gs.iter_mut().position(|g| gomora::get_attribute(g, data) != 4 && matches!(g.x.state, 2 | 3)) else {
         return;
     };
@@ -1130,7 +1130,7 @@ fn entry_slave(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx, on: i32
 /// `StartGomora` (MUT gcmn 0x004fdda0): the gomora `NowGomoraNum` on its way
 /// out (state 1), if it has an attribute.
 fn start_gomora(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
-    let data = &cx.data.kyvia;
+    let data = combat::of(cx.volume());
     let Some(g) = usize::try_from(c.x.now_gomora_num).ok().and_then(|k| gs.get_mut(k)) else { return };
     if gomora::get_attribute(g, data) != 4 {
         g.x.time_flg = 1;

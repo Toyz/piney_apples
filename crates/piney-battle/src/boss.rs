@@ -88,22 +88,17 @@ pub mod act {
 }
 
 /// Every boss's tables, for the volume ([`innis::InnisData`],
-/// [`magus::MagusData`], [`kyvia::KyviaData`]).
+/// [`corbenik::CorbenikData`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossData {
     pub innis: innis::InnisData,
-    pub kyvia: kyvia::KyviaData,
     pub corbenik: corbenik::CorbenikData,
 }
 
 impl BossData {
     /// The volume's.
     pub fn of(volume: piney_data::volume::Volume) -> BossData {
-        BossData {
-            innis: innis::InnisData::of(volume),
-            kyvia: kyvia::KyviaData::of(volume),
-            corbenik: corbenik::CorbenikData::of(volume),
-        }
+        BossData { innis: innis::InnisData::of(volume), corbenik: corbenik::CorbenikData::of(volume) }
     }
 }
 
@@ -113,13 +108,6 @@ impl BossData {
 pub enum Class {
     /// `ccBoss02` and its three slaves.
     Innis(Box<innis::Innis>),
-    /// `ccBossKyvia01` or `ccBossKyvia02`: the body; its core and gomoras
-    /// are bosses of their own characters.
-    Kyvia(Box<kyvia::Kyvia>),
-    /// `kyviaCore`.
-    KyviaCore(Box<kyvia::core::Core>),
-    /// `kyviaGomora`.
-    Gomora(Box<kyvia::gomora::Gomora>),
     /// `ccBoss08`, the first form: its seeds are bosses of their own
     /// characters.
     Corbenik(Box<corbenik::first::First>),

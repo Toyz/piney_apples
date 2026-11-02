@@ -368,14 +368,14 @@ pub trait BallHost {
 }
 
 /// The fight's ball: the manager's blur and `KyviaMagicalBallDamage`.
-pub(crate) struct FightBall<'a, 'c> {
+pub(crate) struct FightBall<'a, 'c, 't> {
     pub b: &'a mut BossBase,
     pub x: &'a mut Kyvia,
-    pub t: &'a mut Tree,
+    pub t: &'a mut Tree<'t>,
     pub cx: &'a mut Cx<'c>,
 }
 
-impl BallHost for FightBall<'_, '_> {
+impl BallHost for FightBall<'_, '_, '_> {
     fn has_blur(&self) -> bool {
         true
     }
@@ -423,10 +423,10 @@ pub(crate) fn ball_damage(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mu
 
 /// `ccBossEffMagicalBallCreate(40, DiscPos, blur, KyviaMagicalBallDamage)`
 /// into the manager.
-pub(super) fn create(b: &mut BossBase, x: &Kyvia, cx: &mut Cx) {
-    let ball = MagicalBall::new(cx.cc, 0x4220_0000, x.disc_pos);
+pub(super) fn create(b: &mut BossBase, disc_pos: V4, cx: &mut Cx) {
+    let ball = MagicalBall::new(cx.cc, 0x4220_0000, disc_pos);
     let kind = EffKind::MagicalBall;
-    b.make_fx(cx, kind, ball, x.disc_pos, VF0);
+    b.make_fx(cx, kind, ball, disc_pos, VF0);
 }
 
 /// `MagicBallAtk` (QUA gcmn 0x003d7d40): the core away (state 8) and the
@@ -454,7 +454,7 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
         2 => {
             if cx.cam.reset == 0 {
                 b.act_proccess += 1;
-                create(b, x, cx);
+                create(b, t.disc.pos, cx);
                 x.quake_vector = VF0;
             }
         }

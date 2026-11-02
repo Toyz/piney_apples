@@ -3,7 +3,7 @@ title: Bosses - Kyvia's third fight
 status: partial
 volumes: QUA
 covers: QUA gcmn.prg:0x003d0a60 ccThKyvia03 (bossFunc code 14), 0x003d0b30 ccBossKyvia03::ccBossKyvia03, 0x003d12f0 Action, 0x003d1df0 DeadKyviaVoice, 0x003d2080 DeadKyviaCam, 0x003d24d0 Main, 0x003d2870 Think, 0x003d29e0 SwitchActionPattern, 0x003d3010 SwitchDeadCheck, 0x003d31b0 CheckDiscMove, 0x003d3910 CheckDmgSmokeEff, 0x003d3be0 KyviaMagicDamage, 0x003d3c80 KyviaMagicalBallDamage, 0x003d3d90 SetBPos, 0x003d4280 HandAtk, 0x003d4ae0 LightAtk, 0x003d76e0 MegidFlame, 0x003d7d40 MagicBallAtk, 0x003d7fa0 ThunderboltAtk, 0x003d8d40 ThunderDmg, 0x003d9760 ThunderSound, 0x003d9920 Slave, 0x003d99f0 EntrySlave, 0x0036b4e0 ccBossEffMagicalBall::InitData, 0x0036b880 Draw, 0x0036c170 DrawPlasma, 0x0036c630 SetSpPoint, 0x0036cbc0 Spline, 0x0037ca70 ccBossEffMagicalBallCreate, 0x003ed8b0 kyviaGomora::GomoraInit, 0x003f0120 ListStepUp, 0x005103e0 the third level's gomora lists, 0x00510030 Kyvia03AnmTbl, 0x003657a0 ccThBossEffect, 0x00365ac0 ccBossEffManager::Draw, 0x0015eaa0 ccScFade::SendPacket
-worklog: 433
+worklog: 433, 553
 ---
 
 # Bosses - Kyvia's third fight
@@ -152,10 +152,10 @@ Quarantine; Infection's has no case 3). Their code is level 2's.
   fight)`), its numbers by fight, `third_pattern`, and
   `kyvia::magic_ball`: `magic_ball_atk`, `MagicalBall` (`new`, `draw` on
   a `BallHost`, `DrawPlasma`'s local zeroed each frame) and
-  `ball_damage`. The manager's pass over Kyvia's effects is
-  `Boss::effects_pass`, which piney-world runs before the blur's `Main`
-  and the boss's `Main`; a camera mode an effect sets is the camera's
-  before the boss reads it.
+  `ball_damage`. The manager's pass over Kyvia's effects is the def's
+  `pass` (`Boss::effects_pass`), which piney-world runs before the blur's
+  `Main` and the boss's `Main`; a camera mode an effect sets is the
+  camera's before the boss reads it.
 - piney-gen: `kyvia03_anims`, `kyvia_gomora_lists_3` (from
   `ListStepUp`'s fourth address build), `kyvia_gomora_lists_4`,
   `kyvia04_anims`, `kyvia04_anims_ex`, `kyvia_skills_various`.
