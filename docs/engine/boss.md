@@ -639,18 +639,24 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
 
 `piney_battle::boss` holds the rules:
 
-- A boss is `Boss { def, base: BossBase, class: Class, output }`: what
-  it is (`BossDef`), `ccBoss`'s members and its class's own, apart, so a
-  class's rules hold both at once, and what its frame shows (`Output`).
-- `Boss::main` and `Boss::affect` go through one `match` on the class
-  (`Class::with_rules`) to its `BossClass` impl: `Class::Skeith` is
-  `ccBoss01` with its own members (`boss::skeith::Skeith`: `m_patMode`,
-  `m_actDirc` among them), the effect manager's pass included; `Class::Innis` is
-  Mutation's `ccBoss02` ([Innis](boss-innis.md)), `Class::Magus`
-  ([Magus](boss-magus.md)), `Class::Kyvia` ([Kyvia](boss-kyvia.md)),
-  `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)),
-  `Class::Macha` Quarantine's `ccBoss06` ([Macha](boss-macha.md)),
-  `Class::Tarvos` its `ccBoss07` ([Tarvos](boss-tarvos.md)).
+- A boss is `Boss { def, base: BossBase, systems, class, output }`: what
+  it is (`BossDef`), `ccBoss`'s members every system shares, its systems
+  (its class's own members, by kind; below), a class not yet made of
+  systems (`Class`), and what its frame shows (`Output`).
+- One runner walks the def's steps (`boss::systems`): `Boss::main` its
+  `order`, `Boss::affect` its `affect`, `Boss::effects_pass` its `pass`,
+  `Boss::hand_over` its `hand_over`, `Boss::show` each system's draw over
+  `ccBoss::Draw`'s body. Skeith is systems: his wave (`systems::wave`,
+  `m_anmw`) and his own (`boss::skeith::Skeith`: his effects and fades,
+  `m_patMode`, `m_actDirc`); his tables are views of `tables::combat`
+  (alike on every volume). The other classes still run as one
+  `Step::Class` through `Class::with_rules` to their `BossClass` impl:
+  `Class::Innis` is Mutation's `ccBoss02` ([Innis](boss-innis.md)),
+  `Class::Magus` ([Magus](boss-magus.md)), `Class::Kyvia`
+  ([Kyvia](boss-kyvia.md)), `Class::Fidchell` Outbreak's `ccBoss04`
+  ([Fidchell](boss-fidchell.md)), `Class::Macha` Quarantine's `ccBoss06`
+  ([Macha](boss-macha.md)), `Class::Tarvos` its `ccBoss07`
+  ([Tarvos](boss-tarvos.md)).
 - Every boss class derives from `ccBoss` itself, none from `ccBoss01`
   (Infection's DWARF, which carries boss04-08 and Kyvia's classes too):
   Skeith's code is his alone (`boss::skeith`, his constructor
@@ -661,7 +667,8 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   on `ccBoss`'s through its own vtable.
 - `ccBoss::ExecPatternIndex` and `ChangeNextPattern` call back into the
   class (its `ChangeAction`, `ExecPatternIndex`, `ExecPattern`,
-  `CheckEpitaph`, its table): the `Patterns` trait, one generic
+  `CheckEpitaph`, its table): the `Patterns` trait
+  (`systems::patterns`), one generic
   `base_exec_pattern_index` and `base_change_next_pattern`. `BaseActs`
   holds where the classes' copies parted: two vectors' w lanes. A word
   no class knows lets the neutral go (forbid 1) on every volume (INF
@@ -679,11 +686,12 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   brothers, Corbenik's seeds, roots and eyes) are bosses of their own
   characters. The master's frame takes them out as `Part<T>` (`Parts<T>`
   where it indexes them) and puts them back after.
-- `ccBoss::Main` is building blocks on `BossBase` (`prologue`,
-  `tick_stop`, `lock_party`, `move_`, `forward_and_draw`, and
-  `Cx::pp_count_tick`); each class's `Main` calls them in its own order.
-  Each boss's tables come from the build through `BossData`
-  (`tables::combat`).
+- `ccBoss::Main` is building blocks on `BossBase` (`systems::frame`:
+  `prologue`, `tick_stop`, `lock_party`, `move_`, `forward_and_draw`),
+  which a def's steps name in its class's order (`Step::Prologue`, ...,
+  `Step::Live` for what runs while `exit` is clear) and a class not yet
+  systems calls itself. The tables of the classes not yet systems come
+  from the build through `BossData` (`tables::combat`).
 - `Foe.boss` carries the boss's state.
 - `AffectFunc::Boss` sends an affect on the boss to `boss::entry`
   synchronously, as `bossAffectFunc` does. The Cx a frame needs comes from
@@ -784,6 +792,28 @@ through its def and what it asks, the same for every boss:
   same character, its seeds asked off the field (`Out::PartRemoved`), and
   `Out::Remade` has the field make its hit, parts and camera anew from the
   new def.
+
+**Systems** (worklog 540). A def names its systems (`BossDef::systems`,
+each a `systems::Kind`) and the steps of its frame in the game's order
+(`BossDef::order`, `affect`, `pass`, `hand_over`, each a list of
+`systems::Step`): `ccBoss::Main`'s blocks on the shared members, a
+system's own step (`Step::Run(kind, hook)`: `Think`, `Action`,
+`PreDraw`, `Late`, `Affect`, ...), and `Step::Live` for the steps
+`ccBoss::Main`'s early return guards. A system (`systems::System`, one
+`match` over the kinds) holds its class's members as its constructor
+starts them, steps on the shared members and its siblings
+(`systems::Others`, reached by kind inside the boss's module), and draws
+into the `Output`. Skeith's frame:
+
+```text
+order:  TickEffects, Live[Prologue, TickStop, Skeith.Think, Skeith.Action,
+        LockParty, Move, Skeith.PreDraw, ForwardAndDraw], ClearHold, Skeith.Late
+affect: Skeith.Affect
+draw:   ccBoss::Draw's body, Wave (its pose), Skeith (the cross's trail)
+```
+
+Tests and probes read a system's state by its kind
+(`Systems::get::<T>()`); the field never does.
 
 `tools/test_bosscam_rs.py` builds the game's `ccBossCam` in eemu over the
 field's camera and player tasks. Each frame it runs `CamMain` with the

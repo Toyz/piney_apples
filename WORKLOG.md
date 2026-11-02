@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-539 entries: audio 43, battle 143, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 57, ui 102, video 16, volumes 94, world 152. 129 entries still have open questions - [listed below](#still-open).
+540 entries: audio 43, battle 144, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 57, ui 102, video 16, volumes 94, world 152. 130 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -551,9 +551,11 @@ The [reference](docs/README.md) says what is true now.
 | 537 | [Bosses as defs, step one: the request flow; one Output and generic Outs the field and the effects read the same for every boss, inputs through Cx::field, Corbenik's form change a hand-over](worklog/0537-bosses-as-defs-step-one-the-request-flow-one-output-and.md) | 2026-10-30 | battle |
 | 538 | [GameClass: the classes only later volumes have, read from their code: ROOTTOWN06 and Quarantine's ccFellow18-20](worklog/0538-gameclass-the-classes-only-later-volumes-have-read-from.md) | 2026-11-01 | tooling |
 | 539 | [GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) | 2026-11-01 | tooling |
+| 540 | [Bosses as defs, step two: one runner over a def's steps, the systems as objects, Skeith made of them](worklog/0540-bosses-as-defs-step-two-one-runner-over-a-def-s-steps-the.md) | 2026-11-01 | battle |
 
 ## Still open
 
+- [540. Bosses as defs, step two: one runner over a def's steps, the systems as objects, Skeith made of them](worklog/0540-bosses-as-defs-step-two-one-runner-over-a-def-s-steps-the.md) - nothing this step opened; the item goes on with each boss's own systems (Fidchell next), then Class, each_class!...
 - [539. GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) - nothing this step opened.
 - [537. Bosses as defs, step one: the request flow; one Output and generic Outs the field and the effects read the same for every boss, inputs through Cx::field, Corbenik's form change a hand-over](worklog/0537-bosses-as-defs-step-one-the-request-flow-one-output-and.md) - none this step opened; the boss item's next steps are the runner and the shared systems, then each boss's own systems.
 - [533. AreaCore: one shape for every story map and town, the getters defaulted through core()](worklog/0533-areacore-one-shape-for-every-story-map-and-town-the-getters.md) - whether GO(0) reseeds fieldrand after ROOTTOWN05's constructor, which decides if Lia Fail's glows' draws in it should...

@@ -62,7 +62,7 @@ fn run_forcing(
             && let Some(me) = c.boss_char()
         {
             // ChangeAction(act, .., 1): its clip from Boss01AnmTbl.
-            let clip = c.data.bosses.as_ref().and_then(|d| d.skeith.anm_tbl.get(act as usize).cloned().flatten());
+            let clip = piney_battle::boss::skeith::anims().get(act as usize).copied().flatten().map(str::to_string);
             let clips = c.boss.as_ref().map(|r| r.clips.clone());
             if let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) {
                 b.base.act_num = act;

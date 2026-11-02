@@ -4,50 +4,43 @@
 //! later boss derives from `ccBoss01` (the DWARF of every boss class names
 //! `ccBoss` as its base), so nothing here is shared.
 
+use piney_data::tables::combat;
+
+use super::systems::wave::Wave;
+use super::systems::{BossSystem, Hook, Others};
 use super::*;
 
-/// Skeith's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct SkeithData {
-    /// `boss01NormalActTbl`, `boss01SuperActTbl`, `boss01EpitaphActTbl`
-    /// (INF gcmn 0x005eb430, 0x005eb490, 0x005eb530, listed by @1035 at
-    /// 0x005eb598): the words to their `-1` and one past it.
-    pub act_tbls: [Vec<i32>; 3],
-    /// @1378 (INF 0x005eb608): pattern 10's skills, one by `ccRand() % 3`.
-    pub rand_skills: [i32; 3],
-    /// `Boss01AnmTbl` (INF 0x005eb5b0): the act's animation (22 names,
-    /// None for none).
-    pub anm_tbl: Vec<Option<String>>,
-}
-
-impl SkeithData {
-    /// `patTbl`'s words.
-    pub(crate) fn words(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::None => &[],
-            Tbl::Normal => &self.act_tbls[0],
-            Tbl::Super => &self.act_tbls[1],
-            Tbl::Epitaph => &self.act_tbls[2],
-        }
-    }
-
-    /// The volume's.
-    pub fn of(volume: piney_data::volume::Volume) -> SkeithData {
-        let t = piney_data::tables::combat::of(volume);
-        let acts = t.skeith_acts;
-        let r = t.skeith_rand_skills;
-        SkeithData {
-            act_tbls: [acts[0].to_vec(), acts[1].to_vec(), acts[2].to_vec()],
-            rand_skills: [r[0], r[1], r[2]],
-            anm_tbl: t.skeith_anims.iter().map(|a| a.map(str::to_string)).collect(),
-        }
+/// Skeith's act tables (`tables::combat`, alike on every volume):
+/// `boss01NormalActTbl`, `boss01SuperActTbl`, `boss01EpitaphActTbl` (INF
+/// gcmn 0x005eb430, 0x005eb490, 0x005eb530, listed by @1035 at
+/// 0x005eb598), the words to their `-1` and one past it, as `patTbl` points
+/// at them.
+pub fn words(t: Tbl) -> &'static [i32] {
+    let acts = combat::shared().skeith_acts;
+    match t {
+        Tbl::None => &[],
+        Tbl::Normal => acts[0],
+        Tbl::Super => acts[1],
+        Tbl::Epitaph => acts[2],
     }
 }
 
-/// `ccBoss01`'s own members (Skeith's): its spell's force and ice
-/// effects, its death's effect and fades, the stage effect it holds, the
-/// wave's ring clip, `m_patMode` (+0x29644) and `m_actDirc` (+0x29650).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// `Boss01AnmTbl` (INF 0x005eb5b0): the act's animation (22 names, None
+/// for none).
+pub fn anims() -> &'static [Option<&'static str>] {
+    combat::shared().skeith_anims
+}
+
+/// @1378 (INF 0x005eb608): pattern 10's skills, one by `ccRand() % 3`.
+fn rand_skill(k: usize) -> i32 {
+    combat::shared().skeith_rand_skills[k]
+}
+
+/// `ccBoss01`'s own members (Skeith's) beside his wave: his spell's force
+/// and ice effects, his death's effect and fades, the stage effect he
+/// holds, `m_patMode` (+0x29644) and `m_actDirc` (+0x29650); as his
+/// constructor starts them (the fades opaque, no stage effect).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Skeith {
     pub eff_force: Option<i32>,
     pub eff_ice_break: Option<i32>,
@@ -55,33 +48,57 @@ pub struct Skeith {
     pub animate: Fade,
     pub animate_dead: Fade,
     pub stage_eff_id: i32,
-    pub anm_wave: Anm,
     pub pat_mode: i32,
     pub act_dirc: V4,
 }
 
-impl BossClass for Skeith {
-    /// The wave as posed; `ccBoss01::DrawCross` (0x0047c390): `m_lattice`
-    /// (+0x2935c), a row a frame in the cross at the sword's two dummies,
-    /// while it stands.
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut Output) {
-        out.body =
-            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
-        out.wave = Some(self.anm_wave.posed);
+impl Default for Skeith {
+    fn default() -> Skeith {
+        Skeith {
+            eff_force: None,
+            eff_ice_break: None,
+            eff_dead: None,
+            animate: Fade { transparency: ONE, ..Fade::default() },
+            animate_dead: Fade { transparency: ONE, ..Fade::default() },
+            stage_eff_id: -1,
+            pat_mode: 0,
+            act_dirc: [0; 4],
+        }
+    }
+}
+
+impl BossSystem for Skeith {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        match hook {
+            Hook::Think => think(b, self, o, cx),
+            Hook::Action => action(b, self, cx),
+            // ccBoss01::PreDrawAnm (0x0047c340): the wave's speed 512 in
+            // its acts.
+            Hook::PreDraw => {
+                if b.draw_sw != 0 && (b.act_num == act::WAVE || b.act_num == act::EPITAPH_WAVE) {
+                    wave(o).anm.speed = 512;
+                }
+            }
+            Hook::Late => late(b, cx),
+            Hook::Affect => affect(b, self, cx),
+            _ => {}
+        }
+    }
+
+    /// `ccBoss01::DrawCross` (0x0047c390): `m_lattice` (+0x2935c), a row a
+    /// frame in the cross at the sword's two dummies, while he stands.
+    fn draw(&self, b: &BossBase, _cx: &mut Cx, out: &mut Output) {
         out.trail = if b.act_num == act::CROSS && b.exit == 0 {
             Trail::Row { node: "OBJ_ex11swd", points: ["DMY_xdummy_w01", "DMY_xdummy_w02"] }
         } else {
             Trail::Keep
         };
     }
+}
 
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
-    }
+/// His wave, beside him.
+fn wave<'a>(o: &'a mut Others) -> &'a mut Wave {
+    o.get_mut::<Wave>().expect("Skeith's def has a wave")
 }
 
 /// The constructors (`ccBoss::ccBoss` 0x0045bcf0, `ccBoss01::ccBoss01`
@@ -93,7 +110,7 @@ impl BossClass for Skeith {
 /// area's `DMY_center01` (`center`, world).
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let mut b = BossBase {
-        anm_tbl: cx.data.skeith.anm_tbl.clone(),
+        anm_tbl: anims().iter().map(|a| a.map(str::to_string)).collect(),
         wait_pat_num: -2,
         pat_num: 13,
         // InitStageEffect: the stage fader and its layer made.
@@ -102,14 +119,6 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         set_transparency: ONE,
         anm: Anm::new(),
         ..BossBase::default()
-    };
-    let mut skeith = Skeith {
-        stage_eff_id: -1,
-        anm_wave: Anm::new(),
-        // the ccAnimateObjects start opaque
-        animate: Fade { transparency: ONE, ..Fade::default() },
-        animate_dead: Fade { transparency: ONE, ..Fade::default() },
-        ..Skeith::default()
     };
     // ccBoss01's On/Off: exit off, drawn, body hit on, cheat HP on.
     b.exit = 0;
@@ -127,15 +136,17 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.stop_time = 0;
     b.stop_counter = 0;
     b.set_pattern_tbl(Tbl::Normal);
-    let tbl = cx.data.skeith.words(Tbl::Normal);
-    let _ = skeith.exec_pattern_index(&mut b, cx, tbl, 0);
+    let mut boss = Boss::build(&super::defs::SKEITH, b);
+    let Boss { base: b, systems, .. } = &mut boss;
+    let (skeith, _) = systems.split::<Skeith>().expect("Skeith's def has him");
+    let _ = skeith.exec_pattern_index(b, cx, words(Tbl::Normal), 0);
     skeith.pat_mode = 0;
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = w2p(cx, b.center_pos);
     // The blur on under `ccBoss03BlurParamCB` (INF gcmn 0x0047bc40).
     cx.out(Out::Blur(blur::Set::Enable));
     cx.out(Out::Blur(blur::Set::Func(blur::BlurFunc::Boss03)));
-    Boss::of(&super::defs::SKEITH, b, Class::Skeith(Box::new(skeith)))
+    boss
 }
 
 /// Skeith's patterns: `ccBoss01::ExecPatternIndex` over the base's, the
@@ -143,8 +154,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 impl Patterns for Skeith {
     const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0 };
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.skeith.words(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, _: &'d BossData) -> &'d [i32] {
+        words(b.pat_tbl)
     }
 
     /// `ccBoss01::ExecPatternIndex(tbl, i)` (0x0047c500), falling back on
@@ -202,7 +213,7 @@ impl Patterns for Skeith {
                 b.calc_target_info(cx);
                 let (on, sid) = if pat == 10 {
                     let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
-                    (target, cx.data.skeith.rand_skills[k])
+                    (target, rand_skill(k))
                 } else {
                     let sid = word(tbl, i);
                     i += 1;
@@ -221,29 +232,11 @@ impl Patterns for Skeith {
     }
 }
 
-/// `ccBoss01::Main` (gcmn 0x0047bd50), with the manager's pass before:
-/// `ccBoss::Main`'s blocks around `Think` and `Action`, and its own
-/// `PreDrawAnm` (0x0047c340): the wave's speed 512 in its acts.
-fn main(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
-    b.effects.tick();
-    if b.exit == 0 {
-        b.prologue(cx);
-        b.tick_stop();
-        think(b, s, cx);
-        action(b, s, cx);
-        b.lock_party(cx);
-        b.move_(cx);
-        if b.draw_sw != 0 {
-            if b.act_num == act::WAVE || b.act_num == act::EPITAPH_WAVE {
-                s.anm_wave.speed = 512;
-            }
-            b.forward_and_draw(cx);
-        }
-    }
-    let me = cx.me;
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
-    // DrawCross (0x0047c390): in the cross it finds the sword's dummies
-    // once (proccess 0 to 1) and draws its trail (the runtime's).
+/// The end of `ccBoss01::Main` (gcmn 0x0047bd50) after `ccBoss::Main`'s
+/// blocks and the hold let go: `DrawCross` (0x0047c390) finds the sword's
+/// dummies once in the cross (proccess 0 to 1; the trail is the field's),
+/// and while the party is held or the target erased, the PP count ticks.
+fn late(b: &mut BossBase, cx: &mut Cx) {
     if b.act_num == act::CROSS && b.act_proccess == 0 {
         b.act_proccess = 1;
     }
@@ -253,18 +246,18 @@ fn main(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
 }
 
 /// `ccBoss01::Think` (0x0047c1e0).
-fn think(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
+fn think(b: &mut BossBase, s: &mut Skeith, o: &mut Others, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, s, cx),
         act::DAMAGE0 | act::DAMAGE1 => on_damage(b, s, cx),
         act::CROSS => on_cross(b, s, cx),
-        act::WAVE => on_wave(b, s, cx),
+        act::WAVE => on_wave(b, s, wave(o), cx),
         act::DRAIN => on_drain(b, s, cx),
         act::MAGIC => on_magic(b, s, cx),
         act::DASH => on_dash(b, s, cx),
         act::WANDER => on_wander(b, s, cx),
         act::EPITAPH_NEUTRAL => on_epitaph_neutral(b, s, cx),
-        act::EPITAPH_WAVE => on_epitaph_wave(b, s, cx),
+        act::EPITAPH_WAVE => on_epitaph_wave(b, wave(o), cx),
         act::ESCAPE => on_escape(b, s, cx),
         act::RETURN => on_return(b, s, cx),
         act::CHASE => on_chase(b, s, cx),
@@ -275,10 +268,10 @@ fn think(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
 }
 
 /// `OnThinkEpitaphWave` (0x0047cdc0).
-fn on_epitaph_wave(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
+fn on_epitaph_wave(b: &mut BossBase, w: &mut Wave, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
-            s.anm_wave.set(ANM_WAVE, cx.clips);
+            w.anm.set(ANM_WAVE, cx.clips);
             b.act_proccess += 1;
             cx.se3d(223);
             return;
@@ -292,8 +285,8 @@ fn on_epitaph_wave(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
                     cx.out(Out::Flash { t: 15, colour: 0x80e0_ffff });
                     b.effect(cx, EffKind::WaveShock);
                 }
-                let done = s.anm_wave.forward();
-                s.anm_wave.speed = 512;
+                let done = w.anm.forward();
+                w.anm.speed = 512;
                 cx.out(Out::DrawWave);
                 cx.quake_cam(0x420c_0000);
                 if b.anm_status != 0 && done {
@@ -410,13 +403,13 @@ fn on_dash(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
 }
 
 /// `OnWaveAtk` (0x0047e1a0).
-fn on_wave(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, s: &mut Skeith, w: &mut Wave, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             let c = b.act_count;
             b.act_count += 1;
             if c >= 73 {
-                s.anm_wave.set(ANM_WAVE, cx.clips);
+                w.anm.set(ANM_WAVE, cx.clips);
                 b.act_count = 0;
                 b.act_proccess += 1;
                 cx.out(Out::Flash { t: 15, colour: 0x80e0_ffff });
@@ -436,7 +429,7 @@ fn on_wave(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
                 b.skill_damage(cx, None, Some(pos), SKILL_WAVE);
             }
             cx.quake_cam(0x420c_0000);
-            let done = s.anm_wave.forward();
+            let done = w.anm.forward();
             cx.out(Out::DrawWave);
             if b.anm_status != 0 && done {
                 s.change_next_pattern(b, cx);
@@ -580,7 +573,7 @@ fn action(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
         act::EPITAPH => {
             b.cheat_hp = 0;
             b.set_pattern_tbl(Tbl::Epitaph);
-            let tbl = cx.data.skeith.words(Tbl::Epitaph);
+            let tbl = words(Tbl::Epitaph);
             // The index is discarded, as in the constructor.
             let _ = s.exec_pattern_index(b, cx, tbl, 0);
             s.pat_mode = 2;
@@ -637,7 +630,7 @@ fn affect(b: &mut BossBase, s: &mut Skeith, cx: &mut Cx) {
         let max = cx.t.bosses.get(id).map_or(0, |r| r.max_pp);
         if pp >= max >> 1 {
             b.set_pattern_tbl(Tbl::Super);
-            let tbl = cx.data.skeith.words(Tbl::Super);
+            let tbl = words(Tbl::Super);
             let _ = s.exec_pattern_index(b, cx, tbl, 0);
             s.pat_mode = 1;
         }

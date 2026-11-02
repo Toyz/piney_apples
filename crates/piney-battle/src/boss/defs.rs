@@ -7,6 +7,7 @@
 
 use piney_data::classes::BossGameClass;
 
+use super::systems::{Hook, Kind, Step};
 use super::{Boss, BossBase, Class, Cx, F, ONE, V4};
 use super::{corbenik, fidchell, gorre, innis, kyvia, macha, magus, skeith, tarvos};
 
@@ -71,6 +72,14 @@ pub struct BossDef {
     /// The body hit's radius, when not the base's width.
     pub radius: Option<F>,
     pub make: fn(&mut Cx, &Spawn) -> Boss,
+    /// Its systems, as its constructor starts them, and the steps of its
+    /// frame (`Main`), of its `Affect`, of the effect manager's pass before
+    /// its task, and of the hand-over after it, in the game's order.
+    pub systems: &'static [Kind],
+    pub order: &'static [Step],
+    pub affect: &'static [Step],
+    pub pass: &'static [Step],
+    pub hand_over: &'static [Step],
 }
 
 /// One def is one boss: two are the same def or none.
@@ -107,6 +116,11 @@ pub const BASE_BOSS: BossDef = BossDef {
     cam: CamDef::None,
     radius: None,
     make: bare,
+    systems: &[],
+    order: &[Step::Class(Hook::Main)],
+    affect: &[Step::Class(Hook::Affect)],
+    pass: &[Step::Class(Hook::Pass)],
+    hand_over: &[Step::Class(Hook::HandOver)],
 };
 
 /// A part: a `ccBoss` of its own character whose frame its master runs.
@@ -117,13 +131,35 @@ pub const BASE_PART: BossDef = BossDef { ..BASE_BOSS };
 /// form's).
 pub const CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x4348_0000, ONE];
 
-/// Skeith (`ccBoss01`, `x11`).
+/// Skeith (`ccBoss01`, `x11`): his wave and his own; `ccBoss01::Main`
+/// (gcmn 0x0047bd50) is `ccBoss::Main`'s blocks around his `Think` and
+/// `Action`, his `PreDrawAnm` (0x0047c340) before the body's, then the
+/// hold let go and his `DrawCross`; his `Affect` his own.
 pub const SKEITH: BossDef = BossDef {
     code: Some(0),
     class: BossGameClass::CcBoss01,
     file: "x11",
     cam: CamDef::Transfer(CAM_TRANSFER),
     make: |cx, s| skeith::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    systems: &[Kind::Wave, Kind::Skeith],
+    order: &[
+        Step::TickEffects,
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Skeith, Hook::Think),
+            Step::Run(Kind::Skeith, Hook::Action),
+            Step::LockParty,
+            Step::Move,
+            Step::Run(Kind::Skeith, Hook::PreDraw),
+            Step::ForwardAndDraw,
+        ]),
+        Step::ClearHold,
+        Step::Run(Kind::Skeith, Hook::Late),
+    ],
+    affect: &[Step::Run(Kind::Skeith, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
     ..BASE_BOSS
 };
 

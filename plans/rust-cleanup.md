@@ -342,6 +342,13 @@ Where the code does by hand, per kind, what a system should do once:
       runner and the shared systems, then each boss's own systems, then
       `Class`, `each_class!`, `BossData` and the Innis slave's `base_main`
       out.)
+      (worklog 540, the runner: `boss::systems`, a def's `systems` and its
+      `order`, `affect`, `pass` and `hand_over` steps walked by one runner,
+      `ccBoss::Main`'s blocks as steps on `BossBase`, `Step::Live` for its
+      early return, each system's draw into `Output`; the pattern runner
+      in `systems::patterns`, the wave a shared system; Skeith converted
+      (his wave and his own, his tables views of `tables::combat`). The
+      other classes run as one `Step::Class` until theirs land.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

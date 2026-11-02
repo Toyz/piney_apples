@@ -20,10 +20,10 @@ pub mod magus;
 pub mod output;
 mod part;
 pub mod skeith;
+pub mod systems;
 pub mod tarvos;
 
 use piney_data::field::ee;
-use piney_data::libm;
 
 use crate::affect::{self, AffectCtx};
 use crate::chara::{self, Env};
@@ -38,10 +38,12 @@ use crate::rand::Rng;
 use crate::scene::Scene;
 use crate::tables::Tables;
 use crate::world::CharHit;
-use class::{BaseActs, BossClass, Patterns, base_change_next_pattern, base_exec_pattern_index, word};
+use class::BossClass;
 pub use defs::BossDef;
 pub use output::{AnmLayer, Blend, BodyDraw, Figure, Follow, Output, PicFile, Picture, Root, Spot, Trail};
 pub use part::{Part, PartClass, Parts};
+use systems::patterns::{BaseActs, Patterns, base_change_next_pattern, base_exec_pattern_index, word};
+pub use systems::{Hook, Kind, Step, System, SystemKind, Systems};
 
 type F = u32;
 
@@ -85,11 +87,10 @@ pub mod act {
     pub const RAND_DRIVE: i16 = 21;
 }
 
-/// Every boss's tables, for the volume ([`skeith::SkeithData`], [`innis::InnisData`],
+/// Every boss's tables, for the volume ([`innis::InnisData`],
 /// [`magus::MagusData`], [`kyvia::KyviaData`], [`fidchell::FidchellData`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossData {
-    pub skeith: skeith::SkeithData,
     pub innis: innis::InnisData,
     pub magus: magus::MagusData,
     pub kyvia: kyvia::KyviaData,
@@ -104,7 +105,6 @@ impl BossData {
     /// The volume's.
     pub fn of(volume: piney_data::volume::Volume) -> BossData {
         BossData {
-            skeith: skeith::SkeithData::of(volume),
             innis: innis::InnisData::of(volume),
             magus: magus::MagusData::of(volume),
             kyvia: kyvia::KyviaData::of(volume),
@@ -121,8 +121,6 @@ impl BossData {
 /// `Affect` run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Class {
-    /// `ccBoss01`.
-    Skeith(Box<skeith::Skeith>),
     /// `ccBoss02` and its three slaves.
     Innis(Box<innis::Innis>),
     /// `ccBoss03`: the body; its leaves are bosses of their own characters.
@@ -164,12 +162,6 @@ pub enum Class {
     CorbenikKiller(Box<corbenik::eye::Killer>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
-}
-
-impl Default for Class {
-    fn default() -> Class {
-        Class::Skeith(Box::default())
-    }
 }
 
 /// Which table `patTbl` points at.
@@ -1001,14 +993,16 @@ impl From<Picture> for Out {
     }
 }
 
-/// A boss: what it is ([`BossDef`]), `ccBoss`'s members and its class's
-/// own ([`Class`]), apart, so that a class's rules hold both at once; and
-/// what it shows ([`Output`]).
+/// A boss: what it is ([`BossDef`]), `ccBoss`'s members every system
+/// shares, its systems ([`Systems`]: its class's own members, by kind) and,
+/// for a class not yet made of systems, its class ([`Class`]); and what it
+/// shows ([`Output`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boss {
     pub def: &'static BossDef,
     pub base: BossBase,
     pub class: Class,
+    pub systems: Systems,
     pub output: Output,
 }
 
@@ -1412,63 +1406,13 @@ pub(crate) fn hit_hp(hp: i16, p0: i16, cheat: Option<i16>, mhp: i16) -> i16 {
 impl Boss {
     /// A boss of `def` with these members, nothing shown yet.
     pub fn of(def: &'static BossDef, base: BossBase, class: Class) -> Boss {
-        Boss { def, base, class, output: Output::default() }
+        Boss { def, base, class, systems: Systems::of(def.systems), output: Output::default() }
     }
 
-    /// The boss task's frame: the effect manager's pass (its task runs
-    /// first in the frame), then the class's `Main`.
-    /// `ccBossEffManager::Draw`'s pass over the effects whose `Draw` the
-    /// class's rules keep (Kyvia's meteors, bolts and ball), before the
-    /// blur's `Main` and the boss's task. The other classes' effects run
-    /// in their `main`.
-    pub fn effects_pass(&mut self, cx: &mut Cx) {
-        let Boss { base, class, .. } = self;
-        class.with_rules(|r| r.effects_pass(base, cx));
-    }
-
-    /// The class's `Main` ([`BossClass::main`]).
-    pub fn main(&mut self, cx: &mut Cx) {
-        let Boss { base, class, .. } = self;
-        class.with_rules(|r| r.main(base, cx));
-    }
-
-    /// The boss task's own step after its class's `Main`: when the class
-    /// hands over to another (`ccThBoss08` past the first form), the boss
-    /// that takes its place.
-    pub fn hand_over(&mut self, cx: &mut Cx) {
-        let Boss { base, class, .. } = self;
-        if let Some(next) = class.with_rules(|r| r.next(base, cx)) {
-            *self = next;
-        }
-    }
-
-    /// The class's `Affect` ([`BossClass::affect`]): what an `EntryAffect`
-    /// on the boss does at once (`bossAffectFunc`, 0x0045f090).
-    pub fn affect(&mut self, cx: &mut Cx) {
-        let Boss { base, class, .. } = self;
-        class.with_rules(|r| r.affect(base, cx));
-    }
-
-    /// What the frame shows ([`Output`]), the boss's and each of its
-    /// parts' own, written after its frame for the field to read.
-    pub fn show(&mut self, cx: &mut Cx) {
-        let Boss { base, class, output, .. } = self;
-        output.clear();
-        class.with_rules(|r| r.show(base, cx, output));
-        let me = cx.me;
-        for k in 0..self.output.parts.len() {
-            let p = self.output.parts[k];
-            let Some(mut b) = cx.scene.chars.get_mut(p).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take())
-            else {
-                continue;
-            };
-            cx.me = p;
-            b.show(cx);
-            cx.me = me;
-            if let Some(f) = cx.scene.chars[p].foe_state_mut() {
-                f.boss = Some(b);
-            }
-        }
+    /// A boss of `def` with these `ccBoss` members and its systems as its
+    /// class's constructor starts them.
+    pub fn build(def: &'static BossDef, base: BossBase) -> Boss {
+        Boss::of(def, base, Class::Plain)
     }
 }
 
@@ -1494,116 +1438,6 @@ impl BossBase {
                 e => cx.ev.push(e),
             }
         }
-    }
-
-    /// `ccBoss::Main` (0x0045c270) with the class's `Think` and `Action` in
-    /// `class`: the building blocks below in `ccBoss`'s order.
-    pub(crate) fn base_main(&mut self, cx: &mut Cx, class: &mut dyn FnMut(&mut BossBase, &mut Cx)) {
-        if self.exit != 0 {
-            return;
-        }
-        self.prologue(cx);
-        self.tick_stop();
-        class(self, cx);
-        self.lock_party(cx);
-        self.move_(cx);
-        self.forward_and_draw(cx);
-    }
-
-    // --- the frame's building blocks: each class's `Main` runs them in its own order ---
-
-    /// `CalcReal`, `CalcTargetInfo` and the centre ([`Self::centre`]).
-    fn prologue(&mut self, cx: &mut Cx) {
-        self.calc_real(cx);
-        self.calc_target_info(cx);
-        self.centre(cx);
-    }
-
-    /// The centre on the plane, its distance and heading from the boss.
-    fn centre(&mut self, cx: &mut Cx) {
-        self.center_pos_p = w2p(cx, self.center_pos);
-        let pp = cx.scene.chars[cx.me].pos_p;
-        self.center_dist = dist(cx, pp, self.center_pos_p);
-        self.center_dirc = get_dirc(pp, self.center_pos_p);
-    }
-
-    /// `stop`'s count: 60 frames still, then let go.
-    fn tick_stop(&mut self) {
-        if self.stop != 0 {
-            self.stop_count += 1;
-            if self.stop_count >= 61 {
-                self.stop_count = 0;
-                self.stop = 0;
-            }
-            self.move_spd = 0;
-        } else {
-            self.stop_count = 0;
-        }
-    }
-
-    /// While `lockPlayer`, the party held (`EntryAffect 5`) and a reserved
-    /// menu forbid set; else a reserved release made. True when it made
-    /// the release.
-    fn lock_party(&mut self, cx: &mut Cx) -> bool {
-        let forbid = cx.env.menu_forbid;
-        self.lock_party_as(cx, forbid)
-    }
-
-    /// [`Self::lock_party`] with the menu's forbid as the class reads it.
-    fn lock_party_as(&mut self, cx: &mut Cx, menu_forbid: i16) -> bool {
-        if self.lock_player != 0 {
-            for m in cx.party.members.into_iter().flatten() {
-                if cx.valid(Some(m)) {
-                    cx.affect(m, 5, 32767);
-                }
-            }
-            if self.reserve_forbid_menu == 1 && menu_forbid == 0 && cx.env.menu_type == -1 {
-                cx.out(Out::MenuForbid { on: true, chat_except: self.reserve_forbid_chat_except != 0 });
-                self.reserve_forbid_menu = 0;
-                self.reserve_forbid_chat_except = 0;
-            }
-            false
-        } else if self.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
-            cx.out(Out::MenuForbid { on: false, chat_except: false });
-            self.reserve_forbid_menu = 0;
-            self.reserve_forbid_chat_except = 0;
-            true
-        } else {
-            false
-        }
-    }
-
-    /// `ccBoss::PreDrawAnm` (the clip forward, `anmStatus` its end) and
-    /// `Draw`, when drawn.
-    fn forward_and_draw(&mut self, cx: &mut Cx) {
-        if self.draw_sw != 0 {
-            self.anm_status = i8::from(self.anm.forward());
-            self.draw(cx);
-        }
-    }
-
-    /// `ccBoss::Move` (0x0045c600).
-    fn move_(&mut self, cx: &mut Cx) {
-        let me = cx.me;
-        let mut pp = w2p(cx, cx.scene.chars[me].pos);
-        if !geom::eq(0, self.move_spd) {
-            let s = ee::mul(self.move_spd, libm::sinf(self.move_dirc));
-            pp[0] = ee::add(pp[0], s);
-            let c = ee::mul(self.move_spd, libm::cosf(self.move_dirc));
-            pp[1] = ee::sub(pp[1], c);
-        }
-        pp = geom::vadd(pp, self.move_vector);
-        let mut pos = p2w(cx, pp);
-        if self.body_hit_sw != 0
-            && let Some(mut off) = (cx.collide)(pos)
-        {
-            off[2] = 0;
-            pos = geom::vadd(pos, off);
-            pp = geom::vadd(pp, off);
-        }
-        let ch = &mut cx.scene.chars[me];
-        ch.pos_p = pp;
-        ch.pos = pos;
     }
 
     // --- actions --------------------------------------------------------------------------
