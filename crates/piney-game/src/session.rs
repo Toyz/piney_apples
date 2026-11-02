@@ -7268,6 +7268,9 @@ mod tests {
     /// Issue #49: a foe's immunity in its target window.
     mod tolerance;
 
+    /// Golden shots of the story maps and the fields by type.
+    mod map_shots;
+
     /// Issue #50: Ryu Book III's "Online" for the people in town.
     mod ryu_book_online;
 

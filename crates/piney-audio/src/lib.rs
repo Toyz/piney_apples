@@ -37,7 +37,7 @@ use crate::reverb::Reverb;
 use crate::seword::Word;
 use crate::spu::Spu;
 
-pub use driver::{AreaMusic, BgmPlan, BgmWorld, SqContext, bgm_plan, setup_context};
+pub use driver::{AreaMusic, BgmPlan, BgmWorld, SqContext, WATER_TOWN, bgm_plan, setup_context};
 pub use piney_data::Error;
 pub use se3d::{Listener, NoteSe};
 pub type Result<T> = std::result::Result<T, Error>;

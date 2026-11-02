@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-561 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 157. 143 entries still have open questions - [listed below](#still-open).
+562 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 158. 144 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -573,9 +573,11 @@ The [reference](docs/README.md) says what is true now.
 | 559 | [Issue #81: the disc's loading time held twice too long; --cdrom and a disc_speed setting](worklog/0559-issue-81-the-disc-s-loading-time-held-twice-too-long-cdrom.md) | 2026-11-02 | engine, disc, ui |
 | 560 | [Towns as defs and systems: TownDef, the map's systems and one runner, every Root Town made of them](worklog/0560-towns-as-defs-and-systems-towndef-the-map-s-systems-and-one.md) | 2026-11-02 | world |
 | 561 | [The town minimap as each town's def: MinimapDef in place of TownMap's per-town arms](worklog/0561-the-town-minimap-as-each-town-s-def-minimapdef-in-place-of.md) | 2026-11-02 | world |
+| 562 | [The canals' sound by the town's type, not by name; golden shots of the story maps and fields](worklog/0562-the-canals-sound-by-the-town-s-type-not-by-name-golden.md) | 2026-11-02 | world |
 
 ## Still open
 
+- [562. The canals' sound by the town's type, not by name; golden shots of the story maps and fields](worklog/0562-the-canals-sound-by-the-town-s-type-not-by-name-golden.md) - what in the dungeon walk of dressed_room_shots differs between runs of the same code.
 - [556. Bosses as defs: the class machinery and BossData out; a bare ccBoss its own def's steps, Patterns::words by the volume, actAnmTbl a static slice](worklog/0556-bosses-as-defs-the-class-machinery-and-bossdata-out-a-bare.md) - nothing this step opened.
 - [555. Bosses as defs: Corbenik made of systems, each form its own with its parts lent, the first's hand-over its system's; seeds, roots, eyes and killer eyes each a system](worklog/0555-bosses-as-defs-corbenik-made-of-systems-each-form-its-own.md) - nothing this step opened; the class machinery and BossData are left to take out (worklog 556).
 - [554. Bosses as defs: Innis made of systems, its wave, its missiles' pass, its images and its own; the images' Main written out](worklog/0554-bosses-as-defs-innis-made-of-systems-its-wave-its-missiles.md) - nothing this step opened; Corbenik remains to convert, then Class, each_class! and BossData out.

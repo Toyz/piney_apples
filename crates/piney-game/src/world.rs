@@ -1366,8 +1366,8 @@ impl Mode for WorldMode {
                     }
                 }
             }
-            // ccSoundMain's scene sounds: Mac Anu's canals, the breeder's
-            // tune by DMY_merchant6.
+            // ccSoundMain's scene sounds: the canals of the town type it
+            // tests, the breeder's tune by DMY_merchant6.
             let town = &self.world.town();
             let breeder =
                 town.core.file.ccs.find_object("DMY_merchant6").and_then(|o| town.core.file.scene.dummies.get(&o));
@@ -1375,7 +1375,7 @@ impl Mode for WorldMode {
                 camera: Some(self.world.camera().active().pos),
                 kite: self.world.player().body.pos,
                 block: 0,
-                mac_anu: town.def == &piney_world::town::mac_anu::MAC_ANU,
+                town: Some(town.def.no),
                 breeder: breeder.map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), 0x3f80_0000]),
             };
             self.events.push(Event::SceneSound(scene_sound));
@@ -1702,7 +1702,9 @@ mod tests {
         let start = at(&|e| matches!(e, Event::GameStart)).expect("gameStart");
         let bgm = at(&|e| matches!(e, Event::BgmCtrl(w) if w.town == 0 && !w.crisis)).expect("the town's music");
         assert!(start < bgm, "gameStart comes before the fade in ends");
-        assert!(events.iter().any(|e| matches!(e, Event::SceneSound(s) if s.mac_anu && s.camera.is_some())));
+        assert!(events.iter().any(
+            |e| matches!(e, Event::SceneSound(s) if s.town == Some(piney_audio::WATER_TOWN) && s.camera.is_some())
+        ));
     }
 
     /// The Equipment menu's new blades in the town: `ChangeEquip`'s

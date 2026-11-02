@@ -638,7 +638,10 @@ frame while `gameStart` (+0x17) is set, by +0x105 (`piney_audio::scene`,
 fed each frame by the town and area modes):
 
 - **1, Mac Anu: `waterTest`** (0x0017bac0), with a town built and
-  `GetTownType()` 0: the canals, `seData` row 42.
+  `GetTownType()` 0: the canals, `seData` row 42. The port hands the sound
+  the built town's type (`SceneInput::town`, from the town's def's `no`);
+  the one number the driver tests is `piney_audio::WATER_TOWN`, as
+  `ccSndSQLoad` and `ccSndBgmCtrl` test it.
   - The first frame starts it silent in a free `loopID` slot, as TOBJ's
     hum starts (0x0017bf20's messages), sets +0x132 and keeps the slot in
     `looptest`.

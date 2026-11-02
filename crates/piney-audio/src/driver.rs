@@ -298,10 +298,11 @@ impl SqContext {
             SqContext::Toppage => (&tables.toppage, 0),
             SqContext::Desktop => (&tables.desktop, 0),
             SqContext::Town { town, crisis } => {
-                // GetTownType() is 0 in Mac Anu: +0x105 = 1; 3 in the
-                // others, which also clear `free[4]`.
-                p.scene_mode = if town == 0 { 1 } else { 3 };
-                p.clears_scene = town > 0;
+                // GetTownType() WATER_TOWN: +0x105 = 1; 3 in the others,
+                // which also clear `free[4]`.
+                let water = i32::from(town) == WATER_TOWN;
+                p.scene_mode = if water { 1 } else { 3 };
+                p.clears_scene = !water;
                 (&tables.town, town_row(volume, town, crisis))
             }
             SqContext::Field { field_type, bg, piros } => {
@@ -431,6 +432,12 @@ pub fn setup_context(a: &AreaMusic) -> Option<SqContext> {
         _ => None,
     }
 }
+
+/// The `GetTownType()` the sound thread tests for its scene sound 1, the
+/// canals (`waterTest`): `ccSndSQLoad` and `ccSndBgmCtrl` set `+0x105` to 1
+/// for it, and `waterTest` plays only while it is the town built. The game
+/// compares the number itself; a town's def hands over its `no`.
+pub const WATER_TOWN: i32 = 0;
 
 /// What `ccSndBgmCtrl` reads of the world.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1023,9 +1030,9 @@ impl Driver {
     /// [`bgm_plan`] for the last load under `world`, carried out.
     pub fn bgm_ctrl(&mut self, world: &BgmWorld, out: &mut Vec<Command>) -> BgmPlan {
         let plan = bgm_plan(self.volume, self.context, self.play_type, self.hold, world);
-        // In Mac Anu (town type 0): `+0x105` = 1 and the canals' loop to be
+        // In town type WATER_TOWN: `+0x105` = 1 and the canals' loop to be
         // started again (`+0x132` = 0).
-        if self.context == 2 && world.town == 0 {
+        if self.context == 2 && world.town == WATER_TOWN {
             self.scene_mode = 1;
             self.water_loop = false;
         }

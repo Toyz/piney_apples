@@ -11,7 +11,7 @@ use piney_data::libm::sqrtf_on;
 use piney_data::sound::Tables;
 use piney_data::volume::Volume;
 
-use crate::driver::{Command, Driver};
+use crate::driver::{Command, Driver, WATER_TOWN};
 use crate::se3d::{self, V4};
 use crate::stream::sq_play_vol;
 
@@ -26,9 +26,9 @@ pub struct SceneInput {
     pub kite: V4,
     /// `game.block` (+0x30): 1 inside area 15's church.
     pub block: i32,
-    /// A town is built (`WORLD_MAN +0x430`) and `GetTownType()` is 0: Mac
-    /// Anu.
-    pub mac_anu: bool,
+    /// `WORLD_MAN::GetTownType()` (`game.town`) while a town is built
+    /// (`WORLD_MAN +0x430`); None outside one.
+    pub town: Option<i32>,
     /// The town scene's `DMY_merchant6` (the Grunty breeder), which
     /// `bgmBreed` reads once.
     pub breeder: Option<V4>,
@@ -85,7 +85,7 @@ pub fn scene_sound(d: &mut Driver, tables: &Tables, s: &SceneInput, out: &mut Ve
 /// sends `FD 01 ch note id 60 00` and `FD 00 ch note id vol 00`.
 fn water_test(d: &mut Driver, tables: &Tables, s: &SceneInput, out: &mut Vec<Command>) {
     let Some(cam) = s.camera else { return };
-    if !s.mac_anu {
+    if s.town != Some(WATER_TOWN) {
         return;
     }
     let Some(se) = tables.se.get(WATER_SE) else { return };
@@ -235,7 +235,7 @@ mod tests {
         let t = piney_data::sound::tables_of(Volume::Inf);
         let mut d = driver(1);
         let mut out = Vec::new();
-        let at = |y| SceneInput { camera: cam(0.0, y), mac_anu: true, ..SceneInput::default() };
+        let at = |y| SceneInput { camera: cam(0.0, y), town: Some(WATER_TOWN), ..SceneInput::default() };
         scene_sound(&mut d, t, &at(0.0), &mut out);
         assert!(d.water_loop);
         let Command::Msg(m) = &out[0] else { panic!("{out:?}") };

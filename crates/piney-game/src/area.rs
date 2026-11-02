@@ -1733,7 +1733,7 @@ impl Mode for AreaMode {
             camera: Some(self.world.camera().active().pos),
             kite: self.world.combat().kite_pos(),
             block: self.world.scene().block,
-            mac_anu: false,
+            town: None,
             breeder: None,
         };
         self.events.push(Event::SceneSound(scene_sound));
