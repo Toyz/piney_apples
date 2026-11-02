@@ -5,70 +5,64 @@
 //! a path of the field's animation with `WORLD_MAN::SetTransMode` on.
 //! Field 12 adds `se4_9`'s three pieces. docs/engine/evarea.md.
 
-use std::collections::HashMap;
+use std::borrow::Cow;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
 use piney_battle::rand::Rng as CcRand;
-use piney_data::archive::Archive;
+use piney_data::classes::StoryMapGameClass;
 use piney_data::dungeon::Rng;
 use piney_data::statics::DrawPass;
-use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
-use piney_desktop::layers::Layers;
 
-use crate::area::AreaCore;
 use crate::chara::pose::Play;
-use crate::draw::{self, Draw};
+use crate::draw::{self, Fogging};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
-use crate::sky::cloud::{self, Cloud};
-use crate::sprite::EffSprite;
-use crate::story_map::holy_ground::{clump_models, layer};
-use crate::story_map::{Made, MapDef};
-use crate::story_map::{StartSpread, StoryMap, party_starts};
-use crate::story_map::{event_hits, light_group};
-use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
-use crate::town::{FogParams, TownLights, TownView};
+use crate::sky::cloud;
+use crate::story_map::{BASE_BLOCK, BASE_STORY_MAP, BlockDef, LightsDef, Spread, Start, StoryMapDef, layer};
+use crate::systems::clouds::{CloudsDef, Made};
+use crate::systems::scrolls::{MatScroll, ScrollsDef, Shown, Wrap};
+use crate::systems::sky::{SkyClump, SkyDef};
+use crate::systems::statics::{ModelsDef, ObjectsDef, PassLayers, StaticObjects};
+use crate::systems::{
+    BuildCx, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, PlaceCx, Report, Request, Signal, Step, StepCx,
+    SystemDef,
+};
+use crate::town::{FogParams, clump_models};
 
-/// `game.field` 9-12.
-pub fn is_disc(field: i32) -> bool {
-    (9..=12).contains(&field)
-}
-
-/// The scene file (+0x1a4), field 12's (+0x1d4, `bodyccs`) and `effccs`.
+/// The scene file (+0x1a4) and field 12's (+0x1d4, `bodyccs`).
 pub const FILE: &str = "se1_6";
 pub const BODY_FILE: &str = "se4_9";
 
 /// `modelArray` and `anmArray`: the whole of `EA_MODELTABLEB8` and
-/// `EA_OBJTABLEB8`, at their dummies.
-static MODELS: ModelsDef = ModelsDef { table: "EA_MODELTABLEB8", layer: layer::OBJ, names: Names::Table };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "EA_OBJTABLEB8", anm_num: None };
-pub const EFF_FILE: &str = "town_z";
-
-/// Fields 9-11: the disc's animation (`discAnm`, +0xcb0), the camera and
-/// the dummy under it (`cam` +0x1cc, the path the disc follows) and the
-/// constructor's `discCnt` (+0x1c4).
-pub const DISCS: [(&str, &str, &str, i32); 3] = [
-    ("ANM_se2_4_1_c", "CAM_camera2_4", "OBJ_dummy2_4", 2),
-    ("ANM_se3_3_1_c", "CAM_camera3_3", "OBJ_dummy3_3", 0),
-    ("ANM_se4_4_1_c", "CAM_camera4_4", "OBJ_dummy4_4", 0),
-];
+/// `EA_OBJTABLEB8`, at their dummies; `DrawObj` on effLayer, `DrawFloor`
+/// on objLayer. The models have no fog.
+const LAYERS: PassLayers = PassLayers { obj: layer::EFF, ..PassLayers::all(layer::OBJ) };
+static MODELS: ModelsDef = ModelsDef { layers: LAYERS, fog: Fog::None, ..ModelsDef::on("EA_MODELTABLEB8", layer::OBJ) };
+static OBJECTS: ObjectsDef = ObjectsDef { layers: LAYERS, ..ObjectsDef::on("EA_OBJTABLEB8", layer::OBJ) };
 
 /// `bg[0..3]`, each on `bgLayer[k]` (+0x494..+0x4a0), fog off.
-const BG: [(&str, i16); 4] = [
-    ("CMP_se1_6bac1", layer::BG0),
-    ("CMP_se1_6clo1_1", crate::story_map::boss_arena::BG1),
-    ("CMP_se1_6clo1_2", layer::BG2),
-    ("CMP_se1_6moo1", layer::BG3),
-];
-/// The cloud layer's material, scrolled in V.
-const SCROLL_MAT: &str = "MAT_se1_6clo1";
+static SKY: SkyDef = SkyDef {
+    clumps: &[
+        SkyClump::on("CMP_se1_6bac1", layer::BG0),
+        SkyClump::on("CMP_se1_6clo1_1", layer::BG1),
+        SkyClump::on("CMP_se1_6clo1_2", layer::BG2),
+        SkyClump::on("CMP_se1_6moo1", layer::BG3),
+    ],
+};
+
 /// `DrawBG`'s scroll: its static starts at 1.0 and falls by 0.003
-/// (0x3b449ba6) a frame, back to 1.0 below 0.
-const SCROLL: F = 0x3b44_9ba6;
+/// (0x3b449ba6) a frame, back to 1.0 below 0; the cloud layer's V.
+static SCROLLS: ScrollsDef = ScrollsDef {
+    steps: &[0x3b44_9ba6],
+    wrap: Wrap::Under,
+    from: ONE,
+    shown: Shown::After,
+    carry: None,
+    mats: &[MatScroll::v("MAT_se1_6clo1", 0)],
+};
 
 /// `rockname` (MUT 0x00600af0): a rock's clump, one by `fieldrand(6)`.
 pub const ROCKS: [&str; 6] =
@@ -76,9 +70,12 @@ pub const ROCKS: [&str; 6] =
 /// The rocks the constructor makes (`rock[40]`, +0x200).
 pub const FLOAT_ROCKS: usize = 40;
 
+/// The 25 `CLOUD`s (+0xc00) of type 1 the constructor makes after the
+/// rocks: never moved or drawn.
+static CLOUDS: CloudsDef = CloudsDef { count: 25, kind: 1, made: Made::Build };
+
 /// `eventareaB8Light` (MUT 0x0038afc0): one distant light.
-const LIGHTS: [(i32, &str); 1] = [(0, "LGT_se1_6lig1")];
-const LIGHT_ANIM: &str = "ANM_se1_6bg1a";
+const LIGHTS: LightsDef = LightsDef { anim: "ANM_se1_6bg1a", table: &["LGT_se1_6lig1"], skip_missing: false };
 
 /// `SetFog(6000, 20000, 0, 90, 0)`, and `ccSys.bgColor` 0.
 pub const FOG: FogParams = FogParams { near: 6000.0, far: 20000.0, near_rate: 0.0, far_rate: 90.0, colour: [0; 3] };
@@ -86,8 +83,10 @@ pub const BG_COLOR: [u8; 3] = [0; 3];
 
 /// The disc's marker, where its path is rooted (`discPos`, +0xc90).
 const MARKER: &str = "DMY_marker01";
-/// Field 12's start (the constructor's own, facing pi) and its three
-/// pieces (`body[0..2]`, +0x1d8) at their places.
+
+/// Field 12's start (the constructor's own, facing pi), where its two
+/// others stand at height 900, and its three pieces (`body[0..2]`,
+/// +0x1d8) at their places.
 const START_12: V4 = [0x42a4_0000, 0xc62d_c800, 0x4463_8000, ee::PI];
 const BODIES: [(&str, [F; 3]); 3] = [
     ("CMP_hit01", [0xc4c6_6000, 0xc60e_5c00, 0]),
@@ -95,6 +94,43 @@ const BODIES: [(&str, [F; 3]); 3] = [
     ("CMP_hit03", [0xc3c3_599a, 0xc56e_4666, 0]),
 ];
 const BODY_ANIM: &str = "ANM_se4_7_1a";
+
+/// The disc's path in a field: its animation (`discAnm`, +0xcb0), the
+/// dummy it moves (`OBJ_dummy2_4` ...; the camera `cam` +0x1cc follows the
+/// same path), the constructor's `discCnt` (+0x1c4), the frame the disc
+/// stops at for each `discCnt` (past them, the animation's end), and where
+/// it starts back in the field it left (`fieldPrev`): its run's end.
+#[derive(Clone, Copy, Debug)]
+pub struct Path {
+    pub anim: &'static str,
+    pub dummy: &'static str,
+    pub cnt: i32,
+    pub stops: &'static [u32],
+    pub back_at: Option<u32>,
+}
+
+/// A field's disc: its path, none in field 12.
+#[derive(Clone, Copy, Debug)]
+pub struct DiscDef {
+    pub path: Option<Path>,
+}
+
+static PATH_9: DiscDef = DiscDef {
+    path: Some(Path { anim: "ANM_se2_4_1_c", dummy: "OBJ_dummy2_4", cnt: 2, stops: &[], back_at: Some(0x1_a300) }),
+};
+static PATH_10: DiscDef = DiscDef {
+    path: Some(Path { anim: "ANM_se3_3_1_c", dummy: "OBJ_dummy3_3", cnt: 0, stops: &[420, 800], back_at: None }),
+};
+static PATH_11: DiscDef = DiscDef {
+    path: Some(Path {
+        anim: "ANM_se4_4_1_c",
+        dummy: "OBJ_dummy4_4",
+        cnt: 0,
+        stops: &[400, 1270, 2340],
+        back_at: Some(0x9_2300),
+    }),
+};
+static NO_PATH: DiscDef = DiscDef { path: None };
 
 /// One `FLOATROCK` (0x40 bytes, areabk0.cpp): a rock rising slowly through
 /// its cell of a 10 x 10 grid, fading in and out.
@@ -115,87 +151,6 @@ pub struct FloatRock {
     pub pos: V4,
     /// +0x30: which of [`ROCKS`] it is.
     pub rock: usize,
-}
-
-/// One piece `EVENTAREAB8::Draw` draws, in its order, on its layer.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Piece {
-    /// `DrawBG`: `bg[k]` at the identity.
-    Bg {
-        k: usize,
-        layer: i16,
-    },
-    /// `STATICMODEL::Draw` of `modelArray[k]`.
-    Model {
-        k: usize,
-        layer: i16,
-    },
-    /// `STATICOBJECT::Draw` of `anmArray[k]`, stepped to `time`.
-    Object {
-        k: usize,
-        layer: i16,
-        time: u32,
-    },
-    /// `DrawRock`: rock `k` at its place and turn, `transparency`.
-    Rock {
-        k: usize,
-        transparency: F,
-    },
-    /// Field 12: `bodyanm`'s `Draw`, then `body[k]`.
-    BodyAnm {
-        time: u32,
-    },
-    Body {
-        k: usize,
-    },
-}
-
-/// `EVENTAREAB8` as `WORLD_MAN.eventmap` holds it.
-pub struct DiscArea {
-    /// `game.field` (9-12).
-    pub field: i32,
-    /// The stage's file, its lights and collision, the start as the
-    /// constructor left it (w the facing), and `fieldrand`, the game's one
-    /// stream (`GO(1)` sets no seed for a story map).
-    pub core: AreaCore,
-    pub body_file: Option<Rc<SceneFile>>,
-    pub eff: Rc<SceneFile>,
-    /// `modelArray` (+0x78), `anmArray` (+0x140): `EA_MODELTABLEB8`,
-    /// `EA_OBJTABLEB8` (one row each).
-    pub models: StaticModels,
-    pub objects: StaticObjects,
-    /// `bg[0..3]`: each clump's models.
-    pub bg: [Option<(u32, Vec<u32>)>; 4],
-    pub light_objects: Vec<u32>,
-    /// `DrawBG`'s static scroll and the value the material last took.
-    pub scroll_v: F,
-    /// `discCnt` (+0x1c4): the stage the disc runs to; `move` (+0x1c8):
-    /// 0 once it stopped there.
-    pub disc_cnt: i32,
-    pub moving: bool,
-    /// `discAnm` (+0xcb0), the dummy it moves (`OBJ_dummy2_4` ...) and the
-    /// camera (`cam` +0x1cc).
-    pub disc: Option<Play>,
-    pub dummy: Option<u32>,
-    pub cam: Option<u32>,
-    /// `discPos` (+0xc90): `DMY_marker01`; `discPrevPos` (+0xca0): where
-    /// the disc was put last.
-    pub disc_pos: V4,
-    pub disc_prev: V4,
-    /// The 40 rocks (+0x200) and `floatRockPos` (MUT 0x0073eb00), the
-    /// cells taken.
-    pub rocks: Vec<FloatRock>,
-    pub grid: [[u8; 10]; 10],
-    /// The rocks' clumps' models, by [`ROCKS`].
-    rock_models: Vec<Vec<u32>>,
-    /// The 25 `CLOUD`s (+0xc00) of type 1: made, never moved or drawn.
-    pub clouds: Vec<Cloud>,
-    /// Field 12: `bodyanm` (+0x1f0) and `body[0..2]`, and each body's hit
-    /// models (in the list while its `ccClump::HitEnable` holds).
-    pub body_anm: Option<Play>,
-    pub bodies: Vec<(u32, Vec<u32>, V4)>,
-    body_models: Vec<Vec<HitModel>>,
-    hit_models: Vec<HitModel>,
 }
 
 /// `(float)(n)` of a `fieldrand` or `ccRand` result as the constructor
@@ -259,153 +214,56 @@ pub fn set_float_rock_param(
     }
 }
 
-impl DiscArea {
-    /// `EVENTAREAB8::EVENTAREAB8` for `field` (9-12), `field_prev`
-    /// `game.fieldPrev`; `fieldrand` (`rng`) and `ccRand` the game's.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        archive: &Arc<Archive>,
-        volume: Volume,
-        field: i32,
-        field_prev: i32,
-        def_se: u32,
-        rng: Rng,
-        cc: &mut dyn CcRand,
-    ) -> Result<DiscArea> {
-        if !is_disc(field) {
-            return Err(Error::NotFound(format!("EVENTAREAB8: field {field}")));
-        }
-        let file = Rc::new(SceneFile::read(archive, FILE)?);
-        let body_file = if field == 12 { Some(Rc::new(SceneFile::read(archive, BODY_FILE)?)) } else { None };
-        let eff = Rc::new(SceneFile::read(archive, EFF_FILE)?);
+/// `EVENTAREAB8`'s own: the disc (`anmArray[0]`) and the path it runs,
+/// `discCnt` (+0x1c4), `move` (+0x1c8, 0 once it stopped), `discPos`
+/// (+0xc90) and `discPrevPos` (+0xca0).
+#[derive(Clone)]
+pub struct Disc {
+    def: &'static DiscDef,
+    file: Rc<SceneFile>,
+    pub cnt: i32,
+    pub moving: bool,
+    pub play: Option<Play>,
+    dummy: Option<u32>,
+    pub disc_pos: V4,
+    pub disc_prev: V4,
+    hit_models: Vec<HitModel>,
+}
+
+impl Disc {
+    /// The constructor's: the disc's animation stepped once (at its run's
+    /// end back in the field it left), the marker.
+    pub fn new(def: &'static DiscDef, cx: &mut BuildCx) -> Result<Disc> {
+        let file = cx.file.clone();
         let (c, sc) = (&file.ccs, &file.scene);
-        let models = StaticModels::read(&MODELS, &file, volume)?;
-        let objects = StaticObjects::read(&OBJECTS, &file, volume)?;
-        let mut bg: [Option<(u32, Vec<u32>)>; 4] = Default::default();
-        for (k, (name, _)) in BG.iter().enumerate() {
-            bg[k] = Some(clump_models(&file, name).ok_or_else(|| Error::NotFound(format!("{FILE}: {name}")))?);
-        }
-        // The disc's animation, stepped once.
-        let (disc, disc_cnt, cam, dummy) = match DISCS.get((field - 9) as usize) {
-            Some(&(anim, cam, dummy, cnt)) => {
-                let mut p = Play::new(&file, anim).ok_or_else(|| Error::NotFound(anim.into()))?;
-                p.forward(&file);
-                (Some(p), cnt, c.find_object(cam), c.find_object(dummy))
+        let back = cx.map.is_some_and(|m| m.field == m.field_prev);
+        let (play, dummy, cnt) = match def.path {
+            Some(p) => {
+                let mut play = Play::new(&file, p.anim).ok_or_else(|| Error::NotFound(p.anim.into()))?;
+                play.forward(&file);
+                if let Some(t) = p.back_at.filter(|_| back) {
+                    play.time = t;
+                    play.posed = t;
+                    play.forward(&file);
+                }
+                (Some(play), c.find_object(p.dummy), p.cnt)
             }
-            None => (None, 0, None, None),
+            None => (None, None, 0),
         };
-        // lgtAnm: its light at frame 1 and the ambient.
-        let (ambient, group, light_objects) = light_group(&file, LIGHT_ANIM, LIGHTS.map(|(_, n)| n), false)?;
-        let lights = TownLights { ambient, lights: group, fog: Some(FOG) };
         let marker = c.find_object(MARKER).ok_or_else(|| Error::NotFound(format!("{FILE}: {MARKER}")))?;
         let disc_pos = sc
             .dummies
             .get(&marker)
             .map_or([0, 0, 0, ONE], |d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE]);
-        let hit_models = HitModel::read(volume, c)?;
-        let hits = event_hits(volume, def_se, Vec::new());
-        let mut rock_models = Vec::new();
-        for name in ROCKS {
-            rock_models.push(clump_models(&file, name).ok_or_else(|| Error::NotFound(name.into()))?.1);
-        }
-        let pat_num = cloud::eff_pat_num(&eff.ccs, cloud::EFF_SMOKE)
-            .ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {}", cloud::EFF_SMOKE)))?;
-        let core = AreaCore { file: file.clone(), hits, lights, field_rand: None, start: [0; 4] };
-        let mut a = DiscArea {
-            field,
-            core,
-            body_file,
-            eff,
-            models,
-            objects,
-            bg,
-            light_objects,
-            scroll_v: ONE,
-            disc_cnt,
-            moving: true,
-            disc,
-            dummy,
-            cam,
-            disc_pos,
-            disc_prev: [0; 4],
-            rocks: Vec::new(),
-            grid: [[0; 10]; 10],
-            rock_models,
-            clouds: Vec::new(),
-            body_anm: None,
-            bodies: Vec::new(),
-            body_models: Vec::new(),
-            hit_models,
-        };
-        // Back in the field it left (fieldPrev), fields 9 and 11 start
-        // with the disc at the end of its run.
-        if field == field_prev
-            && let Some(p) = a.disc.as_mut()
-        {
-            let end = match field {
-                9 => Some(0x1_a300),
-                11 => Some(0x9_2300),
-                _ => None,
-            };
-            if let Some(t) = end {
-                p.time = t;
-                p.posed = t;
-                p.forward(&file);
-            }
-        }
-        // The start: the path's dummy (its world translation, w 1) plus
-        // the marker (w 1 too), so the leader faces 2.0; field 12's own.
-        if field == 12 {
-            a.core.start = START_12;
-            let bf = a.body_file.clone().expect("se4_9");
-            let bhits = HitModel::read(volume, &bf.ccs)?;
-            for (name, at) in BODIES {
-                let (clump, models) =
-                    clump_models(&bf, name).ok_or_else(|| Error::NotFound(format!("{BODY_FILE}: {name}")))?;
-                let pos = [at[0], at[1], at[2], ONE];
-                let mut own = Vec::new();
-                for h in bhits.iter().filter(|h| models.contains(&h.parent)) {
-                    let mut h = h.clone();
-                    h.rm = crate::hit::UNIT;
-                    h.rm[3] = pos;
-                    h.im = crate::dungeon::invers(&h.rm);
-                    a.core.hits.models.push(h.clone());
-                    own.push(h);
-                }
-                a.body_models.push(own);
-                a.bodies.push((clump, models, pos));
-            }
-            let play = Play::new(&bf, BODY_ANIM).ok_or_else(|| Error::NotFound(BODY_ANIM.into()))?;
-            a.body_anm = Some(play);
-        } else {
-            let t = a.path_point();
-            a.core.start =
-                [ee::add(t[0], disc_pos[0]), ee::add(t[1], disc_pos[1]), ee::add(t[2], disc_pos[2]), 0x4000_0000];
-            // anmArray[0]'s anm: HitEnable, SetHitMatrix at its root.
-            a.disc_hits();
-        }
-        let mut rng = rng;
-        for _ in 0..FLOAT_ROCKS {
-            let mut r = FloatRock::default();
-            set_float_rock_param(&mut r, &mut a.grid, field, &mut rng, cc);
-            r.rock = rng.below(ROCKS.len() as u32) as usize;
-            a.rocks.push(r);
-        }
-        a.clouds = (0..25).map(|_| Cloud::init(1, pat_num, [0, 0, 0, ONE], &mut rng)).collect();
-        a.core.field_rand = Some(rng);
-        if field != 12 {
-            // SetTransCenter(the start), SetTransDiff(0).
-            a.disc_prev = a.core.start;
-            a.core.hits.trans = Some(a.core.start);
-        }
-        Ok(a)
+        let hit_models = HitModel::read(cx.volume, &file.ccs)?;
+        Ok(Disc { def, file, cnt, moving: true, play, dummy, disc_pos, disc_prev: [0; 4], hit_models })
     }
 
     /// The path's dummy as the disc's animation poses it: its world
     /// translation (w 1).
     fn path_point(&self) -> V4 {
-        let (Some(p), Some(d)) = (&self.disc, self.dummy) else { return [0, 0, 0, ONE] };
-        let w = p.worlds(&self.core.file, Mat4::IDENTITY, &[d]);
+        let (Some(p), Some(d)) = (&self.play, self.dummy) else { return [0, 0, 0, ONE] };
+        let w = p.worlds(&self.file, Mat4::IDENTITY, &[d]);
         let t = w.get(&d).map_or(Vec3::ZERO, |m| m.w_axis.truncate());
         [t.x.to_bits(), t.y.to_bits(), t.z.to_bits(), ONE]
     }
@@ -413,13 +271,13 @@ impl DiscArea {
     /// `ccAnm::SetHitMatrix` of the disc (`anmArray[0]`): each Hit chunk
     /// under an object the animation poses takes that object's world
     /// matrix under the object's root, and its inverse.
-    fn disc_hits(&mut self) {
-        let Some(o) = self.objects.get(0) else { return };
-        let worlds = o.play.worlds(&self.core.file, draw::mat(&o.root), &[]);
+    fn disc_hits(&self, objects: &StaticObjects) -> Vec<HitModel> {
+        let Some(o) = objects.get(0) else { return Vec::new() };
+        let worlds = o.play.worlds(&self.file, draw::mat(&o.root), &[]);
         let mut list = Vec::new();
         for (&obj, &m) in &worlds {
-            let target = self.core.file.scene.ext.get(&obj).copied().unwrap_or(obj);
-            let Some(&model) = self.core.file.obj_model.get(&target) else { continue };
+            let target = self.file.scene.ext.get(&obj).copied().unwrap_or(obj);
+            let Some(&model) = self.file.obj_model.get(&target) else { continue };
             for h in self.hit_models.iter().filter(|h| h.parent == model) {
                 let mut h = h.clone();
                 h.rm = cols(m);
@@ -428,109 +286,142 @@ impl DiscArea {
             }
         }
         list.sort_by_key(|h| h.object);
-        self.core.hits.models = list;
+        list
     }
 
-    /// The disc's step by field and `discCnt` (in `Draw` and in the part
-    /// it calls while the party rides): field 9 to its animation's end;
-    /// field 10 to frame 420, 800, then the end; field 11 to 400, 1270,
-    /// 2340, then the end. `move` clears where it stops.
+    /// The disc's step by `discCnt` (in `Draw` and in the part it calls
+    /// while the party rides): on to its stop, or to its animation's end
+    /// past them. `move` clears where it stops.
     fn disc_step(&mut self) {
         self.moving = true;
-        let Some(p) = self.disc.as_mut() else { return };
-        let frame = p.time >> 8;
-        let stop = match (self.field, self.disc_cnt) {
-            (10, 0) => Some(420),
-            (10, 1) => Some(800),
-            (11, 0) => Some(400),
-            (11, 1) => Some(1270),
-            (11, 2) => Some(2340),
-            (10, 2) | (11, 3) | (9, _) => None,
-            _ => return,
-        };
-        match stop {
-            Some(s) if frame >= s => self.moving = false,
+        let Some(p) = self.def.path else { return };
+        let Some(play) = self.play.as_mut() else { return };
+        match p.stops.get(self.cnt as usize) {
+            Some(&s) if play.time >> 8 >= s => self.moving = false,
             Some(_) => {
-                p.forward(&self.core.file);
+                play.forward(&self.file);
             }
             None => {
-                if p.forward(&self.core.file) {
+                if play.forward(&self.file) {
                     self.moving = false;
                 }
             }
         }
     }
+}
 
-    /// `EVENTAREAB8::IsMove` (MUT 0x0041e7d0): `move`.
-    /// `body[n]`'s `ccClump::HitEnable` (its models onto the list's tail,
-    /// those not on it) or `HitDisable` (off it): Kyvia's fourth fight's
-    /// gates (QUA gcmn 0x0030c620, 0x0030c690).
-    pub fn body_hit(&mut self, n: usize, on: bool) {
-        let Some(own) = self.body_models.get(n) else { return };
-        for h in own {
-            let at = self.core.hits.models.iter().position(|m| m == h);
-            match (on, at) {
-                (true, None) => self.core.hits.models.push(h.clone()),
-                (false, Some(k)) => {
-                    self.core.hits.models.remove(k);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    pub fn is_move(&self) -> bool {
-        self.moving
-    }
-
-    /// `EVENTAREAB8::Move` (MUT 0x0041e750), from Kyvia's `CheckDiscMove`:
-    /// in fields 10 and 11 the next stage (`discCnt` + 1, held at 2 and 3).
-    pub fn next_stage(&mut self) {
-        if self.field == 9 {
+impl MapSystem for Disc {
+    /// `Draw`'s step of the disc, then the part MUT 0x0041e8c0 does while
+    /// the party rides (its trans mode on): the disc steps again, is put
+    /// where the path was last frame (`STATICOBJECT::SetPos`, its hits
+    /// after it), that place becomes the party's centre
+    /// (`SetTransCenter`), and the path's point now (w 1) is kept for the
+    /// next.
+    fn step(&mut self, hook: Hook, cx: &mut StepCx, others: &mut Others) {
+        if hook != Hook::Draw {
             return;
         }
-        self.disc_cnt += 1;
-        if self.field == 10 && self.disc_cnt == 3 {
-            self.disc_cnt = 2;
-        }
-        if self.field == 11 && self.disc_cnt == 4 {
-            self.disc_cnt = 3;
-        }
-    }
-
-    /// The part of `Draw` MUT 0x0041e8c0 does while the party rides (its
-    /// trans mode on): the disc steps again, is put where the path was
-    /// last frame (`STATICOBJECT::SetPos`, its hits after it), that place
-    /// becomes the party's centre (`SetTransCenter`), and the path's point
-    /// now (w 1) is kept for the next.
-    fn move_disc(&mut self) {
         self.disc_step();
-        if self.field == 12 {
+        if self.def.path.is_none() {
             return;
         }
+        self.disc_step();
         let t = self.path_point();
         let p = self.disc_pos;
         let pos = [ee::add(t[0], p[0]), ee::add(t[1], p[1]), ee::add(t[2], p[2]), ONE];
         let prev = self.disc_prev;
-        if let Some(o) = self.objects.get_mut(0) {
+        let Some(objects) = others.get_mut::<StaticObjects>() else { return };
+        if let Some(o) = objects.get_mut(0) {
             o.pos = prev;
             o.root = crate::town::pos_rot_zyx(prev, [0; 3]);
         }
-        self.disc_hits();
-        self.core.hits.trans = Some(prev);
+        cx.core.hits.models = self.disc_hits(objects);
+        cx.core.hits.trans = Some(prev);
         self.disc_prev = pos;
     }
 
-    /// `WORLD_MAN::GetTransCenter` while the party rides.
-    pub fn trans_center(&self) -> Option<V4> {
-        self.core.hits.trans
+    /// The start: the path's dummy (its world translation, w 1) plus the
+    /// marker (w 1 too), so the leader faces 2.0; the disc's hits
+    /// (`HitEnable`, `SetHitMatrix` at its root); the party's centre
+    /// (`SetTransCenter(start)`, `SetTransDiff(0)`).
+    fn place(&mut self, cx: &mut PlaceCx, others: &mut Others) {
+        if self.def.path.is_none() {
+            return;
+        }
+        let (t, p) = (self.path_point(), self.disc_pos);
+        cx.core.start = [ee::add(t[0], p[0]), ee::add(t[1], p[1]), ee::add(t[2], p[2]), 0x4000_0000];
+        if let Some(objects) = others.get::<StaticObjects>() {
+            cx.core.hits.models = self.disc_hits(objects);
+        }
+        self.disc_prev = cx.core.start;
+        cx.core.hits.trans = Some(cx.core.start);
+    }
+
+    /// `EVENTAREAB8::Move` (MUT 0x0041e750), from Kyvia's `CheckDiscMove`:
+    /// the next stop, held at the last (field 9 has none).
+    fn signal(&mut self, s: Signal, _: &mut PlaceCx) {
+        let Some(p) = self.def.path.filter(|p| s == Signal::DiscMove && !p.stops.is_empty()) else { return };
+        self.cnt = (self.cnt + 1).min(p.stops.len() as i32);
+    }
+
+    /// `IsMove()` (MUT 0x0041e7d0), `discPrevPos`, `DMY_marker01`'s place.
+    fn report(&self, r: &mut Report) {
+        r.disc = Some(piney_battle::boss::DiscView {
+            moving: self.moving,
+            prev_pos: self.disc_prev,
+            marker: self.disc_pos,
+            ..piney_battle::boss::DiscView::default()
+        });
+    }
+}
+
+/// `EVENTAREAB8`'s own: the 40 rocks (+0x200), `floatRockPos` (MUT
+/// 0x0073eb00, the cells taken), the rocks' clumps' models by [`ROCKS`],
+/// and what the last `DrawRock`s drew.
+#[derive(Clone)]
+pub struct Rocks {
+    pub rocks: Vec<FloatRock>,
+    pub grid: [[u8; 10]; 10],
+    models: Vec<Vec<u32>>,
+    file: Rc<SceneFile>,
+    field: i32,
+    drawn: Vec<(usize, F)>,
+}
+
+impl Rocks {
+    /// The constructor's: each rock's `SetFloatRockParam`, then its clump
+    /// by `fieldrand(6)`.
+    pub fn new(_: &'static (), cx: &mut BuildCx) -> Result<Rocks> {
+        let file = cx.file.clone();
+        let mut models = Vec::new();
+        for name in ROCKS {
+            if file.ccs.find_object(name).is_none() {
+                return Err(Error::NotFound(name.into()));
+            }
+            models.push(clump_models(&file, name));
+        }
+        let field = cx.field();
+        let mut grid = [[0; 10]; 10];
+        let mut rocks = Vec::with_capacity(FLOAT_ROCKS);
+        let mut no_cc = piney_battle::rand::Genrand::default();
+        let cc: &mut dyn CcRand = match cx.cc.as_deref_mut() {
+            Some(cc) => cc,
+            None => &mut no_cc,
+        };
+        for _ in 0..FLOAT_ROCKS {
+            let mut r = FloatRock::default();
+            set_float_rock_param(&mut r, &mut grid, field, &mut cx.rng, cc);
+            r.rock = cx.rng.below(ROCKS.len() as u32) as usize;
+            rocks.push(r);
+        }
+        Ok(Rocks { rocks, grid, models, file, field, drawn: Vec::new() })
     }
 
     /// `DrawRock` (MUT 0x0041f130) for rock `k`: its fade (in over 40
     /// frames, out over its last 40), turn and rise, then drawn when
     /// `ccCheckCameraDeg(pos, 12288)`; at the end of its life its cell is
     /// freed and it starts again.
-    fn rock_step(&mut self, k: usize, v: &TownView, cc: &mut dyn CcRand, out: &mut Vec<Piece>) {
+    fn rock_step(&mut self, k: usize, cx: &mut StepCx, cc: &mut dyn CcRand) {
         let r = &mut self.rocks[k];
         let mut tr = None;
         if r.cnt != 40 {
@@ -543,307 +434,303 @@ impl DiscArea {
         r.rot = piney_battle::gimmick::cc_rotate(r.rot, r.dirc);
         r.pos[2] = ee::add(r.pos[2], r.speed);
         r.life -= 1;
+        let v = cx.view;
         if crate::town::pc::check_camera_deg(r.pos, cloud::VIEW_DEG, &v.cam, v.player) {
-            out.push(Piece::Rock { k, transparency: tr.unwrap_or(ONE) });
+            self.drawn.push((k, tr.unwrap_or(ONE)));
+            cx.put(Kind::Rocks, Piece::Item(self.drawn.len() - 1));
         }
         if r.life == 0 {
             let (x, y) = (r.x as usize, r.y as usize);
             self.grid[x][y] = 0;
-            let field = self.field;
             let mut r = self.rocks[k];
-            if let Some(rng) = &mut self.core.field_rand {
-                set_float_rock_param(&mut r, &mut self.grid, field, rng, cc);
+            if let Some(rng) = &mut cx.core.field_rand {
+                set_float_rock_param(&mut r, &mut self.grid, self.field, rng, cc);
             }
             self.rocks[k] = r;
         }
     }
+}
 
-    /// `EVENTAREAB8::Draw` (MUT 0x0041ed30) for this frame: the pieces in
-    /// its order, with what it steps on the way.
-    pub fn select(&mut self, v: &TownView, cc: &mut dyn CcRand) -> Vec<Piece> {
-        let mut out = Vec::new();
-        if self.field != 12 {
-            // DrawBG: the scroll steps, then the four clumps.
-            self.scroll_v = ee::sub(self.scroll_v, SCROLL);
-            if ee::lt(self.scroll_v, 0) {
-                self.scroll_v = ONE;
-            }
-            for (k, &(_, layer)) in BG.iter().enumerate() {
-                out.push(Piece::Bg { k, layer });
-            }
-            // effLayer: DrawObj, the type-2 models, then the objects.
-            self.row_pieces(&mut out, DrawPass::Obj, layer::EFF, v.eye);
+impl MapSystem for Rocks {
+    fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
+        if hook != Hook::Draw {
+            return;
         }
-        if self.field != 12 {
-            if self.field != 11 {
-                for k in 0..self.rocks.len() {
-                    self.rock_step(k, v, cc, &mut out);
-                }
-            }
-            self.row_pieces(&mut out, DrawPass::Floor, layer::OBJ, v.eye);
+        self.drawn.clear();
+        let mut no_cc = piney_battle::rand::Genrand::default();
+        let mut cc = cx.cc.take();
+        for k in 0..self.rocks.len() {
+            let cc: &mut dyn CcRand = match cc.as_deref_mut() {
+                Some(cc) => cc,
+                None => &mut no_cc,
+            };
+            self.rock_step(k, cx, cc);
         }
-        self.disc_step();
-        if self.field == 12 {
-            let bf = self.body_file.clone();
-            if let (Some(p), Some(bf)) = (self.body_anm.as_mut(), bf) {
-                p.forward(&bf);
-                out.push(Piece::BodyAnm { time: p.time });
-            }
-            for k in 0..self.bodies.len() {
-                out.push(Piece::Body { k });
-            }
-        } else {
-            self.move_disc();
-        }
-        out
+        cx.cc = cc;
     }
 
-    /// `DrawObj` or `DrawFloor`: the models of `pass`, then its static
-    /// objects (each stepped and drawn within its clip of the eye).
-    fn row_pieces(&mut self, out: &mut Vec<Piece>, pass: DrawPass, layer: i16, eye: V4) {
-        let volume = self.core.hits.volume;
-        for (k, m) in self.models.iter().enumerate() {
-            if m.pass == pass {
-                out.push(Piece::Model { k, layer });
-            }
-        }
-        for k in 0..self.objects.len() {
-            let o = &mut self.objects[k];
-            if o.pass != pass {
-                continue;
-            }
-            let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
-            let d = ee::ground_dist(volume, dx, dy);
-            if o.clip == 0 || ee::lt(d, o.clip) {
-                o.play.forward(&self.core.file);
-                out.push(Piece::Object { k, layer, time: o.play.time });
-            }
-        }
-    }
-
-    /// `MAT_se1_6clo1`'s offset as `DrawBG` writes it (`vftoi12(v)` less
-    /// the material's crop, in V).
-    fn scroll_rows(&self) -> HashMap<u32, [u8; 2]> {
-        let mut rows = HashMap::new();
-        if let Some(mat) = self.core.file.ccs.find_object(SCROLL_MAT)
-            && let Some(m) = self.core.file.scene.materials.get(&mat)
-        {
-            let v = (ee::to_int(ee::mul(self.scroll_v, 0x4580_0000)) & 0xffff) as u16;
-            rows.insert(mat, [0, (v.wrapping_sub(m.crop_v) >> 4) as u8]);
-        }
-        rows
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn model_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, file: &SceneFile, model: u32, world: Mat4) {
-        let rows = self.scroll_rows();
-        let d = Draw {
-            file,
-            model,
+    /// A rock at its place and turn, `transparency` opaque.
+    fn draw<'a>(&'a self, piece: Piece, _: &DrawCx<'a>) -> Option<Request<'a>> {
+        let Piece::Item(i) = piece else { return None };
+        let &(k, transparency) = self.drawn.get(i)?;
+        let r = &self.rocks[k];
+        let world = Mat4::from_translation(Vec3::new(ee::f(r.pos[0]), ee::f(r.pos[1]), ee::f(r.pos[2])))
+            * Mat4::from_rotation_x(ee::f(r.rot));
+        Some(Request::Models {
+            file: &self.file,
+            models: Cow::Borrowed(&self.models[r.rock]),
             world,
-            alpha: 1.0,
-            rows: &rows,
-            lights: None,
-            nodes: &[],
-            morph: Vec::new(),
-            clut_swaps: Vec::new(),
-        };
-        draw::model(layers, layer, to_screen, &d);
-    }
-
-    /// The pieces into the field's layers.
-    fn draw_pieces(&self, layers: &mut Layers, to_screen: Mat4, pieces: Vec<Piece>) {
-        let file = &*self.core.file;
-        for p in pieces {
-            match p {
-                Piece::Bg { k, layer } => {
-                    let Some((_, models)) = &self.bg[k] else { continue };
-                    for &m in models {
-                        self.model_draw(layers, layer, to_screen, file, m, Mat4::IDENTITY);
-                    }
-                }
-                Piece::Model { k, layer } => {
-                    let m = &self.models[k];
-                    let world = Mat4::from_translation(Vec3::new(ee::f(m.pos[0]), ee::f(m.pos[1]), ee::f(m.pos[2])));
-                    self.model_draw(layers, layer, to_screen, file, m.model, world);
-                }
-                Piece::Object { k, layer, .. } => {
-                    let o = &self.objects[k];
-                    crate::town::anim_draw_fog(
-                        layers,
-                        layer,
-                        to_screen,
-                        file,
-                        &o.play,
-                        draw::mat(&o.root),
-                        &[],
-                        1.0,
-                        None,
-                        None,
-                        draw::Fogging::Depth(FOG.depth()),
-                    );
-                }
-                Piece::Rock { k, transparency } => {
-                    let r = &self.rocks[k];
-                    let world = Mat4::from_translation(Vec3::new(ee::f(r.pos[0]), ee::f(r.pos[1]), ee::f(r.pos[2])))
-                        * Mat4::from_rotation_x(ee::f(r.rot));
-                    let alpha = ee::f(transparency).clamp(0.0, 1.0);
-                    for &m in &self.rock_models[r.rock] {
-                        let rows = HashMap::new();
-                        let d = Draw {
-                            file,
-                            model: m,
-                            world,
-                            alpha,
-                            rows: &rows,
-                            lights: None,
-                            nodes: &[],
-                            morph: Vec::new(),
-                            clut_swaps: Vec::new(),
-                        };
-                        draw::model(layers, layer::OBJ, to_screen, &d);
-                    }
-                }
-                Piece::BodyAnm { .. } => {
-                    let (Some(p), Some(bf)) = (&self.body_anm, &self.body_file) else { continue };
-                    crate::town::anim_draw_fog(
-                        layers,
-                        layer::OBJ,
-                        to_screen,
-                        bf,
-                        p,
-                        Mat4::IDENTITY,
-                        &[],
-                        1.0,
-                        None,
-                        None,
-                        draw::Fogging::Depth(FOG.depth()),
-                    );
-                }
-                Piece::Body { k } => {
-                    let Some(bf) = &self.body_file else { continue };
-                    let (_, models, pos) = &self.bodies[k];
-                    let world = Mat4::from_translation(Vec3::new(ee::f(pos[0]), ee::f(pos[1]), ee::f(pos[2])));
-                    for &m in models {
-                        self.model_draw(layers, layer::OBJ, to_screen, bf, m, world);
-                    }
-                }
-            }
-        }
-    }
-
-    /// The Hit chunks of the stage, for a check.
-    pub fn hit_model_count(&self) -> usize {
-        self.hit_models.len()
+            layer: layer::OBJ,
+            rows: Default::default(),
+            fog: Fogging::None,
+            alpha: ee::f(transparency).clamp(0.0, 1.0),
+        })
     }
 }
 
-impl StoryMap for DiscArea {
-    fn core(&self) -> &AreaCore {
-        &self.core
-    }
-    fn core_mut(&mut self) -> &mut AreaCore {
-        &mut self.core
-    }
-    /// `WORLD_MAN::SetCharPosition`: fields 9-11 the default (the others
-    /// at (+300, +150), (-300, +150), (0, +300)); field 12's own: the two
-    /// at their own places, everyone at its height.
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let (leader, dirc, mut others) = party_starts(self.core.start, StartSpread::BEHIND);
-        if self.field != 12 {
-            return (leader, dirc, others);
-        }
-        let z = 0x4463_8000;
-        others[0] = [0xc258_0000, 0xc634_1400, z, ONE];
-        others[1] = [0x4380_0000, 0xc633_fc00, z, ONE];
-        others[2][2] = z;
-        ([leader[0], leader[1], z, ONE], dirc, others)
-    }
-    fn clear(&self) -> [u8; 3] {
-        BG_COLOR
-    }
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
-        let mut cc = piney_battle::rand::Genrand::default();
-        self.draw_rand(layers, to_screen, v, step, &mut cc)
-    }
-    fn draw_rand(
-        &mut self,
-        layers: &mut Layers,
-        to_screen: Mat4,
-        v: &TownView,
-        step: bool,
-        cc: &mut dyn CcRand,
-    ) -> Vec<EffSprite> {
-        let pieces = if step {
-            self.select(v, cc)
-        } else {
-            // A frame the tasks sleep through: drawn as it stands.
-            let mut out: Vec<Piece> = BG.iter().enumerate().map(|(k, &(_, layer))| Piece::Bg { k, layer }).collect();
-            if self.field != 12 {
-                out.extend((0..self.objects.len()).map(|k| Piece::Object { k, layer: layer::EFF, time: 0 }));
-                out.extend((0..self.models.len()).map(|k| Piece::Model { k, layer: layer::OBJ }));
+/// `EVENTAREAB8`'s own in field 12: `se4_9` (`bodyccs`), its `bodyanm`
+/// (+0x1f0) and `body[0..2]` (+0x1d8) at their places, each with its hit
+/// models (on the list while its `ccClump::HitEnable` holds).
+#[derive(Clone)]
+pub struct Bodies {
+    file: Rc<SceneFile>,
+    pub anm: Play,
+    pub bodies: Vec<(Vec<u32>, V4)>,
+    hits: Vec<Vec<HitModel>>,
+}
+
+impl Bodies {
+    pub fn new(_: &'static (), cx: &mut BuildCx) -> Result<Bodies> {
+        let file = Rc::new(SceneFile::read(cx.archive, BODY_FILE)?);
+        let all = HitModel::read(cx.volume, &file.ccs)?;
+        let (mut bodies, mut hits) = (Vec::new(), Vec::new());
+        for (name, at) in BODIES {
+            if file.ccs.find_object(name).is_none() {
+                return Err(Error::NotFound(format!("{BODY_FILE}: {name}")));
             }
-            out
-        };
-        self.draw_pieces(layers, to_screen, pieces);
-        Vec::new()
-    }
-    fn trans_center(&self) -> Option<V4> {
-        self.core.hits.trans
+            let models = clump_models(&file, name);
+            let pos = [at[0], at[1], at[2], ONE];
+            let own = all
+                .iter()
+                .filter(|h| models.contains(&h.parent))
+                .map(|h| {
+                    let mut h = h.clone();
+                    h.rm = crate::hit::UNIT;
+                    h.rm[3] = pos;
+                    h.im = crate::dungeon::invers(&h.rm);
+                    h
+                })
+                .collect();
+            hits.push(own);
+            bodies.push((models, pos));
+        }
+        let anm = Play::new(&file, BODY_ANIM).ok_or_else(|| Error::NotFound(BODY_ANIM.into()))?;
+        Ok(Bodies { file, anm, bodies, hits })
     }
 }
 
-/// `GO(1)`'s disc fields, whose rocks draw from `ccRand`.
-pub const DEF: MapDef = MapDef {
-    class: "EVENTAREAB8",
-    claims: |e| is_disc(e.field),
-    make: |e| {
-        let a = DiscArea::new(e.archive, e.volume, e.field, e.field_prev, e.def_se, e.field_rand, &mut *e.cc)?;
-        Ok(Made::New(Box::new(a)))
-    },
+impl MapSystem for Bodies {
+    /// `bodyanm`'s `Draw`, then `body[k]`.
+    fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
+        if hook != Hook::Draw {
+            return;
+        }
+        self.anm.forward(&self.file);
+        cx.put(Kind::Bodies, Piece::Anim(0));
+        (0..self.bodies.len()).for_each(|k| cx.put(Kind::Bodies, Piece::Item(k)));
+    }
+
+    fn draw<'a>(&'a self, piece: Piece, cx: &DrawCx<'a>) -> Option<Request<'a>> {
+        let file = &*self.file;
+        match piece {
+            Piece::Anim(_) => Some(Request::Anim {
+                file,
+                play: &self.anm,
+                root: Mat4::IDENTITY,
+                layer: layer::OBJ,
+                rows: None,
+                fog: cx.fog,
+                edit: None,
+            }),
+            Piece::Item(k) => {
+                let (models, pos) = self.bodies.get(k)?;
+                let world = Mat4::from_translation(Vec3::new(ee::f(pos[0]), ee::f(pos[1]), ee::f(pos[2])));
+                let models = Cow::Borrowed(&models[..]);
+                let (rows, fog) = (cx.rows.clone(), Fogging::None);
+                Some(Request::Models { file, models, world, layer: layer::OBJ, rows, fog, alpha: 1.0 })
+            }
+            _ => None,
+        }
+    }
+
+    /// Each body's hits onto the list.
+    fn place(&mut self, cx: &mut PlaceCx, _: &mut Others) {
+        cx.core.hits.models.extend(self.hits.iter().flatten().cloned());
+    }
+
+    /// `body[n]`'s `ccClump::HitEnable` (its models onto the list's tail,
+    /// those not on it) or `HitDisable` (off it): Kyvia's fourth fight's
+    /// gates (QUA gcmn 0x0030c620, 0x0030c690).
+    fn signal(&mut self, s: Signal, cx: &mut PlaceCx) {
+        let Signal::BodyHit(n, on) = s else { return };
+        let Some(own) = self.hits.get(n) else { return };
+        for h in own {
+            let at = cx.core.hits.models.iter().position(|m| m == h);
+            match (on, at) {
+                (true, None) => cx.core.hits.models.push(h.clone()),
+                (false, Some(k)) => {
+                    cx.core.hits.models.remove(k);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// `Draw` in fields 9-11: `DrawBG` (the scroll, the clumps), `DrawObj` on
+/// effLayer (its models, then its objects), the rocks (not in field 11),
+/// `DrawFloor` on objLayer, then the disc and the ride. Through a frame
+/// the tasks sleep: the clumps, the objects and the models as they stand.
+const fn ride(rocks: bool) -> &'static [Step] {
+    if rocks { RIDE } else { RIDE_NO_ROCKS }
+}
+const RIDE: &[Step] = &[
+    Step::Run(Kind::Scrolls, Hook::Draw),
+    Step::Run(Kind::Sky, Hook::Draw),
+    Step::Run(Kind::Models, Hook::Pass(DrawPass::Obj)),
+    Step::Run(Kind::Objects, Hook::Pass(DrawPass::Obj)),
+    Step::Run(Kind::Rocks, Hook::Draw),
+    Step::Run(Kind::Models, Hook::Pass(DrawPass::Floor)),
+    Step::Run(Kind::Objects, Hook::Pass(DrawPass::Floor)),
+    Step::Run(Kind::Disc, Hook::Draw),
+];
+const RIDE_NO_ROCKS: &[Step] = &[
+    Step::Run(Kind::Scrolls, Hook::Draw),
+    Step::Run(Kind::Sky, Hook::Draw),
+    Step::Run(Kind::Models, Hook::Pass(DrawPass::Obj)),
+    Step::Run(Kind::Objects, Hook::Pass(DrawPass::Obj)),
+    Step::Run(Kind::Models, Hook::Pass(DrawPass::Floor)),
+    Step::Run(Kind::Objects, Hook::Pass(DrawPass::Floor)),
+    Step::Run(Kind::Disc, Hook::Draw),
+];
+const STILL: &[Step] = &[
+    Step::Run(Kind::Sky, Hook::Draw),
+    Step::Run(Kind::Objects, Hook::Still(layer::EFF)),
+    Step::Run(Kind::Models, Hook::Still(layer::OBJ)),
+];
+
+/// A disc field's block: `lgtAnm`'s light, the fog, its systems in the
+/// constructor's order (the rocks draw from `fieldrand` and `ccRand`,
+/// then the clouds from `fieldrand`).
+const fn stage(systems: &'static [SystemDef], rocks: bool) -> BlockDef {
+    BlockDef { lights: Some(LIGHTS), fog: Some(FOG), systems, order: ride(rocks), asleep: Some(STILL), ..BASE_BLOCK }
+}
+
+/// A disc field's systems with its path.
+macro_rules! systems {
+    ($disc:expr) => {
+        &[
+            SystemDef::Models(&MODELS),
+            SystemDef::Objects(&OBJECTS),
+            SystemDef::Sky(&SKY),
+            SystemDef::Scrolls(&SCROLLS),
+            SystemDef::Disc($disc),
+            SystemDef::Rocks(&()),
+            SystemDef::Clouds(&CLOUDS),
+        ]
+    };
+}
+
+/// `EVENTAREAB8` for a field: the disc's own tables, `fieldrand` the
+/// game's one stream (`GO(1)` sets no seed for a story map).
+const fn disc(fields: &'static [i32], blocks: &'static [BlockDef]) -> StoryMapDef {
+    StoryMapDef { class: StoryMapGameClass::Eventareab8, fields, file: FILE, clear: BG_COLOR, blocks, ..BASE_STORY_MAP }
+}
+
+const SYSTEMS_9: &[SystemDef] = systems!(&PATH_9);
+const SYSTEMS_10: &[SystemDef] = systems!(&PATH_10);
+const SYSTEMS_11: &[SystemDef] = systems!(&PATH_11);
+const BLOCK_9: &[BlockDef] = &[stage(SYSTEMS_9, true)];
+const BLOCK_10: &[BlockDef] = &[stage(SYSTEMS_10, true)];
+const BLOCK_11: &[BlockDef] = &[stage(SYSTEMS_11, false)];
+pub static DISC_9: StoryMapDef = disc(&[9], BLOCK_9);
+pub static DISC_10: StoryMapDef = disc(&[10], BLOCK_10);
+pub static DISC_11: StoryMapDef = disc(&[11], BLOCK_11);
+
+/// Field 12: the constructor's start, the others at their own places at
+/// height 900; `Draw` steps the disc (none: `move` stays set), then
+/// `bodyanm` and the three pieces. Through a frame the tasks sleep: the
+/// clumps.
+const BLOCK_12: &[BlockDef] = &[BlockDef {
+    lights: Some(LIGHTS),
+    fog: Some(FOG),
+    start: Start::At(START_12),
+    systems: &[
+        SystemDef::Models(&MODELS),
+        SystemDef::Objects(&OBJECTS),
+        SystemDef::Sky(&SKY),
+        SystemDef::Scrolls(&SCROLLS),
+        SystemDef::Disc(&NO_PATH),
+        SystemDef::Bodies(&()),
+        SystemDef::Rocks(&()),
+        SystemDef::Clouds(&CLOUDS),
+    ],
+    order: &[Step::Run(Kind::Disc, Hook::Draw), Step::Run(Kind::Bodies, Hook::Draw)],
+    asleep: Some(&[Step::Run(Kind::Sky, Hook::Draw)]),
+    ..BASE_BLOCK
+}];
+pub static DISC_12: StoryMapDef = StoryMapDef {
+    spread: Spread::Placed { others: [[0xc258_0000, 0xc634_1400], [0x4380_0000, 0xc633_fc00]], z: 0x4463_8000 },
+    ..disc(&[12], BLOCK_12)
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::story_map::StoryArea;
+    use crate::story_map::tests::made;
+    use crate::systems::Drawn;
+    use crate::systems::clouds::Clouds;
+    use crate::systems::statics::StaticModels;
+    use crate::town::TownView;
     use piney_battle::rand::Genrand;
+    use piney_data::volume::Volume;
 
-    fn archive() -> Option<Arc<Archive>> {
-        let p = std::path::Path::new("../../work/mutation/mutation.iso");
-        if !p.exists() {
-            eprintln!("skipped: no {}", p.display());
-            return None;
-        }
-        let mut iso = piney_data::iso::Iso::open(p).ok()?;
-        Some(Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").ok()?).ok()?))
+    fn disc(a: &StoryArea) -> &Disc {
+        a.systems().get::<Disc>().unwrap()
     }
 
-    /// Field 9, Kyvia's first stage: the floor and the disc, the four sky
-    /// clumps, the light, the disc's collision under it, the 40 rocks on
-    /// cells of their own outside the centre, the 25 clouds, the start on
-    /// the path facing 2.0, and the party's centre on.
+    fn rocks(a: &StoryArea) -> &Rocks {
+        a.systems().get::<Rocks>().unwrap()
+    }
+
+    /// Field 9, Kyvia's first stage: the floor and the disc, the light, the
+    /// disc's collision under it, the 40 rocks on cells of their own
+    /// outside the centre, the 25 clouds, the start on the path facing
+    /// 2.0, and the party's centre on.
     #[test]
     fn the_disc_of_field_9() {
-        let Some(archive) = archive() else { return };
-        let mut cc = Genrand::default();
-        let a = DiscArea::new(&archive, Volume::Mut, 9, 0, 0, Rng::new(0), &mut cc).unwrap();
+        let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
+        let a = made(&archive, Volume::Mut, &DISC_9, 0, 0);
         let name = |o: u32| a.core.file.ccs.object_name(o).unwrap().to_string();
-        assert_eq!(a.models.len(), 1);
-        assert_eq!(name(a.models[0].model), "MDL_se1_6flo1");
-        assert_eq!(a.models[0].pass, DrawPass::Floor);
-        assert_eq!((a.objects.len(), a.objects[0].pass), (1, DrawPass::Obj));
-        assert!(a.bg.iter().all(|b| b.is_some()));
-        assert_eq!(a.light_objects.len(), 1);
-        assert_eq!(a.disc_cnt, 2);
-        assert!(a.disc.is_some() && a.dummy.is_some() && a.cam.is_some());
+        let models = a.systems().get::<StaticModels>().unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(name(models[0].model), "MDL_se1_6flo1");
+        assert_eq!(models[0].pass, DrawPass::Floor);
+        let objects = a.systems().get::<StaticObjects>().unwrap();
+        assert_eq!((objects.len(), objects[0].pass), (1, DrawPass::Obj));
+        assert_eq!(a.core.lights.lights.len(), 1);
+        assert_eq!(disc(&a).cnt, 2);
+        assert!(disc(&a).play.is_some() && disc(&a).dummy.is_some());
         assert!(!a.core.hits.models.is_empty(), "the disc's Hit chunk");
         assert!(a.core.hits.models.iter().all(|h| name(h.object) == "HIT_se1_6ob1hit"));
-        assert_eq!(a.rocks.len(), FLOAT_ROCKS);
-        let cells: std::collections::BTreeSet<(u32, u32)> = a.rocks.iter().map(|r| (r.x, r.y)).collect();
+        let r = rocks(&a);
+        assert_eq!(r.rocks.len(), FLOAT_ROCKS);
+        let cells: std::collections::BTreeSet<(u32, u32)> = r.rocks.iter().map(|r| (r.x, r.y)).collect();
         assert_eq!(cells.len(), FLOAT_ROCKS, "a cell each");
         assert!(cells.iter().all(|&(x, y)| !((3..7).contains(&x) && (3..7).contains(&y))));
-        assert!(a.rocks.iter().all(|r| (90..240).contains(&r.life) && r.cnt == 0));
-        assert_eq!(a.clouds.len(), 25);
+        assert!(r.rocks.iter().all(|r| (90..240).contains(&r.life) && r.cnt == 0));
+        assert_eq!(a.systems().get::<Clouds>().unwrap().clouds.len(), 25);
         assert_eq!(a.core.start[3], 0x4000_0000);
         assert_eq!(a.trans_center(), Some(a.core.start));
         let (leader, facing, others) = a.start_positions();
@@ -857,54 +744,57 @@ mod tests {
     /// on a free cell; the run ends at the animation's end (`move` 0).
     #[test]
     fn the_disc_rides_to_its_end() {
-        let Some(archive) = archive() else { return };
+        let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
         let mut cc = Genrand::default();
-        let mut a = DiscArea::new(&archive, Volume::Mut, 9, 0, 0, Rng::new(0), &mut cc).unwrap();
+        let mut a = made(&archive, Volume::Mut, &DISC_9, 0, 0);
         let v = TownView::default();
         let first = a.trans_center().unwrap();
-        let mut prev = a.disc_prev;
+        let mut prev = disc(&a).disc_prev;
         let mut frames = 0;
         let mut restarted = 0;
-        while a.is_move() && frames < 5000 {
-            let lives: Vec<i32> = a.rocks.iter().map(|r| r.life).collect();
-            let pieces = a.select(&v, &mut cc);
+        while disc(&a).moving && frames < 5000 {
+            let lives: Vec<i32> = rocks(&a).rocks.iter().map(|r| r.life).collect();
+            a.step(&v, true, Some(&mut cc));
             frames += 1;
             assert_eq!(a.trans_center(), Some(prev), "the centre lags the path by a frame");
-            assert_eq!(a.objects[0].pos, prev);
-            prev = a.disc_prev;
+            assert_eq!(a.systems().get::<StaticObjects>().unwrap()[0].pos, prev);
+            prev = disc(&a).disc_prev;
             restarted += lives.iter().filter(|&&l| l == 1).count();
-            assert!(pieces.iter().any(|p| matches!(p, Piece::Object { .. })));
-            assert!(pieces.iter().filter(|p| matches!(p, Piece::Bg { .. })).count() == 4);
+            let kinds: Vec<Kind> =
+                a.frame().iter().filter_map(|d| if let Drawn::Piece(k, _) = d { Some(*k) } else { None }).collect();
+            assert!(kinds.contains(&Kind::Objects));
+            assert_eq!(kinds.iter().filter(|&&k| k == Kind::Sky).count(), 4);
         }
-        assert!(!a.is_move(), "the run ends");
+        assert!(!disc(&a).moving, "the run ends");
         assert!(frames > 10, "{frames}");
         assert_ne!(a.trans_center().unwrap(), first, "the disc moved");
         assert!(restarted > 0, "a rock lived out its life");
-        let cells: std::collections::BTreeSet<(u32, u32)> = a.rocks.iter().map(|r| (r.x, r.y)).collect();
+        let r = rocks(&a);
+        let cells: std::collections::BTreeSet<(u32, u32)> = r.rocks.iter().map(|r| (r.x, r.y)).collect();
         assert_eq!(cells.len(), FLOAT_ROCKS);
-        assert!(a.rocks.iter().all(|r| a.grid[r.x as usize][r.y as usize] == 1));
+        assert!(r.rocks.iter().all(|x| r.grid[x.x as usize][x.y as usize] == 1));
     }
 
     /// Fields 10 and 11 stop at their stages until Kyvia's `Move`.
     #[test]
     fn the_later_discs_stop_at_their_stages() {
-        let Some(archive) = archive() else { return };
+        let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
         let mut cc = Genrand::default();
-        let mut a = DiscArea::new(&archive, Volume::Mut, 10, 0, 0, Rng::new(0), &mut cc).unwrap();
+        let mut a = made(&archive, Volume::Mut, &DISC_10, 0, 0);
         let v = TownView::default();
         let mut n = 0;
-        while a.is_move() && n < 2000 {
-            a.select(&v, &mut cc);
+        while disc(&a).moving && n < 2000 {
+            a.step(&v, true, Some(&mut cc));
             n += 1;
         }
-        assert!(!a.is_move());
-        assert!((a.disc.as_ref().unwrap().time >> 8) >= 420);
-        a.next_stage();
-        assert_eq!(a.disc_cnt, 1);
-        a.select(&v, &mut cc);
-        assert!(a.is_move(), "on to 800");
-        a.next_stage();
-        a.next_stage();
-        assert_eq!(a.disc_cnt, 2, "held at the last stage");
+        assert!(!disc(&a).moving);
+        assert!((disc(&a).play.as_ref().unwrap().time >> 8) >= 420);
+        a.signal(Signal::DiscMove);
+        assert_eq!(disc(&a).cnt, 1);
+        a.step(&v, true, Some(&mut cc));
+        assert!(disc(&a).moving, "on to 800");
+        a.signal(Signal::DiscMove);
+        a.signal(Signal::DiscMove);
+        assert_eq!(disc(&a).cnt, 2, "held at the last stage");
     }
 }

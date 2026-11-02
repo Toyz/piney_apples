@@ -276,31 +276,37 @@ floor stays on the list. `GO(1)` finds `eventmap` set and keeps it, and
 
 ## The port
 
-`crates/piney-world/src/story_map/holy_ground.rs`:
+Every story map is a `StoryMapDef` (`crates/piney-world/src/story_map/`)
+that one `StoryArea` holds; area 15's is `holy_ground::HOLY_GROUND`:
 
 ```text
-EventArea::new            the constructor (the flares' ccEffs are the
-                          effects')
-EventArea::change_block   ChangeBlock: the pieces, the collision, the
-                          lights, SetFog's values, eventStartPos, revAnm
-EventArea::select         Draw's pieces in order with their layers, the
-                          scrolls and animations stepped
-EventArea::lens_flare     DrawLensFlare's positions
-EventArea::draw           the pieces into the layers; the flares handed back
-                          as EffSprites
-EventArea::enter          Enter on area 15's door
-EventArea::start_positions  SetCharPosition in the map
-Kept                      what WORLD_MAN keeps between scenes: the dungeon,
-                          or area 15's map
+HOLY_GROUND.blocks       ChangeBlock's two blocks: each one's tables
+                         (STATICMODEL, STATICOBJECT), DrawBG's clumps,
+                         light animation and table, SetFog, start marker,
+                         and Draw's steps in order; the church's revAnm
+                         (systems::anim) and DrawLensFlare
+                         (FlareDraw::Own)
+HOLY_GROUND.systems      EA_moveTex02, a Scrolls of two MOVETEX rows
+                         carried in gcmn's data
+HOLY_GROUND.start        the constructor's DMY_marker01 after block 0
+HOLY_GROUND.doors        Enter on area 15's door: into the church from
+                         block 0 or -1, else out
+ModelsDef::without_fog   DrawObj2's third row, by DrawWithOutFog
+StoryArea::change_block  ChangeBlock: the block's systems made, the
+                         lights, SetFog, eventStartPos, the collision
+StoryArea::step, draw    Draw's steps into the frame, the frame's
+                         requests painted; the flares handed back
+Kept                     what WORLD_MAN keeps between scenes: the dungeon,
+                         or the map its def keeps (area 15's)
 ```
 
-`field_world::FieldWorld` holds it as `Place::Event`: `enter` builds it
-for area 15 (or takes the kept one after a door), stands the party with
-`start_positions`, runs the same frame as a field (the battle's tasks
-over the map's collision, `Hits::event_area`), calls `EventArea::enter`
-from `WORLD_MAN::Enter`, draws it in `ccThFieldDisp`'s place, and hands
-the flares to `FieldFx::sprites`, which `piney-game`'s `AreaFx`
-draws with piney-effect's `ccEff::Draw`. The session keeps the map
+`field_world::FieldWorld` holds it as `Place::Story`: `story_map::build`
+makes it for area 15 (or takes the kept one after a door), stands the
+party with `start_positions`, runs the same frame as a field (the
+battle's tasks over the map's collision, `Hits::event_area`), calls
+`StoryArea::enter` from `WORLD_MAN::Enter`, draws it in
+`ccThFieldDisp`'s place, and hands the flares to `FieldFx::sprites`,
+which `piney-game`'s `AreaFx` draws with piney-effect's `ccEff::Draw`. The session keeps the map
 across the church's set-up in the slot that keeps a dungeon.
 `piney-game --mode field:15` starts on the holy ground; the Chaos Gate's
 words for area 15 lead there as well (from `--mode story:11`, once
@@ -392,10 +398,11 @@ Mutation's event 115 goes to field 13 (MUT gcmn 0x00414110 constructor,
 | not 0 | `wait` - 1; `ccEff::Draw(pos, frame)`; `frame` + 1, back to 0 at `patNum` |
 | 0 | `ccEff::Draw(pos, fieldrand(patNum))`; `count` - 1; at 0 a new `wait` and `count` as above |
 
-**The port.** `piney_world::story_map::truths_core::Area13`, a `StoryMap` on
-an `AreaCore` (`AreaCore::read`) with the volume's `StaticModels` and
-`StaticObjects` (`piney_world::systems::statics`). The glows are
-`EffSprite`s in `EffState::NO_FOG`.
+**The port.** `piney_world::story_map::truths_core::AREA_13`: the volume's
+`StaticModels` and `StaticObjects` (`piney_world::systems::statics`),
+the background as a `Sky`, and its own `Flicker` system, whose glows
+are `EffSprite`s in `EffState::NO_FOG`. Through a frame the tasks sleep
+its steps leave the objects out.
 
 ## Area 43: EVENTAREA03
 
@@ -440,8 +447,8 @@ the pass-0 models. `DrawBG` would draw `bg[0]`, which is never set, and
 During event 102 the area is marked, so the event's block 4 fades out and
 changes scene while the map only draws.
 
-**The port.** `piney_world::story_map::abyss::Area43`, a `StoryMap`. Its `frame`
-runs the scene: it moves camera 3, and sends `MenuBan` and the message to
+**The port.** `piney_world::story_map::abyss::AREA_43`. Its own `FlyOver`
+system runs the scene (`StoryArea::scene`): it moves camera 3, and sends `MenuBan` and the message to
 the game as `Request::Story`. `AreaMode` answers `Check(0)` with the
 frame's pad before the field steps. `kiteSelfTalk` is the fieldui
 group's `kite_self_talk` (and its address), a root of the talk records.
@@ -671,11 +678,17 @@ the tera laser (its step 3, count 29) and the reflected laser (count 15) clear
 it with the stage darkened, and set it again when the laser's dark stage
 effect ends. On screen the floor clump goes and the clip stays while the laser
 plays; the hits stay on. The port:
-`Arena::next_stage`, `set_clump` (from `Out::StageClump` through
-`BossRun.arena_clump`), `Piece::LastAnm` and `LastClump`.
+`ARENA_8`'s second block (`NextStage` is `ChangeBlock(1)`: the stage's
+systems dropped, the distant light kept, the `LastStage` system's clip,
+clump and hits), `Signal::StageClump` (from `Out::StageClump` through
+`BossRun.arena_clump`) to `LastStage`.
 
-**The port.** `piney_world::story_map::boss_arena::Arena`. `FieldWorld` holds it as
-`Place::Arena` for fields 1-8: standing the party at `DMY_center01`, the
+**The port.** `piney_world::story_map::boss_arena::ARENA_1` .. `ARENA_8`, one def a
+field over its stage's file (the class's `se1_5` names read as the
+stage's: `StoryMapDef::stage`), with the `Firefly2` system
+(`piney_world::systems::fireflies`), its own `Reflection` (`SwitchLayer`)
+and `Bobbing`, and the scroll as a `Scrolls` shown before it steps.
+`FieldWorld` holds it as `Place::Story` for fields 1-8: standing the party at `DMY_center01`, the
 battle's tasks over its collision, drawing it in `ccThFieldDisp`'s place.
 The arena draws on from the game's `fieldrand` (below); the fireflies
 (`piney_world::sky::firefly`, type 0) are made in the constructor from it and
@@ -770,12 +783,15 @@ with n 0-2, take `body[n]`'s hit out of the list (`HitDisable`) and put it
 back at the list's tail (`HitEnable`) for `SwitchGateON` and
 `SwitchGateOFF` ([the fourth fight](boss-kyvia-fourth.md#the-places)).
 
-**The port.** `piney_world::story_map::disc::DiscArea`, a `StoryMap`; its tests
-(`the_disc_of_field_9`, `the_disc_rides_to_its_end`,
-`the_later_discs_stop_at_their_stages`) hold the pieces, the light, the
-hits, the rocks' cells and the ride. `FieldWorld` hands Kyvia the disc
-(`IsMove`, `discPrevPos`, `DMY_marker01`) each frame and carries out
-`Move` and the gates (`DiscArea::body_hit`).
+**The port.** `piney_world::story_map::disc::DISC_9` .. `DISC_12`, one def a
+field (each disc's path, stops and start back in the field it left as
+data, `disc::Path`), with its own `Disc`, `Rocks` and field 12's
+`Bodies` systems; its tests (`the_disc_of_field_9`,
+`the_disc_rides_to_its_end`, `the_later_discs_stop_at_their_stages`)
+hold the pieces, the light, the hits, the rocks' cells and the ride.
+`FieldWorld` hands Kyvia the disc each frame from the map's `Report`
+(`IsMove`, `discPrevPos`, `DMY_marker01`) and carries out `Move` and the
+gates as `Signal`s (`DiscMove`, `BodyHit`).
 
 ## Fields 66, 67 and 91: EVENTAREA04, 05 and 06
 
@@ -850,8 +866,11 @@ grey Gate Out (`check_operate(14)` fails) for the rest of the event. Block
 the portal and the enemy gone) gives item (9, 64) and `scene` to the town.
 So the arena's one way out is the fight, as the game means it.
 
-The port: `piney_world::story_map::sky::SkyMap` (`Class::Mirror`, `Arena`,
-`Whale`), a `StoryMap` that `story_map::build` makes for 66, 67 and 91.
+The port: `piney_world::story_map::sky::MIRROR`, `MIRROR_ARENA` and `WHALE`,
+the defs `story_map::build` makes for 66, 67 and 91: the `Clouds` made
+by the first `Draw` about the player (`Made::FirstDraw`), the
+`LensFlare`, the `EA_BGNAME` clumps as a `Sky` and `EA_moveTex` as a
+`Scrolls`.
 Before worklog 472 these fields fell through to a generated field of their
 rows' type 255: field 66 had no ground, and field 67 was another
 generated field, where the event's portal and fight still came and Gate
@@ -921,7 +940,8 @@ for 126: gcmn 0x00305120, 0x1c4 bytes, vtable 0x002766b0.
   runs `ending_kanji`, the staff roll `STFROLL_VOL4`
   ([stfroll.md](stfroll.md)).
 
-The port: `piney_world::story_map::ending::EndArea`. `WorldMan::event_start`
+The port: `piney_world::story_map::ending::ENDING`, an empty block with its
+own `Panels` system. `WorldMan::event_start`
 carries `eventStartPos` from one story map to the next. The desktop's
 `area` and `change_scene` are recorded, and the session sets the field up
 from the desktop (`Session::story_scene`).

@@ -23,8 +23,8 @@ use piney_world::area::{Scene, WorldMan};
 use piney_world::chara::party::Spcs;
 use piney_world::event::talk::{self, TalkRequest};
 use piney_world::field::world::{FieldWorld, Request};
+use piney_world::story_map::Kept;
 use piney_world::story_map::StoryRequest;
-use piney_world::story_map::holy_ground::Kept;
 use piney_world::{Phase, Request as GameRequest};
 
 use crate::area_host::{self, AreaHost};
@@ -1125,7 +1125,7 @@ impl AreaMode {
                 Show::Boss(_, Out::FlashFade { t_in, t_out, hold: Some(h), colour }) => {
                     self.st.fade_def.flash3(*t_in as i16, *t_out as i16, *h as i16, *colour);
                 }
-                Show::Boss(_, Out::SwitchLayer) => self.world.arena_switch_layer(),
+                Show::Boss(_, Out::SwitchLayer) => self.world.switch_layer(),
                 // LockPlayer's and UnlockPlayer's ccMenu->forbid (+0xfe) and
                 // forbidChatExcept (+0x100), and cursolOff (+0x26).
                 Show::Boss(_, Out::MenuForbid { on, chat_except }) => {

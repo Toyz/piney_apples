@@ -68,8 +68,8 @@ through ported as the game builds them. Started 2026-09-28.
 | 9 | `EVENTAREAB8` | 108 | yes (worklog 272) |
 | 13 | `EVENTAREA01` | 115 | yes (worklog 264) |
 
-One `StoryMap` trait (`piney_world::story_map`), held as
-`Place::Story(Box<dyn StoryMap>)`; every ported class is one.
+One `StoryArea` (`piney_world::story_map`) holds a class's
+`StoryMapDef`, as `Place::Story`; every ported class is a def.
 
 `EVENTAREA03` (MUT gcmn 0x00416590 constructor, 0x00416bf0 `Draw`): scene
 `se2_1`; `EA_MODELTABLE03` (two pass-0 models); `eventarea03Light` one

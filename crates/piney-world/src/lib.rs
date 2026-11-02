@@ -1823,7 +1823,7 @@ impl World {
                 eye: a.pos,
                 player: self.player.body.pos,
                 cam: a.clone(),
-                flare: crate::story_map::holy_ground::FlareCamera::of(&self.camera),
+                flare: crate::sky::lensflare::FlareCamera::of(&self.camera),
                 puppet_show: self.camera.puppet_show,
                 world_screen: self.camera.world_screen,
             };

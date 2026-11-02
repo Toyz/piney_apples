@@ -49,8 +49,8 @@ use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
 use crate::map::town::MinimapDef;
-use crate::story_map::holy_ground::FlareCamera;
-use crate::systems::{BuildCx, DrawCx, Drawn, Request, Step, SystemDef, Systems};
+use crate::sky::lensflare::FlareCamera;
+use crate::systems::{BuildCx, Carried, CarriedMut, DrawCx, Drawn, Request, Step, SystemDef, Systems};
 
 /// `vftoi12`'s 4096.
 const K4096: F = 0x4580_0000;
@@ -686,9 +686,11 @@ pub struct Town {
     /// the same town too (the session carries them).
     pub written: Vec<(String, V4)>,
     systems: Systems,
-    /// The last `Draw`'s pieces, and the effects and sounds its steps
-    /// started since the host last took them.
+    /// The last `Draw`'s pieces, the offsets its scrolls wrote into the
+    /// file's materials, and the effects and sounds its steps started since
+    /// the host last took them.
     frame: Vec<Drawn>,
+    rows: HashMap<u32, [u8; 2]>,
     events: Vec<TownEvent>,
 }
 
@@ -716,11 +718,21 @@ impl Town {
         // takes the disc's square root.
         core.hits.volume = env.volume;
         let file = core.file.clone();
-        let mut cx =
-            BuildCx { archive: env.archive, tables: def.tables, file: &file, crisis: env.crisis, rng: env.rng };
+        let mut cx = BuildCx {
+            archive: env.archive,
+            tables: def.tables,
+            volume: env.volume,
+            file: &file,
+            stem: def.file,
+            crisis: env.crisis,
+            rng: env.rng,
+            map: None,
+            cc: None,
+        };
         let systems = Systems::build(def.systems, &mut cx)?;
         core.field_rand = def.systems.iter().any(SystemDef::field_rand).then_some(env.rng);
-        Ok(Town { def, core, written: Vec::new(), systems, frame: Vec::new(), events: Vec::new() })
+        let rows = systems.rows(&core.file);
+        Ok(Town { def, core, written: Vec::new(), systems, frame: Vec::new(), rows, events: Vec::new() })
     }
 
     /// The systems, for tests and probes to read by kind.
@@ -743,18 +755,19 @@ impl Town {
 
     /// The scroll statics as the game holds them, into each system.
     pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        self.systems.take(s);
+        self.systems.take(&Carried { statics: s, move_tex: None });
     }
 
     /// Each system's scroll statics written back.
     pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        self.systems.put(s);
+        self.systems.put(&mut CarriedMut { statics: s, move_tex: None });
     }
 
     /// The town's `Draw` for this frame: its def's steps in order.
     pub fn step(&mut self, v: &TownView) {
         self.frame.clear();
         self.systems.run(self.def.order, &mut self.core, v, &mut self.frame, &mut self.events);
+        self.rows = self.systems.rows(&self.core.file);
     }
 
     /// What the last [`Town::step`] put in the frame, in its order.
@@ -764,7 +777,7 @@ impl Town {
 
     /// The last frame's pieces as generic draws.
     pub fn requests(&self) -> Vec<Request<'_>> {
-        let cx = DrawCx { core: &self.core, fog: self.depth_fog() };
+        let cx = DrawCx { core: &self.core, fog: self.depth_fog(), rows: &self.rows };
         self.systems.requests(&self.frame, &cx)
     }
 

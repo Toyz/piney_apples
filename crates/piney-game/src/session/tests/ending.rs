@@ -23,8 +23,7 @@ fn event_314_plays_through_field_126() {
             && field.is_none()
         {
             let w = a.world();
-            let empty = matches!(w.place(), piney_world::field::world::Place::Story(m)
-                if (&**m as &dyn std::any::Any).is::<piney_world::story_map::ending::EndArea>());
+            let empty = w.place().story().is_some_and(|m| m.def == &piney_world::story_map::ending::ENDING);
             field = Some((f, w.world_man().event, empty));
         }
         if let Stage::Area(a) = &s.stage {

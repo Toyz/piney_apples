@@ -9,11 +9,11 @@ use piney_data::classes::TownGameClass;
 use crate::draw::OBJ_LAYER;
 use crate::ee::{F, ONE};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
-use crate::systems::clouds::CloudsDef;
-use crate::systems::flare::FlareDef;
-use crate::systems::scrolls::ScrollsDef;
-use crate::systems::sky::{At, Axes, MatScroll, SkyClump, SkyDef, SkyLayer};
-use crate::systems::statics::{ModelsDef, Names, ObjectsDef};
+use crate::systems::clouds::{CloudsDef, Made};
+use crate::systems::flare::{FlareDef, FlareDraw};
+use crate::systems::scrolls::{MatScroll, ScrollsDef};
+use crate::systems::sky::{At, SkyClump, SkyDef, SkyLayer};
+use crate::systems::statics::{ModelsDef, ObjectsDef};
 use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
 use crate::town::scroll_statics as statics;
 use crate::town::{BASE_TOWN, FogParams, TownDef};
@@ -53,35 +53,37 @@ const BG0: i16 = -100;
 const BG1: i16 = -90;
 const BG5: i16 = -50;
 
-/// The cloud layers' materials, scrolled in U by the first scroll.
-const CLOUD_MATS: [MatScroll; 2] =
-    [MatScroll::new("MAT_sr4clo1", 0, Axes::U), MatScroll::new("MAT_sr4clo2", 0, Axes::U)];
-/// In crisis (`town04d`) the clumps over the sky, on `bgLayer[2]`-`[4]`:
-/// `MAT_sr4dat1_2` by the second scroll in U, `_3` in U and V.
-const CRISIS_MATS: [MatScroll; 2] =
-    [MatScroll::new("MAT_sr4dat1_2", 1, Axes::U), MatScroll::new("MAT_sr4dat1_3", 1, Axes::UV)];
+/// The materials `DrawBG` offsets: the cloud layers' in U by the first
+/// scroll; in crisis (`town04d`) the clumps over the sky, on
+/// `bgLayer[2]`-`[4]`, `MAT_sr4dat1_2` by the second in U, `_3` in U and V.
+const MATS: [MatScroll; 4] = [
+    MatScroll::u("MAT_sr4clo1", 0),
+    MatScroll::u("MAT_sr4clo2", 0),
+    MatScroll::u("MAT_sr4dat1_2", 1),
+    MatScroll::uv("MAT_sr4dat1_3", 1),
+];
 
 const fn cloud_sky(name: &'static str) -> SkyClump {
-    SkyClump { name, layer: SkyLayer::On(BG5), at: At::Origin, mats: &CLOUD_MATS, crisis: false }
+    SkyClump { name, layer: SkyLayer::On(BG5), at: At::Origin, crisis: false, fog: false }
 }
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE04", layer: OBJ_LAYER, names: Names::Table };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE04", anm_num: None };
-static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN04_BG };
+static MODELS: ModelsDef = ModelsDef::on("RT_MODELTABLE04", OBJ_LAYER);
+static OBJECTS: ObjectsDef = ObjectsDef::on("RT_OBJTABLE04", OBJ_LAYER);
+static SCROLLS: ScrollsDef = ScrollsDef::statics(&BG_STEP, statics::TOWN04_BG, &MATS);
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[
         SkyClump::on(SKY, BG0),
-        SkyClump { name: SUN, layer: SkyLayer::On(BG1), at: At::Dummy(SUN_POINT), mats: &[], crisis: false },
-        SkyClump::crisis("CMP_sr4dat1_1", -80, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr4dat1_2", -70, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr4dat1_3", -60, &CRISIS_MATS),
+        SkyClump { name: SUN, layer: SkyLayer::On(BG1), at: At::Dummy(SUN_POINT), crisis: false, fog: false },
+        SkyClump::crisis("CMP_sr4dat1_1", -80),
+        SkyClump::crisis("CMP_sr4dat1_2", -70),
+        SkyClump::crisis("CMP_sr4dat1_3", -60),
         cloud_sky(CLOUD_SKY[0]),
         cloud_sky(CLOUD_SKY[1]),
         cloud_sky(CLOUD_SKY[2]),
     ],
 };
-static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0 };
-static FLARE: FlareDef = FlareDef { sun: SUN_POINT };
+static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0, made: Made::FirstDraw };
+static FLARE: FlareDef = FlareDef { sun: SUN_POINT, draw: FlareDraw::LensFlare };
 
 /// `ROOTTOWN04::DrawMap`: its own layers, the map 16 down for the player
 /// (0.8 a step, OUT gcmn 0x00439e54), racers 12 down, the arrow at (70,

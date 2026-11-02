@@ -1104,3 +1104,42 @@ impl From<TownGameClass> for GameClass {
         c.class()
     }
 }
+
+/// A story map's class: `EVENTAREA` and the classes `WORLD_MAN::GO(1)` makes from it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(u16)]
+pub enum StoryMapGameClass {
+    #[doc(alias = "EVENTAREA")]
+    Eventarea = 12,
+    #[doc(alias = "EVENTAREA01")]
+    Eventarea01 = 13,
+    #[doc(alias = "EVENTAREA02")]
+    Eventarea02 = 14,
+    #[doc(alias = "EVENTAREA03")]
+    Eventarea03 = 15,
+    #[doc(alias = "EVENTAREA04")]
+    Eventarea04 = 16,
+    #[doc(alias = "EVENTAREA05")]
+    Eventarea05 = 17,
+    #[doc(alias = "EVENTAREA06")]
+    Eventarea06 = 18,
+    #[doc(alias = "EVENTAREA07")]
+    Eventarea07 = 19,
+    #[doc(alias = "EVENTAREAB0")]
+    Eventareab0 = 20,
+    #[doc(alias = "EVENTAREAB8")]
+    Eventareab8 = 21,
+}
+
+impl StoryMapGameClass {
+    /// The class as [`GameClass`] (the same discriminant).
+    pub const fn class(self) -> GameClass {
+        CLASSES[self as usize].class
+    }
+}
+
+impl From<StoryMapGameClass> for GameClass {
+    fn from(c: StoryMapGameClass) -> GameClass {
+        c.class()
+    }
+}

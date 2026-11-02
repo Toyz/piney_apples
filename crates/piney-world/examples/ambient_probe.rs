@@ -15,7 +15,7 @@ use piney_data::field;
 use piney_data::volume::Volume;
 use piney_world::ee::{F, ONE, V4};
 use piney_world::field::ambient::{Ambient, Cloth, Env, Frame, Model, Op, Statics, Weather};
-use piney_world::story_map::holy_ground::FlareCamera;
+use piney_world::sky::lensflare::FlareCamera;
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()

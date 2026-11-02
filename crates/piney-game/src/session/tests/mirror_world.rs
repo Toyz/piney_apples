@@ -143,8 +143,7 @@ fn area_66s_last_door_leads_to_the_arena() {
             if in_dungeon || !matches!(w.phase(), piney_world::Phase::Play(n) if n > 60) {
                 continue;
             }
-            let sky = w.place().story::<piney_world::story_map::sky::SkyMap>();
-            arena |= sky.is_some_and(|m| m.class == piney_world::story_map::sky::Class::Arena);
+            arena |= w.place().story().is_some_and(|m| m.def == &piney_world::story_map::sky::MIRROR_ARENA);
             assert_eq!(w.world_man().event, 67, "{disc}: eventAreaNumber");
             let c = w.combat();
             let foes: Vec<usize> = c.enemies().into_iter().filter(|&e| !c.dead(e)).collect();
@@ -185,10 +184,8 @@ fn area_66s_last_door_leads_to_the_arena() {
 /// `WORLD_MAN::Enter`'s `ChangeArea(2, 0)`, the dungeon.
 #[test]
 fn fields_66_and_91_are_their_maps() {
-    use piney_world::story_map::sky::{Class, SkyMap};
-    for (disc, field, class) in
-        [("mutation", 66, Class::Mirror), ("quarantine", 66, Class::Mirror), ("outbreak", 91, Class::Whale)]
-    {
+    use piney_world::story_map::sky::{MIRROR, WHALE};
+    for (disc, field, class) in [("mutation", 66, &MIRROR), ("quarantine", 66, &MIRROR), ("outbreak", 91, &WHALE)] {
         let iso = crate::check_image(disc);
         if !iso.exists() {
             continue;
@@ -215,10 +212,10 @@ fn fields_66_and_91_are_their_maps() {
         }
         let Stage::Area(a) = &mut s.stage else { panic!("{disc}: not in field {field}") };
         let w = a.world();
-        let sky = w.place().story::<SkyMap>().unwrap_or_else(|| panic!("{disc}: field {field} is no story map"));
-        assert_eq!(sky.class, class, "{disc}");
+        let sky = w.place().story().unwrap_or_else(|| panic!("{disc}: field {field} is no story map"));
+        assert!(sky.def == class, "{disc}");
         let start = sky.core.start.map(f32::from_bits);
-        if class == Class::Mirror {
+        if class == &MIRROR {
             assert_eq!(start[..3], [4600.0, -4700.0, 910.0], "{disc}: the start");
         }
         let p = w.player().body.pos.map(f32::from_bits);
@@ -324,7 +321,8 @@ fn in_dun_loireag() -> Option<(Session, &'static piney_data::area::AreaTables)> 
 /// Mirror World's map is up: its `fieldrand` and scroll as made, before
 /// its first stepped `Draw`.
 fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_data::dungeon::Rng, [u32; 2]) {
-    use piney_world::story_map::sky::SkyMap;
+    use piney_world::systems::clouds::Clouds;
+    use piney_world::systems::scrolls::Scrolls;
     let code = piney_data::area::story_area_code(tables, 66, false).unwrap();
     s.go(Pending::Words([code.a, code.b, code.c]));
     let mut pad = Pad::default();
@@ -333,10 +331,11 @@ fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_
         s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
-            && let Some(m) = a.world().place().story::<SkyMap>()
+            && let Some(m) = a.world().place().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
         {
-            assert!(!m.started, "the map drew before the first look");
-            return (m.core.field_rand.expect("the sky draws from fieldrand"), m.move_tex.scroll());
+            assert!(!m.systems().get::<Clouds>().unwrap().started, "the map drew before the first look");
+            let v = &m.systems().get::<Scrolls>().unwrap().v;
+            return (m.core.field_rand.expect("the sky draws from fieldrand"), [v[0], v[1]]);
         }
     }
     panic!("no Mirror World: {}", Mode::title(s));
@@ -362,7 +361,7 @@ fn the_mirror_worlds_clouds_draw_on_from_the_gates_words() {
 /// Before, each map started its scroll at 0.
 #[test]
 fn the_mirror_worlds_scroll_carries_across_visits() {
-    use piney_world::story_map::sky::SkyMap;
+    use piney_world::systems::scrolls::Scrolls;
     let Some((mut s, tables)) = in_dun_loireag() else { return };
     let (_, first) = gate_to_66(&mut s, tables);
     assert_eq!(first, [0, 0], "a new log in's scroll");
@@ -379,9 +378,10 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
     let mut left = [0; 2];
     for _ in 0..400 {
         if let Stage::Area(a) = &s.stage
-            && let Some(m) = a.world().place().story::<SkyMap>()
+            && let Some(m) = a.world().place().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
         {
-            left = m.move_tex.scroll();
+            let v = &m.systems().get::<Scrolls>().unwrap().v;
+            left = [v[0], v[1]];
         }
         if matches!(s.stage, Stage::World(_)) {
             break;
@@ -394,7 +394,7 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
     assert_ne!(left, [0, 0], "the scroll never moved");
     let Stage::World(w) = &s.stage else { unreachable!() };
     assert_eq!(
-        w.world().state().move_tex[piney_world::story_map::holy_ground::scroll::EA04],
+        w.world().state().move_tex[piney_world::story_map::move_tex::EA04],
         left,
         "the town carries gcmn's data"
     );
@@ -417,7 +417,9 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
 /// goes on with the clouds' scroll where it was.
 #[test]
 fn the_holy_grounds_scroll_carries_across_visits() {
-    use piney_world::story_map::holy_ground::{EventArea, scroll};
+    use piney_world::story_map::holy_ground::HOLY_GROUND;
+    use piney_world::story_map::move_tex as scroll;
+    use piney_world::systems::scrolls::Scrolls;
     let Some((iso, archive)) = crate::session::area15::disc() else { return };
     let mut d = Iso::open(&iso).unwrap();
     let tables = crate::area::area_tables(&mut d).unwrap();
@@ -430,7 +432,10 @@ fn the_holy_grounds_scroll_carries_across_visits() {
         s.take_events();
     };
     let scroll_of = |s: &Session| match &s.stage {
-        Stage::Area(a) => a.world().place().story::<EventArea>().map(|e| e.move_tex[0].scroll()),
+        Stage::Area(a) => a.world().place().story().filter(|e| e.def == &HOLY_GROUND).map(|e| {
+            let v = &e.systems().get::<Scrolls>().unwrap().v;
+            [v[0], v[1]]
+        }),
         _ => None,
     };
     let mut visit = |s: &mut Session| {

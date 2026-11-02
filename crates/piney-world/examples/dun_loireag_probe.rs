@@ -14,7 +14,7 @@ use piney_data::iso::Iso;
 use piney_data::statics::DrawPass;
 use piney_world::camera::Cam;
 use piney_world::ee::{self, V4};
-use piney_world::story_map::holy_ground::FlareCamera;
+use piney_world::sky::lensflare::FlareCamera;
 use piney_world::systems::clouds::Clouds;
 use piney_world::systems::flare::LensFlare;
 use piney_world::systems::scrolls::Scrolls;
@@ -148,7 +148,7 @@ fn main() {
                     Drawn::Piece(Kind::LensFlare, Piece::Sprite { k, pos, .. }) => {
                         format!("[\"flare\", {k}, {}]", list(pos))
                     }
-                    Drawn::Piece(Kind::Clouds, Piece::Sprite { k, .. }) => {
+                    Drawn::Piece(Kind::Clouds, Piece::Item(k)) => {
                         let c = &clouds.clouds[k];
                         format!("[\"cloud\", {k}, {}, {}]", list(c.pos), c.pattern)
                     }

@@ -85,7 +85,7 @@ pub struct Session {
     world_man: Option<piney_world::area::WorldMan>,
     /// The dungeon the party is in, between its rooms' scenes (or area
     /// 15's story map, between its blocks'): what `WORLD_MAN` keeps.
-    dungeon: Option<piney_world::story_map::holy_ground::Kept>,
+    dungeon: Option<piney_world::story_map::Kept>,
     /// A change of scene asked for in The World, and the frames of
     /// `ccSetupGameCtrl`'s fade out drawn over the old scene since (its
     /// tasks still run under it).
@@ -6353,7 +6353,7 @@ mod tests {
     /// dungeon kept was taken for whichever came next.
     #[test]
     fn a_lake_keeps_both_its_dungeons() {
-        use piney_world::story_map::holy_ground::Kept;
+        use piney_world::story_map::Kept;
         let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
@@ -7952,7 +7952,12 @@ mod area15 {
         // ccSndSQLoad(5): the story map's event bank.
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 15, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
-        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(
+            w.place()
+                .story()
+                .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
+                .is_some_and(|e| e.block == 0)
+        );
         assert_eq!((w.scene().field, w.scene().block), (15, -1));
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
         // Up the bridge: Enter on the door, the scene's block 1, a new set-up.
@@ -7962,8 +7967,9 @@ mod area15 {
         let w = arrived(&s).unwrap();
         assert!(
             w.place()
-                .story::<piney_world::story_map::holy_ground::EventArea>()
-                .is_some_and(|e| e.block == 1 && e.rev.is_some())
+                .story()
+                .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
+                .is_some_and(|e| e.block == 1 && e.systems().get::<piney_world::systems::anim::Anim>().is_some())
         );
         assert!(at(w, [0.0, 900.0, 0.0]), "{}", Mode::title(&s));
         assert_eq!(w.player().acts.act, 2, "through the door he stands at once");
@@ -7971,7 +7977,12 @@ mod area15 {
         // Back down the nave and out.
         hold(&mut s, 128, 255, 1500, |s| arrived(s).is_some_and(|w| w.scene().block == 0));
         let w = arrived(&s).unwrap();
-        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(
+            w.place()
+                .story()
+                .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
+                .is_some_and(|e| e.block == 0)
+        );
         assert!(at(w, [0.0, 2700.0, 200.0]), "{}", Mode::title(&s));
     }
 
@@ -7987,9 +7998,8 @@ mod area15 {
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 16, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
         assert!(
-            w.place()
-                .story::<piney_world::story_map::giant::Giant>()
-                .is_some_and(|g| g.block == 0 && g.clouds.len() == 25)
+            w.place().story().filter(|g| g.def == &piney_world::story_map::giant::GIANT).is_some_and(|g| g.block == 0
+                && g.systems().get::<piney_world::systems::clouds::Clouds>().is_some_and(|c| c.clouds.len() == 25))
         );
         assert!(at(w, [0.0, -5400.0, -50.0]), "{}", Mode::title(&s));
         hold(&mut s, 128, 128, 120, |s| playing(s).is_some_and(|w| w.player().acts.act == 2));
@@ -7999,26 +8009,36 @@ mod area15 {
         let Stage::Area(a) = &mut s.stage else { panic!("not in the dungeon") };
         assert!(a.world_mut().go_field());
         hold(&mut s, 128, 128, 600, |s| {
-            arrived(s).is_some_and(|w| w.place().story::<piney_world::story_map::giant::Giant>().is_some())
+            arrived(s)
+                .is_some_and(|w| w.place().story().is_some_and(|g| g.def == &piney_world::story_map::giant::GIANT))
         });
         let w = arrived(&s).unwrap();
         assert!(
-            w.place().story::<piney_world::story_map::giant::Giant>().is_some_and(|g| g.block == 0),
+            w.place().story().is_some_and(|g| g.def == &piney_world::story_map::giant::GIANT && g.block == 0),
             "{}",
             Mode::title(&s)
         );
         assert_eq!(w.scene().area_prev, 2);
-        let back = piney_world::story_map::giant::Giant::new(
-            &archive,
-            piney_data::volume::Volume::Inf,
-            0,
-            2,
-            piney_data::dungeon::Rng::new(0),
-        )
-        .unwrap()
-        .core
-        .start
-        .map(f32::from_bits);
+        let save = piney_data::save::SaveData::default();
+        let mut cc = piney_battle::rand::Genrand::default();
+        let mut env = piney_world::story_map::MapEnv {
+            archive: &archive,
+            volume: piney_data::volume::Volume::Inf,
+            field: 16,
+            area_prev: 2,
+            field_prev: -1,
+            server: 0,
+            save: &save,
+            event_start: [0; 4],
+            field_rand: piney_data::dungeon::Rng::new(0),
+            move_tex: Default::default(),
+            scroll_statics: [0; piney_desktop::SCROLL_STATICS],
+            def_se: 0,
+            kept: None,
+            cc: &mut cc,
+        };
+        let giant = &piney_world::story_map::giant::GIANT;
+        let back = piney_world::story_map::StoryArea::new(giant, &mut env).unwrap().core.start.map(f32::from_bits);
         assert!(at(w, [back[0], back[1], back[2]]), "{} (DMY_marker02 {back:?})", Mode::title(&s));
     }
 
@@ -8038,7 +8058,12 @@ mod area15 {
         let w = playing(&s).unwrap();
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
         assert_eq!(w.world_man().field_model, 1);
-        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(
+            w.place()
+                .story()
+                .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
+                .is_some_and(|e| e.block == 0)
+        );
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
     }
 
@@ -8292,7 +8317,12 @@ mod area15 {
         hold(&mut s, 128, 128, 600, |s| playing(s).is_some());
         let w = playing(&s).unwrap();
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
-        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(
+            w.place()
+                .story()
+                .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
+                .is_some_and(|e| e.block == 0)
+        );
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
         // The event task's passes there are over: play goes on, the events
         // at phase 5.

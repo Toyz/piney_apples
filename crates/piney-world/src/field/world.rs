@@ -33,24 +33,12 @@ use crate::event::talk;
 use crate::field::area::FieldArea;
 use crate::hit::Hits;
 use crate::sprite::{EffSprite, EffState};
-use crate::story_map::StoryMap;
-use crate::story_map::boss_arena::Arena;
-use crate::story_map::holy_ground::{EventArea, Kept};
+use crate::story_map::{Kept, StoryArea};
+use crate::systems::Signal;
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
 use piney_data::store::Table;
 
 mod ride;
-
-/// `WORLD_MAN.eventmap` as Kyvia's rules read an `EVENTAREAB8`: `IsMove()`,
-/// `discPrevPos` and `DMY_marker01`'s place.
-fn disc_view(a: &crate::story_map::disc::DiscArea) -> piney_battle::boss::DiscView {
-    piney_battle::boss::DiscView {
-        moving: a.is_move(),
-        prev_pos: a.disc_prev,
-        marker: a.disc_pos,
-        ..piney_battle::boss::DiscView::default()
-    }
-}
 
 /// What a frame asks of the rest of the game.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,22 +66,21 @@ pub enum Place {
     Field(Box<FieldArea>),
     Dungeon(Box<DungeonArea>),
     /// A story area's own map (`WORLD_MAN.eventmap`, [`crate::story_map`]).
-    Story(Box<dyn StoryMap>),
+    Story(Box<StoryArea>),
 }
 
 impl Place {
-    /// The story map, if it is a `T`.
-    pub fn story<T: StoryMap>(&self) -> Option<&T> {
+    /// The story map, if the place is one.
+    pub fn story(&self) -> Option<&StoryArea> {
         match self {
-            Place::Story(m) => (&**m as &dyn std::any::Any).downcast_ref::<T>(),
+            Place::Story(m) => Some(m),
             _ => None,
         }
     }
 
-    /// The story map, if it is a `T`, to change.
-    pub fn story_mut<T: StoryMap>(&mut self) -> Option<&mut T> {
+    pub fn story_mut(&mut self) -> Option<&mut StoryArea> {
         match self {
-            Place::Story(m) => (&mut **m as &mut dyn std::any::Any).downcast_mut::<T>(),
+            Place::Story(m) => Some(m),
             _ => None,
         }
     }
@@ -365,7 +352,7 @@ impl FieldWorld {
         };
         let def_se = crate::field::area::DEF_SE.get(world_man.field_type as usize).copied().unwrap_or(0xc000);
         let (kept_map, kept) = match kept {
-            Some(Kept::Event(e)) => (Some(Kept::Event(e)), None),
+            Some(Kept::Story(e)) => (Some(Kept::Story(e)), None),
             k => (None, k),
         };
         // ccInitRand, after the set-up's fade and hold: ccRand anew from
@@ -1150,10 +1137,7 @@ impl FieldWorld {
             out.field_rand = r;
         }
         match &self.place {
-            Place::Story(m) => {
-                m.put_scrolls(&mut out.move_tex);
-                m.put_statics(&mut out.scroll_statics);
-            }
+            Place::Story(m) => m.put(&mut out.scroll_statics, &mut out.move_tex),
             Place::Dungeon(d) => d.put_statics(&mut out.scroll_statics),
             Place::Field(f) => {
                 f.put_statics(&mut out.scroll_statics);
@@ -1450,7 +1434,7 @@ impl FieldWorld {
                 Some(Kept::Dungeon(Box::new(all)))
             }
             // WORLD_MAN::Quit deletes any story map but area 15's.
-            Place::Story(m) => (m as Box<dyn std::any::Any>).downcast::<EventArea>().ok().map(Kept::Event),
+            Place::Story(m) => m.def.kept.then_some(Kept::Story(m)),
             Place::Field(_) => None,
         }
     }
@@ -2625,18 +2609,18 @@ impl FieldWorld {
                             message_closed: std::mem::take(&mut self.story_message_closed),
                             out: Vec::new(),
                         };
-                        m.frame(&mut x);
+                        m.scene(&mut x);
                         story_out = x.out;
                     }
                     let v = crate::town::TownView {
                         eye,
                         player,
                         cam: self.camera.active().clone(),
-                        flare: crate::story_map::holy_ground::FlareCamera::of(&self.camera),
+                        flare: crate::sky::lensflare::FlareCamera::of(&self.camera),
                         puppet_show: self.camera.puppet_show,
                         world_screen: self.camera.world_screen,
                     };
-                    let sprites = m.draw_rand(&mut ctx.layers, to_screen, &v, awake, &mut self.combat.cc);
+                    let sprites = m.draw(&mut ctx.layers, to_screen, &v, awake, &mut self.combat.cc);
                     self.fx.sprites(&sprites, &self.camera, ctx);
                 }
             }
@@ -2677,9 +2661,8 @@ impl FieldWorld {
         let info = self.task_info();
         // Kyvia's disc as the boss reads it this frame (`IsMove`,
         // `discPrevPos`, `DMY_marker01`).
-        if let (Some(r), Some(a)) = (self.combat.boss.as_mut(), self.place.story::<crate::story_map::disc::DiscArea>())
-        {
-            r.disc = disc_view(a);
+        if let (Some(r), Some(d)) = (self.combat.boss.as_mut(), self.place.story().and_then(|a| a.report().disc)) {
+            r.disc = d;
         }
         // scFadeDef as the frame starts (Kyvia's fourth fight's CheckFade).
         if let Some(r) = self.combat.boss.as_mut() {
@@ -2696,29 +2679,19 @@ impl FieldWorld {
         if self.spcs.party() != before {
             self.combat.set_party(self.spcs.party());
         }
-        // EVENTAREAB8::Move from the boss's CheckDiscMove.
-        if let Some(r) = self.combat.boss.as_mut()
-            && std::mem::take(&mut r.disc_next)
-            && let Some(a) = self.place.story_mut::<crate::story_map::disc::DiscArea>()
-        {
-            a.next_stage();
-        }
-        // Field 8's last stage's clump, switched by Corbenik's lasers.
+        // What the boss asked of the map: EVENTAREAB8::Move from its
+        // CheckDiscMove, field 8's last stage's clump switched by
+        // Corbenik's lasers, field 12's body[n] hits from Kyvia's fourth
+        // fight's gates.
         if let Some(r) = self.combat.boss.as_mut() {
-            let sets = std::mem::take(&mut r.arena_clump);
-            if let Some(a) = self.place.story_mut::<crate::story_map::boss_arena::Arena>() {
-                for on in sets {
-                    a.set_clump(on);
-                }
+            let mut signals = Vec::new();
+            if std::mem::take(&mut r.disc_next) {
+                signals.push(Signal::DiscMove);
             }
-        }
-        // Field 12's body[n] hits from Kyvia's fourth fight's gates.
-        if let Some(r) = self.combat.boss.as_mut() {
-            let hits = std::mem::take(&mut r.body_hits);
-            if let Some(a) = self.place.story_mut::<crate::story_map::disc::DiscArea>() {
-                for (n, on) in hits {
-                    a.body_hit(n, on);
-                }
+            signals.extend(std::mem::take(&mut r.arena_clump).into_iter().map(Signal::StageClump));
+            signals.extend(std::mem::take(&mut r.body_hits).into_iter().map(|(n, on)| Signal::BodyHit(n, on)));
+            if let Some(a) = self.place.story_mut() {
+                signals.into_iter().for_each(|s| a.signal(s));
             }
         }
     }
@@ -2927,11 +2900,8 @@ impl FieldWorld {
                 return;
             }
         };
-        let center = match self.place.story::<Arena>() {
-            Some(a) => [a.core.start[0], a.core.start[1], a.core.start[2], ONE],
-            None => self.player.body.pos,
-        };
-        let disc = self.place.story::<crate::story_map::disc::DiscArea>().map(disc_view).unwrap_or_default();
+        let center = self.place.story().and_then(StoryArea::boss_centre).unwrap_or(self.player.body.pos);
+        let disc = self.place.story().and_then(|a| a.report().disc).unwrap_or_default();
         let env = piney_battle::chara::Env {
             count: self.count,
             menu_type: self.menu_type,
@@ -2943,10 +2913,10 @@ impl FieldWorld {
         self.combat.start_boss(&look, center, disc, &env, &mut self.camera, third);
     }
 
-    /// `worldman->eventArea->SwitchLayer()` in a boss arena.
-    pub fn arena_switch_layer(&mut self) {
-        if let Some(a) = self.place.story_mut::<Arena>() {
-            a.switch_layer();
+    /// `worldman->eventArea->SwitchLayer()`.
+    pub fn switch_layer(&mut self) {
+        if let Some(a) = self.place.story_mut() {
+            a.signal(Signal::SwitchLayer);
         }
     }
 

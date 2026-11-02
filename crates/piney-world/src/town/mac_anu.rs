@@ -14,9 +14,9 @@ use piney_data::statics::DrawPass;
 use crate::draw::OBJ_LAYER;
 use crate::ee::{self, F, ONE, V4};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
-use crate::systems::scrolls::{ScrollsDef, Wrap};
-use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
-use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
+use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
+use crate::systems::sky::{SkyClump, SkyDef};
+use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
 use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
 use crate::systems::{BuildCx, DRAW_BG, Hook, Kind, MapSystem, Others, Piece, Step, StepCx, SystemDef};
 use crate::town::scroll_statics as statics;
@@ -74,18 +74,17 @@ const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3b03_126f];
 /// In crisis (`town01d`) `DrawBG` draws three more clumps over the sky, on
 /// `WORLD_MAN`'s layers at +0x49c, +0x4a0 and +0x4a4 (priorities -80, -70,
 /// -60): `MAT_sr1dat1_2` scrolls by the second scroll in U, `_3` in U and V.
-const CRISIS_MATS: [MatScroll; 2] =
-    [MatScroll::new("MAT_sr1dat1_2", 1, Axes::U), MatScroll::new("MAT_sr1dat1_3", 1, Axes::UV)];
+const CRISIS_MATS: [MatScroll; 2] = [MatScroll::u("MAT_sr1dat1_2", 1), MatScroll::uv("MAT_sr1dat1_3", 1)];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE00", layer: OBJ_LAYER, names: Names::Table };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE00", anm_num: None };
-static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN01_BG };
+static MODELS: ModelsDef = ModelsDef::on("RT_MODELTABLE00", OBJ_LAYER);
+static OBJECTS: ObjectsDef = ObjectsDef::on("RT_OBJTABLE00", OBJ_LAYER);
+static SCROLLS: ScrollsDef = ScrollsDef::statics(&BG_STEP, statics::TOWN01_BG, &CRISIS_MATS);
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[
         SkyClump::on(SKY, OBJ_LAYER),
-        SkyClump::crisis("CMP_sr1dat1_1", -80, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr1dat1_2", -70, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr1dat1_3", -60, &CRISIS_MATS),
+        SkyClump::crisis("CMP_sr1dat1_1", -80),
+        SkyClump::crisis("CMP_sr1dat1_2", -70),
+        SkyClump::crisis("CMP_sr1dat1_3", -60),
     ],
 };
 /// `wat1`'s water at the origin: 2, 1 and 0 drawn on objLayer, no copy.
@@ -211,7 +210,7 @@ impl MapSystem for Clip {
                 }
                 let volume = cx.core.hits.volume;
                 let Some(objects) = others.get_mut::<StaticObjects>() else { return };
-                for row in objects.step_pass(DrawPass::Obj2, eye, volume, &cx.core.file) {
+                for row in objects.step_pass(DrawPass::Obj2, eye, volume) {
                     cx.put(Kind::Objects, Piece::Object(row));
                 }
             }

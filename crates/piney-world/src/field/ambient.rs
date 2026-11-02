@@ -1281,7 +1281,7 @@ pub fn flare_dummy(ty: u32, b: u32) -> Option<String> {
 /// camera looks within 67.5 degrees of +x; the sun the dummy's place taken
 /// from the player's (`ccTransPosP2W`); each of the six flares brought to
 /// the player's side of the map.
-pub fn field_flare(dummy: V4, cam: &crate::story_map::holy_ground::FlareCamera, env: &Env, out: &mut Vec<Op>) {
+pub fn field_flare(dummy: V4, cam: &crate::sky::lensflare::FlareCamera, env: &Env, out: &mut Vec<Op>) {
     if !check_camera_deg(cam.eye, cam.eye, cam.view, crate::sky::lensflare::VIEW_DEG, env) {
         return;
     }
@@ -1345,7 +1345,7 @@ pub struct Ambient {
 pub struct Frame<'a> {
     pub env: Env<'a>,
     /// The lens flare's camera, and its sun (the background's dummy).
-    pub flare_cam: crate::story_map::holy_ground::FlareCamera,
+    pub flare_cam: crate::sky::lensflare::FlareCamera,
     pub sun: Option<V4>,
     /// The places of Ω's runners' dummies in TOBJ's animation under its
     /// matrix.

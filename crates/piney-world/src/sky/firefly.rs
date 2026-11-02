@@ -50,14 +50,7 @@ impl Fly<'_> {
     /// The arena's: its bounds, and no camera or ground (type 0 reads
     /// neither).
     fn arena(volume: piney_data::volume::Volume, player: V4) -> Fly<'static> {
-        Fly {
-            volume,
-            player,
-            bounds: crate::story_map::holy_ground::BOUNDS,
-            eye: [0; 4],
-            rot: [0; 4],
-            height: &|_, _| 0,
-        }
+        Fly { volume, player, bounds: crate::story_map::BOUNDS, eye: [0; 4], rot: [0; 4], height: &|_, _| 0 }
     }
 }
 

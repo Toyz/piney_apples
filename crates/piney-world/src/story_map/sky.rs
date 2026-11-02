@@ -3,65 +3,23 @@
 //! `EVENTAREA05` (field 67, its arena) and `EVENTAREA06` (field 91,
 //! Pulsating Sea of Cloud Whale); MUT gcmn 0x00417050, 0x00417e10,
 //! 0x00419e30 (docs/engine/evarea.md). Each is its tables' static models and
-//! objects (all type 0), sky clumps, one scrolling material, 25 `CLOUD`s
-//! made at the first `Draw`, and for 04 and 05 a `LENSFLARE`.
+//! objects (all type 0), the `EA_BGNAME` clumps, one `EA_moveTex` row, 25
+//! `CLOUD`s made at the first `Draw`, and for 04 and 05 a `LENSFLARE`.
 
-use std::sync::Arc;
+use piney_data::classes::StoryMapGameClass;
+use piney_data::statics::DrawPass;
 
-use glam::Mat4;
-use piney_data::archive::Archive;
-use piney_data::dungeon::Rng;
-use piney_data::statics::{DrawPass, Position};
-use piney_data::volume::Volume;
-use piney_data::{Error, Result};
-use piney_desktop::MOVE_TEX_ROWS;
-use piney_desktop::assets::SceneFile;
-use piney_desktop::layers::Layers;
-
-use crate::area::AreaCore;
-use crate::draw::{self, Draw};
-use crate::ee::{F, V4};
-use crate::hit::HitModel;
-use crate::sky::cloud::{self, Cloud};
-use crate::sky::lensflare::{self, FLARES};
-use crate::sprite::{EffSprite, EffState};
-use crate::story_map::holy_ground::{MoveTex, layer};
-use crate::story_map::{Enter, StartSpread, StoryMap};
-use crate::story_map::{Made, MapDef};
-use crate::story_map::{event_hits, model_hits};
-use crate::systems::paint;
-use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
-use crate::town::{FogParams, TownView};
-
-/// `effccs` (+0x254, 06's +0x268): the clouds' and the flares' file.
-pub const EFF_FILE: &str = "town_z";
-/// `CLOUD`s (+0x1f0, 06's +0x204).
-pub const CLOUDS: usize = 25;
-/// `LENSFLARE::Draw(ccs, "DMY_dummy5", 0)`'s sun (04 and 05).
-const SUN: &str = "DMY_dummy5";
-
-/// The class `GO(1)` makes, by `eventAreaNumber`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Class {
-    /// `EVENTAREA04`, field 66: the oasis whose door is the dungeon.
-    Mirror,
-    /// `EVENTAREA05`, field 67: the arena that dungeon's last door leads to.
-    Arena,
-    /// `EVENTAREA06`, field 91.
-    Whale,
-}
-
-impl Class {
-    /// The class of field `field`, if it is one of these.
-    pub fn of(field: i32) -> Option<Class> {
-        match field {
-            66 => Some(Class::Mirror),
-            67 => Some(Class::Arena),
-            91 => Some(Class::Whale),
-            _ => None,
-        }
-    }
-}
+use crate::ee::F;
+use crate::story_map::{
+    BASE_BLOCK, BASE_STORY_MAP, BlockDef, Door, LightsDef, Spread, Start, StartSpread, StoryMapDef, layer, move_tex,
+};
+use crate::systems::clouds::{CloudsDef, Made};
+use crate::systems::flare::{FlareDef, FlareDraw};
+use crate::systems::scrolls::{MatScroll, ScrollsDef};
+use crate::systems::sky::{SkyClump, SkyDef};
+use crate::systems::statics::{ModelsDef, ObjectsDef};
+use crate::systems::{Hook, Kind, Step, SystemDef};
+use crate::town::FogParams;
 
 /// `SetFog(9000, 14000, 0, 70, 0xc8b9bd)` and `ccSys.bgColor` (04, 05).
 const SAND: [u8; 3] = [0xbd, 0xb9, 0xc8];
@@ -70,446 +28,200 @@ const SAND_FOG: FogParams = FogParams { near: 9000.0, far: 14000.0, near_rate: 0
 const SEA: [u8; 3] = [0x6d, 0x7a, 0xa7];
 const SEA_FOG: FogParams = FogParams { near: 15000.0, far: 35000.0, near_rate: 0.0, far_rate: 80.0, colour: SEA };
 
-/// What a class's constructor and `Draw` name: its file, its tables (with
-/// the layer the models go on), lights, fog and clear colour, the
-/// `EA_BGNAME` clumps with their `SetFogSw` (the first `drawn` of them
-/// drawn, `bg[k]` on `bgLayer[k]`), `EA_moveTex`'s row, the clouds' type
-/// and whether a flare is made. The tables' rows are the same on all four
-/// volumes.
-struct Kind {
-    file: &'static str,
-    models: ModelsDef,
-    objects: ObjectsDef,
-    light_anim: &'static str,
-    lights: &'static [(i32, &'static str)],
-    fog: FogParams,
-    clear: [u8; 3],
-    bg: &'static [(&'static str, bool)],
-    drawn: usize,
-    move_tex: MoveTex,
-    cloud_type: i32,
-    flare: bool,
-}
-
 /// `eventarea04Light`; `eventarea05Light`'s first row, the one row its
-/// loop reads (`s0 == 0` once).
-const SE2_6_LIGHTS: [(i32, &str); 1] = [(0, "LGT_se2_6lig1")];
-const SE3_5_LIGHTS: [(i32, &str); 1] = [(0, "LGT_se3_5lig1")];
+/// loop reads (`s0 == 0` once); `eventarea06Light`.
+const SE2_6_LIGHTS: LightsDef = LightsDef { anim: "ANM_se2_6a", table: &["LGT_se2_6lig1"], skip_missing: false };
+const SE3_5_LIGHTS: LightsDef = LightsDef { anim: "ANM_se3_5_1a", table: &["LGT_se3_5lig1"], skip_missing: false };
 
-const MIRROR: Kind = Kind {
-    file: "se2_6",
-    models: ModelsDef { table: "EA_MODELTABLE04", layer: layer::OBJ, names: Names::Table },
-    objects: ObjectsDef { table: "EA_OBJTABLE04", anm_num: None },
-    light_anim: "ANM_se2_6a",
-    lights: &SE2_6_LIGHTS,
-    fog: SAND_FOG,
-    clear: SAND,
-    // bg[2..4] have their fog switched back on.
-    bg: &[
-        ("CMP_se2_6bg2", false),
-        ("CMP_se2_6bg1", false),
-        ("CMP_se2_6cl3", true),
-        ("CMP_se2_6cl2", true),
-        ("CMP_se2_6cl1", true),
-        ("CMP_se2_6su1", false),
+/// `CLOUD`s (+0x1f0, 06's +0x204), made by the first `Draw` about the
+/// player: type 0, the whale's type 3.
+static CLOUDS: CloudsDef = CloudsDef { count: 25, kind: 0, made: Made::FirstDraw };
+static WHALE_CLOUDS: CloudsDef = CloudsDef { count: 25, kind: 3, made: Made::FirstDraw };
+/// `LENSFLARE::Draw(ccs, "DMY_dummy5", 0)` (04 and 05).
+static FLARE: FlareDef = FlareDef { sun: "DMY_dummy5", draw: FlareDraw::LensFlare };
+
+/// `bg[k]` on `bgLayer[k]` (`EA_BGNAME`), its fog switched on or not.
+const fn bg(name: &'static str, k: i16, fog: bool) -> SkyClump {
+    SkyClump { fog, ..SkyClump::on(name, layer::bg(k)) }
+}
+
+/// `EA_moveTex`'s one row: (u_step, v_step) and its material.
+const fn scrolls(steps: &'static [F; 2], row: usize, mats: &'static [MatScroll; 1]) -> ScrollsDef {
+    ScrollsDef::move_tex(steps, row, mats)
+}
+
+/// `Draw`: the clouds made on the first call, `MoveTexture`, `DrawBG`'s
+/// clumps, the type-0 models, then the type-0 objects within their clip;
+/// on effLayer the flare and each cloud's `Move` and `Draw`.
+const ORDER: &[Step] = &[
+    Step::Run(Kind::Clouds, Hook::Start),
+    Step::Run(Kind::Scrolls, Hook::Draw),
+    Step::Run(Kind::Sky, Hook::Draw),
+    Step::Run(Kind::Models, Hook::Pass(DrawPass::Other)),
+    Step::Run(Kind::Objects, Hook::Pass(DrawPass::Other)),
+    Step::Run(Kind::LensFlare, Hook::Draw),
+    Step::Run(Kind::Clouds, Hook::Draw),
+];
+
+static MIRROR_MODELS: ModelsDef = ModelsDef::on("EA_MODELTABLE04", layer::OBJ);
+static MIRROR_OBJECTS: ObjectsDef = ObjectsDef::on("EA_OBJTABLE04", layer::OBJ);
+/// bg[2..4] have their fog switched back on.
+static MIRROR_SKY: SkyDef = SkyDef {
+    clumps: &[
+        bg("CMP_se2_6bg2", 0, false),
+        bg("CMP_se2_6bg1", 1, false),
+        bg("CMP_se2_6cl3", 2, true),
+        bg("CMP_se2_6cl2", 3, true),
+        bg("CMP_se2_6cl1", 4, true),
+        bg("CMP_se2_6su1", 5, false),
     ],
-    drawn: 6,
-    move_tex: MoveTex { u: 0, v: 0, u_step: 0, v_step: 0x3ba3_d70a, mat: "MAT_se1_7clo1" },
-    cloud_type: 0,
-    flare: true,
+};
+static MIRROR_SCROLLS: ScrollsDef =
+    scrolls(&[0, 0x3ba3_d70a], move_tex::EA04, &[MatScroll::move_tex("MAT_se1_7clo1", 0)]);
+
+/// The constructor's `SetStartPos`, writing the whole of the dummy's
+/// +0x10: from a dungeon `DMY_dummy2` at (-8000, 5800, 920) facing 0,
+/// else `DMY_dummy1` at (4600, -4700, 910) facing pi.
+static MIRROR_DOOR: Start = Start::Marker {
+    name: "DMY_dummy2",
+    lanes: [Some(0xc5fa_0000), Some(0x45b5_4000), Some(0x4466_0000), Some(0)],
+    or_keep: false,
+};
+static MIRROR_GATE: Start = Start::Marker {
+    name: "DMY_dummy1",
+    lanes: [Some(0x458f_c000), Some(0xc592_e000), Some(0x4463_8000), Some(0x4049_0fdb)],
+    or_keep: false,
 };
 
-const ARENA: Kind = Kind {
+/// `EVENTAREA04`, field 66: the oasis whose door is the dungeon. Its
+/// others stand as field 16's (+-200, -150); `Enter` (MUT main
+/// 0x001b2b80) takes every door to its dungeon (`ChangeArea(2, 0)`).
+pub static MIRROR: StoryMapDef = StoryMapDef {
+    class: StoryMapGameClass::Eventarea04,
+    fields: &[66],
     file: "se2_6",
-    models: ModelsDef { table: "EA_MODELTABLE05", layer: draw::FLOOR_LAYER, names: Names::Table },
-    objects: ObjectsDef { table: "EA_OBJTABLE05", anm_num: None },
-    light_anim: "ANM_se2_6a",
-    lights: &SE2_6_LIGHTS,
-    fog: SAND_FOG,
     clear: SAND,
-    bg: &[
-        ("CMP_se2_6bg1", false),
-        ("CMP_se2_6bg2", false),
-        ("CMP_se2_6bg05", false),
-        ("CMP_se2_6cl1", false),
-        ("CMP_se2_6cl2", false),
-        ("CMP_se2_6cl3", false),
-    ],
-    drawn: 5,
-    move_tex: MoveTex { u: 0, v: 0, u_step: 0, v_step: 0x3c23_d70a, mat: "MAT_se1_7clo1" },
-    cloud_type: 0,
-    flare: true,
+    spread: Spread::About(StartSpread::AHEAD),
+    doors: [Door::Dungeon; 2],
+    blocks: &[BlockDef {
+        lights: Some(SE2_6_LIGHTS),
+        fog: Some(SAND_FOG),
+        start: Start::FromDungeon(&MIRROR_DOOR, &MIRROR_GATE),
+        systems: &[
+            SystemDef::Models(&MIRROR_MODELS),
+            SystemDef::Objects(&MIRROR_OBJECTS),
+            SystemDef::Sky(&MIRROR_SKY),
+            SystemDef::Scrolls(&MIRROR_SCROLLS),
+            SystemDef::Clouds(&CLOUDS),
+            SystemDef::LensFlare(&FLARE),
+        ],
+        order: ORDER,
+        ..BASE_BLOCK
+    }],
+    ..BASE_STORY_MAP
 };
 
-const WHALE: Kind = Kind {
+static ARENA_MODELS: ModelsDef = ModelsDef::on("EA_MODELTABLE05", layer::FLOOR);
+static ARENA_OBJECTS: ObjectsDef = ObjectsDef::on("EA_OBJTABLE05", layer::OBJ);
+/// The first five of `EA_BGNAME05`'s six (`CMP_se2_6cl3` is made, never
+/// drawn).
+static ARENA_SKY: SkyDef = SkyDef {
+    clumps: &[
+        bg("CMP_se2_6bg1", 0, false),
+        bg("CMP_se2_6bg2", 1, false),
+        bg("CMP_se2_6bg05", 2, false),
+        bg("CMP_se2_6cl1", 3, false),
+        bg("CMP_se2_6cl2", 4, false),
+    ],
+};
+static ARENA_SCROLLS: ScrollsDef =
+    scrolls(&[0, 0x3c23_d70a], move_tex::EA05, &[MatScroll::move_tex("MAT_se1_7clo1", 0)]);
+
+/// `EVENTAREA05`, field 67: the arena the mirror's dungeon's last door
+/// leads to. `DMY_dummy3`'s x and turn, at y 9000 and z 800.
+pub static MIRROR_ARENA: StoryMapDef = StoryMapDef {
+    class: StoryMapGameClass::Eventarea05,
+    fields: &[67],
+    file: "se2_6",
+    clear: SAND,
+    blocks: &[BlockDef {
+        lights: Some(SE2_6_LIGHTS),
+        fog: Some(SAND_FOG),
+        start: Start::Marker {
+            name: "DMY_dummy3",
+            lanes: [None, Some(0x460c_a000), Some(0x4448_0000), None],
+            or_keep: false,
+        },
+        systems: &[
+            SystemDef::Models(&ARENA_MODELS),
+            SystemDef::Objects(&ARENA_OBJECTS),
+            SystemDef::Sky(&ARENA_SKY),
+            SystemDef::Scrolls(&ARENA_SCROLLS),
+            SystemDef::Clouds(&CLOUDS),
+            SystemDef::LensFlare(&FLARE),
+        ],
+        order: ORDER,
+        ..BASE_BLOCK
+    }],
+    ..BASE_STORY_MAP
+};
+
+static WHALE_MODELS: ModelsDef = ModelsDef::on("EA_MODELTABLE06", layer::FLOOR);
+static WHALE_OBJECTS: ObjectsDef = ObjectsDef::on("EA_OBJTABLE06", layer::OBJ);
+static WHALE_SKY: SkyDef = SkyDef {
+    clumps: &[
+        bg("CMP_se3_5bac1", 0, false),
+        bg("CMP_se3_5clo1_1", 1, false),
+        bg("CMP_se3_5clo1_2", 2, false),
+        bg("CMP_se3_5clo2", 3, false),
+        bg("CMP_se3_5su1", 4, false),
+    ],
+};
+static WHALE_SCROLLS: ScrollsDef =
+    scrolls(&[0xbcf5_c28f, 0x3b23_d70a], move_tex::EA06, &[MatScroll::move_tex("MAT_se3_5clo2", 0)]);
+static WHALE_DOOR: Start = Start::marker("DMY_marker02");
+static WHALE_GATE: Start = Start::marker("DMY_marker01");
+
+/// `EVENTAREA06`, field 91. `Enter` takes block 0 or -1 to its dungeon;
+/// its other branch calls `EVENTAREA07::ChangeBlock(0)` on this map, but
+/// no door or script gives field 91 another block (its dungeon's way out
+/// is `ChangeArea(1, 91)`, block -1), so it stays.
+pub static WHALE: StoryMapDef = StoryMapDef {
+    class: StoryMapGameClass::Eventarea06,
+    fields: &[91],
     file: "se3_5_1",
-    models: ModelsDef { table: "EA_MODELTABLE06", layer: draw::FLOOR_LAYER, names: Names::Table },
-    objects: ObjectsDef { table: "EA_OBJTABLE06", anm_num: None },
-    light_anim: "ANM_se3_5_1a",
-    lights: &SE3_5_LIGHTS,
-    fog: SEA_FOG,
     clear: SEA,
-    bg: &[
-        ("CMP_se3_5bac1", false),
-        ("CMP_se3_5clo1_1", false),
-        ("CMP_se3_5clo1_2", false),
-        ("CMP_se3_5clo2", false),
-        ("CMP_se3_5su1", false),
-    ],
-    drawn: 5,
-    move_tex: MoveTex { u: 0, v: 0, u_step: 0xbcf5_c28f, v_step: 0x3b23_d70a, mat: "MAT_se3_5clo2" },
-    cloud_type: 3,
-    flare: false,
-};
-
-impl Class {
-    fn kind(self) -> &'static Kind {
-        match self {
-            Class::Mirror => &MIRROR,
-            Class::Arena => &ARENA,
-            Class::Whale => &WHALE,
-        }
-    }
-}
-
-/// `bgLayer[k]`'s priority: -100, -90, .. -50.
-fn bg_layer(k: usize) -> i16 {
-    -100 + 10 * k as i16
-}
-
-/// One piece the class's `Draw` draws, in its order.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Piece {
-    /// `DrawBG`: `bg[k]` at the origin on `bgLayer[k]`.
-    Bg(usize),
-    /// `STATICMODEL::Draw` of a type-0 row.
-    Model(usize),
-    /// `STATICOBJECT::Draw` of a type-0 row within its clip, stepped.
-    Object(usize),
-    /// `LENSFLARE::Draw`'s flare `k`.
-    Flare(usize, V4),
-    /// `CLOUD::Draw` of cloud `k`, as its `Move` left it.
-    Cloud(usize),
-}
-
-/// An `EVENTAREA04`, `05` or `06` as `WORLD_MAN.eventmap` holds it.
-pub struct SkyMap {
-    pub class: Class,
-    pub core: AreaCore,
-    pub models: StaticModels,
-    pub objects: StaticObjects,
-    /// `bg[k]` (+0x1a8): each clump's models, None where the file lacks it.
-    pub bg: Vec<Option<(u32, Vec<u32>)>>,
-    pub move_tex: MoveTex,
-    /// +0x1e4: set by the first `Draw`, which `Init`s the clouds.
-    pub started: bool,
-    pub clouds: Vec<Cloud>,
-    pat_num: u16,
-    /// The flare's sun (`DMY_dummy5`, w 1), and where the flares were
-    /// drawn last.
-    pub sun: Option<V4>,
-    pub flares: Option<[V4; 6]>,
-}
-
-/// A dummy's position and its turn about z (`Decode_DummyPosRot`'s
-/// +0x28), as the constructors copy it into +0x1c.
-fn marker(file: &SceneFile, name: &'static str) -> Result<(V4, F)> {
-    if file.ccs.find_object(name).is_none() {
-        return Err(Error::NotFound(format!("{}: {name}", file.stem)));
-    }
-    let (pos, rot) = crate::town::dummy_bits(&Position::DummyRot(name), &file.ccs, &file.scene);
-    Ok((pos, rot[2]))
-}
-
-/// The constructor's `SetStartPos` (`game.areaPrev` being `area_prev`).
-/// 04 writes the whole of the dummy's +0x10: from a dungeon (2)
-/// `DMY_dummy2` at (-8000, 5800, 920) facing 0, else `DMY_dummy1` at
-/// (4600, -4700, 910) facing pi. 05 keeps `DMY_dummy3`'s x, puts it at y
-/// 9000 and z 800, facing its turn. 06 stands at `DMY_marker02` from a
-/// dungeon, else `DMY_marker01`, facing its turn.
-fn start(class: Class, file: &SceneFile, area_prev: i32) -> Result<V4> {
-    Ok(match (class, area_prev) {
-        (Class::Mirror, 2) => {
-            marker(file, "DMY_dummy2")?;
-            [0xc5fa_0000, 0x45b5_4000, 0x4466_0000, 0]
-        }
-        (Class::Mirror, _) => {
-            marker(file, "DMY_dummy1")?;
-            [0x458f_c000, 0xc592_e000, 0x4463_8000, 0x4049_0fdb]
-        }
-        (Class::Arena, _) => {
-            let (p, w) = marker(file, "DMY_dummy3")?;
-            [p[0], 0x460c_a000, 0x4448_0000, w]
-        }
-        (Class::Whale, a) => {
-            let (p, w) = marker(file, if a == 2 { "DMY_marker02" } else { "DMY_marker01" })?;
-            [p[0], p[1], p[2], w]
-        }
-    })
-}
-
-impl SkyMap {
-    /// The class's constructor; `game.areaPrev` is `area_prev`, `rng` the
-    /// game's `fieldrand`.
-    pub fn new(
-        archive: &Arc<Archive>,
-        volume: Volume,
-        class: Class,
-        def_se: u32,
-        area_prev: i32,
-        rng: Rng,
-    ) -> Result<SkyMap> {
-        let k = class.kind();
-        let mut core = AreaCore::read(archive, volume, k.file, k.light_anim, k.lights, k.fog)?;
-        let models = StaticModels::read(&k.models, &core.file, volume)?;
-        let objects = StaticObjects::read(&k.objects, &core.file, volume)?;
-        let file = core.file.clone();
-        // STATICMODEL enables its own model's Hit chunk: 04 and 05 share
-        // se2_6, so only this class's models collide.
-        let hit_models = HitModel::read(volume, &file.ccs)?;
-        core.hits = event_hits(volume, def_se, model_hits(models.iter().map(|m| m.model), &hit_models));
-        let bg = k.bg.iter().map(|(name, _)| crate::story_map::holy_ground::clump_models(&file, name)).collect();
-        let eff = SceneFile::read(archive, EFF_FILE)?;
-        let pat_num = cloud::eff_pat_num(&eff.ccs, cloud::EFF_SMOKE)
-            .ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {}", cloud::EFF_SMOKE)))?;
-        let sun = if k.flare {
-            for name in FLARES {
-                eff.ccs.find_object(name).ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {name}")))?;
-            }
-            Some(marker(&file, SUN)?.0)
-        } else {
-            None
-        };
-        // The start as the constructor's `SetStartPos` left it. fieldrand:
-        // `GO(1)` sets no seed for a story map, so the clouds' `Init` draws
-        // on from where the scene before left it (a gate's
-        // `SimGenerateCode`, the dungeon).
-        core.start = start(class, &file, area_prev)?;
-        core.field_rand = Some(rng);
-        Ok(SkyMap {
-            class,
-            core,
-            models,
-            objects,
-            bg,
-            move_tex: k.move_tex,
-            started: false,
-            clouds: Vec::new(),
-            pat_num,
-            sun,
-            flares: None,
-        })
-    }
-
-    /// The class's `Draw` for this frame: the pieces in its order, with
-    /// what it steps (the clouds made on the first call, the scroll, the
-    /// objects' animations, the clouds' `Move`).
-    pub fn select(&mut self, v: &TownView) -> Vec<Piece> {
-        let k = self.class.kind();
-        let mut out = Vec::new();
-        if !self.started {
-            self.started = true;
-            if let Some(rng) = &mut self.core.field_rand {
-                self.clouds = (0..CLOUDS).map(|_| Cloud::init(k.cloud_type, self.pat_num, v.player, rng)).collect();
-            }
-        }
-        // DrawBG: MoveTexture, then bg[k] on bgLayer[k].
-        self.move_tex.step();
-        out.extend((0..k.drawn).map(Piece::Bg));
-        // The type-0 models (objLayer, or floorLayer for 05 and 06), then
-        // the type-0 objects on objLayer.
-        out.extend(self.models.rows(DrawPass::Other).map(Piece::Model));
-        let (volume, file) = (self.core.hits.volume, &*self.core.file);
-        out.extend(self.objects.step_pass(DrawPass::Other, v.eye, volume, file).into_iter().map(Piece::Object));
-        // effLayer: LENSFLARE::Draw(ccs, DMY_dummy5, 0), then the clouds.
-        if let Some(sun) = self.sun {
-            let in_view = crate::town::pc::check_camera_deg(sun, lensflare::VIEW_DEG, &v.cam, v.player);
-            self.flares = lensflare::draw(sun, &v.flare, v.puppet_show, in_view);
-            if let Some(f) = self.flares {
-                out.extend(f.into_iter().enumerate().map(|(k, p)| Piece::Flare(k, p)));
-            }
-        }
-        let volume = self.core.hits.volume;
-        for i in 0..self.clouds.len() {
-            if let Some(rng) = &mut self.core.field_rand {
-                self.clouds[i].step(volume, v.player, rng, &|_, _| 0);
-            }
-            let c = &self.clouds[i];
-            let in_view = crate::town::pc::check_camera_deg(c.pos, cloud::VIEW_DEG, &v.cam, v.player);
-            if c.drawn(volume, v.player, in_view) {
-                out.push(Piece::Cloud(i));
-            }
-        }
-        out
-    }
-
-    /// The class's `SetFog` as VU1 fogs its models and objects.
-    fn depth_fog(&self) -> draw::Fogging {
-        draw::Fogging::Depth(self.class.kind().fog.depth())
-    }
-
-    /// `MoveTexture`'s material offset as the draws read it.
-    fn scroll_rows(&self) -> std::collections::HashMap<u32, [u8; 2]> {
-        let file = &self.core.file;
-        let t = &self.move_tex;
-        file.ccs
-            .find_object(t.mat)
-            .and_then(|mat| Some((mat, file.scene.materials.get(&mat)?)))
-            .map(|(mat, m)| {
-                let [u, v] = t.offsets();
-                (mat, [(u.wrapping_sub(m.crop_u) >> 4) as u8, (v.wrapping_sub(m.crop_v) >> 4) as u8])
-            })
-            .into_iter()
-            .collect()
-    }
-
-    fn models_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, models: &[u32], fog: draw::Fogging) {
-        let rows = self.scroll_rows();
-        for &model in models {
-            let d = Draw {
-                file: &self.core.file,
-                model,
-                world: Mat4::IDENTITY,
-                alpha: 1.0,
-                rows: &rows,
-                lights: None,
-                nodes: &[],
-                morph: Vec::new(),
-                clut_swaps: Vec::new(),
-            };
-            draw::model_edited(layers, layer, to_screen, &d, None, fog);
-        }
-    }
-
-    /// The pieces into the field's layers; the flares and clouds come back
-    /// as sprites.
-    fn draw_pieces(&self, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) -> Vec<EffSprite> {
-        let k = self.class.kind();
-        let mut sprites = Vec::new();
-        for &piece in pieces {
-            match piece {
-                Piece::Bg(i) => {
-                    let Some((_, models)) = &self.bg[i] else { continue };
-                    let fog = if k.bg[i].1 { self.depth_fog() } else { draw::Fogging::None };
-                    self.models_draw(layers, bg_layer(i), to_screen, models, fog);
-                }
-                Piece::Model(row) => {
-                    let Some(p) = self.models.model(row) else { continue };
-                    self.models_draw(layers, k.models.layer, to_screen, &[p.model], self.depth_fog());
-                }
-                Piece::Object(row) => {
-                    // An object draws no ccEff.
-                    if let Some(r) = self.objects.request(&self.core.file, row, layer::OBJ, self.depth_fog()) {
-                        paint(layers, to_screen, &r, &mut Vec::new());
-                    }
-                }
-                Piece::Flare(i, pos) => {
-                    sprites.push(EffSprite::new(EFF_FILE, FLARES[i], pos, 0, layer::EFF, EffState::FLARE))
-                }
-                Piece::Cloud(i) => {
-                    let c = &self.clouds[i];
-                    sprites.push(EffSprite {
-                        scale: [c.eff.scale_x; 2],
-                        rotate: c.eff.rotate,
-                        transparency: c.eff.transparency,
-                        ..EffSprite::new(
-                            EFF_FILE,
-                            cloud::EFF_SMOKE,
-                            c.pos,
-                            c.pattern as u16,
-                            layer::EFF,
-                            EffState::FLARE,
-                        )
-                    });
-                }
-            }
-        }
-        sprites
-    }
-}
-
-impl Class {
-    /// The class's `EA_moveTex` row in gcmn's data.
-    fn scroll_row(self) -> usize {
-        match self {
-            Class::Mirror => crate::story_map::holy_ground::scroll::EA04,
-            Class::Arena => crate::story_map::holy_ground::scroll::EA05,
-            Class::Whale => crate::story_map::holy_ground::scroll::EA06,
-        }
-    }
-}
-
-impl StoryMap for SkyMap {
-    fn core(&self) -> &AreaCore {
-        &self.core
-    }
-    fn core_mut(&mut self) -> &mut AreaCore {
-        &mut self.core
-    }
-    fn put_scrolls(&self, gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
-        gcmn[self.class.scroll_row()] = self.move_tex.scroll();
-    }
-    fn take_scrolls(&mut self, gcmn: &[[u32; 2]; MOVE_TEX_ROWS]) {
-        self.move_tex = self.move_tex.at(gcmn, self.class.scroll_row());
-    }
-    /// `WORLD_MAN::SetCharPosition` (MUT main 0x001b61e0): the leader at
-    /// `eventStartPos`; field 66's others at (+200, -150), (-200, -150),
-    /// (0, +300) as field 16's, 67's and 91's at (+300, +150), (-300,
-    /// +150), (0, +300).
-    fn spread(&self) -> StartSpread {
-        match self.class {
-            Class::Mirror => StartSpread::AHEAD,
-            Class::Arena | Class::Whale => StartSpread::BEHIND,
-        }
-    }
-    fn clear(&self) -> [u8; 3] {
-        self.class.kind().clear
-    }
-    /// `WORLD_MAN::Enter` (MUT main 0x001b2b80): 66 to its dungeon
-    /// (`ChangeArea(2, 0)`); 67 nothing; 91 to its dungeon from block 0 or
-    /// -1. 91's other branch calls `EVENTAREA07::ChangeBlock(0)` on this
-    /// map, but no door or script gives field 91 another block (its
-    /// dungeon's way out is `ChangeArea(1, 91)`, block -1), so it stays.
-    fn enter(&mut self, block: i32, _area_prev: i32) -> Result<Enter> {
-        Ok(match (self.class, block) {
-            (Class::Mirror, _) | (Class::Whale, 0 | -1) => Enter::Dungeon,
-            _ => Enter::Stay,
-        })
-    }
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<EffSprite> {
-        if step {
-            let pieces = self.select(v);
-            return self.draw_pieces(layers, to_screen, &pieces);
-        }
-        // Drawn, not stepped: the pieces of a step put back after (the
-        // clouds a first step would make are drawn from that step's).
-        let saved =
-            (self.move_tex, self.objects.clone(), self.started, self.clouds.clone(), self.core.field_rand, self.flares);
-        let pieces = self.select(v);
-        let sprites = self.draw_pieces(layers, to_screen, &pieces);
-        (self.move_tex, self.objects, self.started, self.clouds, self.core.field_rand, self.flares) = saved;
-        sprites
-    }
-}
-
-/// `GO(1)`'s sky maps, by `eventAreaNumber`.
-pub const DEF: MapDef = MapDef {
-    class: "EVENTAREA04",
-    claims: |e| Class::of(e.field).is_some(),
-    make: |e| {
-        let c = Class::of(e.field).ok_or_else(|| piney_data::Error::NotFound(format!("sky map {}", e.field)))?;
-        Ok(Made::New(Box::new(SkyMap::new(e.archive, e.volume, c, e.def_se, e.area_prev, e.field_rand)?)))
-    },
+    doors: [Door::Dungeon, Door::Stay],
+    blocks: &[BlockDef {
+        lights: Some(SE3_5_LIGHTS),
+        fog: Some(SEA_FOG),
+        start: Start::FromDungeon(&WHALE_DOOR, &WHALE_GATE),
+        systems: &[
+            SystemDef::Models(&WHALE_MODELS),
+            SystemDef::Objects(&WHALE_OBJECTS),
+            SystemDef::Sky(&WHALE_SKY),
+            SystemDef::Scrolls(&WHALE_SCROLLS),
+            SystemDef::Clouds(&WHALE_CLOUDS),
+        ],
+        order: ORDER,
+        ..BASE_BLOCK
+    }],
+    ..BASE_STORY_MAP
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ee;
+    use crate::story_map::tests::made;
+    use crate::systems::clouds::Clouds;
+    use crate::systems::statics::{StaticModels, StaticObjects};
+    use crate::town::TownView;
+    use piney_data::volume::Volume;
 
-    /// Each class on each volume: every row of its tables in the file, its
-    /// clumps, one light, the collision of its own models only, the
-    /// scrolled material, the start, and a first draw with its clouds.
+    /// Each class on each volume: every row of its tables in the file, one
+    /// light, the collision of its own models only, the scrolled material,
+    /// the start, and a first draw with its clouds.
     #[test]
     fn the_sky_maps() {
         for (disc, volume) in [
@@ -519,28 +231,26 @@ mod tests {
             ("quarantine", Volume::Qua),
         ] {
             let Some(archive) = crate::town::tests::archive_of(disc) else { continue };
-            for (class, models, objects) in [(Class::Mirror, 11, 1), (Class::Arena, 9, 1), (Class::Whale, 3, 21)] {
-                let m = SkyMap::new(&archive, volume, class, 0, 1, Rng::new(0)).unwrap();
-                let k = class.kind();
-                assert_eq!((0..models).filter(|&r| m.models.model(r).is_some()).count(), models, "{class:?}");
-                assert_eq!((0..objects).filter(|&r| m.objects.object(r).is_some()).count(), objects, "{class:?}");
-                assert!(m.bg.iter().all(Option::is_some), "{class:?}: a sky clump missing");
-                assert_eq!(m.core.lights.lights.len(), 1, "{class:?}");
-                assert!(!m.core.hits.models.is_empty(), "{class:?}: no ground");
-                let own: Vec<u32> = m.models.iter().map(|p| p.model).collect();
-                assert!(m.core.hits.models.iter().all(|h| own.contains(&h.parent)), "{class:?}");
-                assert_eq!(m.scroll_rows().len(), 1, "{class:?}: {}", k.move_tex.mat);
-                assert_eq!(m.sun.is_some(), k.flare);
-                let mut m = m;
-                let mut layers = Layers::default();
+            for (def, models, objects) in [(&MIRROR, 11, 1), (&MIRROR_ARENA, 9, 1), (&WHALE, 3, 21)] {
+                let mut m = made(&archive, volume, def, 1, 0);
+                let s = m.systems();
+                assert_eq!(s.get::<StaticModels>().unwrap().len(), models, "{:?}", def.class);
+                assert_eq!(s.get::<StaticObjects>().unwrap().len(), objects, "{:?}", def.class);
+                assert_eq!(m.core.lights.lights.len(), 1, "{:?}", def.class);
+                assert!(!m.core.hits.models.is_empty(), "{:?}: no ground", def.class);
+                let own: Vec<u32> = s.get::<StaticModels>().unwrap().iter().map(|p| p.model).collect();
+                assert!(m.core.hits.models.iter().all(|h| own.contains(&h.parent)), "{:?}", def.class);
+                assert_eq!(m.rows().len(), 1, "{:?}", def.class);
+                let mut layers = piney_desktop::layers::Layers::default();
                 let v = TownView { player: m.core.start, ..TownView::default() };
+                let mut cc = piney_battle::rand::Genrand::default();
                 // A draw while the tasks sleep, before any step, puts the
                 // clouds back as they were (none yet).
-                m.draw(&mut layers, Mat4::IDENTITY, &v, false);
-                assert!(m.clouds.is_empty() && !m.started);
-                m.draw(&mut layers, Mat4::IDENTITY, &v, true);
-                assert_eq!(m.clouds.len(), CLOUDS);
-                assert!(!layers.flatten().is_empty(), "{class:?}: nothing drawn");
+                m.draw(&mut layers, glam::Mat4::IDENTITY, &v, false, &mut cc);
+                assert!(m.systems().get::<Clouds>().unwrap().clouds.is_empty());
+                m.draw(&mut layers, glam::Mat4::IDENTITY, &v, true, &mut cc);
+                assert_eq!(m.systems().get::<Clouds>().unwrap().clouds.len(), 25);
+                assert!(!layers.flatten().is_empty(), "{:?}: nothing drawn", def.class);
             }
         }
     }
@@ -549,11 +259,11 @@ mod tests {
     #[test]
     fn the_starts() {
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
-        let gate = SkyMap::new(&archive, Volume::Mut, Class::Mirror, 0, 0, Rng::new(0)).unwrap().core.start;
-        let back = SkyMap::new(&archive, Volume::Mut, Class::Mirror, 0, 2, Rng::new(0)).unwrap().core.start;
+        let gate = made(&archive, Volume::Mut, &MIRROR, 0, 0).core.start;
+        let back = made(&archive, Volume::Mut, &MIRROR, 2, 0).core.start;
         assert_eq!(gate, [ee::k(4600.0), ee::k(-4700.0), ee::k(910.0), 0x4049_0fdb]);
         assert_eq!(back, [ee::k(-8000.0), ee::k(5800.0), ee::k(920.0), 0]);
-        let arena = SkyMap::new(&archive, Volume::Mut, Class::Arena, 0, 2, Rng::new(0)).unwrap().core.start;
+        let arena = made(&archive, Volume::Mut, &MIRROR_ARENA, 2, 0).core.start;
         assert_eq!((arena[1], arena[2]), (ee::k(9000.0), ee::k(800.0)));
     }
 }

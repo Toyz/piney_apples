@@ -17,9 +17,9 @@ use crate::chara::pose::Play;
 use crate::draw::{OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
-use crate::systems::scrolls::{ScrollsDef, Wrap};
-use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
-use crate::systems::statics::{ModelsDef, Names};
+use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
+use crate::systems::sky::{SkyClump, SkyDef};
+use crate::systems::statics::ModelsDef;
 use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
 use crate::systems::{
     BuildCx, DRAW_BG, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, Request, Step, StepCx, SystemDef,
@@ -71,20 +71,19 @@ const FLOOR_ROWS: (usize, usize) = (0, 8);
 
 /// In crisis (`town03d`) the clumps over them, on `bgLayer[4]`-`[6]`:
 /// `MAT_sr3dat1_2` by the second scroll in U, `_3` in U and V.
-const CRISIS_MATS: [MatScroll; 2] =
-    [MatScroll::new("MAT_sr3dat1_2", 1, Axes::U), MatScroll::new("MAT_sr3dat1_3", 1, Axes::UV)];
+const CRISIS_MATS: [MatScroll; 2] = [MatScroll::u("MAT_sr3dat1_2", 1), MatScroll::uv("MAT_sr3dat1_3", 1)];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE03", layer: OBJ2_LAYER, names: Names::Table };
-static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN03_BG };
+static MODELS: ModelsDef = ModelsDef::on("RT_MODELTABLE03", OBJ2_LAYER);
+static SCROLLS: ScrollsDef = ScrollsDef::statics(&BG_STEP, statics::TOWN03_BG, &CRISIS_MATS);
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[
         SkyClump::on(BACK[0].0, BACK[0].1),
         SkyClump::on(BACK[1].0, BACK[1].1),
         SkyClump::on(BACK[2].0, BACK[2].1),
         SkyClump::on(BACK[3].0, BACK[3].1),
-        SkyClump::crisis("CMP_sr3dat1_1", -60, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr3dat1_2", -50, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr3dat1_3", -45, &CRISIS_MATS),
+        SkyClump::crisis("CMP_sr3dat1_1", -60),
+        SkyClump::crisis("CMP_sr3dat1_2", -50),
+        SkyClump::crisis("CMP_sr3dat1_3", -45),
     ],
 };
 /// The town's own water at the origin: only 0 drawn (+0x1bc..+0x1c4 made),

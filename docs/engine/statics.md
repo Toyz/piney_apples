@@ -84,8 +84,11 @@ only then. `piney_data::statics` places both (`ModelTable::place`,
 towns and story maps: a model the file lacks is an error (the game's
 `GetChunkAdrsF(name, 0)` stores to address 0), a row naming no animation
 gets no object (no class builds one), and each def states its rules
-(`ModelsDef::names`, `EVENTAREAB0`'s stage names; `ObjectsDef::anm_num`, a
-class's `anmNum`). It builds each root as the game
+(`ObjectsDef::anm_num`, a class's `anmNum`; the layer of each pass's rows;
+whether they take the area's fog; `ModelsDef::without_fog`, the rows
+`DrawObj2` draws by `DrawWithOutFog`; `ride`, the rows `EVENTAREA07`'s
+`ChangeBlock` puts at the bob). `EVENTAREAB0`'s `se1_5` names are read as
+its stage's (`StoryMapDef::stage`). It builds each root as the game
 stores it (`sceVu0RotMatrix` of the dummy's radians, `pi * deg / 180` as
 `Decode_DummyPosRot` converts them, then the position), matching the
 game's matrices bit for bit. Mac Anu's six flags are

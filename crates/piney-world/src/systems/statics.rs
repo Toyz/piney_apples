@@ -2,7 +2,8 @@
 //! at its dummy, and `STATICOBJECT`s, the rows of its object table whose
 //! animation steps while the eye is within its clip (docs/engine/statics.md).
 
-use std::collections::HashMap;
+use std::borrow::Cow;
+use std::rc::Rc;
 
 use glam::Mat4;
 use piney_data::statics::{self, DrawPass, ObjTable};
@@ -10,32 +11,60 @@ use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
-use super::{BuildCx, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
+use super::bob::Bob;
+use super::{BuildCx, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, PlaceCx, Request, StepCx};
 use crate::chara::pose::Play;
-use crate::draw::{self, OBJ_LAYER};
-use crate::ee::{self, F, V4};
+use crate::draw;
+use crate::ee::{self, F, ONE, V4};
+use crate::hit::UNIT;
 use crate::town::{dummy_bits, pos_rot_zyx};
+
+/// The layer each draw pass's rows go on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PassLayers {
+    pub other: i16,
+    pub floor: i16,
+    pub obj: i16,
+    pub obj2: i16,
+}
+
+impl PassLayers {
+    /// Every pass on `layer`.
+    pub const fn all(layer: i16) -> PassLayers {
+        PassLayers { other: layer, floor: layer, obj: layer, obj2: layer }
+    }
+
+    pub fn of(&self, pass: DrawPass) -> i16 {
+        match pass {
+            DrawPass::Other => self.other,
+            DrawPass::Floor => self.floor,
+            DrawPass::Obj => self.obj,
+            DrawPass::Obj2 => self.obj2,
+        }
+    }
+}
 
 /// A model table as a class's constructor builds it: one `STATICMODEL` a
 /// row, its model `GetChunkAdrsF(name, 0)` (no such chunk stores to
 /// address 0: a model the file lacks stops the game, an error here) at its
-/// row's dummy (postype 1 or 2; the origin for postype 0).
+/// row's dummy (postype 1 or 2; the origin for postype 0); the layer of
+/// each pass's rows, whether they take the area's fog, the rows `DrawObj2`
+/// draws with `DrawWithOutFog`, and those `ChangeBlock` puts at the bob.
 #[derive(Clone, Copy, Debug)]
 pub struct ModelsDef {
     /// `RT_MODELTABLE00`, `EA_MODELTABLE02` ..: its symbol.
     pub table: &'static str,
-    pub layer: i16,
-    pub names: Names,
+    pub layers: PassLayers,
+    pub fog: Fog,
+    pub without_fog: &'static [usize],
+    pub ride: &'static [usize],
 }
 
-/// What a row's model name names in the class's file.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Names {
-    /// The name as the table writes it.
-    Table,
-    /// The table's names are `from`'s scene's; the class reads them as its
-    /// own file's (`EVENTAREAB0`'s stages: `se1_5`'s names in each).
-    OfFile { from: &'static str },
+impl ModelsDef {
+    /// `table` on `layer`, with the area's fog.
+    pub const fn on(table: &'static str, layer: i16) -> ModelsDef {
+        ModelsDef { table, layers: PassLayers::all(layer), fog: Fog::Area, without_fog: &[], ride: &[] }
+    }
 }
 
 /// A `STATICMODEL` (0x40 bytes): `type` +0x00, its model +0x04, the
@@ -51,34 +80,35 @@ pub struct Model {
     pub clip: F,
 }
 
-/// The `STATICMODEL`s of a table, by row.
-#[derive(Clone, Debug)]
+/// The `STATICMODEL`s of a table, by row, over their file.
+#[derive(Clone)]
 pub struct StaticModels {
     def: &'static ModelsDef,
+    file: Rc<SceneFile>,
     models: Vec<Model>,
 }
 
 impl StaticModels {
+    /// `def`'s rows built over the file, from the tables' table (each name
+    /// as the file has it).
     pub fn new(def: &'static ModelsDef, cx: &mut BuildCx) -> Result<StaticModels> {
-        StaticModels::read(def, cx.file, cx.tables)
-    }
-
-    /// `def`'s rows built over `file`, from `tables`' table.
-    pub fn read(def: &'static ModelsDef, file: &SceneFile, tables: Volume) -> Result<StaticModels> {
-        let table = statics::of(tables).0.iter().find(|t| t.name == def.table);
+        let file = cx.file;
+        let table = statics::of(cx.tables).0.iter().find(|t| t.name == def.table);
         let table = table.ok_or_else(|| Error::NotFound(def.table.into()))?;
         let (c, sc) = (&file.ccs, &file.scene);
         let model = |(row, r): (usize, &statics::StaticModel)| {
-            let name = match def.names {
-                Names::Table => r.model.to_string(),
-                Names::OfFile { from } => r.model.replacen(from, &file.stem, 1),
-            };
+            let name = cx.name(r.model);
             let model = c.find_object(&name).ok_or_else(|| Error::NotFound(format!("{}: {name}", file.stem)))?;
             let pos = dummy_bits(&r.position, c, sc).0;
             Ok(Model { row, pass: r.pass, model, pos, clip: r.clip.to_bits() })
         };
         let models = table.rows.iter().enumerate().map(model).collect::<Result<_>>()?;
-        Ok(StaticModels { def, models })
+        Ok(StaticModels { def, file: file.clone(), models })
+    }
+
+    /// The file its names are in.
+    pub fn file(&self) -> &SceneFile {
+        &self.file
     }
 
     /// A row's model.
@@ -88,11 +118,6 @@ impl StaticModels {
 
     pub fn model_mut(&mut self, row: usize) -> Option<&mut Model> {
         self.models.get_mut(row)
-    }
-
-    /// The class's models deleted (`EVENTAREAB0::NextStage`).
-    pub fn clear(&mut self) {
-        self.models.clear();
     }
 
     /// Every row, in order.
@@ -113,18 +138,22 @@ impl StaticModels {
         self.models.iter().filter(move |m| m.pass == pass).map(|m| m.row)
     }
 
-    /// A row as `STATICMODEL::Draw` draws it on `layer`, with `fog`: a
-    /// unit matrix moved to the dummy, its turn left out.
-    pub fn request<'a>(
-        &'a self,
-        file: &'a SceneFile,
-        row: usize,
-        layer: i16,
-        fog: draw::Fogging,
-    ) -> Option<Request<'a>> {
+    /// A row as `STATICMODEL::Draw` draws it on `layer`, with `fog`, its
+    /// materials offset by `cx`'s scrolls: a unit matrix moved to the
+    /// dummy, its turn left out.
+    pub fn request<'a>(&'a self, row: usize, layer: i16, fog: draw::Fogging, cx: &DrawCx) -> Option<Request<'a>> {
         let m = self.models.get(row)?;
         let world = Mat4::from_translation(glam::Vec3::new(ee::f(m.pos[0]), ee::f(m.pos[1]), ee::f(m.pos[2])));
-        Some(Request::Models { file, models: std::slice::from_ref(&m.model), world, layer, rows: HashMap::new(), fog })
+        let models = Cow::Borrowed(std::slice::from_ref(&m.model));
+        Some(Request::Models { file: &self.file, models, world, layer, rows: cx.rows.clone(), fog, alpha: 1.0 })
+    }
+
+    /// The fog a row takes: the def's, or none.
+    fn fog(&self, fog: Fog, cx: &DrawCx) -> draw::Fogging {
+        match (self.def.fog, fog) {
+            (Fog::Area, Fog::Area) => cx.fog,
+            _ => draw::Fogging::None,
+        }
     }
 }
 
@@ -143,38 +172,91 @@ impl std::ops::IndexMut<usize> for StaticModels {
 }
 
 impl MapSystem for StaticModels {
+    /// A pass's rows (those `DrawWithOutFog` draws only within their clip
+    /// of the player, `w2p` over the story maps' bounds, without fog), rows
+    /// by number, a pass's rows below one, or every row as it stands.
     fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
         let piece = |row: usize, fog: Fog| match fog {
             Fog::Area => Piece::Model(row),
             Fog::None => Piece::ModelNoFog(row),
         };
         match hook {
-            Hook::Pass(pass) => self.rows(pass).for_each(|row| cx.put(Kind::Models, Piece::Model(row))),
+            Hook::Pass(pass) => {
+                for m in self.models.iter().filter(|m| m.pass == pass) {
+                    if pass != DrawPass::Obj2 || !self.def.without_fog.contains(&m.row) {
+                        cx.put(Kind::Models, Piece::Model(m.row));
+                        continue;
+                    }
+                    let d = crate::field::area::w2p(m.pos, cx.view.player, crate::story_map::BOUNDS);
+                    let d = ee::ground_dist(cx.core.hits.volume, d[0], d[1]);
+                    if ee::lt(d, m.clip) || ee::eq(0, m.clip) {
+                        cx.put(Kind::Models, Piece::ModelNoFog(m.row));
+                    }
+                }
+            }
             Hook::Rows(from, to, fog) => (from..to).for_each(|row| cx.put(Kind::Models, piece(row, fog))),
             Hook::PassBelow(pass, below, fog) => {
                 self.rows(pass).filter(|&row| row < below).for_each(|row| cx.put(Kind::Models, piece(row, fog)))
+            }
+            Hook::Still(layer) => {
+                (0..self.models.len()).for_each(|row| cx.put(Kind::Models, Piece::ModelOn(row, layer)))
             }
             _ => {}
         }
     }
 
     fn draw<'a>(&'a self, piece: Piece, cx: &DrawCx<'a>) -> Option<Request<'a>> {
+        let layer = |row: usize| self.models.get(row).map(|m| self.def.layers.of(m.pass));
         match piece {
-            Piece::Model(row) => self.request(&cx.core.file, row, self.def.layer, cx.fog),
-            Piece::ModelNoFog(row) => self.request(&cx.core.file, row, self.def.layer, draw::Fogging::None),
+            Piece::Model(row) => self.request(row, layer(row)?, self.fog(Fog::Area, cx), cx),
+            Piece::ModelNoFog(row) => self.request(row, layer(row)?, draw::Fogging::None, cx),
+            Piece::ModelOn(row, layer) => self.request(row, layer, self.fog(Fog::Area, cx), cx),
             _ => None,
+        }
+    }
+
+    /// `STATICMODEL` enables its model's Hit chunk, in the order the rows
+    /// were built; `ChangeBlock` puts the riders at the bob
+    /// (`STATICMODEL::SetPos`: the hit's matrix the translation, and its
+    /// inverse).
+    fn place(&mut self, cx: &mut PlaceCx, others: &mut Others) {
+        let bob = others.get::<Bob>().map(Bob::z);
+        for (m, &row) in self.def.ride.iter().filter_map(|r| Some((bob?, r))) {
+            if let Some(x) = self.models.get_mut(row) {
+                x.pos = [0, 0, m, 0];
+            }
+        }
+        for m in &self.models {
+            let Some(mut h) = cx.hit_models.iter().find(|h| h.parent == m.model).cloned() else { continue };
+            if self.def.ride.contains(&m.row) && m.pos[..3] != [0; 3] {
+                h.rm = UNIT;
+                h.rm[3] = [m.pos[0], m.pos[1], m.pos[2], ONE];
+                h.im = UNIT;
+                h.im[3] = [m.pos[0] ^ 0x8000_0000, m.pos[1] ^ 0x8000_0000, m.pos[2] ^ 0x8000_0000, ONE];
+            }
+            cx.core.hits.models.push(h);
         }
     }
 }
 
 /// An object table as a class's constructor builds it: a `STATICOBJECT`
 /// for each of its first `anm_num` rows (the class's `anmNum`; None, every
-/// row), with a `ccAnm` where the row names one, at its dummy.
+/// row), with a `ccAnm` where the row names one, at its dummy; the layer of
+/// each pass's objects, and those `ChangeBlock` puts at the bob.
 #[derive(Clone, Copy, Debug)]
 pub struct ObjectsDef {
     /// `RT_OBJTABLE00`, `EA_OBJTABLE02` ..: its symbol.
     pub table: &'static str,
     pub anm_num: Option<usize>,
+    pub layers: PassLayers,
+    pub ride: &'static [usize],
+}
+
+impl ObjectsDef {
+    /// Every row of `table`, on `layer`.
+    pub const fn on(table: &'static str, layer: i16) -> ObjectsDef {
+        ObjectsDef { table, anm_num: None, layers: PassLayers::all(layer), ride: &[] }
+    }
 }
 
 /// One `STATICOBJECT` of an animation: its `ccAnm`, the root
@@ -193,21 +275,20 @@ pub struct Object {
     pub clip: F,
 }
 
-/// The `STATICOBJECT`s of a table: those whose row names an animation (by
-/// default none, for a class that builds none).
-#[derive(Clone, Debug, Default)]
+/// The `STATICOBJECT`s of a table over their file: those whose row names
+/// an animation.
+#[derive(Clone)]
 pub struct StaticObjects {
+    def: &'static ObjectsDef,
+    file: Rc<SceneFile>,
     objects: Vec<Object>,
 }
 
 impl StaticObjects {
+    /// `def`'s objects in the file, from the tables' table.
     pub fn new(def: &'static ObjectsDef, cx: &mut BuildCx) -> Result<StaticObjects> {
-        StaticObjects::read(def, cx.file, cx.tables)
-    }
-
-    /// `def`'s objects in `file`, from `tables`' table.
-    pub fn read(def: &ObjectsDef, file: &SceneFile, tables: Volume) -> Result<StaticObjects> {
-        let table: Option<&ObjTable> = statics::of(tables).1.iter().find(|t| t.name == def.table);
+        let file = cx.file;
+        let table: Option<&ObjTable> = statics::of(cx.tables).1.iter().find(|t| t.name == def.table);
         let table = table.ok_or_else(|| Error::NotFound(def.table.into()))?;
         let (c, sc) = (&file.ccs, &file.scene);
         let mut objects = Vec::new();
@@ -219,7 +300,7 @@ impl StaticObjects {
             let root = pos_rot_zyx(pos, rot);
             objects.push(Object { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() });
         }
-        Ok(StaticObjects { objects })
+        Ok(StaticObjects { def, file: file.clone(), objects })
     }
 
     /// Every object, in row order.
@@ -256,13 +337,13 @@ impl StaticObjects {
     /// `pass`: within its clip of the eye (`sceVu0SubVector`, x x + y y,
     /// `sqrt` in double; `sqrt.s` from Outbreak on) or with a clip of 0, the
     /// animation steps. The rows of those to be drawn, in order.
-    pub fn step_pass(&mut self, pass: DrawPass, eye: V4, volume: Volume, file: &SceneFile) -> Vec<usize> {
+    pub fn step_pass(&mut self, pass: DrawPass, eye: V4, volume: Volume) -> Vec<usize> {
         let mut out = Vec::new();
         for o in self.objects.iter_mut().filter(|o| o.pass == pass) {
             let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             let d = ee::ground_dist(volume, dx, dy);
             if ee::lt(d, o.clip) || ee::eq(o.clip, 0) {
-                o.play.forward(file);
+                o.play.forward(&self.file);
                 out.push(o.row);
             }
         }
@@ -270,16 +351,10 @@ impl StaticObjects {
     }
 
     /// An object as drawn on `layer` with `fog`.
-    pub fn request<'a>(
-        &'a self,
-        file: &'a SceneFile,
-        row: usize,
-        layer: i16,
-        fog: draw::Fogging,
-    ) -> Option<Request<'a>> {
+    pub fn request(&self, row: usize, layer: i16, fog: draw::Fogging) -> Option<Request<'_>> {
         let o = self.objects.iter().find(|o| o.row == row)?;
         let root = draw::mat(&o.root);
-        Some(Request::Anim { file, play: &o.play, root, layer, rows: None, fog, edit: None })
+        Some(Request::Anim { file: &self.file, play: &o.play, root, layer, rows: None, fog, edit: None })
     }
 }
 
@@ -299,18 +374,38 @@ impl std::ops::IndexMut<usize> for StaticObjects {
 
 impl MapSystem for StaticObjects {
     fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
-        if let Hook::Pass(pass) = hook {
-            let (eye, volume) = (cx.view.eye, cx.core.hits.volume);
-            for row in self.step_pass(pass, eye, volume, &cx.core.file) {
-                cx.put(Kind::Objects, Piece::Object(row));
+        match hook {
+            Hook::Pass(pass) => {
+                for row in self.step_pass(pass, cx.view.eye, cx.core.hits.volume) {
+                    cx.put(Kind::Objects, Piece::Object(row));
+                }
             }
+            Hook::Still(layer) => {
+                self.objects.iter().for_each(|o| cx.put(Kind::Objects, Piece::ObjectOn(o.row, layer)));
+            }
+            _ => {}
         }
     }
 
     fn draw<'a>(&'a self, piece: Piece, cx: &DrawCx<'a>) -> Option<Request<'a>> {
         match piece {
-            Piece::Object(row) => self.request(&cx.core.file, row, OBJ_LAYER, cx.fog),
+            Piece::Object(row) => {
+                let pass = self.objects.iter().find(|o| o.row == row)?.pass;
+                self.request(row, self.def.layers.of(pass), cx.fog)
+            }
+            Piece::ObjectOn(row, layer) => self.request(row, layer, cx.fog),
             _ => None,
+        }
+    }
+
+    /// `ChangeBlock` puts the riders at the bob: their place and root.
+    fn place(&mut self, _: &mut PlaceCx, others: &mut Others) {
+        let Some(z) = others.get::<Bob>().map(Bob::z) else { return };
+        for &k in self.def.ride {
+            if let Some(o) = self.objects.get_mut(k) {
+                o.pos = [0, 0, z, 0];
+                o.root = pos_rot_zyx(o.pos, [0; 3]);
+            }
         }
     }
 }

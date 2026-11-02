@@ -13,11 +13,11 @@ use piney_data::statics::DrawPass;
 use crate::draw::OBJ_LAYER;
 use crate::ee::{F, ONE, V4};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
-use crate::systems::clouds::CloudsDef;
-use crate::systems::flare::FlareDef;
-use crate::systems::scrolls::{ScrollsDef, Wrap};
-use crate::systems::sky::{At, Axes, MatScroll, SkyClump, SkyDef, SkyLayer};
-use crate::systems::statics::{ModelsDef, Names, ObjectsDef};
+use crate::systems::clouds::{CloudsDef, Made};
+use crate::systems::flare::{FlareDef, FlareDraw};
+use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
+use crate::systems::sky::{At, SkyClump, SkyDef, SkyLayer};
+use crate::systems::statics::{ModelsDef, ObjectsDef};
 use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
 use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
 use crate::town::scroll_statics as statics;
@@ -66,27 +66,28 @@ pub const CLOUDS: usize = 25;
 const BG0: i16 = -100;
 const BG1: i16 = -90;
 
-/// The cloud layers' V: `vftoi12` of the first two scrolls, one each.
-const CLOUD_MATS: [MatScroll; 2] =
-    [MatScroll::new("MAT_sr2clo_1", 0, Axes::V), MatScroll::new("MAT_sr2clo_2", 1, Axes::V)];
-/// In crisis (`town02d`) the clumps over the sky, on `WORLD_MAN`'s
-/// `bgLayer[2]`-`[4]`: `MAT_sr2dat1_2` by the third scroll in U, `_3` in U
-/// and V.
-const CRISIS_MATS: [MatScroll; 2] =
-    [MatScroll::new("MAT_sr2dat1_2", 2, Axes::U), MatScroll::new("MAT_sr2dat1_3", 2, Axes::UV)];
+/// The materials `DrawBG` offsets: the cloud layers' V by the first two
+/// scrolls, one each; in crisis (`town02d`) the clumps over the sky, on
+/// `bgLayer[2]`-`[4]`, `MAT_sr2dat1_2` by the third in U, `_3` in U and V.
+const MATS: [MatScroll; 4] = [
+    MatScroll::v("MAT_sr2clo_1", 0),
+    MatScroll::v("MAT_sr2clo_2", 1),
+    MatScroll::u("MAT_sr2dat1_2", 2),
+    MatScroll::uv("MAT_sr2dat1_3", 2),
+];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE02", layer: OBJ_LAYER, names: Names::Table };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE02", anm_num: None };
-static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN02_BG };
+static MODELS: ModelsDef = ModelsDef::on("RT_MODELTABLE02", OBJ_LAYER);
+static OBJECTS: ObjectsDef = ObjectsDef::on("RT_OBJTABLE02", OBJ_LAYER);
+static SCROLLS: ScrollsDef = ScrollsDef::statics(&BG_STEP, statics::TOWN02_BG, &MATS);
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[
         SkyClump::on(SKY, BG0),
-        SkyClump { name: SUN, layer: SkyLayer::On(BG1), at: At::Dummy(SUN_POINT), mats: &[], crisis: false },
-        SkyClump { name: CLOUD_SKY[0], layer: SkyLayer::CloudSky, at: At::Origin, mats: &CLOUD_MATS, crisis: false },
-        SkyClump { name: CLOUD_SKY[1], layer: SkyLayer::CloudSky, at: At::Origin, mats: &CLOUD_MATS, crisis: false },
-        SkyClump::crisis("CMP_sr2dat1_1", -80, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr2dat1_2", -70, &CRISIS_MATS),
-        SkyClump::crisis("CMP_sr2dat1_3", -60, &CRISIS_MATS),
+        SkyClump { name: SUN, layer: SkyLayer::On(BG1), at: At::Dummy(SUN_POINT), crisis: false, fog: false },
+        SkyClump { name: CLOUD_SKY[0], layer: SkyLayer::CloudSky, at: At::Origin, crisis: false, fog: false },
+        SkyClump { name: CLOUD_SKY[1], layer: SkyLayer::CloudSky, at: At::Origin, crisis: false, fog: false },
+        SkyClump::crisis("CMP_sr2dat1_1", -80),
+        SkyClump::crisis("CMP_sr2dat1_2", -70),
+        SkyClump::crisis("CMP_sr2dat1_3", -60),
     ],
 };
 /// The town's own water at (0, 4200, 0): 2 and 1 on effLayer, 0 on
@@ -103,8 +104,8 @@ static WATER_DEF: WaterDef = WaterDef {
     layer: crate::draw::EFF_LAYER,
     copy: true,
 };
-static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0 };
-static FLARE: FlareDef = FlareDef { sun: SUN_POINT };
+static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0, made: Made::FirstDraw };
+static FLARE: FlareDef = FlareDef { sun: SUN_POINT, draw: FlareDraw::LensFlare };
 
 /// `ROOTTOWN02::DrawMap` (gcmn 0x00425760): Infection's arrow in screen
 /// pixels on the font layer; from Mutation on its own layers and the flag

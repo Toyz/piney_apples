@@ -508,7 +508,7 @@ The numbers the instructions take all have their tables:
   - a dungeon: `dungeon[game.dungeon]` +0xd3884, its `DungeonName` file;
   - a plain field: none. The case stores to address 0 (0x001b1b78), the
     game's crash, which the port's VM records as a fault.
-  The port answers all of them (`FieldWorld::marker`, every `StoryMap::file`).
+  The port answers all of them (`FieldWorld::marker`, `StoryArea::file`).
   Every script's `marker_pos` (events 115, 206, 216, 218 on each volume)
   is in a block under an earlier block's `in_field` town 2 field 13,
   `EVENTAREA01`.

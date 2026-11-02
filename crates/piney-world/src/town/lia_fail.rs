@@ -16,7 +16,7 @@ use crate::sky::cloud;
 use crate::sprite::{EffSprite, EffState};
 use crate::systems::scrolls::ScrollsDef;
 use crate::systems::sky::{SkyClump, SkyDef};
-use crate::systems::statics::{ModelsDef, Names};
+use crate::systems::statics::ModelsDef;
 use crate::systems::{
     BuildCx, DRAW_BG, DrawCx, Hook, Kind, MapSystem, Others, PASSES, Piece, Request, Step, StepCx, SystemDef,
 };
@@ -65,8 +65,8 @@ pub const BG_COLOR: [u8; 3] = [0x80, 0xc0, 0xf0];
 /// nothing): 0.01, 0.02 and 0.001.
 pub const BG_STEP: [F; 3] = [0x3c23_d70a, 0x3ca3_d70a, 0x3a83_126f];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE05", layer: OBJ_LAYER, names: Names::Table };
-static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN05_BG };
+static MODELS: ModelsDef = ModelsDef::on("RT_MODELTABLE05", OBJ_LAYER);
+static SCROLLS: ScrollsDef = ScrollsDef::statics(&BG_STEP, statics::TOWN05_BG, &[]);
 static SKY_CLUMPS: SkyDef = SkyDef { clumps: &[SkyClump::on(SKY, -100)] };
 
 /// `ROOTTOWN05::DrawMap`: its own layers (2.0 a step, OUT gcmn 0x0043c7ec),

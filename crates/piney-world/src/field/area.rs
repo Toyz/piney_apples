@@ -1020,8 +1020,7 @@ impl FieldArea {
         };
         let tobj = &*tobj;
         let runners = |m: &[V4; 4]| runner_places(tobj.as_ref(), m);
-        let frame =
-            Frame { env, flare_cam: crate::story_map::holy_ground::FlareCamera::of(cam), sun: *sun, runners: &runners };
+        let frame = Frame { env, flare_cam: crate::sky::lensflare::FlareCamera::of(cam), sun: *sun, runners: &runners };
         let ops = ambient.draw(&frame, statics, cloth, rng, cc);
         self.last_ops = ops.clone();
         (ops, true)

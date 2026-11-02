@@ -2,13 +2,32 @@
 //! `town_z` strung on the line from a map's sun toward a point 2500 before
 //! the eye, at the fractions `@973` (0.2 .. 0.8) of the way ([`points`]).
 //! Dun Loireag, `ROOTTOWN04`, `EVENTAREA04`, `05`, `07` and the fields make
-//! one; area 15's `EVENTAREA02` has its own copy ([`crate::story_map::holy_ground`]). Drawn
+//! one; area 15's `EVENTAREA02` has its own copy ([`crate::systems::flare::FlareDraw::Own`]). Drawn
 //! only when the sun is within 67.5 degrees of the camera's view (mode 0,
 //! the towns) and no puppet show runs; mode 1 (the fields) takes the sun
 //! through `P2W` (docs/engine/town02.md, "LENSFLARE").
 
 use crate::ee::{self, F, V4};
-use crate::story_map::holy_ground::FlareCamera;
+
+/// What the camera gives `DrawLensFlare`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FlareCamera {
+    /// `cameraGetPos(camID)` and `cameraGetView(camID)`.
+    pub eye: V4,
+    pub view: V4,
+    /// `cameraGetRot(1)`, or with the eye view (`checkCameraType()` 1)
+    /// `cameraGetRot2(1)`: `tcam`'s +0x20 or +0x40, all four lanes.
+    pub rot: V4,
+}
+
+impl FlareCamera {
+    /// The field camera's as `DrawLensFlare` reads them.
+    pub fn of(c: &crate::camera::Camera) -> FlareCamera {
+        let a = c.active();
+        let rot = if a.kind == crate::camera::kind::EYE { c.tcam.rot3 } else { c.tcam.rot };
+        FlareCamera { eye: a.pos, view: a.view, rot }
+    }
+}
 
 /// The six `ccEff`s (+0x00 .. +0x14) in the order the constructor makes
 /// them, of `town_z`.

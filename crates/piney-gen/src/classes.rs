@@ -527,14 +527,19 @@ pub fn render() -> Result<String, String> {
 
 /// The families generated so far: an enum each, of the classes whose
 /// ancestry in the DWARF reaches the root (the root among them). The
-/// story maps' and characters' follow as their defs land.
-const FAMILIES: [(&str, &str, &str); 2] = [
+/// characters' follow as their defs land.
+const FAMILIES: [(&str, &str, &str); 3] = [
     (
         "BossGameClass",
         "ccBoss",
         "A boss's class: `ccBoss` and every class derived from it (the bosses, Kyvia's, the parts and slaves).",
     ),
     ("TownGameClass", "ROOTTOWN", "A Root Town's class: `ROOTTOWN` and the six towns derived from it."),
+    (
+        "StoryMapGameClass",
+        "EVENTAREA",
+        "A story map's class: `EVENTAREA` and the classes `WORLD_MAN::GO(1)` makes from it.",
+    ),
 ];
 
 /// `name`'s ancestry reaches `root`.

@@ -10,7 +10,7 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
 use super::scrolls::Wrap;
-use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, Statics, StepCx};
+use super::{BuildCx, Carried, CarriedMut, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::chara::pose::Play;
 use crate::draw::{self, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
@@ -142,11 +142,11 @@ impl MapSystem for Water {
         })
     }
 
-    fn take(&mut self, s: &Statics) {
-        self.u = s[self.def.slot];
+    fn take(&mut self, c: &Carried) {
+        self.u = c.statics[self.def.slot];
     }
 
-    fn put(&self, s: &mut Statics) {
-        s[self.def.slot] = self.u;
+    fn put(&self, c: &mut CarriedMut) {
+        c.statics[self.def.slot] = self.u;
     }
 }

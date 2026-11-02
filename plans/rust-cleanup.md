@@ -165,7 +165,7 @@ shape for everything that comes in kinds:
 | town | NPCs, merchants, gate, minimap, party, statics | `TownDef` |
 | field | ambient (rain, thunder, steam), fireflies, lake, portals, NPCs | `FieldDef` (by field type) |
 | dungeon | dress, lake, leaves, portals, gimmicks | `DungeonDef` (by dungeon type) |
-| story map | whatever each has | `MapDef` |
+| story map | statics, sky, scrolls, clouds, lens flare, each class's own | `StoryMapDef` (blocks: `BlockDef`) |
 | boss | base Main blocks, parts, `Fx`, wave, cameras | `BossDef` (started, worklog 529) |
 | NPC | row, char, entry, acts, hit, fade, motion | `NpcDef` per game class |
 | menu | cursor, list, message check, info, tail | `MenuDef` |
@@ -258,11 +258,23 @@ Where the code does by hand, per kind, what a system should do once:
       def; `TownMap` branches on no town. Worklog 564: one sprite request.
       Worklog 565: the story maps' statics (holy ground, giant, abyss,
       boss arena, disc) are `systems::statics`, one loader, each class's
-      rules in its `ModelsDef` / `ObjectsDef`; the maps hold the system
-      objects until they are defs with `Systems` of their own. Left: the
-      story maps' and fields' clouds, flares and scrolls as these systems,
-      the story maps as defs, fireflies, lights, the fields' ambient, the
-      dungeons'.)
+      rules in its `ModelsDef` / `ObjectsDef`. Worklog 566: the story maps
+      are defs: a generated `StoryMapGameClass`, `BASE_STORY_MAP`, a
+      `static` def a map (a field for the arenas and the disc), `BlockDef`s
+      for what `ChangeBlock` makes, one `StoryArea` holding any;
+      `select` and `Piece` are each block's `Step`s; the clouds (`Made`:
+      built about the origin, or by the first `Draw` about the player),
+      the lens flare (`FlareDraw`: `LENSFLARE`'s or `EVENTAREA02`'s own) and
+      the scrolls (`ScrollsDef`: lanes, `Wrap`, `Shown`, `Carry`, the
+      materials every model of the file draws with) on the systems; the
+      `FIREFLY2`s (`Firefly2`), `revAnm` (`Anim`), the giant's `Bob` and
+      each class's own (`Flicker`, `FlyOver`, `Panels`, `Reflection`,
+      `Bobbing`, `LastStage`, `Disc`, `Rocks`, `Bodies`) systems; the
+      battle's calls `Signal`s, what it reads a `Report`. Left: the
+      fields' clouds, flare (`field_flare`'s wrap around the torus) and
+      `DrawBG` scroll wrap as `FlareDraw` / `ScrollsDef` variants with
+      `FieldDef`, the fields' fireflies (`FIREFLY`), lights, the fields'
+      ambient, the dungeons'.)
 - [ ] **Scene transitions.** The session's `change`, `leave`, `enter_world`
       and the modes' `change_area` / `scene_change` / `leave` repeat the
       same request handling (worklog 503 had the console's `town` skip it);

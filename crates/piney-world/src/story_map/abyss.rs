@@ -3,41 +3,27 @@
 //! `GO(1)` makes for field 43. The scene `se2_1`: two models, one distant
 //! light, a fixed start. Unless area 43 is marked on the server (event 102's
 //! `gate_mark`), `Draw` flies the camera over it, Kite speaks to himself and
-//! the party goes back to town ([`Area43::fly_over`]). docs/engine/evarea.md.
+//! the party goes back to town ([`FlyOver`]). docs/engine/evarea.md.
 
-use std::rc::Rc;
-use std::sync::Arc;
-
-use glam::Mat4;
-use piney_data::archive::Archive;
-use piney_data::save::SaveData;
+use piney_data::Result;
+use piney_data::classes::StoryMapGameClass;
 use piney_data::statics::DrawPass;
-use piney_data::volume::Volume;
-use piney_data::{Error, Result};
-use piney_desktop::assets::SceneFile;
-use piney_desktop::layers::Layers;
 
-use crate::area::AreaCore;
 use crate::camera::{Camera, id};
-use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::HitModel;
-use crate::sprite::EffSprite;
-use crate::story_map::holy_ground::layer;
-use crate::story_map::{Made, MapDef};
-use crate::story_map::{StoryFrame, StoryMap, StoryRequest};
-use crate::story_map::{event_hits, model_hits};
-use crate::systems::statics::{Model, ModelsDef, Names, StaticModels};
-use crate::town::{FogParams, Light, TownLights, TownView};
+use crate::story_map::{BASE_BLOCK, BASE_STORY_MAP, BlockDef, LightsDef, Start, StoryMapDef, layer};
+use crate::story_map::{StoryFrame, StoryRequest};
+use crate::systems::statics::ModelsDef;
+use crate::systems::{BuildCx, Fog, Hook, Kind, MapSystem, Step, SystemDef};
+use crate::town::FogParams;
 
 /// `game.field` of this map.
 pub const AREA: i32 = 43;
 const FILE: &str = "se2_1";
-/// `modelArray`: `EA_MODELTABLE03`'s two rows.
-static MODELS: ModelsDef = ModelsDef { table: "EA_MODELTABLE03", layer: layer::OBJ, names: Names::Table };
+/// `modelArray`: `EA_MODELTABLE03`'s two rows, on objLayer, no fog.
+static MODELS: ModelsDef = ModelsDef { fog: Fog::None, ..ModelsDef::on("EA_MODELTABLE03", layer::OBJ) };
 /// `ANM_se2_1_1a`, and `eventarea03Light`'s one row: a distant light.
-const ANIM: &str = "ANM_se2_1_1a";
-const LIGHT: &str = "LGT_se2_1lig1";
+const LIGHTS: LightsDef = LightsDef { anim: "ANM_se2_1_1a", table: &["LGT_se2_1lig1"], skip_missing: false };
 
 /// `SetFog(150, 4000, 0, 80, 0x1e1e1e)`, and `ccSys.bgColor` 0x1e1e1e.
 pub const FOG: FogParams = FogParams { near: 150.0, far: 4000.0, near_rate: 0.0, far_rate: 80.0, colour: [0x1e; 3] };
@@ -60,12 +46,10 @@ const SPEAKS: i32 = 140;
 const MARK_WORD: usize = 1;
 const MARK_BIT: u32 = 0x800;
 
-/// `EVENTAREA03` as `WORLD_MAN.eventmap` holds it.
-pub struct Area43 {
-    /// The start is the table's (`START`); no draw takes `fieldrand`.
-    pub core: AreaCore,
-    /// `modelArray`: `EA_MODELTABLE03`'s rows.
-    pub models: StaticModels,
+/// `EVENTAREA03`'s own: the fly-over `Draw` runs while area 43 is not
+/// marked on the server.
+#[derive(Clone, Debug)]
+pub struct FlyOver {
     /// +0x1c4 `cnt`: the fly-over's frame.
     pub cnt: i32,
     /// +0x1c8 `flag`: area 43 marked on the server as the map was made.
@@ -74,25 +58,14 @@ pub struct Area43 {
     self_talk: u32,
 }
 
-impl Area43 {
-    /// `EVENTAREA03::EVENTAREA03` on `server`, with `save`'s marks.
-    pub fn new(archive: &Arc<Archive>, volume: Volume, save: &SaveData, server: i32, def_se: u32) -> Result<Area43> {
-        let file = Rc::new(SceneFile::read(archive, FILE)?);
-        let (c, _sc) = (&file.ccs, &file.scene);
-        let models = StaticModels::read(&MODELS, &file, volume)?;
-        // The light animation at frame 1, its ambient and the one light.
-        let ai = file.anim(ANIM).ok_or_else(|| Error::NotFound(ANIM.into()))?;
-        let (ambient, records) = crate::town::anim_lights(&file, ai)?;
-        let light = c.find_object(LIGHT).ok_or_else(|| Error::NotFound(LIGHT.into()))?;
-        let group: Vec<Light> = records.iter().filter(|l| l.object == light).map(|l| l.at(256)).collect();
-        let lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG) };
-        let hit_models = HitModel::read(volume, c)?;
-        let hits = event_hits(volume, def_se, model_hits(models.iter().map(|m| m.model), &hit_models));
-        let at = piney_data::save::offset::GATE_LIST_MARK + 20 * server.clamp(0, 4) as usize + 4 * MARK_WORD;
-        let flag = save.i32(at) as u32 & MARK_BIT != 0;
-        let self_talk = piney_data::tables::fieldui::of(volume).kite_self_talk_va;
-        let core = AreaCore { file, hits, lights, field_rand: None, start: START };
-        Ok(Area43 { core, models, cnt: 0, flag, self_talk })
+impl FlyOver {
+    /// The constructor's: `gateListMark[server][1]` bit 11 of the save.
+    pub fn new(_: &'static (), cx: &mut BuildCx) -> Result<FlyOver> {
+        let at = |n: i32| piney_data::save::offset::GATE_LIST_MARK + 20 * n.clamp(0, 4) as usize + 4 * MARK_WORD;
+        let marks = cx.map.and_then(|m| Some((m.save?, m.server)));
+        let flag = marks.is_some_and(|(s, n)| s.i32(at(n)) as u32 & MARK_BIT != 0);
+        let self_talk = piney_data::tables::fieldui::of(cx.volume).kite_self_talk_va;
+        Ok(FlyOver { cnt: 0, flag, self_talk })
     }
 
     /// `cameraSetView`, `cameraSetPos`, then `cameraGetRot` into
@@ -106,12 +79,14 @@ impl Area43 {
         let rot = camera.get_rot(n, [0; 4]);
         camera.cam_mut(n).rot = rot;
     }
+}
 
+impl MapSystem for FlyOver {
     /// `Draw`'s scene while area 43 is not marked: camera 3 from
     /// (`VIEW0`, `POS0`) to (`VIEW1`, `POS1`) over 120 of 140 frames with
     /// the menus banned; at 140 `kiteSelfTalk`; once it closes the menus
     /// back, the field camera, and `ChangeArea(0, 1)`.
-    pub fn fly_over(&mut self, x: &mut StoryFrame) {
+    fn scene(&mut self, x: &mut StoryFrame) {
         if self.flag {
             return;
         }
@@ -143,90 +118,59 @@ impl Area43 {
             self.cnt += 1;
         }
     }
-
-    fn model_draw(&self, layers: &mut Layers, to_screen: Mat4, m: &Model) {
-        let world = Mat4::from_translation(glam::Vec3::new(ee::f(m.pos[0]), ee::f(m.pos[1]), ee::f(m.pos[2])));
-        let d = Draw {
-            file: &self.core.file,
-            model: m.model,
-            world,
-            alpha: 1.0,
-            rows: &Default::default(),
-            lights: None,
-            nodes: &[],
-            morph: Vec::new(),
-            clut_swaps: Vec::new(),
-        };
-        draw::model(layers, layer::OBJ, to_screen, &d);
-    }
 }
 
-impl StoryMap for Area43 {
-    fn core(&self) -> &AreaCore {
-        &self.core
-    }
-    fn core_mut(&mut self) -> &mut AreaCore {
-        &mut self.core
-    }
-    fn clear(&self) -> [u8; 3] {
-        BG_COLOR
-    }
-    fn frame(&mut self, x: &mut StoryFrame) {
-        self.fly_over(x);
-    }
-    /// `Draw`'s models: `DrawFloor` (the floor models inside `BLT_floor`:
-    /// none, both rows are pass 0), then the pass-0 models on `objLayer`.
-    fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, _v: &TownView, _step: bool) -> Vec<EffSprite> {
-        for m in self.models.iter().filter(|m| m.pass == DrawPass::Floor) {
-            self.model_draw(layers, to_screen, m);
-        }
-        for m in self.models.iter().filter(|m| m.pass == DrawPass::Other) {
-            self.model_draw(layers, to_screen, m);
-        }
-        Vec::new()
-    }
-}
-
-/// `GO(1)`'s area 43.
-pub const DEF: MapDef = MapDef {
-    class: "EVENTAREA03",
-    claims: |e| e.field == AREA,
-    make: |e| Ok(Made::New(Box::new(Area43::new(e.archive, e.volume, e.save, e.server, e.def_se)?))),
+/// `EVENTAREA03`, field 43: the disc's own tables, the fixed start. Its
+/// `Draw` draws `DrawFloor` (the floor models inside `BLT_floor`: none,
+/// both rows are pass 0), then the pass-0 models on objLayer.
+pub static AREA_43: StoryMapDef = StoryMapDef {
+    class: StoryMapGameClass::Eventarea03,
+    fields: &[AREA],
+    file: FILE,
+    clear: BG_COLOR,
+    blocks: &[BlockDef {
+        lights: Some(LIGHTS),
+        fog: Some(FOG),
+        start: Start::At(START),
+        systems: &[SystemDef::Models(&MODELS), SystemDef::FlyOver(&())],
+        order: &[
+            Step::Run(Kind::Models, Hook::Pass(DrawPass::Floor)),
+            Step::Run(Kind::Models, Hook::Pass(DrawPass::Other)),
+        ],
+        ..BASE_BLOCK
+    }],
+    ..BASE_STORY_MAP
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn archive() -> Option<Arc<Archive>> {
-        let p = std::path::Path::new("../../work/mutation/mutation.iso");
-        if !p.exists() {
-            eprintln!("skipped: no {}", p.display());
-            return None;
-        }
-        let mut iso = piney_data::iso::Iso::open(p).ok()?;
-        Some(Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").ok()?).ok()?))
-    }
+    use crate::story_map::tests::{made, made_with};
+    use crate::systems::statics::StaticModels;
+    use piney_data::save::SaveData;
+    use piney_data::volume::Volume;
 
     /// Mutation's area 43: `se2_1`'s two models, the floor's collision,
     /// the one light, and the mark read from the save.
     #[test]
     fn area_43() {
-        let Some(archive) = archive() else { return };
+        let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
         let mut save = SaveData::default();
-        let a = Area43::new(&archive, Volume::Mut, &save, 1, 0).unwrap();
-        let name = |o: u32| a.core.file.ccs.object_name(o).unwrap().to_string();
-        assert_eq!(a.models.iter().map(|m| name(m.model)).collect::<Vec<_>>(), ["MDL_se2_1fl1", "MDL_se2_1ba1"]);
+        let mut a = made(&archive, Volume::Mut, &AREA_43, 1, 0);
+        let models = a.systems().get::<StaticModels>().unwrap();
+        let name = |o: u32| models.file().ccs.object_name(o).unwrap().to_string();
+        assert_eq!(models.iter().map(|m| name(m.model)).collect::<Vec<_>>(), ["MDL_se2_1fl1", "MDL_se2_1ba1"]);
         assert!(!a.core.hits.models.is_empty());
         assert_eq!(a.core.lights.lights.len(), 1);
-        assert!(!a.flag);
+        assert!(!a.systems().get::<FlyOver>().unwrap().flag);
         // Draw: both pass-0 models go out on objLayer.
-        let mut a = a;
-        let mut layers = Layers::default();
-        a.draw(&mut layers, Mat4::IDENTITY, &TownView::default(), true);
+        let mut layers = piney_desktop::layers::Layers::default();
+        let mut cc = piney_battle::rand::Genrand::default();
+        a.draw(&mut layers, glam::Mat4::IDENTITY, &crate::town::TownView::default(), true, &mut cc);
         assert!(!layers.flatten().is_empty(), "nothing drawn");
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 + 4;
         save.set_i32(at, MARK_BIT as i32);
-        assert!(Area43::new(&archive, Volume::Mut, &save, 1, 0).unwrap().flag);
+        let marked = made_with(&archive, Volume::Mut, &AREA_43, 1, 0, &save, 1);
+        assert!(marked.systems().get::<FlyOver>().unwrap().flag);
     }
 }

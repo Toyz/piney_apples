@@ -16,11 +16,20 @@ use piney_desktop::assets::SceneFile;
 use piney_world::camera::{CamPad, Camera, Scheme};
 use piney_world::chara::motion::PLAYER_ANIM_TBL;
 use piney_world::chara::player::Player;
+use piney_world::draw::Fogging;
 use piney_world::ee::{self, V4};
 use piney_world::hit;
-use piney_world::story_map::StoryMap;
-use piney_world::story_map::boss_arena::{self, Arena};
-use piney_world::story_map::holy_ground::{EventArea, FlareCamera, Piece};
+use piney_world::sky::lensflare::FlareCamera;
+use piney_world::story_map::boss_arena::FIREFLIES;
+use piney_world::story_map::holy_ground::{self, HOLY_GROUND};
+use piney_world::story_map::{Enter, MapEnv, StoryArea, StoryMapDef};
+use piney_world::systems::anim::Anim;
+use piney_world::systems::fireflies::Fireflies2;
+use piney_world::systems::scrolls::Scrolls;
+use piney_world::systems::sky::Sky;
+use piney_world::systems::statics::{StaticModels, StaticObjects};
+use piney_world::systems::{Drawn, Kind, Piece, Request};
+use piney_world::town::TownView;
 use piney_world::{Rand, tasks};
 
 fn hex(s: &str) -> u32 {
@@ -44,12 +53,72 @@ fn pass(p: DrawPass) -> u32 {
     }
 }
 
+/// `EVENTAREA02`'s `bg[0..4]` by block: the slots the harness numbers.
+const SLOTS: [[&str; 5]; 2] =
+    [["CMP_se1_2cl2_1", "CMP_se1_2cl1_1", "CMP_se1_2wa1_1", "CMP_se1_2bg1_1", ""], ["CMP_se1_2bg1_2", "", "", "", ""]];
+
+/// The map `GO(1)` makes for `field`, `fieldrand` seeded `seed`.
+fn make(archive: &Arc<Archive>, volume: piney_data::volume::Volume, field: i32, seed: u32) -> StoryArea {
+    let def = StoryMapDef::of(field, volume).unwrap();
+    let save = piney_data::save::SaveData::default();
+    let mut cc = piney_battle::rand::Genrand::default();
+    let mut env = MapEnv {
+        archive,
+        volume,
+        field,
+        area_prev: 1,
+        field_prev: -1,
+        server: 0,
+        save: &save,
+        event_start: [0, 0, 0, ee::ONE],
+        field_rand: piney_data::dungeon::Rng::new(seed),
+        move_tex: [[0; 2]; piney_desktop::MOVE_TEX_ROWS],
+        scroll_statics: [0; piney_desktop::SCROLL_STATICS],
+        def_se: 0,
+        kept: None,
+        cc: &mut cc,
+    };
+    StoryArea::new(def, &mut env).unwrap()
+}
+
+/// The block's light group's objects, by name, those the file has.
+fn lights(a: &StoryArea) -> String {
+    let block = &a.def.blocks[a.block.max(0) as usize];
+    let file = &a.core.file;
+    let names = block.lights.map_or(&[][..], |l| l.table).iter().map(|n| match a.def.stage {
+        Some(from) => n.replace(from, &file.stem),
+        None => n.to_string(),
+    });
+    list(names.filter(|n| file.ccs.find_object(n).is_some()).map(|n| format!("\"{n}\"")))
+}
+
+fn fog_of(a: &StoryArea) -> String {
+    let f = a.def.blocks[a.block.max(0) as usize].fog.unwrap();
+    format!(
+        "[{}, {}, {}, {}, {}]",
+        f.near.to_bits(),
+        f.far.to_bits(),
+        f.near_rate.to_bits(),
+        f.far_rate.to_bits(),
+        u32::from(f.colour[0]) | u32::from(f.colour[1]) << 8 | u32::from(f.colour[2]) << 16
+    )
+}
+
+fn models_of(a: &StoryArea) -> String {
+    let Some(models) = a.systems().get::<StaticModels>() else { return list(Vec::<String>::new()) };
+    let name = |o: u32| format!("\"{}\"", models.file().ccs.object_name(o).unwrap_or("?"));
+    list(models.iter().map(|m| format!("[{}, {}, {}, {}]", m.row, pass(m.pass), name(m.model), list(m.pos))))
+}
+
+fn tex(a: &StoryArea) -> String {
+    let s = a.systems().get::<Scrolls>().unwrap();
+    list((0..s.v.len() / 2).map(|k| list([s.uv(2 * k), s.uv(2 * k + 1)])))
+}
+
 /// The map's state as the test compares it.
-fn state(a: &EventArea) -> String {
+fn state(a: &StoryArea) -> String {
     let name = |o: u32| format!("\"{}\"", a.core.file.ccs.object_name(o).unwrap_or("?"));
-    let models =
-        list(a.models.iter().map(|m| format!("[{}, {}, {}, {}]", m.row, pass(m.pass), name(m.model), list(m.pos))));
-    let objects = list(a.objects.iter().map(|o| {
+    let objects = list(a.systems().get::<StaticObjects>().into_iter().flat_map(|o| o.iter()).map(|o| {
         format!(
             "[{}, {}, {}, {}, {}, {}]",
             o.row,
@@ -60,48 +129,58 @@ fn state(a: &EventArea) -> String {
             o.play.time
         )
     }));
-    let bg = list(a.bg.iter().map(|b| b.as_ref().map_or("null".to_string(), |(c, _)| name(*c))));
-    let lights = list(a.light_objects.iter().map(|&o| name(o)));
-    let f = &a.fog;
-    let fog = format!(
-        "[{}, {}, {}, {}, {}]",
-        f.near.to_bits(),
-        f.far.to_bits(),
-        f.near_rate.to_bits(),
-        f.far_rate.to_bits(),
-        u32::from(f.colour[0]) | u32::from(f.colour[1]) << 8 | u32::from(f.colour[2]) << 16
+    let sky = a.systems().get::<Sky>();
+    let drawn = |n: &str| sky.is_some_and(|s| (0..8).any(|k| s.made(k) && s.name(k) == n));
+    let bg = list(
+        SLOTS[usize::from(a.block != 0)]
+            .iter()
+            .map(|&n| if !n.is_empty() && drawn(n) { format!("\"{n}\"") } else { "null".to_string() }),
     );
     let hits = list(a.core.hits.models.iter().map(|h| name(h.object)));
-    let tex = list(a.move_tex.iter().map(|t| list(t.offsets())));
+    let rev = a.systems().get::<Anim>().map_or(-1, |r| r.play.time as i64);
     format!(
-        "{{\"block\": {}, \"models\": {models}, \"objects\": {objects}, \"bg\": {bg}, \"lights\": {lights}, \"fog\": {fog}, \"start\": {}, \"hits\": {hits}, \"rev\": {}, \"tex\": {tex}}}",
+        "{{\"block\": {}, \"models\": {}, \"objects\": {objects}, \"bg\": {bg}, \"lights\": {}, \"fog\": {}, \"start\": {}, \"hits\": {hits}, \"rev\": {rev}, \"tex\": {}}}",
         a.block,
+        models_of(a),
+        lights(a),
+        fog_of(a),
         list(a.core.start),
-        a.rev.as_ref().map_or(-1, |r| r.time as i64),
+        tex(a),
     )
 }
 
 /// The arena's state as the test compares it.
-fn arena_state(a: &Arena) -> String {
+fn arena_state(a: &StoryArea) -> String {
     let name = |o: u32| format!("\"{}\"", a.core.file.ccs.object_name(o).unwrap_or("?"));
-    let models =
-        list(a.models.iter().map(|m| format!("[{}, {}, {}, {}]", m.row, pass(m.pass), name(m.model), list(m.pos))));
-    let bg = list(a.bg.iter().map(|b| b.as_ref().map_or("null".to_string(), |(c, _)| name(*c))));
-    let lights = list(a.light_objects.iter().map(|&o| name(o)));
-    let f = &boss_arena::FOG;
-    let fog = format!(
-        "[{}, {}, {}, {}, {}]",
-        f.near.to_bits(),
-        f.far.to_bits(),
-        f.near_rate.to_bits(),
-        f.far_rate.to_bits(),
-        u32::from(f.colour[0]) | u32::from(f.colour[1]) << 8 | u32::from(f.colour[2]) << 16
-    );
+    let sky = a.systems().get::<Sky>().unwrap();
+    let stem = &a.core.file.stem;
+    let bg = list((0..3).map(|k| format!("\"{}\"", sky.name(k).replace("se1_5", stem))));
     let hits = list(a.core.hits.models.iter().map(|h| name(h.object)));
     format!(
-        "{{\"models\": {models}, \"bg\": {bg}, \"lights\": {lights}, \"fog\": {fog}, \"start\": {}, \"hits\": {hits}}}",
+        "{{\"models\": {}, \"bg\": {bg}, \"lights\": {}, \"fog\": {}, \"start\": {}, \"hits\": {hits}}}",
+        models_of(a),
+        lights(a),
+        fog_of(a),
         list(a.core.start)
     )
+}
+
+/// The last step's pieces with their draws.
+fn pieces(a: &StoryArea) -> Vec<(Kind, Piece, Option<i16>, bool)> {
+    let rows = a.rows();
+    let mut reqs = a.requests(&rows).into_iter();
+    let mut out = Vec::new();
+    for d in a.frame() {
+        let Drawn::Piece(kind, piece) = *d else { continue };
+        let (layer, fog) = match reqs.next() {
+            Some(Request::Models { layer, fog, .. }) => (Some(layer), !matches!(fog, Fogging::None)),
+            Some(Request::Anim { layer, fog, .. }) => (Some(layer), !matches!(fog, Fogging::None)),
+            Some(Request::Sprite(s)) => (Some(s.layer), s.state.fog),
+            None => (None, false),
+        };
+        out.push((kind, piece, layer, fog));
+    }
+    out
 }
 
 struct Run {
@@ -119,8 +198,8 @@ fn main() {
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
         PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
-    let mut area: Option<EventArea> = None;
-    let mut arena: Option<Arena> = None;
+    let mut area: Option<StoryArea> = None;
+    let mut arena: Option<StoryArea> = None;
     let mut run: Option<Run> = None;
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
@@ -130,50 +209,68 @@ fn main() {
         let v4 = |i: usize| -> V4 { [n(i), n(i + 1), n(i + 2), n(i + 3)] };
         match w.first().copied() {
             Some("new") => {
-                let a = EventArea::new(&archive, volume, 0).unwrap();
+                let a = make(&archive, volume, holy_ground::AREA, 0);
+                assert!(a.def == &HOLY_GROUND);
                 println!("{}", state(&a));
                 area = Some(a);
             }
             Some("block") => {
                 let a = area.as_mut().unwrap();
-                a.change_block(n(1) as i32).unwrap();
+                a.change_block(n(1) as i32, 1).unwrap();
                 println!("{}", state(a));
             }
             Some("enter") => {
                 let a = area.as_mut().unwrap();
-                let to = a.enter(n(1) as i32).unwrap();
+                let Enter::Block(to) = a.enter(n(1) as i32, 1).unwrap() else { panic!("no door") };
                 println!("{{\"to\": {to}, \"state\": {}}}", state(a));
             }
             Some("arena") => {
-                let a =
-                    Arena::new_seeded(&archive, volume, n(1) as i32, 0, piney_data::dungeon::Rng::new(n(2))).unwrap();
+                let a = make(&archive, volume, n(1) as i32, n(2));
+                assert_eq!(a.systems().get::<Fireflies2>().unwrap().fireflies.len(), FIREFLIES);
                 println!("{}", arena_state(&a));
                 arena = Some(a);
             }
             Some("arenadraw") => {
                 let a = arena.as_mut().unwrap();
-                let pieces = a.select([n(1), n(2), n(3), ee::ONE]);
-                let out = list(pieces.iter().map(|p| match p {
-                    boss_arena::Piece::Bg { k, layer } => format!("[\"bg\", {k}, {layer}]"),
-                    boss_arena::Piece::Model { k, layer } => format!("[\"model\", {k}, {layer}]"),
-                    boss_arena::Piece::Firefly { draw: d, layer } => {
-                        format!("[\"eff\", {}, {}, {}, {}, {layer}]", list(d.pos), d.pattern, d.transparency, d.scale)
-                    }
-                    boss_arena::Piece::LastAnm { layer } => format!("[\"last_anm\", {layer}]"),
-                    boss_arena::Piece::LastClump { layer } => format!("[\"last_clump\", {layer}]"),
-                }));
-                let bob = list(a.models.iter().skip(6).take(3).map(|m| list(m.pos)));
-                let v = (ee::to_int(ee::mul(a.scroll_shown, 0x4580_0000)) & 0xffff) as u16;
+                let v = TownView { player: [n(1), n(2), n(3), ee::ONE], ..TownView::default() };
+                a.step(&v, true, None);
+                let mut last = false;
+                let mut out = Vec::new();
+                for (kind, piece, layer, _) in pieces(a) {
+                    let layer = layer.unwrap_or(0);
+                    out.push(match (kind, piece) {
+                        (Kind::Sky, Piece::Clump(k)) => format!("[\"bg\", {k}, {layer}]"),
+                        (Kind::Models, Piece::Model(k) | Piece::ModelOn(k, _)) => format!("[\"model\", {k}, {layer}]"),
+                        (Kind::Firefly2, Piece::Fly(d)) => {
+                            let (pos, pattern, tr, scale) = (list(d.pos), d.pattern, d.transparency, d.scale);
+                            format!("[\"eff\", {pos}, {pattern}, {tr}, {scale}, {layer}]")
+                        }
+                        // The clip is one ccAnm::Draw, whatever its pieces.
+                        (Kind::LastStage, Piece::Item(_)) if last => continue,
+                        (Kind::LastStage, Piece::Item(_)) => {
+                            last = true;
+                            format!("[\"last_anm\", {layer}]")
+                        }
+                        (Kind::LastStage, _) => format!("[\"last_clump\", {layer}]"),
+                        (k, p) => format!("[\"{k:?} {p:?}\"]"),
+                    });
+                }
+                let models = a.systems().get::<StaticModels>();
+                let bob = list(models.into_iter().flat_map(|m| m.iter()).skip(6).take(3).map(|m| list(m.pos)));
+                let v = a.systems().get::<Scrolls>().unwrap().uv(0);
                 println!(
-                    "{{\"pieces\": {out}, \"bob\": {bob}, \"v\": {v}, \"seed\": {}}}",
+                    "{{\"pieces\": {}, \"bob\": {bob}, \"v\": {v}, \"seed\": {}}}",
+                    list(out),
                     a.core.field_rand.map_or(0, |r| r.seed)
                 );
             }
             Some("arenaswitch") => {
-                arena.as_mut().unwrap().switch_layer();
+                arena.as_mut().unwrap().signal(piney_world::systems::Signal::SwitchLayer);
                 println!("{{}}");
             }
-            Some("revroot") => println!("{}", mat(&piney_world::story_map::holy_ground::rev_root())),
+            Some("revroot") => {
+                println!("{}", mat(&piney_world::town::pos_rot_zyx(holy_ground::REV_POS, holy_ground::REV_ROT)))
+            }
             Some("charpos") => {
                 let a = area.as_ref().unwrap();
                 let (p, dirc, m) = a.start_positions();
@@ -184,18 +281,35 @@ fn main() {
                 let a = area.as_mut().unwrap();
                 let eye = v4(1);
                 let player = [n(5), n(6), n(7), ee::ONE];
-                let puppet = n(8) != 0;
-                let cam = FlareCamera { eye, view: v4(9), rot: v4(13) };
-                let pieces = a.select(eye, player, &cam, puppet);
-                let out = list(pieces.iter().map(|p| match p {
-                    Piece::Bg { k, layer } => format!("[\"bg\", {k}, {layer}]"),
-                    Piece::Model { k, layer, fog } => format!("[\"model\", {k}, {layer}, {}]", u8::from(*fog)),
-                    Piece::Object { k, layer, time } => format!("[\"obj\", {k}, {layer}, {time}]"),
-                    Piece::Rev { layer, time } => format!("[\"rev\", {layer}, {time}]"),
-                    Piece::Flare { k, layer, pos } => format!("[\"flare\", {k}, {layer}, {}]", list(*pos)),
+                let flare = FlareCamera { eye, view: v4(9), rot: v4(13) };
+                let v = TownView { eye, player, flare, puppet_show: n(8) != 0, ..TownView::default() };
+                a.step(&v, true, None);
+                let sky = a.systems().get::<Sky>();
+                let objects = a.systems().get::<StaticObjects>();
+                let anim = a.systems().get::<Anim>();
+                let slot = |k: usize| {
+                    let name = sky.map_or("", |s| s.name(k));
+                    SLOTS[usize::from(a.block != 0)].iter().position(|&n| n == name).unwrap_or(k)
+                };
+                let out = list(pieces(a).into_iter().map(|(kind, piece, layer, fog)| {
+                    let layer = layer.unwrap_or(0);
+                    match (kind, piece) {
+                        (Kind::Sky, Piece::Clump(k)) => format!("[\"bg\", {}, {layer}]", slot(k)),
+                        (Kind::Models, Piece::Model(k) | Piece::ModelNoFog(k)) => {
+                            format!("[\"model\", {k}, {layer}, {}]", u8::from(fog))
+                        }
+                        (Kind::Objects, Piece::Object(k)) => {
+                            let time = objects.and_then(|o| o.object(k)).map_or(0, |o| o.0);
+                            format!("[\"obj\", {k}, {layer}, {time}]")
+                        }
+                        (Kind::Anim, _) => format!("[\"rev\", {layer}, {}]", anim.map_or(0, |r| r.play.time)),
+                        (Kind::LensFlare, Piece::Sprite { k, pos, .. }) => {
+                            format!("[\"flare\", {k}, {layer}, {}]", list(pos))
+                        }
+                        (k, p) => format!("[\"{k:?} {p:?}\"]"),
+                    }
                 }));
-                let tex = list(a.move_tex.iter().map(|t| list(t.offsets())));
-                println!("{{\"pieces\": {out}, \"tex\": {tex}}}");
+                println!("{{\"pieces\": {out}, \"tex\": {}}}", tex(a));
             }
             Some("land") => {
                 let a = area.as_mut().unwrap();
@@ -215,7 +329,7 @@ fn main() {
                 let dirc = [0, 0, n(4), 0];
                 let scheme = Scheme::new(n(5) as i32);
                 let mode = n(6) as i8;
-                a.set_center(pos[0], pos[1]);
+                a.core.hits.center = [pos[0], pos[1]];
                 a.core.hits.chars.clear();
                 // The disc's square roots (sqrt.s from Outbreak on), as the
                 // world probe's player and camera take them.

@@ -1073,12 +1073,13 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
                 let n: i32 = arg.parse().map_err(|_| format!("{kind}:{arg}: want a story area number"))?;
                 let crisis = state.save.u8(piney_data::save::offset::CRISIS) != 0;
                 let mut town = scene.town;
+                let volume = disc.volume().map_err(|e| e.to_string())?;
                 world_man = Some(match area::story_world_man(&mut disc, n, crisis) {
                     Ok(w) => w,
-                    // Fields 1-8, the boss arenas, have no words: GO(1)
-                    // keeps the WORLD_MAN of the area the party came from,
-                    // area 27 (Theta, town 1) for Skeith's.
-                    Err(_) if piney_world::story_map::boss_arena::is_arena(n) => {
+                    // A story map without words (fields 1-8, the boss
+                    // arenas): GO(1) keeps the WORLD_MAN of the area the
+                    // party came from, area 27 (Theta, town 1) for Skeith's.
+                    Err(_) if piney_world::story_map::StoryMapDef::of(n, volume).is_some() => {
                         town = 1;
                         area::story_world_man(&mut disc, 27, crisis)?
                     }

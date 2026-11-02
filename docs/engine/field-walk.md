@@ -907,9 +907,9 @@ combat                 Combat: the battle over the area (Stage, the world
                        piney-world"
 foe                    the enemies' and the portal's looks and ccChar::Draw
 dungeon_area           DungeonArea: GO(2)'s dungeon, its rooms and doors
-evarea                 EventArea: area 15's story map, EVENTAREA02 (its
-                       own page), and Kept (what WORLD_MAN keeps between
-                       scenes)
+story_map              StoryMapDef and StoryArea: GO(1)'s story maps as
+                       defs, their blocks and systems (evarea.md), and
+                       Kept (what WORLD_MAN keeps between scenes)
 hit                    the list with rm/im per hit, ccLandHitCheck's field
                        path, the height map's attribute
 player                 MapLoopAdjustPos, W2MPos, the entrance bit
