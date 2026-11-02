@@ -112,3 +112,24 @@ fn later_volumes_classes_read_from_their_code() {
         assert_eq!(Volume::ALL.map(|v| f.constructor(v).is_some()), [false, false, false, true], "{}", f.name());
     }
 }
+
+/// The later volumes' vtables the carry did not name, read at the vptr
+/// slot each constructor stores into (worklog 539); and the two places the
+/// carry's names disagree with that code.
+#[test]
+fn later_volumes_vtables_read_at_the_vptr() {
+    use piney_data::volume::Volume;
+    for c in GameClass::all().filter(|c| Volume::ALL.iter().any(|&v| c.vtable(v).is_some())) {
+        for v in Volume::ALL {
+            assert!(c.constructor(v).is_none() || c.vtable(v).is_some(), "{} {v:?}", c.name());
+        }
+    }
+    assert_eq!(GameClass::Eventarea01.vtable(Volume::Qua), Some(0x0027_6670));
+    assert_eq!(GameClass::Roottown01.vtable(Volume::Out), Some(0x0038_4210));
+    assert_eq!(GameClass::CcBossKyvia03.vtable(Volume::Qua), Some(0x0027_7f00));
+    // Mutation's carry named the table after it; Outbreak's and
+    // Quarantine's gave the Soil manager's constructor to the Dark one.
+    assert_eq!(GameClass::CcBossEffEnergyGrow2.vtable(Volume::Mut), Some(0x0038_9490));
+    assert_eq!(GameClass::CcDarkUpheavalMngrElement.constructor(Volume::Out), None);
+    assert_eq!(GameClass::CcSoilUpheavalMngrElement.constructor(Volume::Out), Some(0x0050_8370));
+}
