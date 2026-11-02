@@ -420,7 +420,7 @@ fn props_command(
                     },
                     Drawn::Piece(Kind::Models, Piece::Model(row)) => {
                         let m = models.model(row).unwrap();
-                        format!("[\"model\", {row}, {}]", list(&m.pos.to_array().map(f32::to_bits)))
+                        format!("[\"model\", {row}, {}]", list(&m.pos[..3]))
                     }
                     Drawn::Piece(Kind::Water, Piece::Anim(k)) => format!("[\"water\", {k}, {}]", water.time(k)),
                     Drawn::Map => "[\"map\"]".into(),

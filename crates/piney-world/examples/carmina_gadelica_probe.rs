@@ -61,7 +61,7 @@ fn state(t: &Town) -> String {
     let table = piney_data::statics::tables().iter().find(|x| x.name == "RT_MODELTABLE03").unwrap();
     let models = list((0..table.rows.len()).filter_map(|r| {
         let m = s.get::<StaticModels>()?.model(r)?;
-        let pos = m.pos.to_array().map(f32::to_bits);
+        let pos = [m.pos[0], m.pos[1], m.pos[2]];
         Some(format!("[{r}, {}, {}, {}]", pass(table.rows[r].pass), name(m.model), list(pos)))
     }));
     let lights = list(t.core.lights.lights.iter().map(|l| l.kind));
@@ -120,7 +120,7 @@ fn main() {
                         },
                         Drawn::Piece(Kind::Models, Piece::Model(row)) => {
                             let m = models.model(row)?;
-                            format!("[\"model\", {row}, {}]", list(m.pos.to_array().map(f32::to_bits)))
+                            format!("[\"model\", {row}, {}]", list([m.pos[0], m.pos[1], m.pos[2]]))
                         }
                         Drawn::Piece(Kind::Models, Piece::ModelNoFog(row)) => format!("[\"nofog\", {row}]"),
                         Drawn::Map => "[\"map\"]".into(),

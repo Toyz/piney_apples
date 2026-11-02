@@ -13,7 +13,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
-use piney_data::statics::{self, DrawPass, Position};
+use piney_data::statics::{DrawPass, Position};
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -26,11 +26,11 @@ use crate::hit::{HitModel, UNIT};
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare::{self, FLARES};
 use crate::sprite::{EffSprite, EffState};
-use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{MoveTex, StaticModel, StaticObject, clump_models, layer};
+use crate::story_map::holy_ground::{MoveTex, clump_models, layer};
 use crate::story_map::{Enter, StartSpread, StoryMap};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, light_group};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
 use crate::town::{FogParams, TownLights, TownView};
 use piney_desktop::MOVE_TEX_ROWS;
 
@@ -59,6 +59,19 @@ const BG: [(&str, i16); 4] = [
     ("CMP_se1_7cl1", layer::BG2),
     ("CMP_se1_7cl2", layer::BG3),
 ];
+
+/// Whose statics tables the blocks read: Infection's on every volume.
+const TABLES: Volume = Volume::Inf;
+
+/// Each block's `modelArray` (`ChangeBlock` calls no `SetPos`: the rows
+/// are postype 0, at the origin).
+static MODELS: [ModelsDef; 2] = [
+    ModelsDef { table: "EA_MODELTABLE07", layer: layer::OBJ2, names: Names::Table },
+    ModelsDef { table: "EA_MODELTABLE0702", layer: layer::OBJ2, names: Names::Table },
+];
+
+/// Block 0's `anmArray`; block 1 builds none.
+static OBJECTS: ObjectsDef = ObjectsDef { table: "EA_OBJTABLE07", anm_num: None };
 
 /// `EA_moveTex07` (gcmn 0x005d2240): the clouds' materials, V by 0.1 a
 /// frame.
@@ -98,8 +111,8 @@ pub struct Giant {
     /// `blk` (+0x1e4).
     pub block: i32,
     /// `modelArray` (+0x78), `anmArray` (+0x140).
-    pub models: Vec<StaticModel>,
-    pub objects: Vec<StaticObject>,
+    pub models: StaticModels,
+    pub objects: StaticObjects,
     /// `bg[0..3]` (+0x1a8): each clump's models.
     pub bg: [Option<(u32, Vec<u32>)>; 4],
     pub light_objects: Vec<u32>,
@@ -153,14 +166,15 @@ impl Giant {
         // fieldrand, which the clouds and the bob draw from, is the game's
         // one stream, which `GO(1)` does not seed for a story map.
         let lights = TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) };
+        let models = StaticModels::read(&MODELS[0], &file, TABLES)?;
         let core = AreaCore { file, hits, lights, field_rand: Some(rng), start: [0, 0, 0, ONE] };
         let mut g = Giant {
             core,
             file_2,
             eff,
             block: 0,
-            models: Vec::new(),
-            objects: Vec::new(),
+            models,
+            objects: StaticObjects::default(),
             bg: Default::default(),
             light_objects: Vec::new(),
             fog: FOG[0],
@@ -188,19 +202,12 @@ impl Giant {
         self.block = block;
         let b = usize::from(block != 0);
         let file = self.block_file(block).clone();
-        let _c = &file.ccs;
-        let tname = ["EA_MODELTABLE07", "EA_MODELTABLE0702"][b];
-        let table = statics::tables().iter().find(|t| t.name == tname).ok_or_else(|| Error::NotFound(tname.into()))?;
-        self.models = StaticModel::load(&file, table, Placing::Origin, str::to_string)?;
-        self.objects.clear();
+        self.models = StaticModels::read(&MODELS[b], &file, TABLES)?;
+        self.objects = StaticObjects::default();
         self.bg = Default::default();
         self.clouds.clear();
         if b == 0 {
-            let otable = statics::obj_tables()
-                .iter()
-                .find(|t| t.name == "EA_OBJTABLE07")
-                .ok_or_else(|| Error::NotFound("EA_OBJTABLE07".into()))?;
-            self.objects = StaticObject::load(&file, otable, usize::MAX, Placing::Origin)?;
+            self.objects = StaticObjects::read(&OBJECTS, &file, TABLES)?;
             for (k, (name, _)) in BG.iter().enumerate() {
                 self.bg[k] = Some(clump_models(&file, name).ok_or_else(|| Error::NotFound((*name).into()))?);
             }
@@ -238,7 +245,7 @@ impl Giant {
                 o.root = crate::town::pos_rot_zyx(at, [0; 3]);
             }
             for k in [0, 4] {
-                if let Some(m) = self.models.get_mut(k) {
+                if let Some(m) = self.models.model_mut(k) {
                     m.pos = at;
                 }
             }

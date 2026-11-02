@@ -23,7 +23,7 @@ use crate::story_map::StoryMap;
 use crate::story_map::holy_ground::layer;
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, model_hits};
-use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
 use crate::systems::{Request, paint};
 use crate::town::{FogParams, TownView};
 
@@ -64,8 +64,8 @@ const FOG: FogParams = FogParams { near: 150.0, far: 4000.0, near_rate: 0.0, far
 pub const BG_COLOR: [u8; 3] = [0x1e; 3];
 
 const LIGHT_ANIM: &str = "ANM_se1_1bac1a";
-static MODELS: ModelsDef = ModelsDef { table: "EA_MODELTABLE01", layer: layer::OBJ };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "EA_OBJTABLE01" };
+static MODELS: ModelsDef = ModelsDef { table: "EA_MODELTABLE01", layer: layer::OBJ, names: Names::Table };
+static OBJECTS: ObjectsDef = ObjectsDef { table: "EA_OBJTABLE01", anm_num: None };
 
 /// One glow (`eff[k]` +0x1c4, `pos` +0x1e0, `frame` +0x250, `wait`
 /// +0x26c, `count` +0x288).
@@ -99,7 +99,7 @@ impl Area13 {
         // The collision: the models' Hit chunks, in the order the
         // STATICMODELs were built, over GO's bounds.
         let hit_models = HitModel::read(volume, c)?;
-        let hits = event_hits(volume, def_se, model_hits(models.placed().map(|m| m.model), &hit_models));
+        let hits = event_hits(volume, def_se, model_hits(models.iter().map(|m| m.model), &hit_models));
         let bg = crate::story_map::holy_ground::clump_models(&core.file, BG);
         let (pos, rot) = crate::town::dummy_bits(&Position::DummyRot(START), c, sc);
         if c.find_object(START).is_none() {

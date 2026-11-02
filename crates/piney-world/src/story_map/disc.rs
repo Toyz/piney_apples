@@ -26,11 +26,11 @@ use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
 use crate::sky::cloud::{self, Cloud};
 use crate::sprite::EffSprite;
-use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{StaticModel, StaticObject, clump_models, layer};
+use crate::story_map::holy_ground::{clump_models, layer};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{StartSpread, StoryMap, party_starts};
 use crate::story_map::{event_hits, light_group};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
 use crate::town::{FogParams, TownLights, TownView};
 
 /// `game.field` 9-12.
@@ -41,6 +41,11 @@ pub fn is_disc(field: i32) -> bool {
 /// The scene file (+0x1a4), field 12's (+0x1d4, `bodyccs`) and `effccs`.
 pub const FILE: &str = "se1_6";
 pub const BODY_FILE: &str = "se4_9";
+
+/// `modelArray` and `anmArray`: the whole of `EA_MODELTABLEB8` and
+/// `EA_OBJTABLEB8`, at their dummies.
+static MODELS: ModelsDef = ModelsDef { table: "EA_MODELTABLEB8", layer: layer::OBJ, names: Names::Table };
+static OBJECTS: ObjectsDef = ObjectsDef { table: "EA_OBJTABLEB8", anm_num: None };
 pub const EFF_FILE: &str = "town_z";
 
 /// Fields 9-11: the disc's animation (`discAnm`, +0xcb0), the camera and
@@ -157,8 +162,8 @@ pub struct DiscArea {
     pub eff: Rc<SceneFile>,
     /// `modelArray` (+0x78), `anmArray` (+0x140): `EA_MODELTABLEB8`,
     /// `EA_OBJTABLEB8` (one row each).
-    pub models: Vec<StaticModel>,
-    pub objects: Vec<StaticObject>,
+    pub models: StaticModels,
+    pub objects: StaticObjects,
     /// `bg[0..3]`: each clump's models.
     pub bg: [Option<(u32, Vec<u32>)>; 4],
     pub light_objects: Vec<u32>,
@@ -274,17 +279,8 @@ impl DiscArea {
         let body_file = if field == 12 { Some(Rc::new(SceneFile::read(archive, BODY_FILE)?)) } else { None };
         let eff = Rc::new(SceneFile::read(archive, EFF_FILE)?);
         let (c, sc) = (&file.ccs, &file.scene);
-        let (models_of, objs_of, _) = piney_data::statics::of(volume);
-        let table = models_of
-            .iter()
-            .find(|t| t.name == "EA_MODELTABLEB8")
-            .ok_or_else(|| Error::NotFound("EA_MODELTABLEB8".into()))?;
-        let models = StaticModel::load(&file, table, Placing::Dummy, str::to_string)?;
-        let otable = objs_of
-            .iter()
-            .find(|t| t.name == "EA_OBJTABLEB8")
-            .ok_or_else(|| Error::NotFound("EA_OBJTABLEB8".into()))?;
-        let objects = StaticObject::load(&file, otable, usize::MAX, Placing::Dummy)?;
+        let models = StaticModels::read(&MODELS, &file, volume)?;
+        let objects = StaticObjects::read(&OBJECTS, &file, volume)?;
         let mut bg: [Option<(u32, Vec<u32>)>; 4] = Default::default();
         for (k, (name, _)) in BG.iter().enumerate() {
             bg[k] = Some(clump_models(&file, name).ok_or_else(|| Error::NotFound(format!("{FILE}: {name}")))?);
@@ -418,7 +414,7 @@ impl DiscArea {
     /// under an object the animation poses takes that object's world
     /// matrix under the object's root, and its inverse.
     fn disc_hits(&mut self) {
-        let Some(o) = self.objects.first() else { return };
+        let Some(o) = self.objects.get(0) else { return };
         let worlds = o.play.worlds(&self.core.file, draw::mat(&o.root), &[]);
         let mut list = Vec::new();
         for (&obj, &m) in &worlds {
@@ -516,7 +512,7 @@ impl DiscArea {
         let p = self.disc_pos;
         let pos = [ee::add(t[0], p[0]), ee::add(t[1], p[1]), ee::add(t[2], p[2]), ONE];
         let prev = self.disc_prev;
-        if let Some(o) = self.objects.first_mut() {
+        if let Some(o) = self.objects.get_mut(0) {
             o.pos = prev;
             o.root = crate::town::pos_rot_zyx(prev, [0; 3]);
         }

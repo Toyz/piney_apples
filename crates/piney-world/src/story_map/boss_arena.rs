@@ -14,7 +14,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
-use piney_data::statics::{self, DrawPass, Position};
+use piney_data::statics::{DrawPass, Position};
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -26,10 +26,10 @@ use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
 use crate::sky::firefly::{Firefly, FireflyDraw};
 use crate::sprite::{EffSprite, EffState};
-use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{StaticModel, clump_models, layer};
+use crate::story_map::holy_ground::{clump_models, layer};
 use crate::story_map::{Made, MapDef, StoryMap};
 use crate::story_map::{event_hits, light_group, model_hits};
+use crate::systems::statics::{ModelsDef, Names, StaticModels};
 use crate::town::TownView;
 use crate::town::{FogParams, TownLights};
 use piney_desktop::SCROLL_STATICS;
@@ -144,7 +144,7 @@ pub struct Arena {
     /// `GO(1)` does not seed for a story map.
     pub core: AreaCore,
     /// `modelArray` (+0x78): EA_MODELTABLEB0's nine rows, the stage's.
-    pub models: Vec<StaticModel>,
+    pub models: StaticModels,
     /// `bg[0..2]` (+0x1a8): each clump's models.
     pub bg: [Option<(u32, Vec<u32>)>; 3],
     pub light_objects: Vec<u32>,
@@ -167,11 +167,11 @@ pub struct Arena {
     hit_models: Vec<HitModel>,
 }
 
-/// A name of `se1_5`'s with the stage's digits: the constructor writes the
-/// field's two digits over characters 6 and 8 (`MDL_se1_5fl0`, `LGT_se1_5lig1`).
-fn staged(name: &str, stage: &str) -> String {
-    name.replacen("se1_5", stage, 1)
-}
+/// `modelArray`: `EA_MODELTABLEB0` of Infection's tables, its `se1_5`
+/// names the stage's (the constructor writes the field's two digits over
+/// characters 6 and 8: `MDL_se1_5fl0`).
+static MODELS: ModelsDef =
+    ModelsDef { table: "EA_MODELTABLEB0", layer: layer::OBJ, names: Names::OfFile { from: "se1_5" } };
 
 impl Arena {
     /// `EVENTAREAB0::EVENTAREAB0` for `field` (1-8), `fieldrand` from 0
@@ -190,11 +190,7 @@ impl Arena {
             .ok_or_else(|| Error::NotFound(format!("EVENTAREAB0: field {field}")))?;
         let file = Rc::new(SceneFile::read(archive, stage)?);
         let (c, sc) = (&file.ccs, &file.scene);
-        let table = statics::tables()
-            .iter()
-            .find(|t| t.name == "EA_MODELTABLEB0")
-            .ok_or_else(|| Error::NotFound("EA_MODELTABLEB0".into()))?;
-        let models = StaticModel::load(&file, table, Placing::Dummy, |n| staged(n, stage))?;
+        let models = StaticModels::read(&MODELS, &file, Volume::Inf)?;
         let mut bg: [Option<(u32, Vec<u32>)>; 3] = Default::default();
         for (k, part) in ["bac1", "clo1", "clo2"].into_iter().enumerate() {
             let name = format!("CMP_{stage}{part}");

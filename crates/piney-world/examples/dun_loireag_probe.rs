@@ -55,7 +55,7 @@ fn state(town: &Town) -> String {
     let table = piney_data::statics::tables().iter().find(|x| x.name == "RT_MODELTABLE02").unwrap();
     let models = list((0..table.rows.len()).filter_map(|r| {
         let m = models_.model(r)?;
-        let pos = m.pos.to_array().map(f32::to_bits);
+        let pos = [m.pos[0], m.pos[1], m.pos[2]];
         Some(format!("[{r}, {}, {}, {}]", pass(table.rows[r].pass), name(m.model), list(pos)))
     }));
     let objects =
@@ -140,7 +140,7 @@ fn main() {
                     },
                     Drawn::Piece(Kind::Models, Piece::Model(row)) => {
                         let m = models.model(row).unwrap();
-                        format!("[\"model\", {row}, {}]", list(m.pos.to_array().map(f32::to_bits)))
+                        format!("[\"model\", {row}, {}]", list([m.pos[0], m.pos[1], m.pos[2]]))
                     }
                     Drawn::Piece(Kind::Water, Piece::Anim(k)) => format!("[\"water\", {k}, {}]", water.time(k)),
                     Drawn::Piece(Kind::Water, Piece::Copy) => "[\"copy\"]".into(),

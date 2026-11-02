@@ -13,7 +13,7 @@ use crate::systems::clouds::CloudsDef;
 use crate::systems::flare::FlareDef;
 use crate::systems::scrolls::ScrollsDef;
 use crate::systems::sky::{At, Axes, MatScroll, SkyClump, SkyDef, SkyLayer};
-use crate::systems::statics::{ModelsDef, ObjectsDef};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef};
 use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
 use crate::town::scroll_statics as statics;
 use crate::town::{BASE_TOWN, FogParams, TownDef};
@@ -65,8 +65,8 @@ const fn cloud_sky(name: &'static str) -> SkyClump {
     SkyClump { name, layer: SkyLayer::On(BG5), at: At::Origin, mats: &CLOUD_MATS, crisis: false }
 }
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE04", layer: OBJ_LAYER };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE04" };
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE04", layer: OBJ_LAYER, names: Names::Table };
+static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE04", anm_num: None };
 static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN04_BG };
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[

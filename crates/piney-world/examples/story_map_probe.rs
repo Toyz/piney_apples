@@ -162,7 +162,7 @@ fn main() {
                     boss_arena::Piece::LastAnm { layer } => format!("[\"last_anm\", {layer}]"),
                     boss_arena::Piece::LastClump { layer } => format!("[\"last_clump\", {layer}]"),
                 }));
-                let bob = list(a.models[6..9].iter().map(|m| list(m.pos)));
+                let bob = list(a.models.iter().skip(6).take(3).map(|m| list(m.pos)));
                 let v = (ee::to_int(ee::mul(a.scroll_shown, 0x4580_0000)) & 0xffff) as u16;
                 println!(
                     "{{\"pieces\": {out}, \"bob\": {bob}, \"v\": {v}, \"seed\": {}}}",

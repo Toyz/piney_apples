@@ -30,7 +30,7 @@ use crate::story_map::{Enter, StartSpread, StoryMap};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, model_hits};
 use crate::systems::paint;
-use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
 use crate::town::{FogParams, TownView};
 
 /// `effccs` (+0x254, 06's +0x268): the clouds' and the flares' file.
@@ -98,8 +98,8 @@ const SE3_5_LIGHTS: [(i32, &str); 1] = [(0, "LGT_se3_5lig1")];
 
 const MIRROR: Kind = Kind {
     file: "se2_6",
-    models: ModelsDef { table: "EA_MODELTABLE04", layer: layer::OBJ },
-    objects: ObjectsDef { table: "EA_OBJTABLE04" },
+    models: ModelsDef { table: "EA_MODELTABLE04", layer: layer::OBJ, names: Names::Table },
+    objects: ObjectsDef { table: "EA_OBJTABLE04", anm_num: None },
     light_anim: "ANM_se2_6a",
     lights: &SE2_6_LIGHTS,
     fog: SAND_FOG,
@@ -121,8 +121,8 @@ const MIRROR: Kind = Kind {
 
 const ARENA: Kind = Kind {
     file: "se2_6",
-    models: ModelsDef { table: "EA_MODELTABLE05", layer: draw::FLOOR_LAYER },
-    objects: ObjectsDef { table: "EA_OBJTABLE05" },
+    models: ModelsDef { table: "EA_MODELTABLE05", layer: draw::FLOOR_LAYER, names: Names::Table },
+    objects: ObjectsDef { table: "EA_OBJTABLE05", anm_num: None },
     light_anim: "ANM_se2_6a",
     lights: &SE2_6_LIGHTS,
     fog: SAND_FOG,
@@ -143,8 +143,8 @@ const ARENA: Kind = Kind {
 
 const WHALE: Kind = Kind {
     file: "se3_5_1",
-    models: ModelsDef { table: "EA_MODELTABLE06", layer: draw::FLOOR_LAYER },
-    objects: ObjectsDef { table: "EA_OBJTABLE06" },
+    models: ModelsDef { table: "EA_MODELTABLE06", layer: draw::FLOOR_LAYER, names: Names::Table },
+    objects: ObjectsDef { table: "EA_OBJTABLE06", anm_num: None },
     light_anim: "ANM_se3_5_1a",
     lights: &SE3_5_LIGHTS,
     fog: SEA_FOG,
@@ -267,7 +267,7 @@ impl SkyMap {
         // STATICMODEL enables its own model's Hit chunk: 04 and 05 share
         // se2_6, so only this class's models collide.
         let hit_models = HitModel::read(volume, &file.ccs)?;
-        core.hits = event_hits(volume, def_se, model_hits(models.placed().map(|m| m.model), &hit_models));
+        core.hits = event_hits(volume, def_se, model_hits(models.iter().map(|m| m.model), &hit_models));
         let bg = k.bg.iter().map(|(name, _)| crate::story_map::holy_ground::clump_models(&file, name)).collect();
         let eff = SceneFile::read(archive, EFF_FILE)?;
         let pat_num = cloud::eff_pat_num(&eff.ccs, cloud::EFF_SMOKE)
@@ -527,7 +527,7 @@ mod tests {
                 assert!(m.bg.iter().all(Option::is_some), "{class:?}: a sky clump missing");
                 assert_eq!(m.core.lights.lights.len(), 1, "{class:?}");
                 assert!(!m.core.hits.models.is_empty(), "{class:?}: no ground");
-                let own: Vec<u32> = m.models.placed().map(|p| p.model).collect();
+                let own: Vec<u32> = m.models.iter().map(|p| p.model).collect();
                 assert!(m.core.hits.models.iter().all(|h| own.contains(&h.parent)), "{class:?}");
                 assert_eq!(m.scroll_rows().len(), 1, "{class:?}: {}", k.move_tex.mat);
                 assert_eq!(m.sun.is_some(), k.flare);

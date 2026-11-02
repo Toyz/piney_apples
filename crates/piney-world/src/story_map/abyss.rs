@@ -11,7 +11,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::save::SaveData;
-use piney_data::statics::{self, DrawPass};
+use piney_data::statics::DrawPass;
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -23,17 +23,18 @@ use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
 use crate::sprite::EffSprite;
-use crate::story_map::holy_ground::Placing;
-use crate::story_map::holy_ground::{StaticModel, layer};
+use crate::story_map::holy_ground::layer;
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{StoryFrame, StoryMap, StoryRequest};
 use crate::story_map::{event_hits, model_hits};
+use crate::systems::statics::{Model, ModelsDef, Names, StaticModels};
 use crate::town::{FogParams, Light, TownLights, TownView};
 
 /// `game.field` of this map.
 pub const AREA: i32 = 43;
 const FILE: &str = "se2_1";
-const MODEL_TABLE: &str = "EA_MODELTABLE03";
+/// `modelArray`: `EA_MODELTABLE03`'s two rows.
+static MODELS: ModelsDef = ModelsDef { table: "EA_MODELTABLE03", layer: layer::OBJ, names: Names::Table };
 /// `ANM_se2_1_1a`, and `eventarea03Light`'s one row: a distant light.
 const ANIM: &str = "ANM_se2_1_1a";
 const LIGHT: &str = "LGT_se2_1lig1";
@@ -64,7 +65,7 @@ pub struct Area43 {
     /// The start is the table's (`START`); no draw takes `fieldrand`.
     pub core: AreaCore,
     /// `modelArray`: `EA_MODELTABLE03`'s rows.
-    pub models: Vec<StaticModel>,
+    pub models: StaticModels,
     /// +0x1c4 `cnt`: the fly-over's frame.
     pub cnt: i32,
     /// +0x1c8 `flag`: area 43 marked on the server as the map was made.
@@ -78,12 +79,7 @@ impl Area43 {
     pub fn new(archive: &Arc<Archive>, volume: Volume, save: &SaveData, server: i32, def_se: u32) -> Result<Area43> {
         let file = Rc::new(SceneFile::read(archive, FILE)?);
         let (c, _sc) = (&file.ccs, &file.scene);
-        let table = statics::of(volume)
-            .0
-            .iter()
-            .find(|t| t.name == MODEL_TABLE)
-            .ok_or_else(|| Error::NotFound(MODEL_TABLE.into()))?;
-        let models = StaticModel::load(&file, table, Placing::Dummy, str::to_string)?;
+        let models = StaticModels::read(&MODELS, &file, volume)?;
         // The light animation at frame 1, its ambient and the one light.
         let ai = file.anim(ANIM).ok_or_else(|| Error::NotFound(ANIM.into()))?;
         let (ambient, records) = crate::town::anim_lights(&file, ai)?;
@@ -148,7 +144,7 @@ impl Area43 {
         }
     }
 
-    fn model_draw(&self, layers: &mut Layers, to_screen: Mat4, m: &StaticModel) {
+    fn model_draw(&self, layers: &mut Layers, to_screen: Mat4, m: &Model) {
         let world = Mat4::from_translation(glam::Vec3::new(ee::f(m.pos[0]), ee::f(m.pos[1]), ee::f(m.pos[2])));
         let d = Draw {
             file: &self.core.file,

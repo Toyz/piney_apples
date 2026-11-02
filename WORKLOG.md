@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-564 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 160. 143 entries still have open questions - [listed below](#still-open).
+565 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 161. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -576,6 +576,7 @@ The [reference](docs/README.md) says what is true now.
 | 562 | [The canals' sound by the town's type, not by name; golden shots of the story maps and fields](worklog/0562-the-canals-sound-by-the-town-s-type-not-by-name-golden.md) | 2026-11-02 | world |
 | 563 | [dressed_room_shots varied between runs: the walk's route broke ties in a HashMap's order](worklog/0563-dressed-room-shots-varied-between-runs-the-walk-s-route.md) | 2026-11-02 | world |
 | 564 | [One sprite request: EffSprite and one ccEff cache for towns, story maps, fields, dungeons and breaths](worklog/0564-one-sprite-request-effsprite-and-one-cceff-cache-for-towns.md) | 2026-11-02 | world |
+| 565 | [The story maps' statics on systems::statics: one loader, each class's rules in its defs](worklog/0565-the-story-maps-statics-on-systems-statics-one-loader-each.md) | 2026-11-02 | world |
 
 ## Still open
 

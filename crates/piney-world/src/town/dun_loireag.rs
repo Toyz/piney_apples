@@ -17,7 +17,7 @@ use crate::systems::clouds::CloudsDef;
 use crate::systems::flare::FlareDef;
 use crate::systems::scrolls::{ScrollsDef, Wrap};
 use crate::systems::sky::{At, Axes, MatScroll, SkyClump, SkyDef, SkyLayer};
-use crate::systems::statics::{ModelsDef, ObjectsDef};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef};
 use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
 use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
 use crate::town::scroll_statics as statics;
@@ -75,8 +75,8 @@ const CLOUD_MATS: [MatScroll; 2] =
 const CRISIS_MATS: [MatScroll; 2] =
     [MatScroll::new("MAT_sr2dat1_2", 2, Axes::U), MatScroll::new("MAT_sr2dat1_3", 2, Axes::UV)];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE02", layer: OBJ_LAYER };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE02" };
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE02", layer: OBJ_LAYER, names: Names::Table };
+static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE02", anm_num: None };
 static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN02_BG };
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[

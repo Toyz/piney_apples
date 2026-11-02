@@ -15,7 +15,7 @@ use crate::draw::OBJ_LAYER;
 use crate::ee::F;
 use crate::systems::scrolls::ScrollsDef;
 use crate::systems::sky::{SkyClump, SkyDef};
-use crate::systems::statics::ModelsDef;
+use crate::systems::statics::{ModelsDef, Names};
 use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
 use crate::town::scroll_statics as statics;
 use crate::town::{BASE_TOWN, FogParams, TownDef};
@@ -42,7 +42,7 @@ pub const BG_COLOR: [u8; 3] = [0x80, 0xc0, 0xf0];
 /// nothing): 0.01, 0.02 and 0.001, each back to 0 past 1.
 pub const BG_STEP: [F; 3] = [0x3c23_d70a, 0x3ca3_d70a, 0x3a83_126f];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE06", layer: OBJ_LAYER };
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE06", layer: OBJ_LAYER, names: Names::Table };
 static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN06_BG };
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[

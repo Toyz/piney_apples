@@ -19,7 +19,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::scrolls::{ScrollsDef, Wrap};
 use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
-use crate::systems::statics::ModelsDef;
+use crate::systems::statics::{ModelsDef, Names};
 use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
 use crate::systems::{
     BuildCx, DRAW_BG, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, Request, Step, StepCx, SystemDef,
@@ -74,7 +74,7 @@ const FLOOR_ROWS: (usize, usize) = (0, 8);
 const CRISIS_MATS: [MatScroll; 2] =
     [MatScroll::new("MAT_sr3dat1_2", 1, Axes::U), MatScroll::new("MAT_sr3dat1_3", 1, Axes::UV)];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE03", layer: OBJ2_LAYER };
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE03", layer: OBJ2_LAYER, names: Names::Table };
 static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN03_BG };
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[

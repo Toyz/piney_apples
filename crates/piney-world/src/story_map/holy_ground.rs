@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use glam::Mat4;
 use piney_data::archive::Archive;
-use piney_data::statics::{self, DrawPass, Position};
+use piney_data::statics::{DrawPass, Position};
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -27,6 +27,7 @@ use crate::sprite::{EffSprite, EffState};
 use crate::story_map::{Enter, StoryMap};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, light_group, model_hits};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
 use crate::town::TownView;
 use crate::town::{FogParams, TownLights};
 use piney_desktop::MOVE_TEX_ROWS;
@@ -52,6 +53,22 @@ pub mod layer {
     pub const OBJ2: i16 = crate::draw::OBJ2_LAYER;
     pub const EFF: i16 = crate::draw::EFF_LAYER;
 }
+
+/// Whose statics tables the blocks read: Infection's on every volume.
+const TABLES: Volume = Volume::Inf;
+
+/// Each block's `modelArray`, the whole of its table: `modelNum` 4, 7.
+static MODELS: [ModelsDef; 2] = [
+    ModelsDef { table: "EA_MODELTABLE02", layer: layer::OBJ2, names: Names::Table },
+    ModelsDef { table: "EA_MODELTABLE0202", layer: layer::OBJ2, names: Names::Table },
+];
+
+/// Each block's `anmArray`: `anmNum` 0 (the first table's one placeholder
+/// row is never built) and 1 (`ANM_se1_2la1a`).
+static OBJECTS: [ObjectsDef; 2] = [
+    ObjectsDef { table: "EA_OBJTABLE02", anm_num: Some(0) },
+    ObjectsDef { table: "EA_OBJTABLE0202", anm_num: Some(1) },
+];
 
 /// The constructor's `ccSys.bgColor` (+0x18): the frame's clear colour.
 pub const BG_COLOR: [u8; 3] = [0x1e, 0x1e, 0x1e];
@@ -136,86 +153,6 @@ impl MoveTex {
     }
 }
 
-/// A `STATICMODEL` (0x40 bytes): `type` +0x00, its model +0x04, the
-/// dummy's position +0x10 (zero without one), `clip` +0x30.
-#[derive(Clone, Debug)]
-pub struct StaticModel {
-    pub row: usize,
-    pub pass: DrawPass,
-    /// The MDL_ object.
-    pub model: u32,
-    pub pos: V4,
-    pub clip: F,
-}
-
-/// A `STATICOBJECT` (0x40 bytes) of an animation: its `ccAnm`, the root
-/// `SetMatrix_PosRotZYX(pos, rot)` gave it, the dummy's position (+0x10)
-/// and `clip` (+0x30).
-#[derive(Clone, Debug)]
-pub struct StaticObject {
-    pub row: usize,
-    pub pass: DrawPass,
-    pub play: Play,
-    pub root: [V4; 4],
-    pub pos: V4,
-    pub clip: F,
-}
-
-/// Where a map's `SetPos` puts its statics: at each row's dummy (zeros
-/// without one), or nowhere (`EVENTAREA07::ChangeBlock` calls none).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Placing {
-    Dummy,
-    Origin,
-}
-
-impl StaticModel {
-    /// `table`'s rows over `file`: each row's `MDL_` object (its name
-    /// through `name`), placed.
-    pub fn load(
-        file: &SceneFile,
-        table: &statics::ModelTable,
-        placing: Placing,
-        name: impl Fn(&str) -> String,
-    ) -> Result<Vec<StaticModel>> {
-        let (c, sc) = (&file.ccs, &file.scene);
-        let model = |(row, r): (usize, &statics::StaticModel)| {
-            let n = name(r.model);
-            let model = c.find_object(&n).ok_or_else(|| Error::NotFound(format!("{}: {n}", file.stem)))?;
-            let pos = match placing {
-                Placing::Dummy => crate::town::dummy_bits(&r.position, c, sc).0,
-                Placing::Origin => [0; 4],
-            };
-            Ok(StaticModel { row, pass: r.pass, model, pos, clip: r.clip.to_bits() })
-        };
-        table.rows.iter().enumerate().map(model).collect()
-    }
-}
-
-impl StaticObject {
-    /// `table`'s first `rows` rows over `file`: each row's animation, placed
-    /// (`SetMatrix_PosRotZYX` of its dummy's place and turn).
-    pub fn load(
-        file: &SceneFile,
-        table: &statics::ObjTable,
-        rows: usize,
-        placing: Placing,
-    ) -> Result<Vec<StaticObject>> {
-        let (c, sc) = (&file.ccs, &file.scene);
-        let object = |(row, r): (usize, &statics::StaticObj)| {
-            let name = r.anime.ok_or_else(|| Error::NotFound(format!("{}: row {row} has no animation", table.name)))?;
-            let play = Play::new(file, name).ok_or_else(|| Error::NotFound(name.into()))?;
-            let (pos, rot) = match placing {
-                Placing::Dummy => crate::town::dummy_bits(&r.position, c, sc),
-                Placing::Origin => ([0; 4], [0; 3]),
-            };
-            let root = crate::town::pos_rot_zyx(pos, rot);
-            Ok(StaticObject { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() })
-        };
-        table.rows.iter().enumerate().take(rows).map(object).collect()
-    }
-}
-
 /// One piece `EVENTAREA02::Draw` draws, in its order, on its layer.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Piece {
@@ -275,8 +212,8 @@ pub struct EventArea {
     /// `blk` (+0x1e0).
     pub block: i32,
     /// `modelArray` (+0x78), `anmArray` (+0x140).
-    pub models: Vec<StaticModel>,
-    pub objects: Vec<StaticObject>,
+    pub models: StaticModels,
+    pub objects: StaticObjects,
     /// `bg[0..5]` (+0x1a8): each clump's models.
     pub bg: [Option<(u32, Vec<u32>)>; 5],
     /// `revAnm` (+0x1e4).
@@ -318,12 +255,13 @@ impl EventArea {
         let hit_models = HitModel::read(volume, &file.ccs)?;
         let hits = event_hits(volume, def_se, Vec::new());
         let lights = TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) };
+        let models = StaticModels::read(&MODELS[0], &file, TABLES)?;
         let mut a = EventArea {
             core: AreaCore { file, hits, lights, field_rand: None, start: [0, 0, 0, ONE] },
             eff,
             block: 0,
-            models: Vec::new(),
-            objects: Vec::new(),
+            models,
+            objects: StaticObjects::default(),
             bg: Default::default(),
             rev: None,
             fog: FOG[0],
@@ -368,17 +306,8 @@ impl EventArea {
     pub fn change_block(&mut self, block: i32) -> Result<()> {
         self.block = block;
         let b = usize::from(block != 0);
-        let (_c, _sc) = (&self.core.file.ccs, &self.core.file.scene);
-        let names = [("EA_MODELTABLE02", "EA_OBJTABLE02"), ("EA_MODELTABLE0202", "EA_OBJTABLE0202")][b];
-        let table =
-            statics::tables().iter().find(|t| t.name == names.0).ok_or_else(|| Error::NotFound(names.0.into()))?;
-        let obj_table =
-            statics::obj_tables().iter().find(|t| t.name == names.1).ok_or_else(|| Error::NotFound(names.1.into()))?;
-        // modelNum 4 and anmNum 0, or 7 and 1: the whole tables but for the
-        // first's one placeholder object row.
-        let anm_num = [0, 1][b];
-        self.models = StaticModel::load(&self.core.file, table, Placing::Dummy, str::to_string)?;
-        self.objects = StaticObject::load(&self.core.file, obj_table, anm_num, Placing::Dummy)?;
+        self.models = StaticModels::read(&MODELS[b], &self.core.file, TABLES)?;
+        self.objects = StaticObjects::read(&OBJECTS[b], &self.core.file, TABLES)?;
         // The collision: the block's models' Hit chunks, in the order the
         // STATICMODELs were built.
         self.core.hits.models = model_hits(self.models.iter().map(|m| m.model), &self.hit_models);

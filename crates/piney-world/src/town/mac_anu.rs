@@ -16,7 +16,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::scrolls::{ScrollsDef, Wrap};
 use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
-use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
+use crate::systems::statics::{ModelsDef, Names, ObjectsDef, StaticModels, StaticObjects};
 use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
 use crate::systems::{BuildCx, DRAW_BG, Hook, Kind, MapSystem, Others, Piece, Step, StepCx, SystemDef};
 use crate::town::scroll_statics as statics;
@@ -77,8 +77,8 @@ const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3b03_126f];
 const CRISIS_MATS: [MatScroll; 2] =
     [MatScroll::new("MAT_sr1dat1_2", 1, Axes::U), MatScroll::new("MAT_sr1dat1_3", 1, Axes::UV)];
 
-static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE00", layer: OBJ_LAYER };
-static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE00" };
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE00", layer: OBJ_LAYER, names: Names::Table };
+static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE00", anm_num: None };
 static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN01_BG };
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[

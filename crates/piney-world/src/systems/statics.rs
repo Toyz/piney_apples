@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use glam::Mat4;
-use piney_data::statics::{self, DrawPass, ModelTable, ObjTable, PlacedModel};
+use piney_data::statics::{self, DrawPass, ObjTable};
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -16,20 +16,46 @@ use crate::draw::{self, OBJ_LAYER};
 use crate::ee::{self, F, V4};
 use crate::town::{dummy_bits, pos_rot_zyx};
 
-/// A model table and the layer its rows draw on.
+/// A model table as a class's constructor builds it: one `STATICMODEL` a
+/// row, its model `GetChunkAdrsF(name, 0)` (no such chunk stores to
+/// address 0: a model the file lacks stops the game, an error here) at its
+/// row's dummy (postype 1 or 2; the origin for postype 0).
 #[derive(Clone, Copy, Debug)]
 pub struct ModelsDef {
-    /// `RT_MODELTABLE00` ..: its symbol.
+    /// `RT_MODELTABLE00`, `EA_MODELTABLE02` ..: its symbol.
     pub table: &'static str,
     pub layer: i16,
+    pub names: Names,
 }
 
-/// The `STATICMODEL`s of a table: by row, where each draws.
+/// What a row's model name names in the class's file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Names {
+    /// The name as the table writes it.
+    Table,
+    /// The table's names are `from`'s scene's; the class reads them as its
+    /// own file's (`EVENTAREAB0`'s stages: `se1_5`'s names in each).
+    OfFile { from: &'static str },
+}
+
+/// A `STATICMODEL` (0x40 bytes): `type` +0x00, its model +0x04, the
+/// dummy's position +0x10 (zero without one), `clip` +0x30.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Model {
+    /// Its table row.
+    pub row: usize,
+    pub pass: DrawPass,
+    /// The MDL_ object.
+    pub model: u32,
+    pub pos: V4,
+    pub clip: F,
+}
+
+/// The `STATICMODEL`s of a table, by row.
 #[derive(Clone, Debug)]
 pub struct StaticModels {
     def: &'static ModelsDef,
-    table: &'static ModelTable,
-    models: Vec<Option<PlacedModel>>,
+    models: Vec<Model>,
 }
 
 impl StaticModels {
@@ -37,34 +63,58 @@ impl StaticModels {
         StaticModels::read(def, cx.file, cx.tables)
     }
 
-    /// `def`'s rows placed in `file`, from `tables`' table.
+    /// `def`'s rows built over `file`, from `tables`' table.
     pub fn read(def: &'static ModelsDef, file: &SceneFile, tables: Volume) -> Result<StaticModels> {
         let table = statics::of(tables).0.iter().find(|t| t.name == def.table);
         let table = table.ok_or_else(|| Error::NotFound(def.table.into()))?;
-        let mut models = vec![None; table.rows.len()];
-        for p in table.place(&file.ccs, &file.scene) {
-            models[p.row] = Some(p);
-        }
-        Ok(StaticModels { def, table, models })
+        let (c, sc) = (&file.ccs, &file.scene);
+        let model = |(row, r): (usize, &statics::StaticModel)| {
+            let name = match def.names {
+                Names::Table => r.model.to_string(),
+                Names::OfFile { from } => r.model.replacen(from, &file.stem, 1),
+            };
+            let model = c.find_object(&name).ok_or_else(|| Error::NotFound(format!("{}: {name}", file.stem)))?;
+            let pos = dummy_bits(&r.position, c, sc).0;
+            Ok(Model { row, pass: r.pass, model, pos, clip: r.clip.to_bits() })
+        };
+        let models = table.rows.iter().enumerate().map(model).collect::<Result<_>>()?;
+        Ok(StaticModels { def, models })
     }
 
-    /// A row's placement.
-    pub fn model(&self, row: usize) -> Option<PlacedModel> {
-        self.models.get(row).copied().flatten()
+    /// A row's model.
+    pub fn model(&self, row: usize) -> Option<&Model> {
+        self.models.get(row)
     }
 
-    /// Every placed row, in order.
-    pub fn placed(&self) -> impl Iterator<Item = &PlacedModel> {
-        self.models.iter().flatten()
+    pub fn model_mut(&mut self, row: usize) -> Option<&mut Model> {
+        self.models.get_mut(row)
+    }
+
+    /// The class's models deleted (`EVENTAREAB0::NextStage`).
+    pub fn clear(&mut self) {
+        self.models.clear();
+    }
+
+    /// Every row, in order.
+    pub fn iter(&self) -> std::slice::Iter<'_, Model> {
+        self.models.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.models.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.models.is_empty()
     }
 
     /// The table's rows of `pass`, in order.
-    pub fn rows(&self, pass: DrawPass) -> impl Iterator<Item = usize> + use<> {
-        let rows = self.table.rows;
-        (0..rows.len()).filter(move |&row| rows[row].pass == pass)
+    pub fn rows(&self, pass: DrawPass) -> impl Iterator<Item = usize> + use<'_> {
+        self.models.iter().filter(move |m| m.pass == pass).map(|m| m.row)
     }
 
-    /// A row as `STATICMODEL::Draw` draws it on `layer`, with `fog`.
+    /// A row as `STATICMODEL::Draw` draws it on `layer`, with `fog`: a
+    /// unit matrix moved to the dummy, its turn left out.
     pub fn request<'a>(
         &'a self,
         file: &'a SceneFile,
@@ -72,9 +122,23 @@ impl StaticModels {
         layer: i16,
         fog: draw::Fogging,
     ) -> Option<Request<'a>> {
-        let p = self.models.get(row)?.as_ref()?;
-        let world = Mat4::from_translation(p.pos);
-        Some(Request::Models { file, models: std::slice::from_ref(&p.model), world, layer, rows: HashMap::new(), fog })
+        let m = self.models.get(row)?;
+        let world = Mat4::from_translation(glam::Vec3::new(ee::f(m.pos[0]), ee::f(m.pos[1]), ee::f(m.pos[2])));
+        Some(Request::Models { file, models: std::slice::from_ref(&m.model), world, layer, rows: HashMap::new(), fog })
+    }
+}
+
+impl std::ops::Index<usize> for StaticModels {
+    type Output = Model;
+
+    fn index(&self, k: usize) -> &Model {
+        &self.models[k]
+    }
+}
+
+impl std::ops::IndexMut<usize> for StaticModels {
+    fn index_mut(&mut self, k: usize) -> &mut Model {
+        &mut self.models[k]
     }
 }
 
@@ -103,14 +167,19 @@ impl MapSystem for StaticModels {
     }
 }
 
-/// An object table.
+/// An object table as a class's constructor builds it: a `STATICOBJECT`
+/// for each of its first `anm_num` rows (the class's `anmNum`; None, every
+/// row), with a `ccAnm` where the row names one, at its dummy.
 #[derive(Clone, Copy, Debug)]
 pub struct ObjectsDef {
-    /// `RT_OBJTABLE00` ..: its symbol.
+    /// `RT_OBJTABLE00`, `EA_OBJTABLE02` ..: its symbol.
     pub table: &'static str,
+    pub anm_num: Option<usize>,
 }
 
-/// One `STATICOBJECT`.
+/// One `STATICOBJECT` of an animation: its `ccAnm`, the root
+/// `SetMatrix_PosRotZYX(pos, rot)` gave it, the dummy's position (+0x10)
+/// and `clip` (+0x30).
 #[derive(Clone, Debug)]
 pub struct Object {
     /// Its table row.
@@ -124,8 +193,9 @@ pub struct Object {
     pub clip: F,
 }
 
-/// The `STATICOBJECT`s of a table: those whose row names an animation.
-#[derive(Clone, Debug)]
+/// The `STATICOBJECT`s of a table: those whose row names an animation (by
+/// default none, for a class that builds none).
+#[derive(Clone, Debug, Default)]
 pub struct StaticObjects {
     objects: Vec<Object>,
 }
@@ -141,14 +211,40 @@ impl StaticObjects {
         let table = table.ok_or_else(|| Error::NotFound(def.table.into()))?;
         let (c, sc) = (&file.ccs, &file.scene);
         let mut objects = Vec::new();
-        for (row, r) in table.rows.iter().enumerate() {
-            // STATICOBJECT makes only the ccAnm when the row names one.
-            let Some(play) = r.anime.and_then(|n| Play::new(file, n)) else { continue };
+        for (row, r) in table.rows.iter().enumerate().take(def.anm_num.unwrap_or(usize::MAX)) {
+            // STATICOBJECT makes the ccAnm only when the row names one.
+            let Some(name) = r.anime else { continue };
+            let play = Play::new(file, name).ok_or_else(|| Error::NotFound(format!("{}: {name}", file.stem)))?;
             let (pos, rot) = dummy_bits(&r.position, c, sc);
             let root = pos_rot_zyx(pos, rot);
             objects.push(Object { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() });
         }
         Ok(StaticObjects { objects })
+    }
+
+    /// Every object, in row order.
+    pub fn iter(&self) -> std::slice::Iter<'_, Object> {
+        self.objects.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Object> {
+        self.objects.iter_mut()
+    }
+
+    pub fn get(&self, k: usize) -> Option<&Object> {
+        self.objects.get(k)
+    }
+
+    pub fn get_mut(&mut self, k: usize) -> Option<&mut Object> {
+        self.objects.get_mut(k)
+    }
+
+    pub fn len(&self) -> usize {
+        self.objects.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.objects.is_empty()
     }
 
     /// An object's animation time and root matrix, by its row.
@@ -187,6 +283,20 @@ impl StaticObjects {
     }
 }
 
+impl std::ops::Index<usize> for StaticObjects {
+    type Output = Object;
+
+    fn index(&self, k: usize) -> &Object {
+        &self.objects[k]
+    }
+}
+
+impl std::ops::IndexMut<usize> for StaticObjects {
+    fn index_mut(&mut self, k: usize) -> &mut Object {
+        &mut self.objects[k]
+    }
+}
+
 impl MapSystem for StaticObjects {
     fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
         if let Hook::Pass(pass) = hook {
@@ -201,6 +311,27 @@ impl MapSystem for StaticObjects {
         match piece {
             Piece::Object(row) => self.request(&cx.core.file, row, OBJ_LAYER, cx.fog),
             _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use piney_data::statics;
+    use piney_data::volume::Volume;
+
+    /// `STATICOBJECT` makes a clump for a row naming no animation; no class
+    /// builds such a row (`EA_OBJTABLE02`'s placeholder is past its
+    /// `anmNum` 0), so every object the loader skips is one no class makes.
+    #[test]
+    fn every_built_object_row_names_an_animation() {
+        for v in Volume::ALL {
+            for t in statics::of(v).1 {
+                for (row, r) in t.rows.iter().enumerate() {
+                    let placeholder = t.name == "EA_OBJTABLE02" && row == 0;
+                    assert!(r.anime.is_some() || placeholder, "{v:?} {} row {row}: {:?}", t.name, r.clump);
+                }
+            }
         }
     }
 }

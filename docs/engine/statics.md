@@ -80,7 +80,12 @@ Rz, the rotation turned to radians when the chunk is decoded), so one
 animation can stand at several dummies. `STATICOBJECT::Draw` draws within
 `clip` of the camera eye (in the ground plane) and steps the animation
 only then. `piney_data::statics` places both (`ModelTable::place`,
-`StaticObj::root`); `piney-world`'s town builds each root as the game
+`StaticObj::root`). `piney_world::systems::statics` is the one loader for
+towns and story maps: a model the file lacks is an error (the game's
+`GetChunkAdrsF(name, 0)` stores to address 0), a row naming no animation
+gets no object (no class builds one), and each def states its rules
+(`ModelsDef::names`, `EVENTAREAB0`'s stage names; `ObjectsDef::anm_num`, a
+class's `anmNum`). It builds each root as the game
 stores it (`sceVu0RotMatrix` of the dummy's radians, `pi * deg / 180` as
 `Decode_DummyPosRot` converts them, then the position), matching the
 game's matrices bit for bit. Mac Anu's six flags are
