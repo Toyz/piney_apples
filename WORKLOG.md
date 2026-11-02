@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-548 entries: audio 43, battle 151, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 58, ui 103, video 17, volumes 94, world 152. 137 entries still have open questions - [listed below](#still-open).
+549 entries: audio 43, battle 152, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 129, save 16, script 62, test 239, tooling 58, ui 103, video 17, volumes 94, world 153. 138 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -560,9 +560,11 @@ The [reference](docs/README.md) says what is true now.
 | 546 | [Bosses as defs: Gorre made of systems, its brothers, its own and its Kerse; a part's own a system on its def's list](worklog/0546-bosses-as-defs-gorre-made-of-systems-its-brothers-its-own.md) | 2026-11-02 | battle |
 | 547 | [Bosses as defs: Magus made of systems, its wave, leaves, laser, needles and its own; the body read through the field](worklog/0547-bosses-as-defs-magus-made-of-systems-its-wave-leaves-laser.md) | 2026-11-02 | battle |
 | 548 | [Tarvos's drain plays its own movie: a boss's Affect runs inside EntryAffect](worklog/0548-tarvos-s-drain-plays-its-own-movie-a-boss-s-affect-runs.md) | 2026-11-01 | battle, video, ui |
+| 549 | [Cubia's white flashes were its gomoras' after-images drawn as the whole body; Tartarga posed through his skin's own clump](worklog/0549-cubia-s-white-flashes-were-its-gomoras-after-images-drawn.md) | 2026-11-01 | battle, render, world |
 
 ## Still open
 
+- [549. Cubia's white flashes were its gomoras' after-images drawn as the whole body; Tartarga posed through his skin's own clump](worklog/0549-cubia-s-white-flashes-were-its-gomoras-after-images-drawn.md) - the game's code path that gives a model outside the made clump its own clump's node table: ccAnm::SetAnm (QUA main...
 - [548. Tarvos's drain plays its own movie: a boss's Affect runs inside EntryAffect](worklog/0548-tarvos-s-drain-plays-its-own-movie-a-boss-s-affect-runs.md) - the movie's pictures (stream 100's Tarvos) are not compared with the game's frame by frame
 - [547. Bosses as defs: Magus made of systems, its wave, leaves, laser, needles and its own; the body read through the field](worklog/0547-bosses-as-defs-magus-made-of-systems-its-wave-leaves-laser.md) - nothing this step opened; Kyvia, Innis and Corbenik remain to convert, then Class, each_class! and BossData out.
 - [546. Bosses as defs: Gorre made of systems, its brothers, its own and its Kerse; a part's own a system on its def's list](worklog/0546-bosses-as-defs-gorre-made-of-systems-its-brothers-its-own.md) - nothing this step opened; Magus, Kyvia, Innis and Corbenik remain to convert, then Class, each_class! and BossData out.

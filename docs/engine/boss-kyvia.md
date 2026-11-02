@@ -3,7 +3,7 @@ title: Bosses - Kyvia's first fight
 status: partial
 volumes: MUT
 covers: MUT gcmn.prg:0x006192c0 bossFunc (code 12), 0x00480540 SetupSkillName, 0x00473350 ccBoss::DrawParts, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x004d29a0 ccThKyvia01, 0x004d2a80 ccBossKyvia01::ccBossKyvia01, 0x004d4410 ccBossKyvia01::Main, 0x004d47c0 Think, 0x004d48a0 SwitchActionPattern, 0x004d4a80 SwitchDeadCheck, 0x004d4c10 CheckDiscMove, 0x004d5140 CheckDmgSmokeEff, 0x004d3330 Action, 0x004d3cf0 DeadKyviaVoice, 0x004d3fc0 DeadKyviaCam, 0x004d53b0 KyviaMagicDamage, 0x004d5450 SetBPos, 0x004d5930 HandAtk, 0x004d60a0 LightAtk, 0x004d8bb0 MegidFlame, 0x004d91e0 Slave, 0x004d92b0 EntrySlave, 0x004f7e80 kyviaCore::InitData, 0x004f80f0 ResetData, 0x004f82c0 CoreInit, 0x004f8770 SetCoreBaseParam, 0x004f8a30 kyviaCore::kyviaCore, 0x004f8cd0 Action, 0x004f9630 Main, 0x004f99c0 Affect, 0x004f9dc0 StartInit, 0x004f9f40 ActionStart, 0x004fa960 CoreVoice, 0x004faac0 Think, 0x004fae40 ThinkESCAPE, 0x004fb110 ChangeAttribute, 0x004fb1f0 CharHoldON, 0x004fb360 FadeCore, 0x004fb550 FadeCheck, 0x004fb5e0 GetGomoraState, 0x004fb860 JudgmentDmgAnm, 0x004fb8e0 CheckCountAtkTime, 0x004fbba0 CheckCountGomora, 0x004fc300 SetCoreState, 0x004fc4c0 GetActNum, 0x004fc5e0 SwitchActionPattern, 0x004fc8b0 MoveSpline, 0x004fca70 SetSpPoint, 0x004fd630 Slave, 0x004fd700 EntrySlave, 0x004fd980 KillGomora, 0x004fdc90 EntryGomora, 0x004fdda0 StartGomora, 0x004fde50 CheckGomoraSkillAct, 0x004fdf10 kyviaGomora::InitData, 0x004fe260 ResetData, 0x004fe460 GomoraInit, 0x004fe6c0 GetAttribute, 0x004fe740 StartInit, 0x004ff3d0 SetGomoraState, 0x004ff480 Affect, 0x004ff800 Action, 0x005004d0 Main, 0x00500850 Move, 0x005009a0 DepartureMove, 0x00500be0 NextGList, 0x00500c50 ListStepUp, 0x00500d50 Think, 0x00501370 TimeAuraCount, 0x005017c0 CheckCountAtkTime, 0x00501de0 RndTarget, 0x00501f20 GetRndSkill, 0x00501fe0 MoveGomora, 0x00502220 FadeGomora, 0x00502530 MoveSpline, 0x00502670 SetSpPoint, 0x00503640 SetAtkPoint, 0x0047aa90 ccBossEffMeteoriteMissile::ccBossEffMeteoriteMissile, 0x0047b330 Draw, 0x0047b910 Spline, 0x0048d9f0 ccBossEffMeteoriteMissileCreate, 0x00475ae0 ccBossCam::SetMode, 0x00475a40 SetRotXLimit, 0x00476380 SetTransfer, 0x00475cf0 Pad_Control, 0x004755a0 CamMain, 0x00500850 kyviaGomora::Move, main 0x001534f0 ccCharHit::CollisionDetection, 0x0061b190 Kyvia01AnmTbl, 0x0061b360 kyviaCoreAnmTbl, 0x0061b620 kyviaGomoraAnmTbl, 0x0061b510 AllGomoraList_1[0], 0x0061f650 KyviaGenerator, 0x0061fce0 KyviaDmgGenerator, 0x0061f3d0 CoreGenerator, 0x0061eec0 GomoraGenerator, 0x0061f1b0 GomoraAuraGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator, 0x00472e50 ccBoss::Draw; MUT SLUS_205.62:0x00150fd0 ccAnm::SetAnm, 0x0014e760 ccStream::DecodeF_Morpher
-worklog: 272, 420, 425, 426, 427
+worklog: 272, 420, 425, 426, 427, 549
 ---
 
 # Bosses - Kyvia's first fight
@@ -116,6 +116,20 @@ away (state 4) with `kAtkFlg` 2 (time) or 1 (damage).
 out, five times as fast along its path, fading 0.015 a frame with
 after-images; once faded and two parts on, it comes back with the other
 attribute (`ChangeAttribute`: the other row, its HP kept).
+
+The core's after-images, and a dashing gomora's (`Think`, every
+`AFtiming` frames), are `EntryAfterImage(&m_eai)` on the part itself
+(QUA gcmn 0x003ea428 and 0x003f0700, `this` the core or the gomora): its
+own clip at its own frame and place, drawn by its own `DrawAfterImages`.
+`m_eai` is colour 0x007b7b31 for a gomora (`InitData`, MUT 0x004fe170)
+and 0x00187500 for the core (its constructor, MUT 0x004f8b70), both at 30
+(`colorAlpha`), `maxFrame` 80, transparency 0.5 fading 0.02 a draw, no
+scale; `ThinkESCAPE` gives the core's its alpha (QUA 0x003ea414). The port
+sends them as `Out::AfterImagePart` with the part's index. Until issue
+#80 they went out as the body's `Out::AfterImage`, which the field drew
+as the whole body in white: in the third fight up to 19 copies of
+`CMP_trallex03`, 2.5 million vertices a frame (the white flashes, and
+50 ms a frame).
 
 `Affect` (0x004f99c0): `ccBoss::Affect`'s kinds without the party checks;
 a hit shows `effResistantShield` when its skill's type
@@ -415,7 +429,9 @@ against `tools/anim.py`, whose weights the port draws with.
 The calls include the arm's: each `DrawParts` with the anm's frame and
 flag, and each `EntryAfterImageAnm` with the arm's frame, place, turn and
 all of its `ENTRYAFTERIMAGE_T` (worklog 426: 200 Mutation cases, 120 of
-Outbreak's second fight and 40 of its first, act 3 in each run).
+Outbreak's second fight and 40 of its first, act 3 in each run), and
+each `EntryAfterImage` with its part's frame and the first six words of
+its `m_eai`.
 `session::tests::kyvia_fx::kyvias_arm_sweeps_with_its_after_images` sees
 the arm drawn with its after-images on both discs.
 

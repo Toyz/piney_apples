@@ -723,6 +723,11 @@ fn kout(o: &Out) -> Option<String> {
         Out::Picture(Picture::Anm { time, .. }) | Out::Wave { time, .. } => {
             format!("[\"draw_parts\",{},0]", time >> 8)
         }
+        // A core's or a gomora's own EntryAfterImage(&m_eai).
+        Out::AfterImagePart { frame, params: e, .. } => format!(
+            "[\"afterimage\",{frame},{},{},{},{},{},{}]",
+            e.color, e.color_alpha, e.color_spd, e.max_frame, e.transparency, e.trans_spd
+        ),
         Out::AfterImageAnm { frame, pos, dirc, params: e, .. } => format!(
             "[\"afterimage_anm\",{frame},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]",
             v3(pos),

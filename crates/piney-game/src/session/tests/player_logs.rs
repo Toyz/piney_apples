@@ -55,13 +55,79 @@ fn player_log_replay() {
                 }
                 calls_seen = a.calls().len();
             }
-            let shoot = (from..to).contains(&f) && every.is_none_or(|n| (f - from).is_multiple_of(n.max(1)));
-            if shoot {
+            let window = (from..to).contains(&f);
+            let shoot = window && every.is_none_or(|n| (f - from).is_multiple_of(n.max(1)));
+            // PINEY_RENDER_MS=M: every frame of the window drawn and read
+            // back, the slower than M ms printed.
+            let render_ms = env("PINEY_RENDER_MS").filter(|_| window);
+            if shoot || render_ms.is_some() {
                 let gs = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap());
+                let t = std::time::Instant::now();
                 gs.set_overlay(overlay);
                 gs.render(frame);
-                let (w, h) = gs.target_size();
-                std::fs::write(format!("{dir}/f{f:05}.png"), piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+                let pixels = gs.read_back();
+                let ms = t.elapsed().as_secs_f64() * 1000.0;
+                if render_ms.is_some_and(|m| ms > f64::from(m)) {
+                    println!(
+                        "frame {f}: render {ms:.1} ms, {} cmds {} uploads | {title}",
+                        frame.cmds.len(),
+                        frame.uploads.len()
+                    );
+                }
+                // PINEY_BENCH=F: frame F drawn PINEY_BENCH_N (20) times more, the encode
+                // and the read-back timed apart, and its commands counted.
+                if env("PINEY_BENCH") == Some(f) {
+                    let (mut enc, mut back) = (0.0, 0.0);
+                    let n = env("PINEY_BENCH_N").unwrap_or(20).max(1);
+                    for _ in 0..n {
+                        let t = std::time::Instant::now();
+                        gs.render(frame);
+                        enc += t.elapsed().as_secs_f64() * 1000.0 / f64::from(n);
+                        let t = std::time::Instant::now();
+                        gs.read_back();
+                        back += t.elapsed().as_secs_f64() * 1000.0 / f64::from(n);
+                    }
+                    let models = frame.cmds.iter().filter(|c| matches!(c, piney_draw::Cmd::Model(_))).count();
+                    let edited = frame
+                        .cmds
+                        .iter()
+                        .filter(|c| matches!(c, piney_draw::Cmd::Model(m) if m.edits.is_some()))
+                        .count();
+                    println!("bench {f}: encode {enc:.2} ms, read back {back:.2} ms; {models} models, {edited} edited");
+                    let mut by: std::collections::BTreeMap<(String, u32, bool, bool, bool), usize> = Default::default();
+                    for c in &frame.cmds {
+                        if let piney_draw::Cmd::Model(m) = c {
+                            let k = (m.file.clone(), m.model, m.fog.is_some(), m.lights.is_some(), !m.nodes.is_empty());
+                            *by.entry(k).or_default() += 1;
+                        }
+                    }
+                    let mut by: Vec<_> = by.into_iter().collect();
+                    by.sort_by_key(|e| std::cmp::Reverse(e.1));
+                    for ((file, model, fog, lit, skin), n) in by.iter().take(12) {
+                        let same: Vec<&piney_draw::ModelDraw> = frame
+                            .cmds
+                            .iter()
+                            .filter_map(|c| match c {
+                                piney_draw::Cmd::Model(m) if &m.file == file && m.model == *model => Some(&**m),
+                                _ => None,
+                            })
+                            .collect();
+                        let mut places: Vec<String> = same.iter().map(|m| format!("{:?}", m.to_screen[3])).collect();
+                        places.sort();
+                        places.dedup();
+                        let fogs: std::collections::BTreeSet<String> =
+                            same.iter().map(|m| format!("{:?}", m.fog.map(|f| (f.f, f.colour)))).collect();
+                        let mmats: usize = same.iter().map(|m| m.mmats.len()).sum();
+                        println!(
+                            "  {n} x {file} {model:#x} fog {fog} lit {lit} skin {skin}: {} places, {mmats} mmats, fogs {fogs:?}",
+                            places.len()
+                        );
+                    }
+                }
+                if shoot {
+                    let (w, h) = gs.target_size();
+                    std::fs::write(format!("{dir}/f{f:05}.png"), piney_gs::png::encode(w, h, &pixels)).unwrap();
+                }
             }
         }
         then = std::time::Instant::now();

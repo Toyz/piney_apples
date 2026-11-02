@@ -106,6 +106,21 @@ pub(crate) fn kyvia_ex_mode_on(x: &mut Gomora, kpos: V4) {
     }
 }
 
+/// `m_eai` (+0x29380) as `InitData` sets it (MUT gcmn 0x004fe170, QUA
+/// 0x003ed59c): colour 0x007b7b31 at 30, `maxFrame` 80, half transparent
+/// fading by 0.02, no scale.
+pub const GOMORA_AFTERIMAGE: crate::boss::AfterImageParams = crate::boss::AfterImageParams {
+    color: 0x007b_7b31,
+    color_alpha: 0x41f0_0000,
+    color_spd: 0,
+    max_frame: 0x42a0_0000,
+    transparency: 0x3f00_0000,
+    trans_spd: 0xbca3_d70a,
+    ss: [0, 0, 0, ONE],
+    es: [0, 0, 0, ONE],
+    scale_time: 0,
+};
+
 /// `kyviaGomora::kyviaGomora` (MUT gcmn 0x004ff220, `InitData` 0x004fdf10),
 /// `GomoraInit(lv)` (0x004fe460) and `SetMaster(core, k)`.
 pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32, lv: i16) -> Boss {
@@ -410,7 +425,10 @@ fn think(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
         }
         act::DASH => {
             if g.x.af_cou == g.x.af_timing {
-                cx.out(Out::AfterImage);
+                // EntryAfterImage(&m_eai) on the gomora itself (QUA gcmn
+                // 0x003f0700): its own clip at its own frame and place.
+                let frame = g.b.base.anm.frame();
+                cx.out(Out::AfterImagePart { who: me, frame, params: GOMORA_AFTERIMAGE });
             }
         }
         1 | 2 | 4 | 5 | 11..=14 => {}

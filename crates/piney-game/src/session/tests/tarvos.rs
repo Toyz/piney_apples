@@ -184,3 +184,102 @@ fn tarvos_drained_plays_its_own_movie() {
     let movie = calls.iter().find(|c| c.starts_with("drain_movie"));
     assert_eq!(movie, Some(&"drain_movie 100"), "Tarvos's own movie");
 }
+
+/// Event 310's blocks 0-12 done (Tarvos drained and dead), back in Lia
+/// Fail (town 4): blocks 13 and 14, the NPCs' goodbyes.
+fn lia_fail_after_tarvos() -> Option<Session> {
+    let iso = crate::check_image("quarantine");
+    if !iso.exists() {
+        return None;
+    }
+    let mut d = piney_data::iso::Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let start = crate::start::build(&iso, 310).unwrap();
+    let mut state = start.state;
+    let f = state.save.event_flag(310);
+    state.save.set_event_flag(310, f | 0x1fff);
+    state.save.set_u8(offset::EVENT_STATUS, 1);
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    scene.change_scene(0, 4, -1, -1, -1, -1, &mut state.save);
+    let spcs = Some(crate::start::party_of(&[15, 6]));
+    let at = Resume::World(Box::new(InWorld { scene, world_man: None, spcs }));
+    Some(Session::resume(iso, archive, None, state, start.vm, at).unwrap())
+}
+
+/// Issue #80: Tartarga (`cts1`) drawn whole in event 310's goodbyes. His
+/// skin hangs on `OBJ_cts1body`, a node of `CMP_t0` (49 nodes), not of the
+/// `CMP_trall` his town PC is made from (`OBJ_trall` alone); posed through
+/// that one node, the whole body fell to his feet, out of the shot that
+/// frames him as he speaks (block 14's `camz_set 40 -466 3 77 -433 9`).
+#[test]
+fn tartarga_is_drawn_whole_in_the_goodbyes() {
+    let Some(mut s) = lia_fail_after_tarvos() else { return };
+    let mut pad = Pad::default();
+    let mut seen = 0;
+    for n in 0..760u32 {
+        let b = if n.is_multiple_of(12) { piney_input::Buttons::CROSS } else { piney_input::Buttons::NONE };
+        pad.read(&piney_input::Raw {
+            buttons: b,
+            analog: true,
+            lx: 128,
+            ly: 128,
+            rx: 128,
+            ry: 128,
+            ..Default::default()
+        });
+        let frame = s.step(&pad);
+        s.take_events();
+        if n < 570 {
+            continue;
+        }
+        for c in &frame.cmds {
+            let piney_draw::Cmd::Model(m) = c else { continue };
+            if m.file != "cts1" || m.mmats.len() < 2 {
+                continue;
+            }
+            assert_eq!(m.nodes.len(), 49, "frame {n}: CMP_t0's nodes");
+            let on_screen = m.nodes.iter().any(|k| {
+                let q = glam::Mat4::from_cols_array_2d(k) * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+                let (x, y) = (q.x / q.w, q.y / q.w);
+                q.w > 0.0 && (0.0..512.0).contains(&x) && (0.0..448.0).contains(&y)
+            });
+            assert!(on_screen, "frame {n}: Tartarga out of his shot");
+            seen += 1;
+        }
+    }
+    assert!(seen > 0, "Tartarga's skin never drawn");
+}
+
+/// Shots of event 310's block 14 every 30 frames to `PINEY_SHOTS`
+/// (/mnt/data/claude/scratch/bugs/80/block14).
+#[test]
+#[ignore]
+fn event_310_goodbyes_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/bugs/80/block14".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = lia_fail_after_tarvos() else { return };
+    let mut pad = Pad::default();
+    let mut gs: Option<piney_gs::Gs> = None;
+    for n in 0..900u32 {
+        let b = if n.is_multiple_of(12) { piney_input::Buttons::CROSS } else { piney_input::Buttons::NONE };
+        pad.read(&piney_input::Raw {
+            buttons: b,
+            analog: true,
+            lx: 128,
+            ly: 128,
+            rx: 128,
+            ry: 128,
+            ..Default::default()
+        });
+        let frame = s.step(&pad);
+        s.take_events();
+        if n.is_multiple_of(30) {
+            let gs =
+                gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+            gs.set_overlay(Mode::archive(&s));
+            gs.render(&frame);
+            let (w, h) = gs.target_size();
+            std::fs::write(format!("{dir}/f{n:05}.png"), piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+        }
+    }
+}

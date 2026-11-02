@@ -248,7 +248,14 @@ class Game:
         hook("ccSeOn3D__FiPf", lambda mm, se, p, *_: out.append(["se3d", s32(se)]) or 0)
         hook("ccSeOn__Fi", lambda mm, se, *_: out.append(["se", s32(se)]) or 0)
         hook("ccSeOn3DNote__FiPfc", lambda mm, se, p, n, *_: out.append(["se3dnote", s32(se), n & 0xFF]) or 0)
-        hook("EntryAfterImage__6ccBossFP17ENTRYAFTERIMAGE_T", lambda mm, *a: out.append(["afterimage"]) or 0)
+        def afterimage(mm, this, eai, *_):
+            # A core's or a gomora's own: its anm's frame (this->anm,
+            # +0xd4; frameNow +0x98) and its m_eai's first six words.
+            anm = mm.load(this + 0xD4, 4)
+            words = [mm.load(eai + o, 4) for o in (0, 4, 8, 12, 16, 20)]
+            out.append(["afterimage", s32(mm.load(anm + 0x98, 4))] + words)
+            return 0
+        hook("EntryAfterImage__6ccBossFP17ENTRYAFTERIMAGE_T", afterimage)
         hook("DrawParts__6ccBossFP5ccAnmi",
              lambda mm, this, anm, flag, *_: out.append(["draw_parts", self.anms.get(anm, [None, 0])[1] >> 8,
                                                          s32(flag)]) or 0)

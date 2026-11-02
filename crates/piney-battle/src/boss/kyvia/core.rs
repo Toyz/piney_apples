@@ -40,6 +40,12 @@ pub mod act {
     pub const ENTRY_GOMORA: i16 = 21;
 }
 
+/// `m_eai` (+0x294f0) as the constructor sets it (MUT gcmn 0x004f8b70,
+/// QUA 0x003e7e54): colour 0x00187500 at 30, the gomoras' otherwise;
+/// `ThinkESCAPE` gives each image the core's alpha.
+pub const CORE_AFTERIMAGE: crate::boss::AfterImageParams =
+    crate::boss::AfterImageParams { color: 0x0018_7500, ..gomora::GOMORA_AFTERIMAGE };
+
 /// `kyviaCore`'s own members (Infection's DWARF names).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Core {
@@ -656,7 +662,12 @@ fn think_escape(c: &mut Part<Core>, cx: &mut Cx) {
                 c.x.af_cou = 0;
             }
             if c.x.af_cou == 1 {
-                cx.out(Out::AfterImage);
+                // EntryAfterImage(&m_eai) on the core itself (QUA gcmn
+                // 0x003ea428), not the body, its transparency the core's
+                // alpha (0x003ea414).
+                let frame = c.b.base.anm.frame();
+                let params = crate::boss::AfterImageParams { transparency: c.x.alpha, ..CORE_AFTERIMAGE };
+                cx.out(Out::AfterImagePart { who: c.me, frame, params });
             }
             if geom::eq(0, c.x.alpha) && c.x.escape_cou == 2 {
                 c.x.core_state = 0;

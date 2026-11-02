@@ -319,3 +319,29 @@ fn a_thunderbolt_lives_its_time_and_one_more_draw() {
     });
     assert_eq!(draws, 91);
 }
+
+/// Issue #80: a dashing gomora's `EntryAfterImage(&m_eai)` is the
+/// gomora's own (QUA gcmn 0x003f0700, `this` the gomora): its clip at its
+/// frame in its `m_eai`, never the body's. Taken for the body's, the
+/// third fight drew up to 19 white copies of Cubia, 2.5 million vertices
+/// a frame.
+#[test]
+fn a_dashing_gomora_leaves_its_own_after_images() {
+    let Some(mut f) = fight() else { return };
+    f.disc.moving = false;
+    let gomoras = |f: &Bout| f.core().gomoras.clone();
+    let mut seen = 0;
+    for _ in 0..3000 {
+        let out = f.frame();
+        assert!(!out.contains(&Out::AfterImage), "an after-image of the body");
+        for o in &out {
+            // Its frame is the harness's to compare (tools/test_battle_kyvia_rs.py).
+            if let &Out::AfterImagePart { who, params, .. } = o {
+                assert!(gomoras(&f).contains(&who), "a gomora's");
+                assert_eq!(params, gomora::GOMORA_AFTERIMAGE);
+                seen += 1;
+            }
+        }
+    }
+    assert!(seen > 0, "no gomora dashed");
+}

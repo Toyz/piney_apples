@@ -3,7 +3,7 @@ title: The CCSF Model chunk
 status: solid
 volumes: INF
 covers: INF SLUS_202.67:0x0014bce0 Decode_Model, 0x0014b890 Decode_Mmat01, 0x0014a600 Decode_Mmat02, 0x00140920 DecodeShadowModel, 0x0013a440 ccModel::Init, VU1 micro 0x063 mc_DrawTriFast
-worklog: 10, 17, 244
+worklog: 10, 17, 244, 549
 ---
 
 # The CCSF Model chunk
@@ -157,7 +157,14 @@ Bone and skin positions are in clump-node space. Local matrix =
 T * Rx * Ry * Rz * S, rotation in degrees (`SetMatrix_PosRotZYXScale`,
 `0x00138120`); world = parent world * local (`0x00138380`); a vertex lands at
 node world * position. Slot `i` is the `i`-th node of the model's clump -
-inferred, consistent with every pose checked. Axes are Z-up, right-handed.
+inferred, consistent with every pose checked. The model's clump is the one
+whose node list holds the model's object, which need not be the clump a
+character is made from: Tartarga's `cts1` (and `cts2`, `cts4`) has
+`CMP_trall` with `OBJ_trall` alone and `CMP_t0` with 49 nodes, its skin
+`MDL_cts1body` on `OBJ_cts1body`, the 49th of `CMP_t0`. Posed through
+`CMP_t0` the body stands where event 310's cameras frame it; through
+`CMP_trall` every vertex fell to its feet (issue #80). Axes are Z-up,
+right-handed.
 
 ## Types seen
 

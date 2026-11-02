@@ -69,6 +69,12 @@ pub struct Body {
     /// makes each anm its own `ccMorpher`, which its clip's `F_Morpher`
     /// records set and `ccModel::Draw` applies (Kyvia's gomoras' and core's).
     pub morphers: HashMap<u32, u32>,
+    /// A model on an object outside the clump indexes the node table of
+    /// the file's clump that lists its object: Tartarga's `cts1`
+    /// (`cts2`, `cts4` too) hangs its skin on `OBJ_cts1body`, a node of
+    /// `CMP_t0` (49 nodes), while `CMP_trall` holds `OBJ_trall` alone.
+    /// (object, that clump's nodes, resolved as `nodes` are).
+    pub model_clumps: Vec<(u32, Vec<u32>)>,
 }
 
 impl Body {
@@ -94,7 +100,7 @@ impl Body {
             }
             o
         };
-        let nodes = file
+        let nodes: Vec<u32> = file
             .scene
             .clumps
             .iter()
@@ -102,7 +108,13 @@ impl Body {
             .map(|(_, n)| n.iter().map(|&o| resolve(o)).collect())
             .unwrap_or_default();
         let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
-        Ok(Body { file, nodes, attached: Vec::new(), tex_swaps: Vec::new(), blend: None, morphers })
+        let clumps: Vec<Vec<u32>> =
+            file.scene.clumps.iter().map(|(_, n)| n.iter().map(|&o| resolve(o)).collect()).collect();
+        let model_clumps = (file.scene.model_of.keys().copied())
+            .filter(|o| !nodes.contains(o))
+            .filter_map(|o| clumps.iter().find(|n| n.contains(&o)).map(|n| (o, n.clone())))
+            .collect();
+        Ok(Body { file, nodes, attached: Vec::new(), tex_swaps: Vec::new(), blend: None, morphers, model_clumps })
     }
 
     /// The targets and weights `model` is bent by in `morph` (its
@@ -287,8 +299,13 @@ impl Body {
         fog: crate::draw::Fogging,
         arms: f32,
     ) {
-        let worlds = self.worlds(play, root);
-        let node_mats: Vec<Mat4> = self.nodes.iter().map(|o| worlds.get(o).copied().unwrap_or(root)).collect();
+        let mut posed = self.nodes.clone();
+        posed.extend(self.model_clumps.iter().flat_map(|(_, n)| n.iter().copied()));
+        let worlds = play.worlds(&self.file, root, &posed);
+        let mats =
+            |nodes: &[u32]| -> Vec<Mat4> { nodes.iter().map(|o| worlds.get(o).copied().unwrap_or(root)).collect() };
+        let node_mats = mats(&self.nodes);
+        let clump_mats: Vec<(u32, Vec<Mat4>)> = self.model_clumps.iter().map(|(o, n)| (*o, mats(n))).collect();
         let rows = Default::default();
         // No blend: the draw environment's fog, by each vertex's depth.
         let fog = match (fog, lights.depth_fog()) {
@@ -329,7 +346,11 @@ impl Body {
                 alpha: if k.is_some() { arms } else { alpha * inst.alpha },
                 rows: &rows,
                 lights: lit.then(|| light_matrix(lights, world, shaded)),
-                nodes: if info.mtype & 6 != 0 { &node_mats } else { &[] },
+                nodes: match clump_mats.iter().find(|(o, _)| k.is_none() && *o == inst.object) {
+                    _ if info.mtype & 6 == 0 => &[],
+                    Some((_, m)) => m,
+                    None => &node_mats,
+                },
                 // An attached model is another file's, which no anm morphs.
                 morph: if k.is_some() { Vec::new() } else { self.morph_of(&morph, model) },
                 // ChangeClut swaps the body's palette; models from another
