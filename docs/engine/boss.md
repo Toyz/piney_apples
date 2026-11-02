@@ -767,7 +767,9 @@ Epitaph's clips move, its camera (`CamDef`: none, or `InitBossCamera` at
 a transfer, then what its constructor asked of it), its hit's radius and
 its constructor. Every def is `BASE_BOSS` (a part's `BASE_PART`) with its
 differences; `defs::BOSSES` is `bossFunc`, a def a code, and Corbenik's
-later forms and every part have theirs. The field reads a boss only
+later forms and every part have theirs. Each def is a `static` and not
+`Copy`, so a def is its address: `boss.def == &defs::TARVOS` holds from
+any crate (worklog 544). The field reads a boss only
 through its def and what it asks, the same for every boss:
 
 - `Out`, the frame's calls in order: sounds, cameras, flashes, effects

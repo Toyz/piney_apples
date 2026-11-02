@@ -3,15 +3,14 @@
 //! no aid from the arena and from the event's own start under the story
 //! autopilot. docs/engine/boss-tarvos.md.
 
-use piney_battle::boss::Boss;
 use piney_battle::boss::tarvos::act;
-use piney_data::classes::BossGameClass;
+use piney_battle::boss::{Boss, defs};
 
 use super::arena::{EVENT_310, arena_session, god_shots, play};
 use super::*;
 
 fn tarvos(b: &Boss) -> bool {
-    b.def.class == BossGameClass::CcBoss07
+    b.def == &defs::TARVOS
 }
 
 /// The fight under god from the arena to event 310's end: its patterns'

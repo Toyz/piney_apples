@@ -1453,11 +1453,11 @@ mod tests {
     #[test]
     fn kyvias_attacks_have_their_names_on_the_disc() {
         for (name, v, def, field, want) in [
-            ("mutation", piney_data::volume::Volume::Mut, defs::KYVIA, 9, &[(32, 0), (33, 1), (34, 2)][..]),
+            ("mutation", piney_data::volume::Volume::Mut, &defs::KYVIA, 9, &[(32, 0), (33, 1), (34, 2)][..]),
             (
                 "outbreak",
                 piney_data::volume::Volume::Out,
-                defs::KYVIA_SECOND,
+                &defs::KYVIA_SECOND,
                 10,
                 &[(36, 1), (37, 0), (38, 2), (46, 8)][..],
             ),

@@ -53,8 +53,9 @@ pub struct Spawn {
     pub dummy: V4,
 }
 
-/// What a boss is.
-#[derive(Clone, Copy, Debug)]
+/// What a boss is: one `static` a def, so a def is its address (no copies:
+/// a `const` def named from two crates need not share one).
+#[derive(Debug)]
 pub struct BossDef {
     /// `bossFunc`'s code (none for Corbenik's later forms and the parts).
     pub code: Option<i32>,
@@ -104,7 +105,7 @@ fn bare(_: &mut Cx, _: &Spawn) -> Boss {
 }
 
 /// `ccBoss`: `x11`'s `CMP_trall` for a look, no camera.
-pub const BASE_BOSS: BossDef = BossDef {
+pub static BASE_BOSS: BossDef = BossDef {
     code: None,
     class: BossGameClass::CcBoss,
     file: "",
@@ -124,7 +125,7 @@ pub const BASE_BOSS: BossDef = BossDef {
 };
 
 /// A part: a `ccBoss` of its own character whose frame its master runs.
-pub const BASE_PART: BossDef = BossDef { ..BASE_BOSS };
+pub static BASE_PART: BossDef = BossDef { ..BASE_BOSS };
 
 /// `InitBossCamera(z, y)`'s `transfer`: (200, 1000), the eye 1000 behind
 /// Kite and 200 up at its nearest (Skeith's, Tarvos's, Corbenik's second
@@ -135,7 +136,7 @@ pub const CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x4348_0000, ONE];
 /// (gcmn 0x0047bd50) is `ccBoss::Main`'s blocks around his `Think` and
 /// `Action`, his `PreDrawAnm` (0x0047c340) before the body's, then the
 /// hold let go and his `DrawCross`; his `Affect` his own.
-pub const SKEITH: BossDef = BossDef {
+pub static SKEITH: BossDef = BossDef {
     code: Some(0),
     class: BossGameClass::CcBoss01,
     file: "x11",
@@ -165,7 +166,7 @@ pub const SKEITH: BossDef = BossDef {
 
 /// Innis (`ccBoss02`, `x21`): its body, its three images (`Mon1`-`Mon3`'s
 /// models), its mirrors' shards. `InitBossCamera(200, 900)`.
-pub const INNIS: BossDef = BossDef {
+pub static INNIS: BossDef = BossDef {
     code: Some(1),
     class: BossGameClass::CcBoss02,
     file: "x21",
@@ -178,7 +179,7 @@ pub const INNIS: BossDef = BossDef {
 
 /// Magus (`ccBoss03`, `x31`): its body and its leaves' model; it turns
 /// camera 3 itself.
-pub const MAGUS: BossDef = BossDef {
+pub static MAGUS: BossDef = BossDef {
     code: Some(2),
     class: BossGameClass::CcBoss03,
     file: "x31",
@@ -190,7 +191,7 @@ pub const MAGUS: BossDef = BossDef {
 
 /// Fidchell (`ccBoss04`, `x41`): its body, and the body its Epitaph's
 /// clips (`ANM_ex4x*`) move. `InitBossCamera(250, 1500)`.
-pub const FIDCHELL: BossDef = BossDef {
+pub static FIDCHELL: BossDef = BossDef {
     code: Some(3),
     class: BossGameClass::CcBoss04,
     file: fidchell::FILE,
@@ -225,7 +226,7 @@ pub const FIDCHELL: BossDef = BossDef {
 /// poses) and its brothers' clumps, whose objects their clips draw: the
 /// first's `ANM_ex51*`, the second's `ANM_ex52*`, both brothers' Epitaph
 /// `ANM_ex5x*`. `InitBossCamera(200, 1500)`.
-pub const GORRE: BossDef = BossDef {
+pub static GORRE: BossDef = BossDef {
     code: Some(4),
     class: BossGameClass::CcBoss05,
     file: gorre::FILE,
@@ -238,7 +239,7 @@ pub const GORRE: BossDef = BossDef {
 
 /// Macha (`ccBoss06`, `x61`): the body, and the body its Epitaph's clips
 /// (`ANM_ex6x*`) move. `InitBossCamera(250, 1000)`.
-pub const MACHA: BossDef = BossDef {
+pub static MACHA: BossDef = BossDef {
     code: Some(5),
     class: BossGameClass::CcBoss06,
     file: macha::FILE,
@@ -252,7 +253,7 @@ pub const MACHA: BossDef = BossDef {
 
 /// Tarvos (`ccBoss07`, `x71`): the body, and the body its Epitaph's clips
 /// (`ANM_ex7x*`) move.
-pub const TARVOS: BossDef = BossDef {
+pub static TARVOS: BossDef = BossDef {
     code: Some(6),
     class: BossGameClass::CcBoss07,
     file: tarvos::FILE,
@@ -289,7 +290,7 @@ pub const TARVOS: BossDef = BossDef {
 /// form's the body ([`corbenik::BODIES`]). Code 7 makes the first form,
 /// or the third when the save says (`ccThBoss08`); the first makes no
 /// camera.
-pub const CORBENIK: BossDef = BossDef {
+pub static CORBENIK: BossDef = BossDef {
     code: Some(7),
     class: BossGameClass::CcBoss08,
     file: corbenik::FILE,
@@ -306,11 +307,11 @@ pub const CORBENIK: BossDef = BossDef {
 
 /// Corbenik's second form (`ccBoss08_b`), which the first's task makes as
 /// it exits: `InitBossCamera(200, 1000)`.
-pub const CORBENIK_SECOND: BossDef =
+pub static CORBENIK_SECOND: BossDef =
     BossDef { code: None, class: BossGameClass::CcBoss08B, cam: CamDef::Transfer(CAM_TRANSFER), ..CORBENIK };
 
 /// Corbenik's third form (`ccBoss08_c`): `InitBossCamera(980, 1500)`.
-pub const CORBENIK_THIRD: BossDef = BossDef {
+pub static CORBENIK_THIRD: BossDef = BossDef {
     code: None,
     class: BossGameClass::CcBoss08C,
     cam: CamDef::Transfer([0, corbenik::third::CAM_Y, corbenik::third::CAM_Z, ONE]),
@@ -321,7 +322,7 @@ pub const CORBENIK_THIRD: BossDef = BossDef {
 /// and its core's and gomoras' clumps there (the same names in each),
 /// whose objects their clips (`ANM_ex0cnut0`, `ANM_ex0gnut0`) draw and
 /// morph. `InitBossCamera(450, 1050)`, the fourth fight's (250, 700).
-pub const KYVIA: BossDef = BossDef {
+pub static KYVIA: BossDef = BossDef {
     code: Some(12),
     class: BossGameClass::CcBossKyvia01,
     file: kyvia::Fight::First.file(),
@@ -333,7 +334,7 @@ pub const KYVIA: BossDef = BossDef {
     ..BASE_BOSS
 };
 
-pub const KYVIA_SECOND: BossDef = BossDef {
+pub static KYVIA_SECOND: BossDef = BossDef {
     code: Some(13),
     class: BossGameClass::CcBossKyvia02,
     file: kyvia::Fight::Second.file(),
@@ -342,7 +343,7 @@ pub const KYVIA_SECOND: BossDef = BossDef {
     ..KYVIA
 };
 
-pub const KYVIA_THIRD: BossDef = BossDef {
+pub static KYVIA_THIRD: BossDef = BossDef {
     code: Some(14),
     class: BossGameClass::CcBossKyvia03,
     file: kyvia::Fight::Third.file(),
@@ -351,7 +352,7 @@ pub const KYVIA_THIRD: BossDef = BossDef {
     ..KYVIA
 };
 
-pub const KYVIA_FOURTH: BossDef = BossDef {
+pub static KYVIA_FOURTH: BossDef = BossDef {
     code: Some(15),
     class: BossGameClass::CcBossKyvia04,
     file: kyvia::Fight::Fourth.file(),
@@ -364,17 +365,17 @@ pub const KYVIA_FOURTH: BossDef = BossDef {
 // --- the parts ---------------------------------------------------------------------------
 
 /// Magus's leaf (`ccBoss03Leaf`).
-pub const LEAF: BossDef = BossDef { class: BossGameClass::CcBoss03Leaf, ..BASE_PART };
+pub static LEAF: BossDef = BossDef { class: BossGameClass::CcBoss03Leaf, ..BASE_PART };
 /// Kyvia's core (`kyviaCore`) and gomoras (`kyviaGomora`).
-pub const CORE: BossDef = BossDef { class: BossGameClass::KyviaCore, ..BASE_PART };
-pub const GOMORA: BossDef = BossDef { class: BossGameClass::KyviaGomora, ..BASE_PART };
+pub static CORE: BossDef = BossDef { class: BossGameClass::KyviaCore, ..BASE_PART };
+pub static GOMORA: BossDef = BossDef { class: BossGameClass::KyviaGomora, ..BASE_PART };
 /// A Gorre brother (`ccBoss05Brother`).
-pub const BROTHER: BossDef = BossDef { class: BossGameClass::CcBoss05Brother, ..BASE_PART };
+pub static BROTHER: BossDef = BossDef { class: BossGameClass::CcBoss05Brother, ..BASE_PART };
 /// Corbenik's seeds, roots, eyes and killer eyes.
-pub const SEED: BossDef = BossDef { class: BossGameClass::CcBoss08Seed, ..BASE_PART };
-pub const ROOT: BossDef = BossDef { class: BossGameClass::CcBoss08Root, ..BASE_PART };
-pub const EYE: BossDef = BossDef { class: BossGameClass::CcBoss08Eye, ..BASE_PART };
-pub const KILLER_EYE: BossDef = BossDef { class: BossGameClass::CcBoss08KillerEye, ..BASE_PART };
+pub static SEED: BossDef = BossDef { class: BossGameClass::CcBoss08Seed, ..BASE_PART };
+pub static ROOT: BossDef = BossDef { class: BossGameClass::CcBoss08Root, ..BASE_PART };
+pub static EYE: BossDef = BossDef { class: BossGameClass::CcBoss08Eye, ..BASE_PART };
+pub static KILLER_EYE: BossDef = BossDef { class: BossGameClass::CcBoss08KillerEye, ..BASE_PART };
 
 /// `bossFunc`: the def each code starts.
 pub static BOSSES: [&BossDef; 12] = [
@@ -444,5 +445,16 @@ mod tests {
             assert!(!d.file.is_empty(), "code {code}");
         }
         assert!(BossDef::of(8).is_none());
+    }
+
+    /// A def is its address: each static one, the code's the same one.
+    #[test]
+    fn each_def_one_address() {
+        for (k, a) in ALL.iter().enumerate() {
+            assert!(ALL[k + 1..].iter().all(|b| !std::ptr::eq(*a, *b)), "{:?}", a.class);
+        }
+        assert!(BOSSES.iter().all(|d| ALL.contains(d)));
+        assert_eq!(BossDef::of(6), Some(&TARVOS));
+        assert_ne!(BASE_PART, BASE_BOSS);
     }
 }

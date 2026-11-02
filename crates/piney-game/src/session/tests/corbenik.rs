@@ -3,13 +3,13 @@
 //! under god from the arena with shots. docs/engine/boss-corbenik.md.
 
 use piney_battle::boss::corbenik::seed;
-use piney_battle::boss::{Boss, Class};
+use piney_battle::boss::{Boss, Class, defs};
 
 use super::arena::{EVENT_313, EVENT_313_THIRD, arena_session, god_shots_for};
 use super::*;
 
 fn corbenik(b: &Boss) -> bool {
-    matches!(b.class, Class::Corbenik(_) | Class::CorbenikB(_) | Class::CorbenikC(_))
+    [&defs::CORBENIK, &defs::CORBENIK_SECOND, &defs::CORBENIK_THIRD].contains(&b.def)
 }
 
 /// Forms one and two under god from the arena to event 313's end (the
