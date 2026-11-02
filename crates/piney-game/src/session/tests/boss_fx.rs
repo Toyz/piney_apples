@@ -5,7 +5,6 @@
 
 use std::collections::BTreeMap;
 
-use piney_battle::boss::Class;
 use piney_battle::event::Event as Rule;
 use piney_input::{Buttons, Raw};
 use piney_world::combat::{Combat, Show};
@@ -308,12 +307,9 @@ fn gorres_brothers_share_its_param_after_the_drain() {
     let _ = gorre;
 }
 
-/// Innis's class.
+/// Innis's own.
 fn innis(c: &Combat, me: usize) -> Option<&piney_battle::boss::innis::Innis> {
-    match &c.scene.chars[me].foe_state()?.boss.as_ref()?.class {
-        Class::Innis(x) => Some(x),
-        _ => None,
-    }
+    c.scene.chars[me].foe_state()?.boss.as_ref()?.systems.get()
 }
 
 /// `MagicSquare`'s word (`SwitchActionPattern` 19).
@@ -334,8 +330,10 @@ fn innis_magic(s: &mut Session, frames: u32) -> Vec<(Option<i32>, Seen)> {
                 p.pp = max / 2;
             }
         }
-        if let Some(Class::Innis(x)) =
-            c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+        if let Some(x) = c.scene.chars[me]
+            .foe_state_mut()
+            .and_then(|f| f.boss.as_mut())
+            .and_then(|b| b.systems.get_mut::<piney_battle::boss::innis::Innis>())
             && x.move_flg == MAGIC_WORD
             && x.eny_flg == 0
             && x.cou == 3
@@ -539,8 +537,10 @@ fn innis_shots() {
             }
         }
         // Each magic's element in turn, as innis_magic forces them.
-        if let Some(Class::Innis(x)) =
-            c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+        if let Some(x) = c.scene.chars[me]
+            .foe_state_mut()
+            .and_then(|f| f.boss.as_mut())
+            .and_then(|b| b.systems.get_mut::<piney_battle::boss::innis::Innis>())
             && x.move_flg == MAGIC_WORD
             && x.eny_flg == 0
             && x.cou == 3

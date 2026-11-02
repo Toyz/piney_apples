@@ -87,18 +87,16 @@ pub mod act {
     pub const RAND_DRIVE: i16 = 21;
 }
 
-/// Every boss's tables, for the volume ([`innis::InnisData`],
-/// [`corbenik::CorbenikData`]).
+/// Every boss's tables, for the volume ([`corbenik::CorbenikData`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossData {
-    pub innis: innis::InnisData,
     pub corbenik: corbenik::CorbenikData,
 }
 
 impl BossData {
     /// The volume's.
     pub fn of(volume: piney_data::volume::Volume) -> BossData {
-        BossData { innis: innis::InnisData::of(volume), corbenik: corbenik::CorbenikData::of(volume) }
+        BossData { corbenik: corbenik::CorbenikData::of(volume) }
     }
 }
 
@@ -106,8 +104,6 @@ impl BossData {
 /// `Affect` run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Class {
-    /// `ccBoss02` and its three slaves.
-    Innis(Box<innis::Innis>),
     /// `ccBoss08`, the first form: its seeds are bosses of their own
     /// characters.
     Corbenik(Box<corbenik::first::First>),

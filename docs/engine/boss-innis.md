@@ -3,7 +3,7 @@ title: Bosses - Innis
 status: partial
 volumes: MUT
 covers: MUT gcmn.prg:0x00470c40 ccBossEntryStart, 0x006192c0 bossFunc, 0x004941f0 ccThBoss02, 0x004942c0 ccBoss02::ccBoss02, 0x00495d50 ccBoss02::Main, 0x00494cd0 ccBoss02::Move, 0x004964b0 ccBoss02::Think, 0x00494e10 ccBoss02::Action, 0x00495448 act 5, 0x004960f0 ccBoss02::Affect, 0x00496a50 ccBoss02::ActionDecision, 0x00496f50 ccBoss02::ActionEnd, 0x00496900 ccBoss02::ResetData, 0x00496fc0 ccBoss02::SwitchActionPattern, 0x006e0c20 its jump table, 0x00497b80 Pattern01, 0x00497c40 Pattern02, 0x00497df0 Pattern03, 0x00497eb0 Pattern05, 0x004980b0 Pattern06, 0x004981d0 Pattern07, 0x00498500 Pattern08, 0x004987d0 Pattern10, 0x00498eb0 Pattern11, 0x00499110 SkillAttack, 0x004996c0 GetRndSkill_INIS, 0x00499770 Checkstate, 0x004997d0 CheckRange, 0x00499950 RndTarget, 0x00499a90 ParticularCount, 0x00499b40 SetCameraEyes, 0x00499c10 CharALLHold, 0x00499d10 DmgCheckCount, 0x0049a000 MagicSquare, 0x0049a7d0 MagicDamage, 0x0049a900 EnemyAttack, 0x0049aa10 AllAttack, 0x0049afa0 IceAttack, 0x0049b560 ThunderAttack, 0x0049bb30 BlazeAttack, 0x0049c1e0 EntrySlave, 0x0049c310 ccBoss02Slave::ccBoss02Slave, 0x0049c520 SetMonster, 0x0049c810 SetStartPosition, 0x0049cce0 ccBoss02Slave::Think, 0x0049d1b0 EnemyBurst, 0x0049d6b0 SetTan, 0x0049d820 SetLotate, 0x00533d90 BreakMirror::MainMirror, 0x00533fd0 BreakMirror::BreakMirror, 0x005340e0 BreakMirror::SetData, 0x00534430 BreakMirror::Mbreak, 0x00534a50 BreakMirror::CheckAnmEnd, 0x004780f0 ccBossEffManager::Draw, 0x00478d50 ccBossEffIceMissile::Draw, 0x00479420 ccBossEffIceMissile::Spline, 0x00479930 ccBossEffLightningMissile::Draw, 0x0047a220 ccBossEffBlazeMissile::Draw, 0x00475ae0 ccBossCam::SetMode, 0x00475c90 ccBossCam::SetFreeCamPosView, 0x004766d0 ccBossCam::CheckMoveCamera, 0x0061d350 InisFieldGenerator, 0x0061d4f0 TornadoGenerator, 0x0061d590 BurstGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator, 0x00478910 ccBossEffIceMissile::ccBossEffIceMissile, 0x004795b0 ccBossEffLightningMissile::ccBossEffLightningMissile, 0x00479ed0 ccBossEffBlazeMissile::ccBossEffBlazeMissile, 0x0048d670 ccBossEffSamonRingCreate, 0x00478480 ccEffSamonRing::ccEffSamonRing, 0x004786b0 ccEffSamonRing::Draw, 0x00477c20 ccEffSamonRing::SetModel, 0x00473430 ccBoss::DrawPartsClump, 0x00619bd0 Pattern, 0x00619e30 EPITAPH_Pattern, 0x00619b90 boss02AnmTbl, 0x00619f08 Skill_VARIOUS_INIS, 0x00619f20 Skill_DOWNER_INIS, 0x00619f40 Mon1, 0x00619f80 Mon2, 0x00619fc0 Mon3, 0x0061a000 @2702, 0x00619320 _g_cinemaSkillName, 0x00641aa0 bossTbl
-worklog: 266
+worklog: 266, 554
 ---
 
 # Bosses - Innis
@@ -329,13 +329,28 @@ turn.
 
 ## In the port
 
-`piney_battle::boss::innis` holds the rules. `Boss.class` is
-`Class::Innis` with the members above, and `Boss::main` sends it there
-(its `BossClass` impl).
-The tables come from the build (`tables::combat`: `innis_pattern`,
+`piney_battle::boss::innis` holds the rules. Its def (`INNIS`, worklog
+554) names its systems: its wave (`systems::wave`, `anmw`), its
+missiles' pass (`innis::Missiles`, the effect manager's pass before the
+task), its images (`innis::Images`: the three `ccBoss02Slave`s, each
+image's `ccBoss::Main` with its own `Think` run by `Slave()`, drawn as
+figures with their mirrors' shards) and its own (`innis::Innis`):
+
+```text
+order:  Missiles.Pass, Live[Prologue, TickStop, Innis.Think, Innis.Action,
+        Innis.Move, Innis.Lock, Innis.PreDraw, Draw, Images.Action, ClearHold]
+affect: Innis.Affect
+```
+
+`Innis.Lock` is `ccBoss::Main`'s lock with the menu's forbid as act 5
+wrote it that frame; `Innis.PreDraw` the clip forward and both
+transparencies its alpha. The magic square is one of its acts
+(`MagicSquare`, its own step counter and the camera's zoom shared with
+its other acts), drawn by the effect manager (`ccBossEffBrightMagicSquare`).
+The tables are views of the volume's `tables::combat` (`innis_pattern`,
 `innis_epitaph`, `innis_anims`, `innis_various_skills`,
 `innis_downer_skills`, `innis_monster_anims`, `innis_ring_models`,
-`cinema_skill_names`) through `BossData`. The missiles' flights are rules
+`cinema_skill_names`). The missiles' flights are rules
 (they call `MagicDamage`), run in the manager's pass: `Missile::step` is
 the `Draw` with what it asks in order (`innis::Call`) and what it drew
 (`Missile::shown`). The camera's modes,

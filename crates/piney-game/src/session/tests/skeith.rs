@@ -1056,10 +1056,7 @@ pub(super) fn event_107_arena() -> Option<Session> {
 
 /// Innis's Epitaph flag, when the boss is Innis.
 fn innis_epitaph(b: &piney_battle::boss::Boss) -> Option<i32> {
-    match &b.class {
-        piney_battle::boss::Class::Innis(x) => Some(x.epitaph_flg),
-        _ => None,
-    }
+    b.systems.get::<piney_battle::boss::innis::Innis>().map(|x| x.epitaph_flg)
 }
 
 /// Event 107 in the arena: block 17 makes Innis (`entry 7 1`,

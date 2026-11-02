@@ -364,6 +364,10 @@ Where the code does by hand, per kind, what a system should do once:
       lent (`SlaveCore`, `Gomoras`), its disc and the fourth's places,
       its own and its effects' pass as the def's `pass`; the core and a
       gomora each its own system; `KyviaData` gone.)
+      (worklog 554: Innis, its wave, its missiles' pass, its images (each
+      image's `ccBoss::Main` its own, the slave's `base_main` gone) and
+      its own; `InnisData` gone. The magic square stays one of its acts:
+      its state is the acts' shared counters and camera.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

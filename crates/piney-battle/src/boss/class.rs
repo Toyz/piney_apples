@@ -46,7 +46,6 @@ macro_rules! each_class {
     ($class:expr, $x:ident => $each:expr, $plain:expr) => {
         match $class {
             Class::Plain => $plain,
-            Class::Innis($x) => $each,
             Class::Corbenik($x) => $each,
             Class::CorbenikSeed($x) => $each,
             Class::CorbenikB($x) => $each,

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-553 entries: audio 44, battle 154, build 29, content 3, decomp 28, disc 5, engine 26, format 17, iop 3, render 130, save 16, script 62, test 240, tooling 58, ui 104, video 17, volumes 95, world 154. 142 entries still have open questions - [listed below](#still-open).
+554 entries: audio 44, battle 155, build 29, content 3, decomp 28, disc 5, engine 26, format 17, iop 3, render 130, save 16, script 62, test 240, tooling 58, ui 104, video 17, volumes 95, world 154. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -565,9 +565,11 @@ The [reference](docs/README.md) says what is true now.
 | 551 | [The cures' only sound is the skill start's: Antidote and Restorative play 104 as the game does](worklog/0551-the-cures-only-sound-is-the-skill-start-s-antidote-and.md) | 2026-11-02 | audio, battle |
 | 552 | [Mac Anu's frame drops: a redraw that catches up draws only the frames it shows (#77)](worklog/0552-mac-anu-s-frame-drops-a-redraw-that-catches-up-draws-only.md) | 2026-11-02 | render, engine, test |
 | 553 | [Bosses as defs: Kyvia made of systems, its core and gomoras lent, its disc and the fourth's places; the baselines taken anew at 9aaea16](worklog/0553-bosses-as-defs-kyvia-made-of-systems-its-core-and-gomoras.md) | 2026-11-02 | battle |
+| 554 | [Bosses as defs: Innis made of systems, its wave, its missiles' pass, its images and its own; the images' Main written out](worklog/0554-bosses-as-defs-innis-made-of-systems-its-wave-its-missiles.md) | 2026-11-02 | battle |
 
 ## Still open
 
+- [554. Bosses as defs: Innis made of systems, its wave, its missiles' pass, its images and its own; the images' Main written out](worklog/0554-bosses-as-defs-innis-made-of-systems-its-wave-its-missiles.md) - nothing this step opened; Corbenik remains to convert, then Class, each_class! and BossData out.
 - [553. Bosses as defs: Kyvia made of systems, its core and gomoras lent, its disc and the fourth's places; the baselines taken anew at 9aaea16](worklog/0553-bosses-as-defs-kyvia-made-of-systems-its-core-and-gomoras.md) - nothing this step opened; Innis and Corbenik remain to convert, then Class, each_class! and BossData out.
 - [552. Mac Anu's frame drops: a redraw that catches up draws only the frames it shows (#77)](worklog/0552-mac-anu-s-frame-drops-a-redraw-that-catches-up-draws-only.md) - whether the reporter's machine passes a refresh at the bridge only through catch-up, or also on its first frame there.
 - [551. The cures' only sound is the skill start's: Antidote and Restorative play 104 as the game does](worklog/0551-the-cures-only-sound-is-the-skill-start-s-antidote-and.md) - what the reporter heard as silence: the port asks for and plays the game's one sound for these items (104); whether...

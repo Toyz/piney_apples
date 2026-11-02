@@ -8,9 +8,12 @@
 
 use piney_data::field::ee;
 use piney_data::libm;
+use piney_data::tables::combat;
 
 use super::blur::Set;
-use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Fx, FxCall, Out, PassMode, VF0, word};
+use super::systems::wave::Wave;
+use super::systems::{BossSystem, Hook, Others, Systems};
+use super::{Anm, BodyDraw, Boss, BossBase, Cx, EffKind, Figure, Fx, FxCall, Out, Output, PassMode, VF0, word};
 use crate::chara::AffectFunc;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -71,46 +74,9 @@ pub enum Gen {
     Burst(u8),
 }
 
-/// Innis's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct InnisData {
-    /// `Pattern`: the action words, three runs each ended by a 29.
-    pub pattern: Vec<i32>,
-    /// `EPITAPH_Pattern`: once drained.
-    pub epitaph: Vec<i32>,
-    /// `boss02AnmTbl`: the act's clip.
-    pub anm_tbl: Vec<Option<String>>,
-    /// `Skill_VARIOUS_INIS`, `Skill_DOWNER_INIS`.
-    pub various: Vec<i16>,
-    pub downer: Vec<i16>,
-    /// `Mon1`-`Mon3`: the images' clips by act.
-    pub monsters: Vec<Vec<Option<String>>>,
-    /// The images' burst rings' model (`EnemyBurst`'s @2702).
-    pub ring_models: Vec<i32>,
-}
-
-impl InnisData {
-    /// The volume's.
-    pub fn of(volume: piney_data::volume::Volume) -> InnisData {
-        let t = piney_data::tables::combat::of(volume);
-        let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
-        InnisData {
-            pattern: t.innis_pattern.to_vec(),
-            epitaph: t.innis_epitaph.to_vec(),
-            anm_tbl: s(t.innis_anims),
-            various: t.innis_various_skills.to_vec(),
-            downer: t.innis_downer_skills.to_vec(),
-            monsters: t.innis_monster_anims.iter().map(|m| s(m)).collect(),
-            ring_models: t.innis_ring_models.to_vec(),
-        }
-    }
-}
-
 /// `ccBoss02`'s own members (+0x29350 on).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Innis {
-    /// `anmw`: `xeffect`'s `ANM_xx11wave`, played in the fall.
-    pub anm_w: Anm,
     pub init_vector: V4,
     pub action_flg: i32,
     pub escape: u8,
@@ -179,9 +145,19 @@ pub struct Innis {
     /// `ccMenu.forbid` as act 5 set it this frame (its direct write,
     /// which `Main`'s check after reads).
     pub forbid_now: Option<i16>,
-    /// `slaveCtrl[0]`: the three images.
+}
+
+/// `slaveCtrl[0]`: the three images, run by Innis's `Slave()` and drawn
+/// with it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Images {
     pub slaves: Vec<Slave>,
 }
+
+/// The effect manager's pass over Innis's effects, whose lives of their
+/// own are its missiles' ([`Missile`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Missiles;
 
 /// `ccBoss02Slave`'s own members (+0x29350 on) and its `ccBoss` base.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -309,10 +285,10 @@ fn vec3(x: F, y: F, z: F) -> V4 {
 /// Innis stands 1500 behind Kite and 20 up. `center` is the arena's
 /// `DMY_center01` (world).
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
-    let data = &cx.data.innis;
+    let data = combat::of(cx.volume());
     let mut pat_end = [-1; 3];
     let mut n = 0;
-    for (k, &w) in data.pattern.iter().enumerate().take(150) {
+    for (k, &w) in data.innis_pattern.iter().enumerate().take(150) {
         if w == 29 && n < 3 {
             pat_end[n] = k as i32;
             n += 1;
@@ -320,7 +296,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     }
     let me = cx.me;
     let mut b = BossBase {
-        anm_tbl: data.anm_tbl.clone(),
+        anm_tbl: data.innis_anims.iter().map(|a| a.map(str::to_string)).collect(),
         wait_pat_num: -2,
         pat_num: 13,
         use_stage_eff: true,
@@ -330,7 +306,6 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         ..BossBase::default()
     };
     let mut x = Innis {
-        anm_w: Anm::new(),
         end_flg: 1,
         p_flg: 1,
         af_timing: 3,
@@ -367,14 +342,18 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     for s in [Set::Enable, Set::Abgr(x.default_argb), Set::Scale(0x3f81_47ae), Set::Turn(0x3ca3_d70a)] {
         cx.out(Out::Blur(s));
     }
-    x.anm_w.set(super::ANM_WAVE, cx.clips);
-    for k in 0..3 {
-        x.slaves.push(Slave::new(cx, k));
-    }
+    let mut wave = Anm::new();
+    wave.set(super::ANM_WAVE, cx.clips);
+    let slaves = (0..3).map(|k| Slave::new(cx, k)).collect();
     x.vec_center = [center[0], center[1], center[2], ONE];
     x.vec_center_p = super::w2p(cx, x.vec_center);
     crate::fellow::entry_cmnd(cx.scene, me);
-    Boss::of(&crate::boss::defs::INNIS, b, Class::Innis(Box::new(x)))
+    let mut boss = Boss::build(&crate::boss::defs::INNIS, b);
+    let (own, mut o) = boss.systems.split::<Innis>().expect("Innis's def has its own");
+    *own = x;
+    o.take::<Wave>().expect("Innis's def has its wave").anm = wave;
+    o.take::<Images>().expect("Innis's def has its images").slaves = slaves;
+    boss
 }
 
 impl Slave {
@@ -413,19 +392,66 @@ impl Slave {
 
 // --- the frame ------------------------------------------------------------------------------
 
-impl crate::boss::BossClass for Innis {
-    /// The wave as posed; the slaves, each its `CMP_ex21monN` by
-    /// `MonsterID`; the mirrors' shards `Mbreak` drew
-    /// (`BreakMirror::SetStream(x21, ID)`: `CMP_ex21ef{ID}1`-`5`).
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
-        out.wave = Some(self.anm_w.posed);
-        out.figures.extend(self.slaves.iter().map(|s| crate::boss::Figure {
+impl BossSystem for Innis {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        let x = self;
+        match hook {
+            Hook::Think => think(b, x, cx),
+            Hook::Action => {
+                let wave = o.take::<Wave>().expect("Innis's def has its wave");
+                let images = o.take::<Images>().expect("Innis's def has its images");
+                action(b, x, &mut wave.anm, images, cx);
+            }
+            Hook::Move => mov(b, x, cx),
+            // `ccBoss::Main`'s lock with the menu's forbid as act 5 left
+            // it this frame.
+            Hook::Lock => {
+                let forbid = x.forbid_now.take().unwrap_or(cx.env.menu_forbid);
+                b.lock_party_as(cx, forbid);
+            }
+            // The clip forward and both transparencies its alpha, before
+            // the body's `Draw`.
+            Hook::PreDraw if b.draw_sw != 0 => {
+                b.anm_status = i8::from(b.anm.forward());
+                b.transparency = x.alpha;
+                b.set_transparency = x.alpha;
+            }
+            Hook::Affect => affect(b, cx),
+            _ => {}
+        }
+    }
+
+    /// The body where it stands.
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut Output) {
+        out.body =
+            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
+    }
+}
+
+impl BossSystem for Missiles {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Pass {
+            manager_pass(b, o.take::<Innis>().expect("Innis's def has its own"), cx);
+        }
+    }
+}
+
+impl BossSystem for Images {
+    /// `Slave()`: each image's `ccBoss::Main`, its `Think` its own.
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Action {
+            let master_me = cx.me;
+            for s in &mut self.slaves {
+                s.main(b, master_me, cx);
+            }
+        }
+    }
+
+    /// Each image its `CMP_ex21monN` by `MonsterID`; the mirrors' shards
+    /// `Mbreak` drew (`BreakMirror::SetStream(x21, ID)`:
+    /// `CMP_ex21ef{ID}1`-`5`).
+    fn draw(&self, _b: &BossBase, _all: &Systems, _cx: &mut Cx, out: &mut Output) {
+        out.figures.extend(self.slaves.iter().map(|s| Figure {
             me: s.me,
             image: s.samon_id.clamp(0, 2) as usize,
             anm: s.b.anm.clone(),
@@ -439,43 +465,6 @@ impl crate::boss::BossClass for Innis {
             .flat_map(|(id, drawn)| drawn.iter().map(move |&(k, p, r)| (id as usize * 5 + k, p, r)));
         out.clumps.extend(shards);
     }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, cx);
-    }
-}
-
-/// `ccThBossEffect`'s pass and `ccBoss02::Main` (0x00495d50).
-pub(super) fn main(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
-    manager_pass(b, x, cx);
-    if b.exit == 0 {
-        frame(b, x, cx);
-    }
-}
-
-fn frame(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
-    let me = cx.me;
-    b.prologue(cx);
-    b.tick_stop();
-    think(b, x, cx);
-    action(b, x, cx);
-    mov(b, x, cx);
-    let forbid = x.forbid_now.take().unwrap_or(cx.env.menu_forbid);
-    b.lock_party_as(cx, forbid);
-    if b.draw_sw != 0 {
-        b.anm_status = i8::from(b.anm.forward());
-        b.transparency = x.alpha;
-        b.set_transparency = x.alpha;
-        b.draw(cx);
-    }
-    // Slave(): each image's ccBoss::Main.
-    for k in 0..x.slaves.len() {
-        slave_main(b, x, k, cx);
-    }
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
 
 /// `ccBoss02::Move` (0x00494cd0): as `ccBoss::Move`, the body pushed out
@@ -816,8 +805,8 @@ fn action_decision(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     }
     if x.move_flg == 0 {
         match x.epitaph_flg {
-            1 => x.move_flg = word(&cx.data.innis.epitaph, x.no),
-            0 => x.move_flg = word(&cx.data.innis.pattern, x.no),
+            1 => x.move_flg = word(combat::of(cx.volume()).innis_epitaph, x.no),
+            0 => x.move_flg = word(combat::of(cx.volume()).innis_pattern, x.no),
             _ => {}
         }
     }
@@ -1033,7 +1022,7 @@ fn switch_action_pattern(b: &mut BossBase, x: &mut Innis, pattern: i32, cx: &mut
             entry_flg(x);
             if x.back_step_dist == 0 {
                 x.no += 1;
-                x.back_step_dist = word(&cx.data.innis.pattern, x.no);
+                x.back_step_dist = word(combat::of(cx.volume()).innis_pattern, x.no);
                 if x.back_step_dist <= 0 {
                     x.back_step_dist = 1;
                 }
@@ -1431,11 +1420,10 @@ fn checkstate(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
 /// `Skill_VARIOUS_INIS`, 1 of `Skill_DOWNER_INIS`, else skill 1.
 fn rnd_skill(atb: i32, cx: &mut Cx) -> i32 {
     let (tbl, n) = match atb {
-        0 => (&cx.data.innis.various, 7),
-        1 => (&cx.data.innis.downer, 12),
+        0 => (combat::of(cx.volume()).innis_various_skills, 7),
+        1 => (combat::of(cx.volume()).innis_downer_skills, 12),
         _ => return 1,
     };
-    let tbl = tbl.clone();
     let k = rand_mod(cx, n).unsigned_abs() as usize;
     i32::from(tbl.get(k).copied().unwrap_or(0))
 }
@@ -1504,8 +1492,8 @@ fn skill_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             cx.out(Out::CursorOff(true));
             x.no += 1;
             let atb = match x.epitaph_flg {
-                1 => word(&cx.data.innis.epitaph, x.no),
-                0 => word(&cx.data.innis.pattern, x.no),
+                1 => word(combat::of(cx.volume()).innis_epitaph, x.no),
+                0 => word(combat::of(cx.volume()).innis_pattern, x.no),
                 _ => return,
             };
             x.skill_id = rnd_skill(atb, cx);
@@ -1622,7 +1610,7 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
 
 /// `ccBoss02::AllAttack` (0x0049aa10): the fall to the floor, the wave, a
 /// ring, skill 4 on those near at count 40, back up to `Hipos`.
-fn all_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
+fn all_attack(b: &mut BossBase, x: &mut Innis, wave: &mut Anm, cx: &mut Cx) {
     let me = cx.me;
     match x.flg {
         1 => {
@@ -1631,7 +1619,7 @@ fn all_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
                 b.move_vector[2] = 0;
                 cx.scene.chars[me].pos[2] = 0xc080_0000;
                 x.flg += 1;
-                x.anm_w.set(super::ANM_WAVE, cx.clips);
+                wave.set(super::ANM_WAVE, cx.clips);
                 x.quake_vector = [0x4170_0000, 0x4170_0000, 0x4170_0000, x.quake_vector[3]];
                 x.sk_atk = Some(4);
             } else if x.temphi != 0 {
@@ -1672,7 +1660,7 @@ fn all_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             if !ee::lt(x.hipos, z) {
                 cx.scene.chars[me].pos[2] = ee::add(z, 0x4000_0000);
             }
-            let done = x.anm_w.forward();
+            let done = wave.forward();
             cx.out(Out::DrawWave);
             if done {
                 cx.scene.chars[me].pos[2] = x.hipos;
@@ -1827,7 +1815,7 @@ fn blaze_attack(b: &mut BossBase, cx: &mut Cx) {
 // --- Action ------------------------------------------------------------------------------------
 
 /// `ccBoss02::Action` (0x00494e10).
-fn action(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
+fn action(b: &mut BossBase, x: &mut Innis, wave: &mut Anm, ims: &mut Images, cx: &mut Cx) {
     let me = cx.me;
     match b.act_num {
         act::NEUTRAL | 8 | act::EPITAPH_NEUTRAL => {}
@@ -1896,12 +1884,12 @@ fn action(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
                         x.rotate = 0xc048_f5c3;
                     }
                 }
-                1 if b.act_num == act::EPITAPH_SPIN => all_attack(b, x, cx),
+                1 if b.act_num == act::EPITAPH_SPIN => all_attack(b, x, wave, cx),
                 1 => {
                     cx.se3d(224);
                     b.act_proccess = 2;
                 }
-                2 if b.act_num == act::SPIN => all_attack(b, x, cx),
+                2 if b.act_num == act::SPIN => all_attack(b, x, wave, cx),
                 _ => {}
             }
         }
@@ -1912,7 +1900,7 @@ fn action(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
                 b.lock_player(cx, false);
             }
         }
-        act::IMAGES => images(b, x, cx),
+        act::IMAGES => images(b, x, ims, cx),
         act::DRAIN => {
             set_camera_eyes(b, x, cx);
             let t = cx.scene.chars[me].target_char;
@@ -1991,7 +1979,7 @@ fn back_to_neutral(b: &mut BossBase, x: &Innis, forbid: i16, cx: &mut Cx) {
 
 /// Act 5 (0x00495448): the stream of the images, the camera behind the
 /// target, the three images sent at it; over once all three have broken.
-fn images(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
+fn images(b: &mut BossBase, x: &mut Innis, ims: &mut Images, cx: &mut Cx) {
     set_camera_eyes(b, x, cx);
     b.spd_down(0, 0x40a0_0000);
     let pos = cx.pos();
@@ -2027,12 +2015,12 @@ fn images(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
                 Some(t) => cx.scene.chars[t].pos,
                 None => x.init_vector,
             };
-            for k in 0..x.slaves.len() {
-                x.slaves[k].end_flg = 0;
+            for k in 0..ims.slaves.len() {
+                ims.slaves[k].end_flg = 0;
                 let id = x.monster_id;
-                x.slaves[k].set_monster(id, cx);
-                x.slaves[k].target_pos = tp;
-                entry_slave(x);
+                ims.slaves[k].set_monster(id, cx);
+                ims.slaves[k].target_pos = tp;
+                ims.entry_slave();
             }
             b.act_proccess += 1;
         }
@@ -2040,7 +2028,7 @@ fn images(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
         _ => return,
     }
     let mut done = false;
-    for (k, s) in x.slaves.iter().enumerate() {
+    for (k, s) in ims.slaves.iter().enumerate() {
         if s.end_flg == 0 {
             break;
         }
@@ -2066,12 +2054,14 @@ fn images(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     cx.out(Out::Cinema(None));
 }
 
-/// `ccBoss02::EntrySlave(0, 1)` (0x0049c1e0): the first exited image
-/// back in, ordered out.
-fn entry_slave(x: &mut Innis) {
-    if let Some(s) = x.slaves.iter_mut().find(|s| s.b.exit != 0) {
-        s.b.exit = 0;
-        s.order_num = 1;
+impl Images {
+    /// `ccBoss02::EntrySlave(0, 1)` (0x0049c1e0): the first exited image
+    /// back in, ordered out.
+    fn entry_slave(&mut self) {
+        if let Some(s) = self.slaves.iter_mut().find(|s| s.b.exit != 0) {
+            s.b.exit = 0;
+            s.order_num = 1;
+        }
     }
 }
 
@@ -2140,27 +2130,32 @@ pub(super) fn affect(b: &mut BossBase, cx: &mut Cx) {
 
 // --- the images ---------------------------------------------------------------------------------
 
-/// `ccBoss::Main` (0x0045c270) for image `k`, its `Think` the slave's.
-fn slave_main(master: &mut BossBase, x: &mut Innis, k: usize, cx: &mut Cx) {
-    let master_me = cx.me;
-    let mut s = std::mem::take(&mut x.slaves[k]);
-    let mut sb = std::mem::take(&mut s.b);
-    cx.me = s.me;
-    sb.base_main(cx, &mut |sb, cx| s.think(sb, master, master_me, cx));
-    cx.me = master_me;
-    s.b = sb;
-    x.slaves[k] = s;
-}
-
 impl Slave {
+    /// `ccBoss::Main` (0x0045c270) for the image, its `Think` its own;
+    /// `master` is Innis's (`master_me`).
+    fn main(&mut self, master: &mut BossBase, master_me: usize, cx: &mut Cx) {
+        let mut sb = std::mem::take(&mut self.b);
+        cx.me = self.me;
+        if sb.exit == 0 {
+            sb.prologue(cx);
+            sb.tick_stop();
+            self.think(&mut sb, master, master_me, cx);
+            sb.lock_party(cx);
+            sb.move_(cx);
+            sb.forward_and_draw(cx);
+        }
+        cx.me = master_me;
+        self.b = sb;
+    }
+
     /// `ccBoss02Slave::SetMonster(ID)` (0x0049c520): the image's clip
     /// (`Mon1`-`Mon3`), its mirror's shard models.
     fn set_monster(&mut self, id: i32, cx: &mut Cx) {
-        if let Some(tbl) = usize::try_from(id).ok().and_then(|k| cx.data.innis.monsters.get(k)).cloned() {
+        if let Some(tbl) = usize::try_from(id).ok().and_then(|k| combat::of(cx.volume()).innis_monster_anims.get(k)) {
             if let Some(Some(clip)) = tbl.first() {
                 self.b.anm.set(clip, cx.clips);
             }
-            self.b.anm_tbl = tbl;
+            self.b.anm_tbl = tbl.iter().map(|a| a.map(str::to_string)).collect();
             self.mirror.models = Some(id);
         }
         self.samon_id = id;
@@ -2323,8 +2318,11 @@ impl Slave {
         let mut rot = VF0;
         rot[1] = fp(dp(rand_f(cx.cc, 0x3e4c_cccd)) + 0.785_398_185_253_143_3);
         rot[2] = wrap(fp(dp(r[2]) + 0.628_318_548_202_514_6));
-        let model =
-            usize::try_from(self.samon_id).ok().and_then(|k| cx.data.innis.ring_models.get(k)).copied().unwrap_or(191);
+        let model = usize::try_from(self.samon_id)
+            .ok()
+            .and_then(|k| combat::of(cx.volume()).innis_ring_models.get(k))
+            .copied()
+            .unwrap_or(191);
         let kind = EffKind::SamonRing { model, scale: [0x3fc0_0000; 4], spoint: [0x3f00_0000; 4], tpoint: 0x3d23_d70a };
         let pos = self.pos;
         for n in 0..2 {
@@ -2607,9 +2605,13 @@ mod tests {
         }
 
         fn innis(&mut self) -> &mut Innis {
-            let b = self.scene.chars[self.me].foe_state_mut().unwrap().boss.as_mut().unwrap();
-            let Class::Innis(x) = &mut b.class else { panic!("not Innis") };
-            x
+            let me = self.me;
+            let b = self.scene.chars[me].foe_state_mut().unwrap().boss.as_mut().unwrap();
+            b.systems.get_mut::<Innis>().expect("Innis's own")
+        }
+
+        fn images(&self) -> &Images {
+            self.boss().systems.get::<Images>().expect("Innis's images")
         }
     }
 
@@ -2620,10 +2622,10 @@ mod tests {
         assert_eq!(f.scene.chars[me].pos[1], 0x44bb_8000, "1500 behind Kite");
         assert_eq!(f.scene.chars[me].pos[2], 0x41a0_0000, "20 up");
         assert!(f.scene.ene_list.contains(&me));
-        let slaves: Vec<usize> = f.innis().slaves.iter().map(|s| s.me).collect();
+        let slaves: Vec<usize> = f.images().slaves.iter().map(|s| s.me).collect();
         assert_eq!(slaves.len(), 3);
         assert!(slaves.iter().all(|&s| !f.scene.listed(s)));
-        assert!(f.innis().slaves.iter().all(|s| s.b.exit == 1));
+        assert!(f.images().slaves.iter().all(|s| s.b.exit == 1));
         let out = f.frame();
         // Pattern[0] is 6, Pattern03(20); the four InisField generators.
         assert_eq!(f.innis().move_flg, 6);
@@ -2686,7 +2688,7 @@ mod tests {
         let mut sent = false;
         for _ in 0..1500 {
             f.frame();
-            sent |= f.innis().slaves.iter().any(|s| s.b.exit == 0);
+            sent |= f.images().slaves.iter().any(|s| s.b.exit == 0);
             if sent && f.boss().base.act_num == act::NEUTRAL {
                 break;
             }
@@ -2694,6 +2696,6 @@ mod tests {
         assert!(sent, "the three images went out");
         assert_eq!(f.boss().base.act_num, act::NEUTRAL);
         assert_eq!(f.innis().monster_id, 1);
-        assert!(f.innis().slaves.iter().all(|s| s.b.exit == 1 && s.end_flg == 1));
+        assert!(f.images().slaves.iter().all(|s| s.b.exit == 1 && s.end_flg == 1));
     }
 }

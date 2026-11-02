@@ -8,7 +8,9 @@
 //! frame.
 
 use piney_battle::affect::{self, AffectCtx};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, Out};
+use piney_battle::boss::innis::{Images, Innis};
+use piney_battle::boss::systems::wave::Wave;
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -311,7 +313,10 @@ fn frame_json(
     cam: &FakeCam,
     blur: &str,
 ) -> String {
-    let Class::Innis(x) = &b.class else { return "{}".into() };
+    let s = &b.systems;
+    let (Some(x), Some(ims), Some(wave)) = (s.get::<Innis>(), s.get::<Images>(), s.get::<Wave>()) else {
+        return "{}".into();
+    };
     let ch = &scene.chars[me];
     let f = scene.param(me).unwrap();
     // The rings and the missiles run natively in the harness, where their
@@ -393,7 +398,7 @@ fn frame_json(
     ]
     .join(",");
     let mut shards = 0;
-    let slaves: Vec<String> = x
+    let slaves: Vec<String> = ims
         .slaves
         .iter()
         .map(|s| {
@@ -477,8 +482,8 @@ fn frame_json(
         b.base.set_transparency,
         b.base.anm.clip.as_deref().unwrap_or(""),
         b.base.anm.frame(),
-        x.anm_w.clip.as_deref().unwrap_or(""),
-        x.anm_w.frame(),
+        wave.anm.clip.as_deref().unwrap_or(""),
+        wave.anm.frame(),
         innis,
         cam.reset,
         cam.lock,

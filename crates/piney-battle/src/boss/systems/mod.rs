@@ -207,6 +207,10 @@ systems! {
     Gomoras(super::kyvia::Gomoras),
     Disc(super::kyvia::Disc),
     Places(super::kyvia::fourth::Places),
+    /// Innis's own (`ccBoss02`), its images and its missiles' pass.
+    Innis(super::innis::Innis),
+    Images(super::innis::Images),
+    Missiles(super::innis::Missiles),
     /// Kyvia's core's own (`kyviaCore`) and a gomora's (`kyviaGomora`).
     KyviaCore(super::kyvia::core::Core),
     Gomora(super::kyvia::gomora::Gomora),

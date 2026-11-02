@@ -165,7 +165,11 @@ pub static SKEITH: BossDef = BossDef {
 };
 
 /// Innis (`ccBoss02`, `x21`): its body, its three images (`Mon1`-`Mon3`'s
-/// models), its mirrors' shards. `InitBossCamera(200, 900)`.
+/// models), its mirrors' shards. `InitBossCamera(200, 900)`. Its wave, its
+/// missiles' pass, its images and its own; `ccThBossEffect`'s pass, then
+/// `ccBoss02::Main` (0x00495d50): `ccBoss::Main` with its own `Move`, its
+/// lock with act 5's forbid, the clip forward at its alpha before the
+/// body's `Draw`, `Slave()` (each image's `Main`) and the hold let go.
 pub static INNIS: BossDef = BossDef {
     code: Some(1),
     class: BossGameClass::CcBoss02,
@@ -174,6 +178,25 @@ pub static INNIS: BossDef = BossDef {
     shards: true,
     cam: CamDef::Transfer([0, 0x4461_0000, 0x4348_0000, ONE]),
     make: |cx, s| innis::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    systems: &[Kind::Wave, Kind::Missiles, Kind::Images, Kind::Innis],
+    order: &[
+        Step::Run(Kind::Missiles, Hook::Pass),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Innis, Hook::Think),
+            Step::Run(Kind::Innis, Hook::Action),
+            Step::Run(Kind::Innis, Hook::Move),
+            Step::Run(Kind::Innis, Hook::Lock),
+            Step::Run(Kind::Innis, Hook::PreDraw),
+            Step::Draw,
+            Step::Run(Kind::Images, Hook::Action),
+            Step::ClearHold,
+        ]),
+    ],
+    affect: &[Step::Run(Kind::Innis, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
     ..BASE_BOSS
 };
 
