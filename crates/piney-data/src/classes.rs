@@ -1071,3 +1071,36 @@ impl From<BossGameClass> for GameClass {
         c.class()
     }
 }
+
+/// A Root Town's class: `ROOTTOWN` and the six towns derived from it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(u16)]
+pub enum TownGameClass {
+    #[doc(alias = "ROOTTOWN")]
+    Roottown = 37,
+    #[doc(alias = "ROOTTOWN01")]
+    Roottown01 = 38,
+    #[doc(alias = "ROOTTOWN02")]
+    Roottown02 = 39,
+    #[doc(alias = "ROOTTOWN03")]
+    Roottown03 = 40,
+    #[doc(alias = "ROOTTOWN04")]
+    Roottown04 = 41,
+    #[doc(alias = "ROOTTOWN05")]
+    Roottown05 = 42,
+    #[doc(alias = "ROOTTOWN06")]
+    Roottown06 = 43,
+}
+
+impl TownGameClass {
+    /// The class as [`GameClass`] (the same discriminant).
+    pub const fn class(self) -> GameClass {
+        CLASSES[self as usize].class
+    }
+}
+
+impl From<TownGameClass> for GameClass {
+    fn from(c: TownGameClass) -> GameClass {
+        c.class()
+    }
+}

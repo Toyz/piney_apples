@@ -180,24 +180,14 @@ fn main() {
             }
             Some("new") => {
                 let (id, t) = (n(1) as i32, n(2) as i32);
-                if town.as_ref().is_none_or(|x| x.base.no != t) {
+                if town.as_ref().is_none_or(|x| x.def.no != t) {
                     town = Some(Town::open(&archive, volume, t, false).unwrap());
                 }
                 let tw = town.as_mut().unwrap();
                 rand = piney_world::Rand(u64::from(n(3)));
                 mt = Mt::init(0);
-                g = grunty::set_dog(
-                    &archive,
-                    &tables,
-                    &mut bodies,
-                    &tw.base.core.file,
-                    &mut tw.base.core.hits,
-                    &save,
-                    t,
-                    id,
-                    0,
-                )
-                .unwrap();
+                g = grunty::set_dog(&archive, &tables, &mut bodies, &tw.core.file, &mut tw.core.hits, &save, t, id, 0)
+                    .unwrap();
                 match &g {
                     Some(x) => println!("{}", state(x, &save)),
                     None => println!("null"),
@@ -243,7 +233,7 @@ fn main() {
                     player,
                     player_dirc,
                     view,
-                    hits: &mut tw.base.core.hits,
+                    hits: &mut tw.core.hits,
                     rand: &mut rand,
                     mt: &mut mt,
                     save: &mut save,

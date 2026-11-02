@@ -28,6 +28,7 @@ pub mod map;
 pub mod mt;
 pub mod sky;
 pub mod story_map;
+pub mod systems;
 pub mod town;
 
 use std::rc::Rc;
@@ -82,48 +83,24 @@ impl Arrival {
     }
 }
 
-/// `ChangeScene`'s town number of Mac Anu, and its start position
-/// (`WORLD_MAN::SetCharPosition` 0x001a1190, town 0).
-pub const MAC_ANU: i32 = 0;
+/// Kite's start in Mac Anu (`WORLD_MAN::SetCharPosition` 0x001a1190, town
+/// 0), the one the others' starts share the heading of.
 pub const START_POS: V4 = [0, 0x45af_0000, 0x4416_0000, ONE];
 pub const START_DIRC: V4 = [0, 0, 0, 0];
-/// Dun Loireag's town number.
-pub const DUN_LOIREAG: i32 = 1;
-/// Carmina Gade's (Mutation on).
-pub const CARMINA_GADE: i32 = 2;
-/// Fort Ouph's and Lia Fail's (Outbreak on).
-pub const FORT_OUPH: i32 = 3;
-pub const LIA_FAIL: i32 = 4;
 
-/// Quarantine's sixth (`ROOTTOWN06`).
-pub const TOWN_06: i32 = 5;
-
-/// The towns [`World::enter`] builds: all five Root Towns, and
-/// Quarantine's sixth (which [`Town::open`] refuses on another volume).
+/// The towns [`World::enter`] builds: every [`town::TOWNS`] def's number
+/// (Quarantine's sixth, which [`Town::open`] refuses on another volume,
+/// among them).
 pub fn town_ported(town: i32) -> bool {
-    matches!(town, MAC_ANU | DUN_LOIREAG | CARMINA_GADE | FORT_OUPH | LIA_FAIL | TOWN_06)
+    town::TOWNS.iter().any(|d| d.no == town)
 }
 
 /// `WORLD_MAN::SetCharPosition` (main 0x001a1190) in a town: the player's
-/// start by `game.town` - (0, 5600, 600), (0, 3500, 0), (0, 600, 0),
-/// (0, 6000, 0), and (600, -3900, 0) facing pi - as a position (w 1) and
-/// a heading (`dirc`, z).
-pub fn start_position(town: i32) -> (V4, V4) {
-    town_start(town, (START_POS, START_DIRC))
-}
-
-/// [`start_position`] where `SetCharPosition` has no case for the town
-/// (Quarantine's town 5, QUA main 0x001b3ac0): `StartPos` (main bss
-/// 0x00670190) keeps what the scene before left there, `before`.
+/// start by `game.town` ([`town::TownDef::start`]), as a position (w 1) and
+/// a heading (`dirc`, z); where it has no case (Quarantine's town 5, QUA
+/// main 0x001b3ac0), `StartPos` (main bss 0x00670190) keeps `before`.
 pub fn town_start(town: i32, before: (V4, V4)) -> (V4, V4) {
-    match town {
-        0 => (START_POS, START_DIRC),
-        1 => ([0, 0x455a_c000, 0, ONE], START_DIRC),
-        2 => ([0, 0x4416_0000, 0, ONE], START_DIRC),
-        3 => ([0, 0x45bb_8000, 0, ONE], START_DIRC),
-        4 => ([0x4416_0000, 0xc573_c000, 0, ONE], [0, 0, ee::PI, 0]),
-        _ => before,
-    }
+    town::TOWNS.iter().find(|d| d.no == town).and_then(|d| d.start).unwrap_or(before)
 }
 
 /// What a frame asks of the rest of the game.
@@ -390,8 +367,8 @@ impl World {
         let crisis = save.save.u8(offset::CRISIS) != 0;
         let mut town = Town::open_with(&archive, volume, town_no, crisis, save.field_rand)?;
         town.take_statics(&save.scroll_statics);
-        let gate = Gate::new(&archive, &town.base.core.file)?;
-        let party = crate::town::party::TownParty::new(iso, town_no as usize, &town.base.core.file)?;
+        let gate = Gate::new(&archive, &town.core.file)?;
+        let party = crate::town::party::TownParty::new(iso, town_no as usize, &town.core.file)?;
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
         let (kite, job) = match crate::chara::body::weapon_of(&party.combat.data.t, &save.save, 0) {
             Some((w, job)) => (Kite::read_armed(&archive, &w)?, job),
@@ -404,7 +381,7 @@ impl World {
         let velocity = save_f(&save, spc + 0xd4);
         let height = save_f(&save, spc + 0x18);
         let width = save_f(&save, spc + 0x1c);
-        let start = town_start(town_no, before);
+        let start = town.def.start.unwrap_or(before);
         let player = Player::new(volume, start.0, start.1, velocity, width, height);
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
@@ -636,7 +613,7 @@ impl World {
     /// closed) clears the flag.
     fn spc_affect(&mut self, code: i32, cmnd: i16) {
         let Some(w) = self.party.member(code) else { return };
-        let hits = &mut self.town.base.core.hits;
+        let hits = &mut self.town.core.hits;
         let bounds = combat::Combat::bounds(0, hits);
         let c = &mut self.party.combat;
         c.affect_now(w, c.kite, cmnd, [0; 3], hits, bounds, &mut self.save.save, &[]);
@@ -706,16 +683,12 @@ impl World {
         self.place_spc_entries();
         let reserved = self.spcs.registry_num + self.regist_npc_num;
         let mut mt = mt::Mt::init(self.rand_count);
-        let no = self.town.base.no;
+        let no = self.town.def.no;
         let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
         let pool = crate::town::pc::Pool::of(&crate::town::pc::Tables::of(self.volume), server, &self.save.save);
         let rows = crate::town::pc::register_random_npc(&mut mt, reserved, &pool);
-        let town = Rc::new(std::cell::RefCell::new(crate::town::pc::TownPcs::new(
-            self.volume,
-            no,
-            &self.town.base.core.file,
-            mt,
-        )?));
+        let town =
+            Rc::new(std::cell::RefCell::new(crate::town::pc::TownPcs::new(self.volume, no, &self.town.core.file, mt)?));
         self.town_pcs = Some(town);
         let mut files = crate::town::pc::Files::new();
         for e in std::mem::take(&mut self.event_npcs) {
@@ -723,13 +696,13 @@ impl World {
         }
         let player = self.player.body.pos;
         let event_npc = self.save.save.u8(offset::EVENT_STATUS + merchant::EVENT_NPC_STATUS) != 0;
-        let base = &mut self.town.base;
+        let town = &mut self.town;
         let merchants = merchant::set_merchants(
             &self.archive,
             self.volume,
-            &base.core.file,
-            &mut base.written,
-            &mut base.core.hits,
+            &town.core.file,
+            &mut town.written,
+            &mut town.core.hits,
             no,
             player,
             event_npc,
@@ -738,8 +711,7 @@ impl World {
         // ccSetChaosGate (already up), then ccEntryEventMng's by town: 1
         // ccSetDog and ccSetChibiGuso, 2 and 3 ccSetChibiGuso, then the
         // walking PCs.
-        self.dogs =
-            dog::set_dogs(&self.archive, self.volume, &self.town.base.core.file, &mut self.town.base.core.hits, no)?;
+        self.dogs = dog::set_dogs(&self.archive, self.volume, &self.town.core.file, &mut self.town.core.hits, no)?;
         self.place_grunties(no)?;
         let town = self.town_pcs.clone().expect("placed above");
         for (slot, &r) in rows.iter().enumerate() {
@@ -754,7 +726,7 @@ impl World {
                 &model,
                 slot as i32,
                 player,
-                &mut self.town.base.core.hits,
+                &mut self.town.core.hits,
             ));
         }
         Ok(())
@@ -765,7 +737,7 @@ impl World {
     /// the NPC list before `ccSetMerchant(0)`'s.
     fn place_event_npc(&mut self, files: &mut crate::town::pc::Files, e: EventEntry) -> piney_data::Result<()> {
         let row = npc::NpcRow::of(self.volume, e.code as usize)?;
-        let (no, player) = (self.town.base.no, self.player.body.pos);
+        let (no, player) = (self.town.def.no, self.player.body.pos);
         match e.class {
             npc::EventClass::Pc if e.search => {
                 // The SEARCH set-up: the row's stage is its event's status
@@ -773,28 +745,21 @@ impl World {
                 let town = self.town_pcs.clone().expect("the entry control's set-up ran");
                 let stage =
                     usize::try_from(e.code - 117).ok().map(|k| self.save.save.u8(offset::EVENT_STATUS + k) as i8);
-                let file = &self.town.base.core.file;
+                let file = &self.town.core.file;
                 let set_up = stage
                     .and_then(|st| crate::town::pc::Search::set_up(&town.borrow(), file, i32::from(e.code), st.into()));
                 let Some(s) = set_up else { return Ok(()) };
                 let model = crate::town::pc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
                 let origin = crate::town::pc::Origin::Search(s);
-                let pc = crate::town::pc::RtownPc::place_as(
-                    &town,
-                    &row,
-                    &model,
-                    origin,
-                    player,
-                    &mut self.town.base.core.hits,
-                );
+                let pc =
+                    crate::town::pc::RtownPc::place_as(&town, &row, &model, origin, player, &mut self.town.core.hits);
                 self.pcs.push(pc);
             }
             npc::EventClass::Pc => {
                 let town = self.town_pcs.clone().expect("the entry control's set-up ran");
                 let model = crate::town::pc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
                 let at = self.event_marker(e.marker);
-                let mut pc =
-                    crate::town::pc::RtownPc::place(&town, &row, &model, -1, player, &mut self.town.base.core.hits);
+                let mut pc = crate::town::pc::RtownPc::place(&town, &row, &model, -1, player, &mut self.town.core.hits);
                 if let Some(at) = at {
                     (pc.char.pos, pc.char.dirc) = at;
                 }
@@ -802,7 +767,7 @@ impl World {
             }
             npc::EventClass::Merchant => {
                 let at = self.event_marker(e.marker);
-                let m = merchant::event_merchant(&self.archive, &row, &mut self.town.base.core.hits, no, player, at)?;
+                let m = merchant::event_merchant(&self.archive, &row, &mut self.town.core.hits, no, player, at)?;
                 self.merchants.push(m);
             }
         }
@@ -856,8 +821,8 @@ impl World {
                 &self.archive,
                 &tables,
                 &mut bodies,
-                &self.town.base.core.file,
-                &mut self.town.base.core.hits,
+                &self.town.core.file,
+                &mut self.town.core.hits,
                 if id < grunty::ROW_YOUNG { &before } else { &self.save.save },
                 no,
                 id,
@@ -871,7 +836,7 @@ impl World {
         let g = grunty::Growth::read(&self.save.save, no);
         if self.volume != piney_data::volume::Volume::Inf && g.level == 4 && g.ty.iter().all(|&t| t != 0) {
             for n in 0..3 {
-                if let Some(f) = race::Flag::new(&self.archive, self.volume, &self.town.base.core.file, no, n)? {
+                if let Some(f) = race::Flag::new(&self.archive, self.volume, &self.town.core.file, no, n)? {
                     self.flags.push(f);
                 }
             }
@@ -1245,7 +1210,7 @@ impl World {
 
     /// `cc3d`'s fog as the town's constructor set it (`SetFog`).
     pub fn fog(&self) -> Option<town::FogParams> {
-        self.town.base.core.lights.fog
+        self.town.core.lights.fog
     }
 
     pub fn camera(&self) -> &Camera {
@@ -1304,12 +1269,12 @@ impl World {
     /// The effects and sounds the town's draws started since the last
     /// call ([`town::TownEvent`]).
     pub fn take_town_events(&mut self) -> Vec<town::TownEvent> {
-        self.town.base.take_events()
+        self.town.take_events()
     }
 
     /// `ccSys.bgColor` as the town's constructor set it (None: black).
     pub fn clear_colour(&self) -> Option<[u8; 3]> {
-        self.town.base.clear
+        self.town.def.clear
     }
 
     /// The disc's volume: whose tables the world reads.
@@ -1629,7 +1594,7 @@ impl World {
                 tasks(
                     &mut self.camera,
                     &mut self.player,
-                    &mut self.town.base.core.hits,
+                    &mut self.town.core.hits,
                     &anims,
                     &mut self.rand,
                     &cpad,
@@ -1665,7 +1630,7 @@ impl World {
             // The arrival's end puts Kite's body on the character list
             // (bodyHit.HitEnable), after the merchants' and the walking PCs'.
             if self.player.events.contains(&motion::ActEvent::Arrived) {
-                self.town.base.core.hits.hit_enable(&mut self.player.hit_body);
+                self.town.core.hits.hit_enable(&mut self.player.hit_body);
             }
             if let Some(how) = self.player.leave.take() {
                 self.with_party(|spcs, chars, _| spcs.leave(0, how, chars));
@@ -1676,10 +1641,10 @@ impl World {
         let to_screen = draw::screen(&self.camera.world_screen);
         // The draw environment's lights: the town's, then the gate's as its
         // last step left them.
-        let lights = self.gate.lights(&self.town.base.core.lights);
+        let lights = self.gate.lights(&self.town.core.lights);
         // WORLD_MAN::GO's shadow packets (a town's too).
-        ctx.layers.shadows = draw::go_shadows(&self.town.base.core.lights, &self.camera.world_screen);
-        self.draw_ride(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.base.core.lights));
+        ctx.layers.shadows = draw::go_shadows(&self.town.core.lights, &self.camera.world_screen);
+        self.draw_ride(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.core.lights));
         if self.player.drawn && !self.kite_asleep {
             let p = &self.player;
             draw::char_shadow(&mut ctx.layers, p.shadow_t, p.height, |layers| {
@@ -1726,7 +1691,7 @@ impl World {
                 self.gate_sounds.push((se, self.gate.pos));
             }
         }
-        self.gate.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.base.core.lights));
+        self.gate.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.core.lights));
         // The race's flags, the entry control's other gimmicks.
         if awake {
             let (player, cam, volume) = (self.player.body.pos, self.camera.active().clone(), self.volume);
@@ -1743,7 +1708,7 @@ impl World {
             }
         }
         for f in &self.flags {
-            f.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.base.core.lights));
+            f.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.core.lights));
         }
         let view = crate::chara::char::View {
             player: self.player.body.pos,
@@ -1751,14 +1716,14 @@ impl World {
             deg1: t.deg[1],
             eye: t.kind == camera::kind::EYE,
         };
-        let lights = self.gate.lights(&self.town.base.core.lights);
+        let lights = self.gate.lights(&self.town.core.lights);
         let p = &self.player;
         let mut cx = entry::NpcCtx {
             player: p.body.pos,
             player_dirc: p.body.dirc,
             view,
             cam: self.camera.active(),
-            hits: &mut self.town.base.core.hits,
+            hits: &mut self.town.core.hits,
             rand: &mut self.rand,
         };
         if awake {
@@ -1861,7 +1826,11 @@ impl World {
                 puppet_show: self.camera.puppet_show,
                 world_screen: self.camera.world_screen,
             };
-            self.town_sprites = self.town.draw(&mut ctx.layers, to_screen, &v);
+            self.town.step(&v);
+            self.town_sprites.clear();
+            for r in self.town.requests() {
+                systems::paint(&mut ctx.layers, to_screen, &r, &mut self.town_sprites);
+            }
         }
     }
 }

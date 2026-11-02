@@ -70,7 +70,7 @@ fn main() {
             Some("merchants") => {
                 let mut town = piney_world::town::Town::open(&archive, volume, 0, false).unwrap();
                 let player = [0, 0x45af_0000, 0x4416_0000, ee::ONE];
-                let t = &mut town.base;
+                let t = &mut town;
                 let list_ = piney_world::town::merchant::set_merchants(
                     &archive,
                     volume,

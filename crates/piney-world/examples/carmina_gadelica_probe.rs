@@ -13,8 +13,13 @@ use piney_data::dungeon::Rng;
 use piney_data::iso::Iso;
 use piney_data::statics::DrawPass;
 use piney_world::ee;
-use piney_world::town::carmina_gadelica::{Airship, CarminaGade, Piece};
-use piney_world::town::{RootTown, Town, TownEvent, TownView};
+use piney_world::systems::scrolls::Scrolls;
+use piney_world::systems::sky::Sky;
+use piney_world::systems::statics::StaticModels;
+use piney_world::systems::water::Water;
+use piney_world::systems::{Drawn, Kind, Piece};
+use piney_world::town::carmina_gadelica::Airship;
+use piney_world::town::{Town, TownEvent, TownView};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -51,15 +56,16 @@ fn ship(s: &Airship) -> String {
 
 /// The town as the constructor left it.
 fn state(t: &Town) -> String {
-    let name = |o: u32| format!("\"{}\"", t.base.core.file.ccs.object_name(o).unwrap_or("?"));
+    let s = t.systems();
+    let name = |o: u32| format!("\"{}\"", t.core.file.ccs.object_name(o).unwrap_or("?"));
     let table = piney_data::statics::tables().iter().find(|x| x.name == "RT_MODELTABLE03").unwrap();
     let models = list((0..table.rows.len()).filter_map(|r| {
-        let m = t.base.model(r)?;
+        let m = s.get::<StaticModels>()?.model(r)?;
         let pos = m.pos.to_array().map(f32::to_bits);
         Some(format!("[{r}, {}, {}, {}]", pass(table.rows[r].pass), name(m.model), list(pos)))
     }));
-    let lights = list(t.base.core.lights.lights.iter().map(|l| l.kind));
-    let f = &t.base.fog;
+    let lights = list(t.core.lights.lights.iter().map(|l| l.kind));
+    let f = &t.def.fog;
     let fog = format!(
         "[{}, {}, {}, {}, {}]",
         f.near.to_bits(),
@@ -68,12 +74,12 @@ fn state(t: &Town) -> String {
         f.far_rate.to_bits(),
         u32::from(f.colour[0]) | u32::from(f.colour[1]) << 8 | u32::from(f.colour[2]) << 16
     );
-    let clear = t.base.clear.map_or(0, |c| u32::from(c[0]) | u32::from(c[1]) << 8 | u32::from(c[2]) << 16);
-    let d = t.class::<CarminaGade>().unwrap();
+    let clear = t.def.clear.map_or(0, |c| u32::from(c[0]) | u32::from(c[1]) << 8 | u32::from(c[2]) << 16);
+    let water = s.get::<Water>().unwrap();
     format!(
         "{{\"models\": {models}, \"lights\": {lights}, \"fog\": {fog}, \"clear\": {clear}, \"water\": {}, \"ship\": {}}}",
-        list((0..3).map(|k| d.water_time(k))),
-        ship(&d.ship)
+        list((0..3).map(|k| water.time(k))),
+        ship(s.get::<Airship>().unwrap())
     )
 }
 
@@ -96,23 +102,29 @@ fn main() {
                 town = Some(t);
             }
             Some("draw") => {
-                let (t, d) = town.as_mut().unwrap().parts_mut::<CarminaGade>().unwrap();
-                let v = TownView { eye: [n(1), n(2), n(3), ee::ONE], ..TownView::default() };
-                let pieces = d.select(t, &v);
+                let t = town.as_mut().unwrap();
+                t.step(&TownView { eye: [n(1), n(2), n(3), ee::ONE], ..TownView::default() });
                 let events = t.take_events();
-                let out = list(pieces.iter().filter_map(|p| {
+                let s = t.systems();
+                let (sky, water, d) = (s.get::<Sky>().unwrap(), s.get::<Water>().unwrap(), s.get::<Airship>().unwrap());
+                let models = s.get::<StaticModels>().unwrap();
+                let scrolls = s.get::<Scrolls>().unwrap();
+                let out = list(t.frame().iter().filter_map(|p| {
                     Some(match *p {
-                        Piece::Water(k) => format!("[\"water\", {k}, {}]", d.water_time(k)),
-                        Piece::Copy => "[\"copy\"]".into(),
-                        Piece::Ship => format!("[\"ship\", {}]", d.ship.play.time),
-                        Piece::Back(k) => format!("[\"back\", {k}]"),
-                        Piece::CrisisSky(k) => format!("[\"crisis\", {k}]"),
-                        Piece::Model(row) => {
-                            let m = t.model(row)?;
+                        Drawn::Piece(Kind::Water, Piece::Anim(k)) => format!("[\"water\", {k}, {}]", water.time(k)),
+                        Drawn::Piece(Kind::Water, Piece::Copy) => "[\"copy\"]".into(),
+                        Drawn::Piece(Kind::Airship, _) => format!("[\"ship\", {}]", d.play.time),
+                        Drawn::Piece(Kind::Sky, Piece::Clump(k)) => match sky.crisis(k) {
+                            Some(c) => format!("[\"crisis\", {c}]"),
+                            None => format!("[\"back\", {k}]"),
+                        },
+                        Drawn::Piece(Kind::Models, Piece::Model(row)) => {
+                            let m = models.model(row)?;
                             format!("[\"model\", {row}, {}]", list(m.pos.to_array().map(f32::to_bits)))
                         }
-                        Piece::ModelNoFog(row) => format!("[\"nofog\", {row}]"),
-                        Piece::Map => "[\"map\"]".into(),
+                        Drawn::Piece(Kind::Models, Piece::ModelNoFog(row)) => format!("[\"nofog\", {row}]"),
+                        Drawn::Map => "[\"map\"]".into(),
+                        d => panic!("Carmina Gade draws no {d:?}"),
                     })
                 }));
                 let events = list(events.iter().map(|e| match *e {
@@ -125,14 +137,16 @@ fn main() {
                     ),
                     TownEvent::Se3d { n, pos } => format!("[\"se\", {n}, {}]", list(&pos[..3])),
                 }));
+                // DrawBG writes the crisis materials' offset only in crisis.
+                let bg = if sky.made(4) { scrolls.uv(1) } else { 0 };
                 println!(
                     "{{\"pieces\": {out}, \"ship\": {}, \"root\": {}, \"events\": {events}, \"seed\": {}, \"scroll\": {}, \"bg\": {}, \"u\": {}}}",
-                    ship(&d.ship),
-                    list(d.ship.root.iter().flatten()),
+                    ship(d),
+                    list(d.root.iter().flatten()),
                     t.core.field_rand.map_or(0, |r| r.seed),
-                    list(d.bg_scroll),
-                    d.bg_uv,
-                    d.water_u
+                    list(&scrolls.v),
+                    bg,
+                    water.u
                 );
             }
             _ => println!("{{}}"),

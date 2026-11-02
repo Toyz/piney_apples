@@ -3,43 +3,33 @@
 //! (`game.town` 2), new in Mutation. Infection's executable carries an earlier
 //! `ROOTTOWN03` no disc reaches; this is Mutation's. Four sky clumps, 34
 //! static models, one water drawn through a frame-buffer copy (two more made
-//! but never drawn), and the `AIRSHIP` flying six legs between
+//! but never drawn), and its own `AIRSHIP` flying six legs between
 //! `DMY_marker69`-`72`, puffing smoke from `fieldrand`
 //! (docs/engine/root-towns.md).
 
-use std::collections::HashMap;
-
-use glam::Mat4;
+use piney_data::classes::TownGameClass;
 use piney_data::dungeon::Rng;
 use piney_data::statics::DrawPass;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
-use piney_desktop::layers::Layers;
 
 use crate::chara::pose::Play;
 use crate::draw::{OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::town::scroll_statics as statics;
-use crate::town::{
-    Base, FogParams, RootTown, Spec, Town, TownEvent, TownSprite, TownView, WaterZero, anim_draw_fog, clump_models,
-    crisis_rows, pos_rot_zyx, water0_draw,
+use crate::systems::scrolls::{ScrollsDef, Wrap};
+use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
+use crate::systems::statics::ModelsDef;
+use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
+use crate::systems::{
+    BuildCx, DRAW_BG, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, Request, Step, StepCx, SystemDef,
 };
-use crate::town::{TownDef, TownEnv};
-use crate::town::{WaterSpec, Wrap, step_scrolls};
-use piney_data::volume::Volume;
+use crate::town::scroll_statics as statics;
+use crate::town::{BASE_TOWN, FogParams, TownDef, TownEvent};
 
-/// `ChangeScene`'s town number.
-pub const NO: i32 = 2;
-pub const FILE: &str = "town03";
-pub const CRISIS_FILE: &str = "town03d";
 /// `DrawBG`'s clumps and their layers: the sky's two and the mountains'
 /// two, on `bgLayer[0]`-`[3]`.
 pub const BACK: [(&str, i16); 4] =
     [("CMP_sr3bac1", -100), ("CMP_sr3bac2", -90), ("CMP_sr3mou1", -80), ("CMP_sr3mou2", -70)];
-/// In crisis (`town03d`) the clumps over them, on `bgLayer[4]`-`[6]`, and
-/// the materials that scroll (the first in U, the second in U and V).
-pub const CRISIS_SKY: [(&str, i16); 3] = [("CMP_sr3dat1_1", -60), ("CMP_sr3dat1_2", -50), ("CMP_sr3dat1_3", -45)];
-pub const CRISIS_MATS: [&str; 2] = ["MAT_sr3dat1_2", "MAT_sr3dat1_3"];
 /// The light animation and `town03Light` (MUT gcmn 0x00603500).
 pub const LIGHT_ANIM: &str = "ANM_sr3bac1a";
 pub const LIGHTS: [(i32, &str); 12] = [
@@ -68,26 +58,85 @@ pub const FOG: FogParams =
     FogParams { near: 3000.0, far: 15000.0, near_rate: 0.0, far_rate: 85.0, colour: [0x0c, 0x14, 0x14] };
 pub const BG_COLOR: [u8; 3] = [0x0c, 0x14, 0x14];
 
-const SPEC: Spec = Spec {
-    no: NO,
-    models: "RT_MODELTABLE03",
-    objects: None,
+/// `DrawBG`'s scrolls a frame, `v$1474` (MUT gcmn gp 0x0038b118): 0.001 and
+/// 0.002.
+pub const BG_STEP: [F; 2] = [0x3a83_126f, 0x3b03_126f];
+/// The water's scroll a frame, `u$1875`: 0.005, back to 0 at 1.
+pub const WATER: WaterSpec = WaterSpec { step: 0x3ba3_d70a, wrap: Wrap::AtOrPast };
+/// The rows `Draw` draws without fog first (29-33), below which it draws
+/// the type-0 rows after them, and `DrawFloor`'s rows (0-7).
+const NO_FOG_ROWS: (usize, usize) = (29, 34);
+const FLOOR_ROWS: (usize, usize) = (0, 8);
+
+/// In crisis (`town03d`) the clumps over them, on `bgLayer[4]`-`[6]`:
+/// `MAT_sr3dat1_2` by the second scroll in U, `_3` in U and V.
+const CRISIS_MATS: [MatScroll; 2] =
+    [MatScroll::new("MAT_sr3dat1_2", 1, Axes::U), MatScroll::new("MAT_sr3dat1_3", 1, Axes::UV)];
+
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE03", layer: OBJ2_LAYER };
+static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN03_BG };
+static SKY_CLUMPS: SkyDef = SkyDef {
+    clumps: &[
+        SkyClump::on(BACK[0].0, BACK[0].1),
+        SkyClump::on(BACK[1].0, BACK[1].1),
+        SkyClump::on(BACK[2].0, BACK[2].1),
+        SkyClump::on(BACK[3].0, BACK[3].1),
+        SkyClump::crisis("CMP_sr3dat1_1", -60, &CRISIS_MATS),
+        SkyClump::crisis("CMP_sr3dat1_2", -50, &CRISIS_MATS),
+        SkyClump::crisis("CMP_sr3dat1_3", -45, &CRISIS_MATS),
+    ],
+};
+/// The town's own water at the origin: only 0 drawn (+0x1bc..+0x1c4 made),
+/// the copy after it.
+static WATER_DEF: WaterDef = WaterDef {
+    file: WaterFile::Area,
+    anim: WATER_ANIM,
+    model: WATER_MODEL,
+    reach: WATER_REACH,
+    root: [0, 0, 0, ONE],
+    spec: WATER,
+    slot: statics::TOWN03_WATER,
+    drawn: &[0],
+    layer: OBJ_LAYER,
+    copy: true,
+};
+
+/// `ROOTTOWN03` (`town03`, `town03d` in crisis): its `Draw` is water 0 and
+/// the copy, the airship's `Move` and draw, `DrawBG`, `DrawObj2` and
+/// `DrawObj` (the rows of type 3, 2), `DrawFloor` (rows 0-7), rows 29-33
+/// without fog and the type-0 rows below them, `DrawMap`; the water's
+/// scroll steps last.
+pub static CARMINA_GADE: TownDef = TownDef {
+    no: 2,
+    class: TownGameClass::Roottown03,
+    name: "Carmina Gadelica",
+    file: "town03",
+    crisis_file: Some("town03d"),
     light_anim: LIGHT_ANIM,
     lights: &LIGHTS,
     fog: FOG,
     clear: Some(BG_COLOR),
+    start: Some(([0, 0x4416_0000, 0, ONE], crate::START_DIRC)),
+    systems: &[
+        SystemDef::Models(&MODELS),
+        SystemDef::Scrolls(&SCROLLS),
+        SystemDef::Sky(&SKY_CLUMPS),
+        SystemDef::Water(&WATER_DEF),
+        SystemDef::Airship(&()),
+    ],
+    order: &[
+        Step::Run(Kind::Water, Hook::Draw),
+        Step::Run(Kind::Airship, Hook::Draw),
+        DRAW_BG,
+        Step::Run(Kind::Models, Hook::Pass(DrawPass::Obj2)),
+        Step::Run(Kind::Models, Hook::Pass(DrawPass::Obj)),
+        Step::Run(Kind::Models, Hook::Rows(FLOOR_ROWS.0, FLOOR_ROWS.1, Fog::Area)),
+        Step::Run(Kind::Models, Hook::Rows(NO_FOG_ROWS.0, NO_FOG_ROWS.1, Fog::None)),
+        Step::Run(Kind::Models, Hook::PassBelow(DrawPass::Other, NO_FOG_ROWS.0, Fog::None)),
+        Step::Map,
+    ],
+    ..BASE_TOWN
 };
-
-/// `DrawBG`'s scrolls a frame, `v$1474` (MUT gcmn gp 0x0038b118): 0.001 and
-/// 0.002.
-const BG_STEP: [F; 2] = [0x3a83_126f, 0x3b03_126f];
-/// The water's scroll a frame, `u$1875`: 0.005, back to 0 at 1.
-const WATER: WaterSpec = WaterSpec { step: 0x3ba3_d70a, wrap: Wrap::AtOrPast };
-/// The rows `Draw` draws without fog first (29-33), and below which it
-/// draws the type-0 rows after them.
-const NO_FOG_ROWS: std::ops::Range<usize> = 29..34;
-/// `DrawFloor`'s rows.
-const FLOOR_ROWS: std::ops::Range<usize> = 0..8;
 
 /// The airship's dummies, its clip and its numbers.
 pub mod ship {
@@ -155,9 +204,14 @@ pub struct Airship {
 }
 
 impl Airship {
+    /// `town03Ship` as `ROOTTOWN03`'s constructor makes it.
+    pub fn new(_: &'static (), cx: &mut BuildCx) -> Result<Airship> {
+        Airship::read(cx.file)
+    }
+
     /// `AIRSHIP::AIRSHIP(stream)`: at marker 69 bound for 70, the first
     /// puffs next frame.
-    pub fn new(file: &SceneFile) -> Result<Airship> {
+    pub fn read(file: &SceneFile) -> Result<Airship> {
         let dummy = |name: &str| {
             file.ccs
                 .find_object(name)
@@ -205,7 +259,7 @@ impl Airship {
 
     /// `AIRSHIP::Move`: the ccAnm set and stepped, then the turn, the wait
     /// or the leg; the puffs and sounds it makes go to `events`.
-    pub fn step(&mut self, file: &SceneFile, rng: &mut Rng, events: &mut Vec<TownEvent>) {
+    pub fn move_(&mut self, file: &SceneFile, rng: &mut Rng, events: &mut Vec<TownEvent>) {
         self.root = self.set_root();
         self.play.forward(file);
         self.pos[2] = 0;
@@ -303,190 +357,38 @@ fn apply(m: &[V4; 4], v: V4) -> V4 {
     out
 }
 
-/// One piece `ROOTTOWN03::Draw` draws, in its order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Piece {
-    /// `waterAnm[k]`, stepped and drawn (only 0 is).
-    Water(usize),
-    /// `ccLayer::MakePacketDrawBuffTrans` on objLayer: the picture so far
-    /// copied into water 0's texture.
-    Copy,
-    /// The airship: its ccAnm drawn where its `Move` set it.
-    Ship,
-    /// `DrawBG`: background clump `k` at the origin on its own layer.
-    Back(usize),
-    /// `DrawBG` in crisis: the crisis clump `k` at the origin on its own
-    /// layer.
-    CrisisSky(usize),
-    /// A `STATICMODEL` (its `RT_MODELTABLE` row).
-    Model(usize),
-    /// `STATICMODEL::DrawWithOutFog` of a row.
-    ModelNoFog(usize),
-    /// `DrawMap`: the minimap (the host draws it).
-    Map,
-}
-
-/// What `ROOTTOWN03` holds besides the [`Base`].
-pub struct CarminaGade {
-    /// `DrawBG`'s clumps' models.
-    back: [Vec<u32>; 4],
-    crisis_sky: Option<[Vec<u32>; 3]>,
-    /// `v$1474`, and the crisis materials' offset `DrawBG` wrote from the
-    /// second.
-    pub bg_scroll: [F; 2],
-    pub bg_uv: u16,
-    /// `waterAnm[0..2]` (+0x1bc..+0x1c4); only the first is drawn.
-    water: [Play; 3],
-    /// `u$1875`.
-    pub water_u: F,
-    /// Water 0's texture coordinates and texture.
-    pub water0: WaterZero,
-    /// `town03Ship`.
-    pub ship: Airship,
-}
-
-/// `ROOTTOWN03::ROOTTOWN03`: `town03d` when the save's crisis byte is set,
-/// else `town03`.
-pub fn new(env: &TownEnv<'_>) -> Result<Town> {
-    let (archive, crisis) = (env.archive, env.crisis);
-    let stem = if crisis { CRISIS_FILE } else { FILE };
-    let mut base = Base::read(archive, stem, &SPEC)?;
-    // fieldrand, which the airship draws from.
-    base.core.field_rand = Some(env.rng);
-    let file = base.core.file.clone();
-    let wplay = Play::new(&file, WATER_ANIM).ok_or_else(|| Error::NotFound(WATER_ANIM.into()))?;
-    let mut water = [wplay.clone(), wplay.clone(), wplay];
-    for w in &mut water {
-        // SetMatrix_PosRotZYX, then one _AnimateForward.
-        w.forward(&file);
-    }
-    let d = CarminaGade {
-        back: BACK.map(|(n, _)| clump_models(&file, n)),
-        crisis_sky: crisis.then(|| CRISIS_SKY.map(|(n, _)| clump_models(&file, n))),
-        bg_scroll: [0; 2],
-        bg_uv: 0,
-        water,
-        water_u: 0,
-        water0: WaterZero::new(&file, WATER_MODEL, WATER_REACH)?,
-        ship: Airship::new(&file)?,
-    };
-    Ok(Town::new(base, d))
-}
-
-/// The water's root: `SetMatrix_PosRotZYX(@1139, @1140)`, the origin.
-pub fn water_root() -> [V4; 4] {
-    pos_rot_zyx([0, 0, 0, ONE], [0; 3])
-}
-
-impl CarminaGade {
-    /// `ROOTTOWN03::Draw` for this frame: the pieces in its order, with
-    /// what it steps on the way - water 0, the airship, `DrawBG`'s
-    /// scrolls, the water's scroll.
-    pub fn select(&mut self, base: &mut Base, v: &TownView) -> Vec<Piece> {
-        let mut out = Vec::new();
-        self.water0.modify(base.core.hits.volume, &water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
-        self.water[0].forward(&base.core.file);
-        out.extend([Piece::Water(0), Piece::Copy]);
-        if let Some(rng) = &mut base.core.field_rand {
-            self.ship.step(&base.core.file, rng, &mut base.events);
+impl MapSystem for Airship {
+    /// `AIRSHIP::Move` from `fieldrand`, then its ccAnm drawn where it set it.
+    fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
+        if hook != Hook::Draw {
+            return;
         }
-        out.push(Piece::Ship);
-        // DrawBG (0x0043cb30).
-        step_scrolls(&mut self.bg_scroll, &BG_STEP);
-        out.extend((0..4).map(Piece::Back));
-        if self.crisis_sky.is_some() {
-            self.bg_uv = ee::vftoi12(self.bg_scroll[1]);
-            out.extend((0..3).map(Piece::CrisisSky));
+        if let Some(rng) = &mut cx.core.field_rand {
+            self.move_(&cx.core.file, rng, cx.events);
         }
-        // DrawObj2, DrawObj (the rows of type 3, 2), DrawFloor (rows 0-7).
-        for pass in [DrawPass::Obj2, DrawPass::Obj] {
-            out.extend(base.rows(pass).map(Piece::Model));
-        }
-        out.extend(FLOOR_ROWS.map(Piece::Model));
-        // Without fog: rows 29-33, then the type-0 rows below 29.
-        out.extend(NO_FOG_ROWS.map(Piece::ModelNoFog));
-        out.extend(base.rows(DrawPass::Other).filter(|&row| row < NO_FOG_ROWS.start).map(Piece::ModelNoFog));
-        out.push(Piece::Map);
-        self.water_u = WATER.step(self.water_u);
-        out
+        cx.put(Kind::Airship, Piece::Anim(0));
     }
 
-    /// The pieces into the field's layers.
-    fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) {
-        let none = HashMap::new();
-        let fm = &*base.core.file;
-        for &piece in pieces {
-            match piece {
-                // Water 0: the picture so far (the copy made after it on
-                // objLayer, drawn just before it) at waterUVModifi2's UVs.
-                Piece::Water(0) => {
-                    let root = crate::draw::mat(&water_root());
-                    water0_draw(layers, OBJ_LAYER, to_screen, fm, &self.water[0], root, &self.water0);
-                }
-                // Water 1 and 2 are never drawn.
-                Piece::Water(_) | Piece::Copy | Piece::Map => {}
-                Piece::Ship => {
-                    let root = crate::draw::mat(&self.ship.root);
-                    let fog = base.depth_fog();
-                    anim_draw_fog(layers, OBJ_LAYER, to_screen, fm, &self.ship.play, root, &[], 1.0, None, None, fog);
-                }
-                Piece::Back(k) => base.clump_draw(layers, BACK[k].1, to_screen, &self.back[k], Mat4::IDENTITY, &none),
-                Piece::CrisisSky(k) => {
-                    let Some(models) = &self.crisis_sky else { continue };
-                    let rows = crisis_rows(&base.core.file, &CRISIS_MATS, self.bg_uv);
-                    base.clump_draw(layers, CRISIS_SKY[k].1, to_screen, &models[k], Mat4::IDENTITY, &rows);
-                }
-                Piece::Model(row) => base.row_draw(layers, OBJ2_LAYER, to_screen, row),
-                Piece::ModelNoFog(row) => {
-                    base.row_draw_with(layers, OBJ2_LAYER, to_screen, row, crate::draw::Fogging::None)
-                }
-            }
-        }
+    fn draw<'a>(&'a self, piece: Piece, cx: &DrawCx<'a>) -> Option<Request<'a>> {
+        let Piece::Anim(_) = piece else { return None };
+        let root = crate::draw::mat(&self.root);
+        let (file, play, fog) = (&*cx.core.file, &self.play, cx.fog);
+        Some(Request::Anim { file, play, root, layer: OBJ_LAYER, rows: None, fog, edit: None })
     }
 }
-
-impl RootTown for CarminaGade {
-    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        statics::take(&mut self.bg_scroll, s, statics::TOWN03_BG);
-        statics::take(std::slice::from_mut(&mut self.water_u), s, statics::TOWN03_WATER);
-    }
-    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        statics::put(&self.bg_scroll, s, statics::TOWN03_BG);
-        statics::put(std::slice::from_ref(&self.water_u), s, statics::TOWN03_WATER);
-    }
-
-    fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
-        let pieces = self.select(base, v);
-        self.draw_pieces(base, layers, to_screen, &pieces);
-        Vec::new()
-    }
-
-    fn water_time(&self, k: usize) -> u32 {
-        self.water[k].time
-    }
-
-    fn water0(&self) -> Option<&WaterZero> {
-        Some(&self.water0)
-    }
-}
-
-/// `WORLD_MAN::GO(0)`'s town 2.
-pub const DEF: TownDef = TownDef { no: 2, class: "ROOTTOWN03", volumes: &Volume::ALL, make: new };
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use piney_data::archive::Archive;
-    use std::sync::Arc;
+    use crate::systems::Drawn;
+    use crate::systems::sky::Sky;
+    use crate::systems::statics::StaticModels;
+    use crate::town::{Town, TownView};
+    use piney_data::volume::Volume;
 
-    fn archive() -> Option<Arc<Archive>> {
-        let p = std::path::Path::new("../../work/mutation/mutation.iso");
-        if !p.exists() {
-            eprintln!("skipped: no {}", p.display());
-            return None;
-        }
-        let mut iso = piney_data::iso::Iso::open(p).ok()?;
-        Some(Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").ok()?).ok()?))
+    fn town() -> Option<Town> {
+        let archive = crate::town::tests::archive_of("mutation")?;
+        Some(Town::open(&archive, Volume::Mut, 2, false).unwrap())
     }
 
     /// The constructor's pieces: 34 model rows, no static objects, the four
@@ -494,63 +396,51 @@ mod tests {
     /// the airship at marker 69 bound for 70.
     #[test]
     fn constructor() {
-        let Some(archive) = archive() else { return };
-        let t = new(&crate::town::TownEnv {
-            archive: &archive,
-            volume: piney_data::volume::Volume::Mut,
-            crisis: false,
-            rng: piney_data::dungeon::Rng::POWER_ON,
-        })
-        .unwrap();
-        let b = &t.base;
-        assert_eq!(b.no, NO);
-        assert_eq!((0..34).filter(|&r| b.model(r).is_some()).count(), 34);
-        let d = t.class::<CarminaGade>().unwrap();
-        assert!(d.back.iter().all(|c| !c.is_empty()));
-        assert!(d.crisis_sky.is_none());
-        assert_eq!(b.core.lights.lights.len(), 12);
-        assert_eq!(b.clear, Some(BG_COLOR));
-        assert_eq!((d.ship.pos, d.ship.to), (d.ship.markers[0], d.ship.markers[1]));
-        assert!(!b.core.hits.models.is_empty());
+        let Some(t) = town() else { return };
+        let s = t.systems();
+        assert_eq!(t.def.no, 2);
+        let models = s.get::<StaticModels>().unwrap();
+        assert_eq!((0..34).filter(|&r| models.model(r).is_some()).count(), 34);
+        let sky = s.get::<Sky>().unwrap();
+        assert!((0..4).all(|k| sky.made(k)) && (4..7).all(|k| !sky.made(k)));
+        assert_eq!(t.core.lights.lights.len(), 12);
+        assert_eq!(t.def.clear, Some(BG_COLOR));
+        let ship = s.get::<Airship>().unwrap();
+        assert_eq!((ship.pos, ship.to), (ship.markers[0], ship.markers[1]));
+        assert!(!t.core.hits.models.is_empty());
     }
 
     /// Every frame's pieces come in `Draw`'s order, and the airship flies
     /// its first leg: 2000 frames, then the turn.
     #[test]
     fn the_airship_flies_its_first_leg() {
-        let Some(archive) = archive() else { return };
-        let mut t = new(&crate::town::TownEnv {
-            archive: &archive,
-            volume: piney_data::volume::Volume::Mut,
-            crisis: false,
-            rng: piney_data::dungeon::Rng::POWER_ON,
-        })
-        .unwrap();
+        let Some(mut t) = town() else { return };
         let v = TownView::default();
-        let (base, d) = t.parts_mut::<CarminaGade>().unwrap();
-        let p = d.select(base, &v);
+        t.step(&v);
+        let p = |k: Kind, piece: Piece| Drawn::Piece(k, piece);
         assert_eq!(
-            &p[..7],
+            &t.frame()[..7],
             &[
-                Piece::Water(0),
-                Piece::Copy,
-                Piece::Ship,
-                Piece::Back(0),
-                Piece::Back(1),
-                Piece::Back(2),
-                Piece::Back(3)
+                p(Kind::Water, Piece::Anim(0)),
+                p(Kind::Water, Piece::Copy),
+                p(Kind::Airship, Piece::Anim(0)),
+                p(Kind::Sky, Piece::Clump(0)),
+                p(Kind::Sky, Piece::Clump(1)),
+                p(Kind::Sky, Piece::Clump(2)),
+                p(Kind::Sky, Piece::Clump(3)),
             ]
         );
-        assert_eq!(p.last(), Some(&Piece::Map));
+        assert_eq!(t.frame().last(), Some(&Drawn::Map));
         let mut frames = 1;
-        while d.ship.turn == 0 {
-            d.select(base, &v);
+        while t.systems().get::<Airship>().unwrap().turn == 0 {
+            t.step(&v);
             frames += 1;
             assert!(frames < 2100, "the first leg did not end");
         }
         // t += 0.0005 in single floats: just short of 1 after 2000 steps.
         assert!((2000..2010).contains(&frames), "{frames}");
-        assert_eq!((d.ship.leg, d.ship.turn, d.ship.pos), (1, ship::TURN, d.ship.markers[1]));
-        assert!(base.take_events().iter().any(|e| matches!(e, TownEvent::SmokeN { .. })));
+        let ship = t.systems().get::<Airship>().unwrap();
+        assert_eq!((ship.leg, ship.turn, ship.pos), (1, ship::TURN, ship.markers[1]));
+        assert!(t.take_events().iter().any(|e| matches!(e, TownEvent::SmokeN { .. })));
     }
 }

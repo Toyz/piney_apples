@@ -13,8 +13,11 @@ its `game.town` and drawn by `ccThFieldDisp` each frame, as Mac Anu
 ([the field game](field-game.md#what-the-town-draws)) and Dun Loireag
 ([Dun Loireag](town02.md)) are. Infection's executable carries earlier
 `ROOTTOWN03`-`05` classes that no disc reaches; these are the later
-volumes'. The ports are `crates/piney-world/src/town/carmina_gadelica.rs`, `town04.rs`
-and `town05.rs`.
+volumes'. The ports are `crates/piney-world/src/town/carmina_gadelica.rs`,
+`fort_ouph.rs`, `lia_fail.rs` and `relic_city.rs`, each a `TownDef` naming
+its systems and its `Draw`'s steps (`crates/piney-world/src/systems/`);
+what a town alone has is its own system (Carmina Gade's `Airship`, Lia
+Fail's `Glows`).
 
 ## Carmina Gade (MUT)
 
@@ -196,7 +199,9 @@ power-off. The same holds for `EVENTAREAB0::DrawBG`'s `v$1597`,
 
 The port keeps them in `SaveState::scroll_statics`
 (`town::scroll_statics` names the slots). Each town, arena, dungeon and
-field takes them as it is made and hands them back as it is left;
+field takes them as it is made and hands them back as it is left (a
+town through each system's `take` and `put`: its `Scrolls` and `Water`
+each from its def's slot);
 `SaveState::carry_memory` keeps them through the soft reset (worklog
 474).
 

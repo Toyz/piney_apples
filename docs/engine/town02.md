@@ -447,23 +447,34 @@ Grunty they read.
 
 ## The port
 
-`piney_world::town::Town` is a town's `Base` (what every class's
-constructor builds from its tables: the file, the static models and
-objects, the lights, the fog, the hits) and its class, a type of its own
-per `ROOTTOWN` (`town01::MacAnu`, `town02::DunLoireag`, ...) behind the
-`RootTown` trait, the class's virtual `Draw`. `Town::open` builds the class
-by town; each class's `select` is its `Draw` up to its draws, as its own
-`Piece`s (with a `TownView`: the eye, the player, the active camera, the
-flare's camera, `puppetShow`, `world_screen`), and `RootTown::draw`
-draws them and hands back the `ccEff`s (`TownSprite`) that `piney-game`'s
-`town_fx` draws through piney-effect's `ccEff::Draw`. `town::water_st` is
-`waterUVModifi2`, `WaterZero` the texture coordinates it leaves; water 0
+A Root Town is a `piney_world::town::TownDef` (`dun_loireag::DUN_LOIREAG`,
+`BASE_TOWN` with its differences): its class (`TownGameClass`), files,
+lights, fog, clear colour and start, its systems and its `Draw`'s steps
+in the game's order. `Town::open` builds the def of `game.town`: the
+`AreaCore` (file, lights, collision, `fieldrand` when a system draws from
+it) and each system (`piney_world::systems`): the static models and
+objects, `DrawBG`'s scrolls and clumps (`Sky`, the crisis sky's among
+them), the water, the clouds, the lens flare, and a town's own. Dun
+Loireag's steps:
+
+```text
+Clouds.Start, Water, Scrolls, Sky, PASSES (Models and Objects of
+Obj2 and Obj, Models of Floor), Map, Models(Other), LensFlare, Clouds
+```
+
+`Town::step` runs them with a `TownView` (the eye, the player, the
+active camera, the flare's camera, `puppetShow`, `world_screen`); each
+system puts its pieces in the frame, and `Town::requests` hands them back
+as generic draws (models, a `ccAnm`, a `ccEff` as `TownSprite`) which the
+world paints the same way for every town and `piney-game`'s `town_fx`
+draws the sprites of through piney-effect's `ccEff::Draw`. `town::water_st`
+is `waterUVModifi2`, `WaterZero` the texture coordinates it leaves; water 0
 draws with them and the frame buffer as its texture (`VertexEdits::st`
 and `tex`, which `piney-gs` copies when the model's command starts, at the
 same place in the draw order as the game's copy). `cloud::Cloud` is
 `CLOUD` (all four types), `lensflare::points` and `draw` `LENSFLARE::Draw`.
-`World::enter` builds the town of the save's `lastTown` (0 or 1) and
-starts Kite at `start_position`; the session changes scene to either town.
+`World::enter` builds the town of the save's `lastTown` and starts Kite at
+its def's `start`; the session changes scene to any town.
 
 The port's copy is the game's: `TexRef::SampledFrame` 128 x 128, each
 texel the frame's pixel at its centre (the copy's sprite reads nearest),

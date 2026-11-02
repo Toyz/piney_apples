@@ -60,7 +60,7 @@ fn dun_loireag_collision_mesh() {
         let walls = polys.iter().filter(|p| p.att & WALL != 0).count();
         assert_eq!((polys.len(), floors, walls), (1356, 354, 1002), "{stem}");
         let mut hits = Hits::new(piney_data::volume::Volume::Inf, models);
-        let (start, _) = piney_world::start_position(1);
+        let (start, _) = piney_world::town::dun_loireag::DUN_LOIREAG.start.unwrap();
         // The start stands on the gate plaza's floor, at 0 to the float.
         let z = ee::f(hits.land(start, LAND_MASK));
         assert!(hits.nearest.att & FLOOR != 0 && z.abs() < 0.001, "{z}");
@@ -76,8 +76,8 @@ fn arrival_in_dun_loireag_then_walking() {
     let Some((mut iso, archive)) = disc() else { return };
     let save = in_dun_loireag(&mut iso);
     let mut world = World::enter(&mut iso, archive, save).unwrap();
-    assert_eq!(world.town().base.no, 1);
-    assert_eq!(world.town().base.core.file.stem, "town02");
+    assert_eq!(world.town().def.no, 1);
+    assert_eq!(world.town().core.file.stem, "town02");
     assert_eq!(world.clear_colour(), Some([0x80, 0xc0, 0xf0]));
     let mut pad = Pad::default();
     for _ in 0..FADE_FRAMES + HOLD_FRAMES {
@@ -102,8 +102,8 @@ fn arrival_in_dun_loireag_then_walking() {
     let ids: Vec<i32> = world.merchants().iter().map(piney_world::event::entry::Npc::code).collect();
     assert_eq!(ids, [5, 6, 7, 8, 9, 10]);
     assert_eq!(world.pcs().len(), 15);
-    let d = world.town().class::<piney_world::town::dun_loireag::DunLoireag>().unwrap();
-    assert_eq!(d.clouds.len(), 25);
+    let clouds = world.town().systems().get::<piney_world::systems::clouds::Clouds>().unwrap();
+    assert_eq!(clouds.clouds.len(), 25);
     // Stick up: he runs south and stays on the ground.
     let start = world.player().body.pos;
     for _ in 0..40 {

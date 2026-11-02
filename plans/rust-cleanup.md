@@ -247,6 +247,12 @@ Where the code does by hand, per kind, what a system should do once:
       classes; keep both, as systems), static objects and models, scrolls,
       lights, the minimap (`map/` already one folder), in fields the
       ambient (rain, thunder, steam), in dungeons dress, lake, leaves.
+      (worklog 560: water, sky with the crisis sky, clouds, lens flare,
+      static objects and models and scrolls are systems in
+      `piney_world::systems`, every town on them; area 13 and the sky maps
+      hold `AreaCore` and the statics systems. Left: the minimap, the
+      story maps' and fields' clouds, flares and scrolls as these systems,
+      fireflies, lights, the fields' ambient, the dungeons'.)
 - [ ] **Scene transitions.** The session's `change`, `leave`, `enter_world`
       and the modes' `change_area` / `scene_change` / `leave` repeat the
       same request handling (worklog 503 had the console's `town` skip it);
@@ -415,7 +421,7 @@ Where the code does by hand, per kind, what a system should do once:
       each take different arguments, quirks inline (`Town::open_with`,
       `story_map::build`). Two parts, done together:
       - Group by subsystem, each folder a `mod.rs` with a small API. In
-        piney-world: `town/` (`Town`, `RootTown`, registry; `mac_anu`,
+        piney-world: `town/` (`Town`, `TownDef`, registry; `mac_anu`,
         `dun_loireag`, `carmina_gadelica`, `fort_ouph`, `lia_fail`, the
         sixth town by its loading-card name; `pc` = rtownpc, `merchant`,
         `party`, `ride`, `dog`), `story_map/` (`StoryMap`, `MapCore`,
@@ -443,7 +449,7 @@ Where the code does by hand, per kind, what a system should do once:
         system (the `BossClass` registry, effects by kind), piney-desktop
         (an app table), piney-fieldui (the `MenuDef` table), piney-game
         (modes and hosts). Probes and tests named after old files follow.
-- [ ] Towns: `step_scrolls`, `Sky` (clouds and lens flare), `WaterSpec`
+- [x] Towns: `step_scrolls`, `Sky` (clouds and lens flare), `WaterSpec`
       with the two real wrap rules as data, `Base::passes`, statics slots.
       (worklog 532: `step_scrolls`, `Wrap` and `WaterSpec`; `Sky`,
       `Base::passes` and the statics slots to come.) Also one `town::Water`
@@ -454,6 +460,22 @@ Where the code does by hand, per kind, what a system should do once:
       slot). A `WaterDef { file, anim, model, reach, spec, statics_slot }`
       constant per town and a `water: Water` member with `new`, `step`,
       `rows`, `take` / `put`; `Sky` the same way for the clouds and flares.
+      (worklog 560: towns as defs and systems. A `TownDef` a town,
+      `BASE_TOWN` with its files, lights, fog, clear colour, start, its
+      systems (`SystemDef`, each built from its own data) and its `Draw`'s
+      steps; `TownGameClass` generated. `piney_world::systems`: the runner,
+      `Models` and `Objects` (`STATICMODEL`, `STATICOBJECT`), `Scrolls`,
+      `Sky` (`DrawBG`'s clumps, the crisis sky's among them, at a dummy or
+      the origin, materials scrolled by `MatScroll`), `Water` (`WaterDef`),
+      `Clouds`, `LensFlare` (the plan's `Sky` for the clouds and flares is
+      the game's two classes), and a town's own: Mac Anu's `Clip`, Carmina
+      Gade's `Airship`, Lia Fail's `Glows`. `PASSES` is `Base::passes`, each
+      system's `take` / `put` its statics slot. The frame's pieces go out
+      as generic `Request`s the world paints for every town (`paint`);
+      `Base`, `Spec`, `RootTown`, `Town::class`, `parts_mut`, the town
+      number arms of the start, `town_ported` and the title gone. Mac Anu's
+      ships are its static objects of type 0; Dun Loireag's ranch is the
+      world's Grunties, not its `Draw`'s.)
 - [ ] `AreaMap` trait over field, dungeon and story map (the 3-arm match
       inlined 19 times in `field_world.rs`).
 - [ ] `EvHost<W: HostWorld>` for the 29 identical `Host` methods in

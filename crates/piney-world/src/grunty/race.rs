@@ -760,7 +760,7 @@ impl crate::World {
                 return false;
             }
         };
-        let server = crate::area::SERVER_OF_TOWN.get(self.town.base.no as usize).copied().unwrap_or(0);
+        let server = crate::area::SERVER_OF_TOWN.get(self.town.def.no as usize).copied().unwrap_or(0);
         self.race = Some(Box::new(Race::new(files, kind, server)));
         true
     }
@@ -1057,7 +1057,7 @@ impl crate::World {
                     // Kite by the breeder, facing him.
                     let at = t.end_pos[s].map(f32::to_bits);
                     self.player.body.pos = at;
-                    let breeder = crate::grunty::dummy(&self.town.base.core.file, "DMY_merchant6").map(|d| d.0);
+                    let breeder = crate::grunty::dummy(&self.town.core.file, "DMY_merchant6").map(|d| d.0);
                     let mut rot = self.player.body.dirc;
                     rot[2] = breeder.map_or(rot[2], |b| crate::town::pc::get_dirc(at, b));
                     self.player.body.dirc = rot;

@@ -46,7 +46,7 @@ impl Ear {
     fn arrive(&mut self, town: i32) {
         for _ in 0..3000 {
             if let Stage::World(w) = &self.s.stage
-                && w.world().town().base.no == town
+                && w.world().town().def.no == town
                 && matches!(w.world().phase(), piney_world::Phase::Play(n) if n >= 30)
             {
                 return;
@@ -60,7 +60,7 @@ impl Ear {
     /// `DMY_merchant6` (the tune comes in within 1000), then 60 frames more
     /// for its fades ([`super::town_walk::TownWalker`]).
     fn walk_to_ranch(&mut self) {
-        let town = &self.world().town().base;
+        let town = &self.world().town();
         let d = town.core.file.ccs.find_object("DMY_merchant6").and_then(|o| town.core.file.scene.dummies.get(&o));
         let to = d.map(|d| [d.pos.x, d.pos.y]).expect("no DMY_merchant6");
         let mut walk = super::town_walk::TownWalker::new(to, 990.0);

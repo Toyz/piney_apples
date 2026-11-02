@@ -393,7 +393,8 @@ Mutation's event 115 goes to field 13 (MUT gcmn 0x00414110 constructor,
 | 0 | `ccEff::Draw(pos, fieldrand(patNum))`; `count` - 1; at 0 a new `wait` and `count` as above |
 
 **The port.** `piney_world::story_map::truths_core::Area13`, a `StoryMap` on
-`town::Base` (`Base::read_volume`, the volume's tables). The glows are
+an `AreaCore` (`AreaCore::read`) with the volume's `StaticModels` and
+`StaticObjects` (`piney_world::systems::statics`). The glows are
 `StorySprite`s with `fog` off.
 
 ## Area 43: EVENTAREA03

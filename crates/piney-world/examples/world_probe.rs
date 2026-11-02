@@ -388,8 +388,13 @@ fn props_command(
     props: &mut Props,
 ) -> bool {
     use piney_data::volume::Volume;
-    use piney_world::town::mac_anu::{MacAnu, Piece};
-    use piney_world::town::{RootTown, Town};
+    use piney_world::systems::scrolls::Scrolls;
+    use piney_world::systems::sky::Sky;
+    use piney_world::systems::statics::{StaticModels, StaticObjects};
+    use piney_world::systems::water::Water;
+    use piney_world::systems::{Drawn, Kind, Piece};
+    use piney_world::town::Town;
+    use piney_world::town::mac_anu::Clip;
     let n = |i: usize| hex(w[i]);
     // Mac Anu as the disc has it (its town01, its tables).
     fn town<'a>(props: &'a mut Props, archive: &Arc<Archive>, volume: Volume, k: u32) -> &'a mut Town {
@@ -397,34 +402,46 @@ fn props_command(
     }
     match cmd {
         "town" => {
-            let (t, m) = town(props, archive, volume, n(1)).parts_mut::<MacAnu>().unwrap();
-            let pieces = m.select(t, &piney_world::town::TownView::at([n(2), n(3), n(4), ee::ONE]));
-            let out: Vec<String> = pieces
+            let t = town(props, archive, volume, n(1));
+            t.step(&piney_world::town::TownView::at([n(2), n(3), n(4), ee::ONE]));
+            let s = t.systems();
+            let (sky, water) = (s.get::<Sky>().unwrap(), s.get::<Water>().unwrap());
+            let (models, objects) = (s.get::<StaticModels>().unwrap(), s.get::<StaticObjects>().unwrap());
+            let out: Vec<String> = t
+                .frame()
                 .iter()
-                .map(|p| match *p {
-                    Piece::Object(row) => format!("[\"obj\", {row}, {}]", t.object(row).unwrap().0),
-                    Piece::Sky => "[\"sky\"]".into(),
-                    Piece::CrisisSky(k) => format!("[\"crisis\", {k}]"),
-                    Piece::Model(row) => {
-                        let m = t.model(row).unwrap();
+                .map(|d| match *d {
+                    Drawn::Piece(Kind::Objects, Piece::Object(row)) => {
+                        format!("[\"obj\", {row}, {}]", objects.object(row).unwrap().0)
+                    }
+                    Drawn::Piece(Kind::Sky, Piece::Clump(k)) => match sky.crisis(k) {
+                        Some(c) => format!("[\"crisis\", {c}]"),
+                        None => "[\"sky\"]".into(),
+                    },
+                    Drawn::Piece(Kind::Models, Piece::Model(row)) => {
+                        let m = models.model(row).unwrap();
                         format!("[\"model\", {row}, {}]", list(&m.pos.to_array().map(f32::to_bits)))
                     }
-                    Piece::Water(k) => format!("[\"water\", {k}, {}]", m.water_time(k)),
-                    Piece::Map => "[\"map\"]".into(),
+                    Drawn::Piece(Kind::Water, Piece::Anim(k)) => format!("[\"water\", {k}, {}]", water.time(k)),
+                    Drawn::Map => "[\"map\"]".into(),
+                    d => panic!("Mac Anu draws no {d:?}"),
                 })
                 .collect();
+            // DrawBG writes the crisis materials' offset only in crisis.
+            let bg = if sky.made(1) { s.get::<Scrolls>().unwrap().uv(1) } else { 0 };
             println!(
                 "{{\"clip\": {}, \"uv\": {}, \"bg\": {}, \"pieces\": [{}]}}",
-                list(&m.clip.map(|c| c as u32)),
-                m.water_uv,
-                m.bg_uv,
+                list(&s.get::<Clip>().unwrap().clip.map(|c| c as u32)),
+                water.uv,
+                bg,
                 out.join(", ")
             );
         }
         "townobj" => {
-            let t = &town(props, archive, volume, n(1)).base;
+            let t = town(props, archive, volume, n(1));
+            let objects = t.systems().get::<StaticObjects>().unwrap();
             let rows: Vec<String> =
-                (0..11).filter_map(|r| t.object(r).map(|(_, m)| format!("[{r}, {}]", mat(&m)))).collect();
+                (0..11).filter_map(|r| objects.object(r).map(|(_, m)| format!("[{r}, {}]", mat(&m)))).collect();
             println!("[{}]", rows.join(", "));
         }
         "townreset" => {
@@ -433,7 +450,7 @@ fn props_command(
         }
         "gate" => {
             if props.gate.is_none() {
-                let file = town(props, archive, volume, 0).base.core.file.clone();
+                let file = town(props, archive, volume, 0).core.file.clone();
                 props.gate = Some(piney_world::event::gate::Gate::new(archive, &file).unwrap());
             }
             let g = props.gate.as_mut().unwrap();
@@ -501,7 +518,7 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
             let volume = Iso::open(iso_path).unwrap().volume().unwrap();
             let no = if w.len() > 4 { n(4) as i32 } else { 0 };
             let mut town = piney_world::town::Town::open(archive, volume, no, false).unwrap();
-            let t = &mut town.base;
+            let t = &mut town;
             ms.list.clear();
             for e in w.get(5..).unwrap_or_default().chunks(3) {
                 let [ty, code, marker] = [0, 1, 2].map(|k| hex(e[k]) as i16);
@@ -570,7 +587,7 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
             };
             let view = View { player, cam: cam_pos, deg1, eye };
             let mut rand = Rand(1);
-            let hits = &mut ms.town.as_mut().unwrap().base.core.hits;
+            let hits = &mut ms.town.as_mut().unwrap().core.hits;
             ms.kite.pos = player;
             ms.kite.radius = 0x4234_0000;
             hits.set_hit_sw(&mut ms.kite, kite_hit);
@@ -982,13 +999,13 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             // The SEARCH set-up alone in town TOWN, Kite at (0, 0, 0, 0).
             let (no, code, stage) = (n(1) as i32, n(2) as i32, n(3) as i16);
             let mut town = piney_world::town::Town::open(archive, volume, no, false).unwrap();
-            let t = pc::TownPcs::new(volume, no, &town.base.core.file, Mt::init(0)).unwrap();
+            let t = pc::TownPcs::new(volume, no, &town.core.file, Mt::init(0)).unwrap();
             let t = std::rc::Rc::new(std::cell::RefCell::new(t));
-            let set_up = pc::Search::set_up(&t.borrow(), &town.base.core.file, code, stage).unwrap();
+            let set_up = pc::Search::set_up(&t.borrow(), &town.core.file, code, stage).unwrap();
             let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
             let model = pc::load_model(archive, &mut pc::Files::new(), &t.borrow().tables, &row).unwrap();
             let origin = pc::Origin::Search(set_up);
-            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.base.core.hits);
+            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.core.hits);
             println!("{{{}}}", pcs_json(&t.borrow(), &[pc]));
         }
         "pcrace" => {

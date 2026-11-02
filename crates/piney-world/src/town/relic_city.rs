@@ -7,33 +7,30 @@
 //! The module is named for its loading card, `townNameTbl`'s sixth row:
 //! Lia Fail's words again, "Relic City".
 
-use std::collections::HashMap;
-
-use glam::Mat4;
-use piney_data::Result;
+use piney_data::classes::TownGameClass;
 use piney_data::statics::DrawPass;
-use piney_desktop::layers::Layers;
+use piney_data::volume::Volume;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::F;
+use crate::systems::scrolls::ScrollsDef;
+use crate::systems::sky::{SkyClump, SkyDef};
+use crate::systems::statics::ModelsDef;
+use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
 use crate::town::scroll_statics as statics;
-use crate::town::step_scrolls;
-use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models};
-use crate::town::{TownDef, TownEnv};
-use piney_data::volume::Volume;
+use crate::town::{BASE_TOWN, FogParams, TownDef};
 
-/// `ChangeScene`'s town number.
-pub const NO: i32 = 5;
-pub const FILE: &str = "town06";
 /// The light animation and its one light (gp 0x00279038: type 0, a
 /// distant light `WORLD_MAN::SetLightDirection` takes).
 pub const LIGHT_ANIM: &str = "ANM_sr6town1a";
 pub const LIGHTS: [(i32, &str); 1] = [(0, "LGT_sr6lig1")];
-/// `DrawBG`'s clumps: the first on `bgLayer[0]`, the three crosses on
-/// `refLayer`; the last (+0x1ac) on `bgLayer[1]`.
+/// `DrawBG`'s clumps: the first on `bgLayer[0]` (-100), the three crosses
+/// on `refLayer` (`SetActiveLayer(6)`, 30); the last (+0x1ac) on
+/// `bgLayer[1]` (-90).
 pub const BACK: &str = "CMP_sr6bac1";
 pub const CROSSES: [&str; 3] = ["CMP_sr6cro1", "CMP_sr6cro2", "CMP_sr6cro3"];
 pub const METEOR: &str = "CMP_sr6met1";
+const REF_LAYER: i16 = 30;
 
 /// `SetFog(1500, 10000, 0, 75, 0x00f0c080)` (0x004ec3cc) and the same
 /// colour as `ccSys.bgColor`: Lia Fail's.
@@ -41,172 +38,78 @@ pub const FOG: FogParams =
     FogParams { near: 1500.0, far: 10000.0, near_rate: 0.0, far_rate: 75.0, colour: [0x80, 0xc0, 0xf0] };
 pub const BG_COLOR: [u8; 3] = [0x80, 0xc0, 0xf0];
 
-const SPEC: Spec = Spec {
-    no: NO,
-    models: "RT_MODELTABLE06",
-    objects: None,
+/// `DrawBG`'s scrolls a frame (QUA gp 0x00279980..0x00279988, read by
+/// nothing): 0.01, 0.02 and 0.001, each back to 0 past 1.
+pub const BG_STEP: [F; 3] = [0x3c23_d70a, 0x3ca3_d70a, 0x3a83_126f];
+
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE06", layer: OBJ_LAYER };
+static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN06_BG };
+static SKY_CLUMPS: SkyDef = SkyDef {
+    clumps: &[
+        SkyClump::on(BACK, -100),
+        SkyClump::on(CROSSES[0], REF_LAYER),
+        SkyClump::on(CROSSES[1], REF_LAYER),
+        SkyClump::on(CROSSES[2], REF_LAYER),
+        SkyClump::on(METEOR, -90),
+    ],
+};
+
+/// `ROOTTOWN06` (`town06`, no crisis variant, Quarantine's tables): its
+/// `Draw` is `DrawBG`, then `SetActiveLayer(1)`, `DrawObj2` (type 3),
+/// `DrawObj` (type 2), `DrawFloor` (type 1), `DrawMap` (nothing) and the
+/// type-0 rows. `SetCharPosition` has no case for it.
+pub static RELIC_CITY: TownDef = TownDef {
+    no: 5,
+    class: TownGameClass::Roottown06,
+    name: "town06",
+    volumes: &[Volume::Qua],
+    file: "town06",
+    tables: Volume::Qua,
     light_anim: LIGHT_ANIM,
     lights: &LIGHTS,
     fog: FOG,
     clear: Some(BG_COLOR),
+    systems: &[SystemDef::Models(&MODELS), SystemDef::Scrolls(&SCROLLS), SystemDef::Sky(&SKY_CLUMPS)],
+    order: &[DRAW_BG, PASSES, Step::Run(Kind::Models, Hook::Pass(DrawPass::Other))],
+    ..BASE_TOWN
 };
-
-/// `DrawBG`'s scrolls a frame (QUA gp 0x00279980..0x00279988, read by
-/// nothing): 0.01, 0.02 and 0.001, each back to 0 past 1.
-const BG_STEP: [F; 3] = [0x3c23_d70a, 0x3ca3_d70a, 0x3a83_126f];
-
-/// `WORLD_MAN`'s layers the town draws on besides `objLayer`.
-pub mod layer {
-    /// `bgLayer[0]` (+0x494) and `bgLayer[1]` (+0x498).
-    pub const BG0: i16 = -100;
-    pub const BG1: i16 = -90;
-    /// `SetActiveLayer(6)`: refLayer.
-    pub const REF: i16 = 30;
-}
-
-/// One piece `ROOTTOWN06::Draw` draws, in its order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Piece {
-    /// `DrawBG`'s clumps at the origin: `CMP_sr6bac1`, then the crosses.
-    Back,
-    Cross(usize),
-    /// `CMP_sr6met1`, last of `DrawBG`.
-    Meteor,
-    /// A `STATICMODEL` (its `RT_MODELTABLE06` row).
-    Model(usize),
-}
-
-/// What `ROOTTOWN06` holds besides the [`Base`].
-pub struct Town06 {
-    back: Vec<u32>,
-    crosses: [Vec<u32>; 3],
-    meteor: Vec<u32>,
-    /// `DrawBG`'s scrolls (read by nothing).
-    pub bg_scroll: [F; 3],
-}
-
-/// `ROOTTOWN06::ROOTTOWN06`: `town06` (no crisis variant).
-pub fn new(env: &TownEnv<'_>) -> Result<Town> {
-    let archive = env.archive;
-    let base = Base::read_volume(archive, piney_data::volume::Volume::Qua, FILE, &SPEC)?;
-    let file = base.core.file.clone();
-    let d = Town06 {
-        back: clump_models(&file, BACK),
-        crosses: CROSSES.map(|n| clump_models(&file, n)),
-        meteor: clump_models(&file, METEOR),
-        bg_scroll: [0; 3],
-    };
-    Ok(Town::new(base, d))
-}
-
-impl Town06 {
-    /// `ROOTTOWN06::Draw` for this frame: the pieces in its order, with the
-    /// scrolls stepped as `DrawBG` steps them.
-    pub fn select(&mut self, base: &Base) -> Vec<Piece> {
-        // DrawBG (0x004eca00).
-        step_scrolls(&mut self.bg_scroll, &BG_STEP);
-        let mut out = vec![Piece::Back];
-        out.extend((0..3).map(Piece::Cross));
-        out.push(Piece::Meteor);
-        // SetActiveLayer(1); DrawObj2 (type 3), DrawObj (type 2), DrawFloor
-        // (type 1), DrawMap (nothing), then the type-0 rows.
-        for pass in [DrawPass::Obj2, DrawPass::Obj, DrawPass::Floor, DrawPass::Other] {
-            out.extend(base.rows(pass).map(Piece::Model));
-        }
-        out
-    }
-
-    fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) {
-        let none = HashMap::new();
-        for &piece in pieces {
-            match piece {
-                Piece::Back => base.clump_draw(layers, layer::BG0, to_screen, &self.back, Mat4::IDENTITY, &none),
-                Piece::Cross(k) => {
-                    base.clump_draw(layers, layer::REF, to_screen, &self.crosses[k], Mat4::IDENTITY, &none)
-                }
-                Piece::Meteor => base.clump_draw(layers, layer::BG1, to_screen, &self.meteor, Mat4::IDENTITY, &none),
-                Piece::Model(row) => base.row_draw(layers, OBJ_LAYER, to_screen, row),
-            }
-        }
-    }
-}
-
-impl RootTown for Town06 {
-    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        statics::take(&mut self.bg_scroll, s, statics::TOWN06_BG);
-    }
-    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        statics::put(&self.bg_scroll, s, statics::TOWN06_BG);
-    }
-    fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, _v: &TownView) -> Vec<TownSprite> {
-        let pieces = self.select(base);
-        self.draw_pieces(base, layers, to_screen, &pieces);
-        Vec::new()
-    }
-}
-
-/// `WORLD_MAN::GO(0)`'s town 5.
-pub const DEF: TownDef = TownDef { no: 5, class: "ROOTTOWN06", volumes: &[Volume::Qua], make: new };
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use piney_data::archive::Archive;
-    use std::sync::Arc;
+    use crate::systems::scrolls::Scrolls;
+    use crate::systems::sky::Sky;
+    use crate::systems::statics::StaticModels;
+    use crate::systems::{Drawn, Piece};
+    use crate::town::{Town, TownView};
 
-    fn archive() -> Option<Arc<Archive>> {
-        crate::town::tests::archive_of("quarantine")
+    fn town() -> Option<Town> {
+        let archive = crate::town::tests::archive_of("quarantine")?;
+        Some(Town::open(&archive, Volume::Qua, 5, false).unwrap())
     }
 
     /// The constructor's pieces: 3 model rows (floor, obj, obj2), the five
     /// clumps, the one light, and the fog and background colour.
     #[test]
     fn constructor() {
-        let Some(archive) = archive() else { return };
-        let t = new(&crate::town::TownEnv {
-            archive: &archive,
-            volume: piney_data::volume::Volume::Qua,
-            crisis: false,
-            rng: piney_data::dungeon::Rng::POWER_ON,
-        })
-        .unwrap();
-        let b = &t.base;
-        assert_eq!(b.no, NO);
-        assert_eq!((0..3).filter(|&r| b.model(r).is_some()).count(), 3);
-        let d = t.class::<Town06>().unwrap();
-        assert!(!d.back.is_empty() && !d.meteor.is_empty());
-        assert!(d.crosses.iter().all(|c| !c.is_empty()));
-        assert_eq!(b.core.lights.lights.len(), 1);
-        assert_eq!(b.clear, Some(BG_COLOR));
+        let Some(t) = town() else { return };
+        assert_eq!(t.def.no, 5);
+        let models = t.systems().get::<StaticModels>().unwrap();
+        assert_eq!((0..3).filter(|&r| models.model(r).is_some()).count(), 3);
+        assert!((0..5).all(|k| t.systems().get::<Sky>().unwrap().made(k)));
+        assert_eq!(t.core.lights.lights.len(), 1);
+        assert_eq!(t.def.clear, Some(BG_COLOR));
     }
 
     /// Each frame: the back, the three crosses and the meteor, then the
     /// rows by pass (type 3, 2, 1; no type 0).
     #[test]
     fn a_frame() {
-        let Some(archive) = archive() else { return };
-        let mut t = new(&crate::town::TownEnv {
-            archive: &archive,
-            volume: piney_data::volume::Volume::Qua,
-            crisis: false,
-            rng: piney_data::dungeon::Rng::POWER_ON,
-        })
-        .unwrap();
-        let (base, d) = t.parts_mut::<Town06>().unwrap();
-        let p = d.select(base);
-        assert_eq!(
-            p,
-            [
-                Piece::Back,
-                Piece::Cross(0),
-                Piece::Cross(1),
-                Piece::Cross(2),
-                Piece::Meteor,
-                Piece::Model(2),
-                Piece::Model(1),
-                Piece::Model(0)
-            ]
-        );
-        assert_eq!(d.bg_scroll, BG_STEP);
+        let Some(mut t) = town() else { return };
+        t.step(&TownView::default());
+        let clump = |k: usize| Drawn::Piece(Kind::Sky, Piece::Clump(k));
+        let model = |row: usize| Drawn::Piece(Kind::Models, Piece::Model(row));
+        assert_eq!(t.frame(), [clump(0), clump(1), clump(2), clump(3), clump(4), model(2), model(1), model(0)]);
+        assert_eq!(t.systems().get::<Scrolls>().unwrap().v, BG_STEP);
     }
 }

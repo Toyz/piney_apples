@@ -36,7 +36,7 @@ fn play_in(s: &mut Session, town: i32) {
     let pad = Pad::default();
     for _ in 0..3000 {
         if let Stage::World(w) = &s.stage
-            && w.world().town().base.no == town
+            && w.world().town().def.no == town
             && matches!(w.world().phase(), piney_world::Phase::Play(n) if n >= 30)
         {
             return;

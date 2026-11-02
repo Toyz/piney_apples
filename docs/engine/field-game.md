@@ -692,7 +692,7 @@ naming a row of another type does nothing: `DrawObj2`'s row 12 north of
 2600 and `DrawObj`'s row 23 north of 1600 are such, and so is `DrawObj`'s
 test of `clip[2]` on the south plaza, which cannot be set there. The whole
 choice, run in eemu for camera eyes all over both towns, is
-`Town::select` piece for piece ([Checks](#checks)).
+`Town::step`'s frame piece for piece ([Checks](#checks)).
 
 No static model is culled by distance; a static object's animation steps
 only while it is drawn. The lights and ambient come from `ANM_sr1town1a`
@@ -1789,9 +1789,12 @@ camera  tcam, ecam, bcam, camID, cameraInit, cameraMain, cameraPosCalc,
         avoidObstacle, cameraSetEyeLevel, cameraSet, cameraGetRot, the soft reset
 evcam   the event camera: the Execute handlers, ccThCameraExecute, CamCtrl,
         CamzCtrl and the paths, MenuBan's camera part
-town    what every Root Town class builds; ROOTTOWN01: pieces, passes, clip
-        rules, LODs, water (waterUVModifi2 and the copy), crisis sky, lights
-        (Town::select is Draw's choice, Town::draw draws it)
+town    TownDef, BASE_TOWN and Town; ROOTTOWN01: its steps, the clip rules
+        and LODs (its Clip), lights (Town::step runs Draw's steps,
+        Town::requests hands back what they drew)
+systems a map's systems and their runner: statics (STATICMODEL,
+        STATICOBJECT), scrolls, sky (DrawBG's clumps, the crisis sky),
+        water (waterUVModifi2 and the copy), clouds, flare
 town02  ROOTTOWN02, Dun Loireag (cloud: CLOUD; lensflare: LENSFLARE)
 gate    ccChgate: the Chaos Gate, its circle, its light
 chara   Kite's clump, skin, the blades on his hand nodes, lights, palette

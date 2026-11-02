@@ -7,16 +7,20 @@
 //! (docs/engine/field-game.md).
 
 use std::rc::Rc;
+use std::sync::Arc;
 
+use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
 use piney_data::save::{SaveData, offset};
+use piney_data::volume::Volume;
+use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
 use crate::ee::V4;
-use crate::hit::Hits;
-use crate::town::TownLights;
+use crate::hit::{HitModel, Hits};
+use crate::town::{FogParams, TownLights};
 
-/// What every area holds, a Root Town's [`crate::town::Base`] and each
+/// What every area holds, a Root Town ([`crate::town::Town`]) and each
 /// story map alike: its scene file (the stream `marker_pos` reads, +0x1a4
 /// on an `EVENTAREA`), its collision, its light group, `fieldrand` when its
 /// draws take from it (None leaves the game's as the map found it), and
@@ -28,6 +32,28 @@ pub struct AreaCore {
     pub lights: TownLights,
     pub field_rand: Option<Rng>,
     pub start: V4,
+}
+
+impl AreaCore {
+    /// The part of a constructor every Root Town and the story maps on its
+    /// shape share: the scene file `stem`, the light animation's lights at
+    /// frame 1 in the class's table's order with the fog `SetFog` gives,
+    /// and the file's collision on `volume` (`tables`' square root until
+    /// the caller sets the disc's).
+    pub fn read(
+        archive: &Arc<Archive>,
+        tables: Volume,
+        stem: &str,
+        light_anim: &str,
+        lights: &[(i32, &str)],
+        fog: FogParams,
+    ) -> Result<AreaCore> {
+        let file = Rc::new(SceneFile::read(archive, stem)?);
+        let anim = file.anim(light_anim).ok_or_else(|| Error::NotFound(light_anim.into()))?;
+        let lights = TownLights { fog: Some(fog), ..crate::town::read_lights(&file, anim, lights)? };
+        let hits = Hits::new(tables, HitModel::read(tables, &file.ccs)?);
+        Ok(AreaCore { file, hits, lights, field_rand: None, start: [0; 4] })
+    }
 }
 
 /// `@1489` (main 0x00306dc0): each town's server.

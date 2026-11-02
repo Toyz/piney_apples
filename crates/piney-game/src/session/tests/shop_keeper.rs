@@ -52,7 +52,7 @@ fn mutations_shop_keeper_stands_at_marker_6() {
     let Some(mut s) = arrived() else { return };
     let Stage::World(w) = &s.stage else { unreachable!() };
     let world = w.world();
-    assert_eq!(world.town().base.no, 1);
+    assert_eq!(world.town().def.no, 1);
     let (pos, rot) = world.marker_dummy(MARKER).expect("marker 6 in Dun Loireag's file");
     let m = shop_keeper(&s).expect("entry 4 29 not placed");
     assert_eq!((m.name.as_str(), m.flags), ("Administrator", piney_world::chara::npc::TYPE_SYSOPE));

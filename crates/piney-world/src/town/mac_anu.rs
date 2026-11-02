@@ -1,46 +1,33 @@
 //! Mac Anu: `ROOTTOWN01` (gcmn town01.cpp, constructor 0x00421470, `Draw`
 //! 0x00423b10 through the vtable at 0x00375f90), the first Root Town
-//! (`game.town` 0), and what it adds to the [`Base`] every town builds: the
-//! town and water files, fog, 32 static models and 11 static objects, the sky,
-//! three copies of the water, and the camera-eye clip rules of its `Draw`
-//! (docs/engine/field-game.md, "What the town draws"). `tools/test_world_rs.py`
+//! (`game.town` 0): the town and water files, fog, 32 static models and 11
+//! static objects (the ships), the sky, three copies of the water, and its
+//! own the camera-eye clip rules of its `Draw` ([`Clip`];
+//! docs/engine/field-game.md, "What the town draws"). `tools/test_world_rs.py`
 //! runs the game's `Draw` in eemu over eyes all over the town beside
-//! [`MacAnu::select`].
+//! [`MAC_ANU`]'s steps.
 
-use std::collections::HashMap;
-use std::rc::Rc;
-
-use glam::Mat4;
+use piney_data::Result;
+use piney_data::classes::TownGameClass;
 use piney_data::statics::DrawPass;
-use piney_data::{Error, Result};
-use piney_desktop::assets::SceneFile;
-use piney_desktop::layers::Layers;
 
-use crate::chara::pose::Play;
 use crate::draw::OBJ_LAYER;
 use crate::ee::{self, F, ONE, V4};
+use crate::systems::scrolls::{ScrollsDef, Wrap};
+use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
+use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
+use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
+use crate::systems::{BuildCx, DRAW_BG, Hook, Kind, MapSystem, Others, Piece, Step, StepCx, SystemDef};
 use crate::town::scroll_statics as statics;
-use crate::town::{
-    Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, WaterZero, anim_draw, clump_models, crisis_rows,
-    pos_rot_zyx, water_rows, water0_draw,
-};
-use crate::town::{TownDef, TownEnv};
-use crate::town::{WaterSpec, Wrap, step_scrolls};
-use piney_data::volume::Volume;
+use crate::town::{BASE_TOWN, FogParams, TownDef};
 
 /// `wateranmname[0]`, `watername[0]`, and the model water 0 draws.
 pub const WATER_ANIM: &str = "ANM_sr1wat1_a";
-pub const WATER_OBJ: &str = "OBJ_wat00";
 pub const WATER_MODEL: &str = "MDL_wat00";
 /// `waterUVModifi2`'s reach in Mac Anu: 9000 (0x00423f04).
 const WATER_REACH: F = 0x460c_a000;
 /// The sky clump, drawn at the origin.
 pub const SKY: &str = "CMP_sr1bac1";
-/// In crisis (`town01d`) `DrawBG` draws three more clumps over the sky, on
-/// `WORLD_MAN`'s layers at +0x49c, +0x4a0 and +0x4a4 (priorities -80, -70,
-/// -60); the second scrolls in U, the third in U and V.
-pub const CRISIS_SKY: [(&str, i16); 3] = [("CMP_sr1dat1_1", -80), ("CMP_sr1dat1_2", -70), ("CMP_sr1dat1_3", -60)];
-pub const CRISIS_MATS: [&str; 2] = ["MAT_sr1dat1_2", "MAT_sr1dat1_3"];
 /// The light animation.
 pub const LIGHT_ANIM: &str = "ANM_sr1town1a";
 /// `town00Light` (gcmn 0x005d4a60): the distant light, then the omnis.
@@ -58,16 +45,6 @@ pub const LIGHTS: [(i32, &str); 6] = [
 /// leaves `ccSys.bgColor` alone.
 pub const FOG: FogParams =
     FogParams { near: 1000.0, far: 7500.0, near_rate: 0.0, far_rate: 85.0, colour: [0x70, 0x48, 0x14] };
-
-const SPEC: Spec = Spec {
-    no: 0,
-    models: "RT_MODELTABLE00",
-    objects: Some("RT_OBJTABLE00"),
-    light_anim: LIGHT_ANIM,
-    lights: &LIGHTS,
-    fog: FOG,
-    clear: None,
-};
 
 /// `ROOTTOWN01::Draw`'s clip rules (0x00423b44-0x00423c94): the camera eye
 /// above y 1600 sets `clip[2]`; on the gate plaza `clip[0]`; on the south
@@ -93,77 +70,173 @@ const WATER: WaterSpec = WaterSpec { step: 0x3ba3_d70a, wrap: Wrap::Less };
 /// (unused) and 0.002, each back to 0 past 1.
 const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3b03_126f];
 
-/// One piece `ROOTTOWN01::Draw` draws, in its order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Piece {
-    /// A `STATICOBJECT` (its `RT_OBJTABLE` row) within its clip: its
-    /// animation stepped, then drawn.
-    Object(usize),
-    /// `DrawBG`: the sky clump at the origin.
-    Sky,
-    /// `DrawBG` in crisis: the crisis clump `k` at the origin on its own
-    /// layer.
-    CrisisSky(usize),
-    /// A `STATICMODEL` (its `RT_MODELTABLE` row).
-    Model(usize),
-    /// `waterAnm[k]`, stepped and drawn; 1 and 2 with the offset `ccAnm::
-    /// SetUV` gave them this frame (1 in U, 2 in V).
-    Water(usize),
-    /// `DrawMap`: the minimap (the host draws it).
-    Map,
-}
+/// In crisis (`town01d`) `DrawBG` draws three more clumps over the sky, on
+/// `WORLD_MAN`'s layers at +0x49c, +0x4a0 and +0x4a4 (priorities -80, -70,
+/// -60): `MAT_sr1dat1_2` scrolls by the second scroll in U, `_3` in U and V.
+const CRISIS_MATS: [MatScroll; 2] =
+    [MatScroll::new("MAT_sr1dat1_2", 1, Axes::U), MatScroll::new("MAT_sr1dat1_3", 1, Axes::UV)];
 
-/// What `ROOTTOWN01` holds besides the [`Base`].
-pub struct MacAnu {
-    pub water_file: Rc<SceneFile>,
-    /// The sky clump's models (drawn at the origin, unanimated).
-    sky: Vec<u32>,
-    /// In crisis, `CRISIS_SKY`'s models; `DrawBG`'s scrolls and what it
-    /// wrote into the materials' offsets (`vftoi12` of the second).
-    crisis_sky: Option<[Vec<u32>; 3]>,
-    bg_scroll: [F; 2],
-    pub bg_uv: u16,
-    /// `waterAnm[0..2]`.
-    water: [Play; 3],
-    /// The water's scroll, `u$1841` (gcmn gp 0x00378b54): +0.005 a frame.
-    water_u: F,
-    /// What the last draw passed `ccAnm::SetUV` (`vftoi12` of the scroll).
-    pub water_uv: u16,
-    /// Water 0's texture coordinates and texture.
-    pub water0: WaterZero,
-    /// `clip[3]` (+0x1b0..+0x1b8) as the last draw set them.
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE00", layer: OBJ_LAYER };
+static OBJECTS: ObjectsDef = ObjectsDef { table: "RT_OBJTABLE00" };
+static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN01_BG };
+static SKY_CLUMPS: SkyDef = SkyDef {
+    clumps: &[
+        SkyClump::on(SKY, OBJ_LAYER),
+        SkyClump::crisis("CMP_sr1dat1_1", -80, &CRISIS_MATS),
+        SkyClump::crisis("CMP_sr1dat1_2", -70, &CRISIS_MATS),
+        SkyClump::crisis("CMP_sr1dat1_3", -60, &CRISIS_MATS),
+    ],
+};
+/// `wat1`'s water at the origin: 2, 1 and 0 drawn on objLayer, no copy.
+static WATER_DEF: WaterDef = WaterDef {
+    file: WaterFile::Own("wat1"),
+    anim: WATER_ANIM,
+    model: WATER_MODEL,
+    reach: WATER_REACH,
+    root: [0, 0, 0, ONE],
+    spec: WATER,
+    slot: statics::TOWN01_WATER,
+    drawn: &[2, 1, 0],
+    layer: OBJ_LAYER,
+    copy: false,
+};
+
+/// `ROOTTOWN01` (`town01`, `town01d` in crisis): `ROOTTOWN01::Draw` is the
+/// clip, the ships, `DrawBG`, `DrawObj2` and `DrawObj` by the clip, the
+/// water (`ccAnm::SetUV`, `waterUVModifi2`, 2, 1 and 0), `DrawFloor` by
+/// the clip, `DrawMap`, then the tower (the type-0 rows).
+pub static MAC_ANU: TownDef = TownDef {
+    no: 0,
+    class: TownGameClass::Roottown01,
+    name: "Mac Anu",
+    file: "town01",
+    crisis_file: Some("town01d"),
+    light_anim: LIGHT_ANIM,
+    lights: &LIGHTS,
+    fog: FOG,
+    start: Some((crate::START_POS, crate::START_DIRC)),
+    systems: &[
+        SystemDef::Models(&MODELS),
+        SystemDef::Objects(&OBJECTS),
+        SystemDef::Scrolls(&SCROLLS),
+        SystemDef::Sky(&SKY_CLUMPS),
+        SystemDef::Water(&WATER_DEF),
+        SystemDef::MacAnu(&()),
+    ],
+    order: &[
+        Step::Run(Kind::MacAnu, Hook::Clip),
+        Step::Run(Kind::Objects, Hook::Pass(DrawPass::Other)),
+        DRAW_BG,
+        Step::Run(Kind::MacAnu, Hook::Pass(DrawPass::Obj2)),
+        Step::Run(Kind::MacAnu, Hook::Pass(DrawPass::Obj)),
+        Step::Run(Kind::Water, Hook::Draw),
+        Step::Run(Kind::MacAnu, Hook::Pass(DrawPass::Floor)),
+        Step::Map,
+        Step::Run(Kind::Models, Hook::Pass(DrawPass::Other)),
+    ],
+    ..BASE_TOWN
+};
+
+/// Mac Anu's own: `clip[3]` (+0x1b0..+0x1b8) as the last `Draw` set them,
+/// and the rows and objects `DrawObj2`, `DrawObj` and `DrawFloor` draw by
+/// them.
+#[derive(Clone, Debug, Default)]
+pub struct Clip {
     pub clip: [i32; 3],
 }
 
-/// `ROOTTOWN01::ROOTTOWN01`: `town01d` when the save's crisis byte is set,
-/// else `town01`, and `wat1`.
-pub fn new(env: &TownEnv<'_>) -> Result<Town> {
-    let (archive, crisis) = (env.archive, env.crisis);
-    let stem = if crisis { "town01d" } else { "town01" };
-    let base = Base::read(archive, stem, &SPEC)?;
-    let water_file = Rc::new(SceneFile::read(archive, "wat1")?);
-    let sky = clump_models(&base.core.file, SKY);
-    let crisis_sky = crisis.then(|| CRISIS_SKY.map(|(n, _)| clump_models(&base.core.file, n)));
-    let wplay = Play::new(&water_file, WATER_ANIM).ok_or(Error::NotFound(WATER_ANIM.into()))?;
-    let mut water = [wplay.clone(), wplay.clone(), wplay];
-    for w in &mut water {
-        // One _AnimateForward after SetAnm.
-        w.forward(&water_file);
+impl Clip {
+    pub fn new(_: &'static (), _: &mut BuildCx) -> Result<Clip> {
+        Ok(Clip::default())
     }
-    let water0 = WaterZero::new(&water_file, WATER_MODEL, WATER_REACH)?;
-    let m = MacAnu {
-        water_file,
-        sky,
-        crisis_sky,
-        bg_scroll: [0; 2],
-        bg_uv: 0,
-        water,
-        water_u: 0,
-        water_uv: 0,
-        water0,
-        clip: [0; 3],
-    };
-    Ok(Town::new(base, m))
+}
+
+impl MapSystem for Clip {
+    fn step(&mut self, hook: Hook, cx: &mut StepCx, others: &mut Others) {
+        let eye = cx.view.eye;
+        let (x, y) = (eye[0], eye[1]);
+        let clip = self.clip;
+        let Hook::Pass(pass) = hook else {
+            if hook == Hook::Clip {
+                self.clip = clip_of(eye);
+            }
+            return;
+        };
+        let Some(rows) = others.get_mut::<StaticModels>().map(|m| m.rows(pass)) else { return };
+        let south_west = ee::lt(x, SW_X) && ee::lt(y, SW_Y);
+        let mut model = |row: usize| cx.put(Kind::Models, Piece::Model(row));
+        match pass {
+            // DrawObj2 (0x00422900): the rows of type 3, then the static
+            // objects of type 3 (none south-west).
+            DrawPass::Obj2 => {
+                for row in rows {
+                    let skip = if clip[0] != 0 {
+                        [18, 20, 21, 23, 25, 26].contains(&row)
+                    } else if clip[1] != 0 {
+                        [18, 20, 21, 27, 28].contains(&row)
+                    } else {
+                        (!ee::le(y, OBJ2_NORTH) && [12, 25, 26].contains(&row))
+                            || (south_west && [21, 25, 28].contains(&row))
+                    };
+                    if !skip {
+                        model(row);
+                    }
+                }
+                if south_west {
+                    return;
+                }
+                let volume = cx.core.hits.volume;
+                let Some(objects) = others.get_mut::<StaticObjects>() else { return };
+                for row in objects.step_pass(DrawPass::Obj2, eye, volume, &cx.core.file) {
+                    cx.put(Kind::Objects, Piece::Object(row));
+                }
+            }
+            // DrawObj (0x004224c0): the rows of type 2; 11 and 8 swap to
+            // their far versions, 29 and 30, which are skipped in their own
+            // turn.
+            DrawPass::Obj => {
+                let plaza = clip[0] != 0 || clip[1] != 0;
+                let (lod11, lod8) = if plaza { (LOD11_PLAZA, LOD8_PLAZA) } else { (Y_NORTH, LOD8) };
+                for row in rows {
+                    let skip = if clip[0] != 0 {
+                        [7, 9, 10, 12, 14, 15].contains(&row)
+                    } else if clip[1] != 0 {
+                        // clip[2] (north of 1600) cannot be set with clip[1]
+                        // (the south plaza): the game's test of it here
+                        // never passes.
+                        [7, 9, 10, 16, 17].contains(&row) || (clip[2] != 0 && row == 12)
+                    } else {
+                        !ee::le(y, Y_NORTH) && row == 23
+                    };
+                    if skip {
+                        continue;
+                    }
+                    match row {
+                        11 if !ee::le(y, lod11) => model(29),
+                        8 if !ee::le(y, lod8) => model(30),
+                        29 | 30 => {}
+                        r => model(r),
+                    }
+                }
+            }
+            // DrawFloor (0x00422ba0): the rows of type 1.
+            DrawPass::Floor => {
+                for row in rows {
+                    let skip = if clip[0] != 0 {
+                        [0, 2, 3, 5].contains(&row)
+                    } else if clip[1] != 0 {
+                        [0, 2, 3].contains(&row)
+                    } else {
+                        !ee::le(y, Y_NORTH) && row == 5
+                    };
+                    if !skip {
+                        model(row);
+                    }
+                }
+            }
+            DrawPass::Other => {}
+        }
+    }
 }
 
 /// `ROOTTOWN01::Draw`'s `clip[3]` for a camera eye.
@@ -183,168 +256,11 @@ pub fn clip_of(eye: V4) -> [i32; 3] {
     clip
 }
 
-impl MacAnu {
-    /// `ROOTTOWN01::Draw` for a camera at `v.eye` (`cameraGetPos`): the
-    /// pieces it draws in order, the objects' animations and the water
-    /// stepped as it steps them.
-    pub fn select(&mut self, base: &mut Base, v: &TownView) -> Vec<Piece> {
-        let eye = v.eye;
-        let (x, y) = (eye[0], eye[1]);
-        let clip = clip_of(eye);
-        let rows = base.table.rows;
-        let mut out = Vec::new();
-        // The static objects of type 0: the ships.
-        out.extend(base.step_objects(DrawPass::Other, eye).into_iter().map(Piece::Object));
-        self.clip = clip;
-        // DrawBG (0x00422250): the scrolls step; the sky at the origin, and
-        // in crisis the three clumps over it.
-        step_scrolls(&mut self.bg_scroll, &BG_STEP);
-        out.push(Piece::Sky);
-        if self.crisis_sky.is_some() {
-            self.bg_uv = ee::vftoi12(self.bg_scroll[1]);
-            out.extend((0..3).map(Piece::CrisisSky));
-        }
-        // DrawObj2 (0x00422900): the rows of type 3, then the static
-        // objects of type 3 (none south-west).
-        let south_west = ee::lt(x, SW_X) && ee::lt(y, SW_Y);
-        for row in base.rows(DrawPass::Obj2) {
-            let skip = if clip[0] != 0 {
-                [18, 20, 21, 23, 25, 26].contains(&row)
-            } else if clip[1] != 0 {
-                [18, 20, 21, 27, 28].contains(&row)
-            } else {
-                (!ee::le(y, OBJ2_NORTH) && [12, 25, 26].contains(&row)) || (south_west && [21, 25, 28].contains(&row))
-            };
-            if !skip {
-                out.push(Piece::Model(row));
-            }
-        }
-        if !south_west {
-            out.extend(base.step_objects(DrawPass::Obj2, eye).into_iter().map(Piece::Object));
-        }
-        // DrawObj (0x004224c0): the rows of type 2; 11 and 8 swap to their
-        // far versions, 29 and 30, which are skipped in their own turn.
-        let plaza = clip[0] != 0 || clip[1] != 0;
-        let (lod11, lod8) = if plaza { (LOD11_PLAZA, LOD8_PLAZA) } else { (Y_NORTH, LOD8) };
-        for (row, r) in rows.iter().enumerate() {
-            if r.pass != DrawPass::Obj {
-                continue;
-            }
-            let skip = if clip[0] != 0 {
-                [7, 9, 10, 12, 14, 15].contains(&row)
-            } else if clip[1] != 0 {
-                // clip[2] (north of 1600) cannot be set with clip[1] (the
-                // south plaza): the game's test of it here never passes.
-                [7, 9, 10, 16, 17].contains(&row) || (clip[2] != 0 && row == 12)
-            } else {
-                !ee::le(y, Y_NORTH) && row == 23
-            };
-            if skip {
-                continue;
-            }
-            let draw = match row {
-                11 if !ee::le(y, lod11) => 29,
-                8 if !ee::le(y, lod8) => 30,
-                29 | 30 => continue,
-                r => r,
-            };
-            out.push(Piece::Model(draw));
-        }
-        // The water: ccAnm::SetUV of vftoi12(u) into 1's U and 2's V,
-        // waterUVModifi2 of water 0 (rooted at the identity, unposed), the
-        // scroll steps, then 2, 1 and 0 step and draw.
-        self.water0.modify(
-            base.core.hits.volume,
-            &pos_rot_zyx([0, 0, 0, ONE], [0; 3]),
-            [0, 0, 0, ONE],
-            eye,
-            &v.world_screen,
-        );
-        self.water_uv = ee::vftoi12(self.water_u);
-        self.water_u = WATER.step(self.water_u);
-        for k in [2usize, 1, 0] {
-            self.water[k].forward(&self.water_file);
-            out.push(Piece::Water(k));
-        }
-        // DrawFloor (0x00422ba0): the rows of type 1.
-        for row in base.rows(DrawPass::Floor) {
-            let skip = if clip[0] != 0 {
-                [0, 2, 3, 5].contains(&row)
-            } else if clip[1] != 0 {
-                [0, 2, 3].contains(&row)
-            } else {
-                !ee::le(y, Y_NORTH) && row == 5
-            };
-            if !skip {
-                out.push(Piece::Model(row));
-            }
-        }
-        out.push(Piece::Map);
-        // The rows of type 0: the tower.
-        out.extend(base.rows(DrawPass::Other).map(Piece::Model));
-        out
-    }
-
-    /// The pieces into the field's layers, all on objLayer.
-    fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) {
-        let wf = &*self.water_file;
-        for &piece in pieces {
-            match piece {
-                Piece::Object(row) => base.object_draw(layers, OBJ_LAYER, to_screen, row),
-                Piece::Sky => base.clump_draw(layers, OBJ_LAYER, to_screen, &self.sky, Mat4::IDENTITY, &HashMap::new()),
-                Piece::CrisisSky(k) => {
-                    let Some(models) = &self.crisis_sky else { continue };
-                    // The materials' offsets: the scroll less each one's
-                    // crop, MAT_sr1dat1_2 in U, MAT_sr1dat1_3 in U and V.
-                    let rows = crisis_rows(&base.core.file, &CRISIS_MATS, self.bg_uv);
-                    base.clump_draw(layers, CRISIS_SKY[k].1, to_screen, &models[k], Mat4::IDENTITY, &rows);
-                }
-                Piece::Model(row) => base.row_draw(layers, OBJ_LAYER, to_screen, row),
-                // Water 0: the picture so far as its texture, at the UVs
-                // waterUVModifi2 wrote.
-                Piece::Water(0) => {
-                    water0_draw(layers, OBJ_LAYER, to_screen, wf, &self.water[0], Mat4::IDENTITY, &self.water0);
-                }
-                Piece::Water(k) => {
-                    let rows = water_rows(&self.water_file, k, self.water_uv);
-                    anim_draw(layers, to_screen, wf, &self.water[k], Mat4::IDENTITY, &[], 1.0, Some(&rows));
-                }
-                Piece::Map => {}
-            }
-        }
-    }
-}
-
-impl RootTown for MacAnu {
-    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        statics::take(&mut self.bg_scroll, s, statics::TOWN01_BG);
-        statics::take(std::slice::from_mut(&mut self.water_u), s, statics::TOWN01_WATER);
-    }
-    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        statics::put(&self.bg_scroll, s, statics::TOWN01_BG);
-        statics::put(std::slice::from_ref(&self.water_u), s, statics::TOWN01_WATER);
-    }
-    fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
-        let pieces = self.select(base, v);
-        self.draw_pieces(base, layers, to_screen, &pieces);
-        Vec::new()
-    }
-
-    fn water_time(&self, k: usize) -> u32 {
-        self.water[k].time
-    }
-
-    fn water0(&self) -> Option<&WaterZero> {
-        Some(&self.water0)
-    }
-}
-
-/// `WORLD_MAN::GO(0)`'s town 0.
-pub const DEF: TownDef = TownDef { no: 0, class: "ROOTTOWN01", volumes: &Volume::ALL, make: new };
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::systems::Drawn;
+    use crate::town::{Town, TownView};
 
     #[test]
     fn clip_rules() {
@@ -361,43 +277,40 @@ mod tests {
     #[test]
     fn gate_plaza_pieces() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut t = new(&crate::town::TownEnv {
-            archive: &archive,
-            volume: piney_data::volume::Volume::Inf,
-            crisis: false,
-            rng: piney_data::dungeon::Rng::POWER_ON,
-        })
-        .unwrap();
+        let mut t = Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
         let eye = [0, 5600f32.to_bits(), 880f32.to_bits(), ONE];
-        use Piece::*;
+        t.step(&TownView::at(eye));
+        let (m, o, w) = (Kind::Models, Kind::Objects, Kind::Water);
+        let p = |k: Kind, piece: Piece| Drawn::Piece(k, piece);
+        use Piece::{Anim, Clump, Model, Object};
         let want = [
-            Object(9),
-            Object(10),
-            Sky,
-            Model(19),
-            Model(22),
-            Model(24),
-            Model(27),
-            Model(28),
-            Object(3),
-            Object(4),
-            Model(30),
-            Model(29),
-            Model(13),
-            Model(16),
-            Model(17),
-            Water(2),
-            Water(1),
-            Water(0),
-            Model(1),
-            Model(4),
-            Model(6),
-            Map,
-            Model(31),
+            p(o, Object(9)),
+            p(o, Object(10)),
+            p(Kind::Sky, Clump(0)),
+            p(m, Model(19)),
+            p(m, Model(22)),
+            p(m, Model(24)),
+            p(m, Model(27)),
+            p(m, Model(28)),
+            p(o, Object(3)),
+            p(o, Object(4)),
+            p(m, Model(30)),
+            p(m, Model(29)),
+            p(m, Model(13)),
+            p(m, Model(16)),
+            p(m, Model(17)),
+            p(w, Anim(2)),
+            p(w, Anim(1)),
+            p(w, Anim(0)),
+            p(m, Model(1)),
+            p(m, Model(4)),
+            p(m, Model(6)),
+            Drawn::Map,
+            p(m, Model(31)),
         ];
-        let (base, m) = t.parts_mut::<MacAnu>().unwrap();
-        assert_eq!(m.select(base, &TownView::at(eye)), want);
-        assert_eq!(m.clip, [1, 0, 1]);
-        assert_eq!(t.base.object(3).map(|o| o.0), Some(256));
+        assert_eq!(t.frame(), want);
+        assert_eq!(t.systems().get::<Clip>().unwrap().clip, [1, 0, 1]);
+        let objects = t.systems().get::<StaticObjects>().unwrap();
+        assert_eq!(objects.object(3).map(|o| o.0), Some(256));
     }
 }

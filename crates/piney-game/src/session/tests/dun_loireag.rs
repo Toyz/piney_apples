@@ -55,7 +55,7 @@ fn stick_toward(cam_z: f32, h: f32) -> Raw {
 fn town_of(s: &Session) -> Option<i32> {
     match &s.stage {
         Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2) => {
-            Some(w.world().town().base.no)
+            Some(w.world().town().def.no)
         }
         _ => None,
     }
@@ -85,7 +85,7 @@ fn to_the_gate(w: &WorldMode, f: u64, to: i32) -> Raw {
             (OTHER_SERVERS, 2) => {
                 // The gate's list: the towns of townMoveFlag but this one.
                 let flag = i32::from(w.world().state().save.i16(offset::TOWN_MOVE_FLAG));
-                let here = w.world().town().base.no;
+                let here = w.world().town().def.no;
                 let towns: Vec<i32> = (0..5).filter(|&t| flag & (1 << t) != 0 && t != here).collect();
                 match towns.iter().position(|&t| t == to) {
                     Some(row) if row as i16 == l.select => Buttons::CROSS,
@@ -234,7 +234,7 @@ fn story_22_reaches_dun_loireag() {
         s.take_events();
     }
     let Stage::World(w) = std::mem::replace(&mut s.stage, Stage::Gone) else { panic!("left the town") };
-    assert_eq!(w.world().town().base.no, 1);
+    assert_eq!(w.world().town().def.no, 1);
     let vm = w.leave().1.unwrap();
     let played: Vec<(i32, i32)> = vm
         .trace

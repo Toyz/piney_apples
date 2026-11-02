@@ -1,30 +1,28 @@
 //! Lia Fail: `ROOTTOWN05` (OUT gcmn town05.cpp, constructor 0x0043c5e0, `Draw`
 //! 0x0043e8e0 through the vtable at 0x00384300), the fifth Root Town
 //! (`game.town` 4, the server Omega), new in Outbreak (Quarantine's is the
-//! same). A sky, 7 static models, and 19 glows (`EFF_se1_1ef1`) at the omni
-//! points that wait, then flicker through patterns from `fieldrand`
+//! same). A sky, 7 static models, and its own 19 glows (`EFF_se1_1ef1`) at
+//! the omni points that wait, then flicker through patterns from `fieldrand`
 //! (docs/engine/root-towns.md).
 
-use std::collections::HashMap;
-
-use glam::Mat4;
+use piney_data::classes::TownGameClass;
 use piney_data::statics::DrawPass;
 use piney_data::{Error, Result};
-use piney_desktop::layers::Layers;
 
 use crate::draw::{EFF_LAYER, OBJ_LAYER};
 use crate::ee::{F, ONE, V4};
 use crate::sky::cloud;
+use crate::systems::scrolls::ScrollsDef;
+use crate::systems::sky::{SkyClump, SkyDef};
+use crate::systems::statics::ModelsDef;
+use crate::systems::{
+    BuildCx, DRAW_BG, DrawCx, Hook, Kind, MapSystem, Others, PASSES, Piece, Request, Step, StepCx, SystemDef,
+};
 use crate::town::scroll_statics as statics;
-use crate::town::step_scrolls;
-use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models};
-use crate::town::{TownDef, TownEnv};
-use piney_data::volume::Volume;
+use crate::town::{BASE_TOWN, FogParams, TownDef, TownSprite};
 
-/// `ChangeScene`'s town number.
-pub const NO: i32 = 4;
 pub const FILE: &str = "town05";
-/// `DrawBG`'s clump.
+/// `DrawBG`'s clump, on `bgLayer[0]` (+0x494).
 pub const SKY: &str = "CMP_sr5bac1";
 /// The light animation and `town05Light` (OUT gcmn 0x006013d0).
 pub const LIGHT_ANIM: &str = "ANM_sr5bac1a";
@@ -61,27 +59,42 @@ pub const FOG: FogParams =
     FogParams { near: 1500.0, far: 10000.0, near_rate: 0.0, far_rate: 75.0, colour: [0x80, 0xc0, 0xf0] };
 pub const BG_COLOR: [u8; 3] = [0x80, 0xc0, 0xf0];
 
-const SPEC: Spec = Spec {
-    no: NO,
-    models: "RT_MODELTABLE05",
-    objects: None,
+/// `DrawBG`'s scrolls a frame (OUT gp 0x00386ee0..0x00386ee8, read by
+/// nothing): 0.01, 0.02 and 0.001.
+pub const BG_STEP: [F; 3] = [0x3c23_d70a, 0x3ca3_d70a, 0x3a83_126f];
+
+static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE05", layer: OBJ_LAYER };
+static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN05_BG };
+static SKY_CLUMPS: SkyDef = SkyDef { clumps: &[SkyClump::on(SKY, -100)] };
+
+/// `ROOTTOWN05` (`town05`, whatever the crisis byte says): its `Draw` is
+/// `DrawBG`, `DrawObj2`, `DrawObj`, `DrawFloor`, `DrawMap`, the type-0
+/// rows, then the glows.
+pub static LIA_FAIL: TownDef = TownDef {
+    no: 4,
+    class: TownGameClass::Roottown05,
+    name: "Lia Fail",
+    file: FILE,
     light_anim: LIGHT_ANIM,
     lights: &LIGHTS,
     fog: FOG,
     clear: Some(BG_COLOR),
+    start: Some(([0x4416_0000, 0xc573_c000, 0, ONE], [0, 0, crate::ee::PI, 0])),
+    systems: &[
+        SystemDef::Models(&MODELS),
+        SystemDef::Scrolls(&SCROLLS),
+        SystemDef::Sky(&SKY_CLUMPS),
+        SystemDef::Glows(&()),
+    ],
+    order: &[
+        DRAW_BG,
+        PASSES,
+        Step::Map,
+        Step::Run(Kind::Models, Hook::Pass(DrawPass::Other)),
+        Step::Run(Kind::Glows, Hook::Draw),
+    ],
+    ..BASE_TOWN
 };
-
-/// `DrawBG`'s scrolls a frame (OUT gp 0x00386ee0..0x00386ee8): 0.01, 0.02
-/// and 0.001.
-const BG_STEP: [F; 3] = [0x3c23_d70a, 0x3ca3_d70a, 0x3a83_126f];
-
-/// `WORLD_MAN`'s layers the town draws on besides `objLayer`.
-pub mod layer {
-    /// `bgLayer[0]` (+0x494).
-    pub const BG0: i16 = -100;
-    /// `SetActiveLayer(3)`: effLayer.
-    pub const EFF: i16 = crate::draw::EFF_LAYER;
-}
 
 /// One omni point's glow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,78 +107,55 @@ pub struct Glow {
     pub flicker: i32,
 }
 
-/// One piece `ROOTTOWN05::Draw` draws, in its order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Piece {
-    /// `DrawBG`: the sky clump at the origin.
-    Sky,
-    /// A `STATICMODEL` (its `RT_MODELTABLE` row).
-    Model(usize),
-    /// `DrawMap`: the minimap (the host draws it).
-    Map,
-    /// Omni point `k`'s glow: its `ccEff` drawn with a pattern.
-    Glow(usize, u16),
-}
-
-/// What `ROOTTOWN05` holds besides the [`Base`].
-pub struct LiaFail {
-    sky: Vec<u32>,
-    /// `DrawBG`'s scrolls (read by nothing).
-    pub bg_scroll: [F; 3],
-    /// The omni points (w 1), their glows and the glow's `patNum`.
+/// Lia Fail's own: the omni points (w 1), their glows and the glow's
+/// `patNum`.
+#[derive(Clone, Debug)]
+pub struct Glows {
     pub points: [V4; GLOWS],
     pub glows: [Glow; GLOWS],
     pat_num: u16,
 }
 
-/// `ROOTTOWN05::ROOTTOWN05`: `town05` (whatever the crisis byte says).
-pub fn new(env: &TownEnv<'_>) -> Result<Town> {
-    let (archive, rng) = (env.archive, env.rng);
-    let mut base = Base::read(archive, FILE, &SPEC)?;
-    let file = base.core.file.clone();
-    let pat_num = cloud::eff_pat_num(&file.ccs, GLOW).ok_or_else(|| Error::NotFound(format!("{FILE}: {GLOW}")))?.max(1);
-    let mut rng = rng;
-    let glows = std::array::from_fn(|_| {
-        let frame = rng.below(u32::from(pat_num)) as u16;
-        let wait = rng.below(100) as i32 + 30;
-        let flicker = rng.below(15) as i32 + 1;
-        Glow { frame, wait, flicker }
-    });
-    let mut points = [[0, 0, 0, ONE]; GLOWS];
-    for (k, p) in points.iter_mut().enumerate() {
-        let name = format!("DMY_omnpoint{:02}", k + 1);
-        *p = file
-            .ccs
-            .find_object(&name)
-            .and_then(|o| file.scene.dummies.get(&o))
-            .map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE])
-            .ok_or(Error::NotFound(name))?;
+impl Glows {
+    /// The constructor's: each glow's pattern, wait and flicker from
+    /// `fieldrand`, each point at `DMY_omnpointNN`.
+    pub fn new(_: &'static (), cx: &mut BuildCx) -> Result<Glows> {
+        let file = &**cx.file;
+        let pat_num = cloud::eff_pat_num(&file.ccs, GLOW).ok_or_else(|| Error::NotFound(format!("{FILE}: {GLOW}")))?;
+        let pat_num = pat_num.max(1);
+        let rng = &mut cx.rng;
+        let glows = std::array::from_fn(|_| {
+            let frame = rng.below(u32::from(pat_num)) as u16;
+            let wait = rng.below(100) as i32 + 30;
+            let flicker = rng.below(15) as i32 + 1;
+            Glow { frame, wait, flicker }
+        });
+        let mut points = [[0, 0, 0, ONE]; GLOWS];
+        for (k, p) in points.iter_mut().enumerate() {
+            let name = format!("DMY_omnpoint{:02}", k + 1);
+            *p = file
+                .ccs
+                .find_object(&name)
+                .and_then(|o| file.scene.dummies.get(&o))
+                .map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE])
+                .ok_or(Error::NotFound(name))?;
+        }
+        Ok(Glows { points, glows, pat_num })
     }
-    // fieldrand, which the glows draw from.
-    base.core.field_rand = Some(rng);
-    let d = LiaFail { sky: clump_models(&file, SKY), bg_scroll: [0; 3], points, glows, pat_num };
-    Ok(Town::new(base, d))
 }
 
-impl LiaFail {
-    /// `ROOTTOWN05::Draw` for this frame: the pieces in its order, with the
-    /// scrolls and the glows stepped as it steps them.
-    pub fn select(&mut self, base: &mut Base, _v: &TownView) -> Vec<Piece> {
-        let mut out = Vec::new();
-        // DrawBG (0x0043d200).
-        step_scrolls(&mut self.bg_scroll, &BG_STEP);
-        out.push(Piece::Sky);
-        // DrawObj2, DrawObj, DrawFloor, DrawMap, then the type-0 rows.
-        for pass in [DrawPass::Obj2, DrawPass::Obj, DrawPass::Floor] {
-            out.extend(base.rows(pass).map(Piece::Model));
+impl MapSystem for Glows {
+    /// Each glow: waiting, its pattern steps; flickering, a pattern from
+    /// `fieldrand`, and when the flicker ends a new wait and flicker.
+    fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
+        if hook != Hook::Draw {
+            return;
         }
-        out.push(Piece::Map);
-        out.extend(base.rows(DrawPass::Other).map(Piece::Model));
-        let Some(rng) = &mut base.core.field_rand else { return out };
+        let Some(rng) = &mut cx.core.field_rand else { return };
+        let mut shown = Vec::with_capacity(GLOWS);
         for (k, g) in self.glows.iter_mut().enumerate() {
             if g.wait == 0 {
-                let pattern = rng.below(u32::from(self.pat_num)) as u16;
-                out.push(Piece::Glow(k, pattern));
+                shown.push((k, rng.below(u32::from(self.pat_num)) as u16));
                 g.flicker -= 1;
                 if g.flicker == 0 {
                     g.wait = rng.below(100) as i32 + 30;
@@ -173,87 +163,64 @@ impl LiaFail {
                 }
             } else {
                 g.wait -= 1;
-                out.push(Piece::Glow(k, g.frame));
+                shown.push((k, g.frame));
                 g.frame += 1;
                 if g.frame == self.pat_num {
                     g.frame = 0;
                 }
             }
         }
-        out
-    }
-
-    /// The pieces into the field's layers; the glows are handed back as
-    /// sprites.
-    fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) -> Vec<TownSprite> {
-        let none = HashMap::new();
-        let mut sprites = Vec::new();
-        for &piece in pieces {
-            match piece {
-                Piece::Sky => base.clump_draw(layers, layer::BG0, to_screen, &self.sky, Mat4::IDENTITY, &none),
-                Piece::Model(row) => base.row_draw(layers, OBJ_LAYER, to_screen, row),
-                Piece::Map => {}
-                Piece::Glow(k, pattern) => sprites.push(TownSprite {
-                    file: FILE,
-                    eff: GLOW,
-                    pos: self.points[k],
-                    pattern,
-                    layer: EFF_LAYER,
-                    scale: [ONE; 2],
-                    rotate: 0,
-                    transparency: ONE,
-                    depth: true,
-                }),
-            }
+        for (k, pattern) in shown {
+            cx.put(Kind::Glows, Piece::Sprite { k, pattern, pos: self.points[k] });
         }
-        sprites
+    }
+
+    /// The glow's `ccEff`, kept in the town's depth test and fog, so the
+    /// buildings hide it.
+    fn draw<'a>(&'a self, piece: Piece, _: &DrawCx<'a>) -> Option<Request<'a>> {
+        let Piece::Sprite { pattern, pos, .. } = piece else { return None };
+        Some(Request::Sprite(TownSprite {
+            file: FILE,
+            eff: GLOW,
+            pos,
+            pattern,
+            layer: EFF_LAYER,
+            scale: [ONE; 2],
+            rotate: 0,
+            transparency: ONE,
+            depth: true,
+        }))
     }
 }
-
-impl RootTown for LiaFail {
-    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        statics::take(&mut self.bg_scroll, s, statics::TOWN05_BG);
-    }
-    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        statics::put(&self.bg_scroll, s, statics::TOWN05_BG);
-    }
-
-    fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
-        let pieces = self.select(base, v);
-        self.draw_pieces(base, layers, to_screen, &pieces)
-    }
-}
-
-/// `WORLD_MAN::GO(0)`'s town 4.
-pub const DEF: TownDef = TownDef { no: 4, class: "ROOTTOWN05", volumes: &Volume::ALL, make: new };
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::systems::Drawn;
+    use crate::systems::statics::StaticModels;
+    use crate::town::{Town, TownView};
+    use piney_data::volume::Volume;
+
+    fn town() -> Option<Town> {
+        let archive = crate::town::tests::archive()?;
+        Some(Town::open(&archive, Volume::Out, 4, false).unwrap())
+    }
 
     /// The constructor's pieces: 7 model rows, no static objects, the sky,
     /// the 20 lights, the 19 omni points, and the fog and background
     /// colour.
     #[test]
     fn constructor() {
-        let Some(archive) = crate::town::tests::archive() else { return };
-        let t = new(&crate::town::TownEnv {
-            archive: &archive,
-            volume: piney_data::volume::Volume::Out,
-            crisis: false,
-            rng: piney_data::dungeon::Rng::POWER_ON,
-        })
-        .unwrap();
-        let b = &t.base;
-        assert_eq!(b.no, NO);
-        assert_eq!((0..7).filter(|&r| b.model(r).is_some()).count(), 7);
-        let d = t.class::<LiaFail>().unwrap();
-        assert!(!d.sky.is_empty());
-        assert_eq!(b.core.lights.lights.len(), 20);
-        assert_eq!(b.clear, Some(BG_COLOR));
-        assert!(d.points.iter().all(|p| p[3] == ONE));
+        let Some(t) = town() else { return };
+        assert_eq!(t.def.no, 4);
+        let models = t.systems().get::<StaticModels>().unwrap();
+        assert_eq!((0..7).filter(|&r| models.model(r).is_some()).count(), 7);
+        assert_eq!(t.core.lights.lights.len(), 20);
+        assert_eq!(t.def.clear, Some(BG_COLOR));
+        let g = t.systems().get::<Glows>().unwrap();
+        assert!(g.points.iter().all(|p| p[3] == ONE));
         assert!(
-            d.glows.iter().all(|g| g.frame < d.pat_num && (30..130).contains(&g.wait) && (1..16).contains(&g.flicker))
+            g.glows.iter().all(|x| x.frame < g.pat_num && (30..130).contains(&x.wait) && (1..16).contains(&x.flicker))
         );
     }
 
@@ -261,21 +228,14 @@ mod tests {
     /// a glow waiting steps its pattern and its wait.
     #[test]
     fn a_frame() {
-        let Some(archive) = crate::town::tests::archive() else { return };
-        let mut t = new(&crate::town::TownEnv {
-            archive: &archive,
-            volume: piney_data::volume::Volume::Out,
-            crisis: false,
-            rng: piney_data::dungeon::Rng::POWER_ON,
-        })
-        .unwrap();
-        let (base, d) = t.parts_mut::<LiaFail>().unwrap();
-        let before = d.glows;
-        let p = d.select(base, &TownView::default());
-        assert_eq!(p[0], Piece::Sky);
-        assert!(p.contains(&Piece::Map));
-        assert_eq!(p.iter().filter(|x| matches!(x, Piece::Glow(..))).count(), GLOWS);
-        for (b, a) in before.iter().zip(d.glows) {
+        let Some(mut t) = town() else { return };
+        let before = t.systems().get::<Glows>().unwrap().glows;
+        t.step(&TownView::default());
+        assert_eq!(t.frame()[0], Drawn::Piece(Kind::Sky, Piece::Clump(0)));
+        assert!(t.frame().contains(&Drawn::Map));
+        let glows = t.frame().iter().filter(|d| matches!(d, Drawn::Piece(Kind::Glows, _))).count();
+        assert_eq!(glows, GLOWS);
+        for (b, a) in before.iter().zip(t.systems().get::<Glows>().unwrap().glows) {
             assert_eq!(a.wait, b.wait - 1);
         }
     }

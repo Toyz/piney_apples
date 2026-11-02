@@ -22,7 +22,9 @@ use crate::story_map::StoryMap;
 use crate::story_map::holy_ground::{StorySprite, layer};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, model_hits};
-use crate::town::{Base, FogParams, Spec, TownView};
+use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
+use crate::systems::{Request, paint};
+use crate::town::{FogParams, TownView};
 
 /// `game.field` of this map.
 pub const AREA: i32 = 13;
@@ -60,15 +62,9 @@ const LIGHTS: [(i32, &str); 11] = [
 const FOG: FogParams = FogParams { near: 150.0, far: 4000.0, near_rate: 0.0, far_rate: 80.0, colour: [0x1e; 3] };
 pub const BG_COLOR: [u8; 3] = [0x1e; 3];
 
-const SPEC: Spec = Spec {
-    no: -1,
-    models: "EA_MODELTABLE01",
-    objects: Some("EA_OBJTABLE01"),
-    light_anim: "ANM_se1_1bac1a",
-    lights: &LIGHTS,
-    fog: FOG,
-    clear: Some(BG_COLOR),
-};
+const LIGHT_ANIM: &str = "ANM_se1_1bac1a";
+static MODELS: ModelsDef = ModelsDef { table: "EA_MODELTABLE01", layer: layer::OBJ };
+static OBJECTS: ObjectsDef = ObjectsDef { table: "EA_OBJTABLE01" };
 
 /// One glow (`eff[k]` +0x1c4, `pos` +0x1e0, `frame` +0x250, `wait`
 /// +0x26c, `count` +0x288).
@@ -82,7 +78,9 @@ pub struct Glow {
 
 /// `EVENTAREA01` as `WORLD_MAN.eventmap` holds it.
 pub struct Area13 {
-    pub base: Base,
+    pub core: AreaCore,
+    pub models: StaticModels,
+    pub objects: StaticObjects,
     /// `bg[0]`: the background clump's models.
     pub bg: Option<(u32, Vec<u32>)>,
     pub glows: [Glow; 7],
@@ -93,13 +91,15 @@ pub struct Area13 {
 impl Area13 {
     /// `EVENTAREA01::EVENTAREA01`, `fieldrand` the game's (`rng`).
     pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32, rng: Rng) -> Result<Area13> {
-        let mut base = Base::read_volume(archive, volume, FILE, &SPEC)?;
-        let (c, sc) = (&base.core.file.ccs, &base.core.file.scene);
+        let mut core = AreaCore::read(archive, volume, FILE, LIGHT_ANIM, &LIGHTS, FOG)?;
+        let models = StaticModels::read(&MODELS, &core.file, volume)?;
+        let objects = StaticObjects::read(&OBJECTS, &core.file, volume)?;
+        let (c, sc) = (&core.file.ccs, &core.file.scene);
         // The collision: the models' Hit chunks, in the order the
         // STATICMODELs were built, over GO's bounds.
         let hit_models = HitModel::read(volume, c)?;
-        let hits = event_hits(volume, def_se, model_hits(base.models.iter().flatten().map(|m| m.model), &hit_models));
-        let bg = crate::story_map::holy_ground::clump_models(&base.core.file, BG);
+        let hits = event_hits(volume, def_se, model_hits(models.placed().map(|m| m.model), &hit_models));
+        let bg = crate::story_map::holy_ground::clump_models(&core.file, BG);
         let (pos, rot) = crate::town::dummy_bits(&Position::DummyRot(START), c, sc);
         if c.find_object(START).is_none() {
             return Err(Error::NotFound(format!("{FILE}: {START}")));
@@ -121,13 +121,13 @@ impl Area13 {
             }
             g.pos = crate::town::dummy_bits(&Position::Dummy(name), c, sc).0;
         }
-        base.core.hits = hits;
+        core.hits = hits;
         // The start: `DMY_marker_ev01`'s position, w its turn about z.
         // fieldrand: `GO(1)` sets no seed for a story map, so the map draws
         // on from where the scene before left it.
-        base.core.start = [pos[0], pos[1], pos[2], rot[2]];
-        base.core.field_rand = Some(rng);
-        Ok(Area13 { base, bg, glows, pat_num })
+        core.start = [pos[0], pos[1], pos[2], rot[2]];
+        core.field_rand = Some(rng);
+        Ok(Area13 { core, models, objects, bg, glows, pat_num })
     }
 
     /// Each glow's `ccEff::Draw` this frame: waiting, its animation's next
@@ -136,7 +136,7 @@ impl Area13 {
     pub fn glow_frames(&mut self) -> [u32; 7] {
         let n = u32::from(self.pat_num).max(1);
         let mut out = [0; 7];
-        let Some(rng) = &mut self.base.core.field_rand else { return out };
+        let Some(rng) = &mut self.core.field_rand else { return out };
         for (k, g) in self.glows.iter_mut().enumerate() {
             if g.wait == 0 {
                 out[k] = rng.below(n) & 0xffff;
@@ -160,7 +160,7 @@ impl Area13 {
     fn clump_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, model: u32) {
         let rows = Default::default();
         let d = Draw {
-            file: &self.base.core.file,
+            file: &self.core.file,
             model,
             world: Mat4::IDENTITY,
             alpha: 1.0,
@@ -176,10 +176,10 @@ impl Area13 {
 
 impl StoryMap for Area13 {
     fn core(&self) -> &AreaCore {
-        &self.base.core
+        &self.core
     }
     fn core_mut(&mut self) -> &mut AreaCore {
-        &mut self.base.core
+        &mut self.core
     }
     fn clear(&self) -> [u8; 3] {
         BG_COLOR
@@ -193,26 +193,36 @@ impl StoryMap for Area13 {
                 self.clump_draw(layers, layer::BG0, to_screen, m);
             }
         }
-        for pass in [DrawPass::Obj2, DrawPass::Obj] {
-            for row in self.base.rows(pass).collect::<Vec<_>>() {
-                self.base.row_draw(layers, layer::OBJ, to_screen, row);
+        let fog = draw::Fogging::Depth(FOG.depth());
+        let file = &*self.core.file;
+        // The rows and objects draw no ccEff.
+        let mut no_sprites = Vec::new();
+        let mut put = |layers: &mut Layers, r: Option<Request>| {
+            if let Some(r) = r {
+                paint(layers, to_screen, &r, &mut no_sprites);
             }
-            let rows = if step { self.base.step_objects(pass, v.eye) } else { Vec::new() };
+        };
+        for pass in [DrawPass::Obj2, DrawPass::Obj] {
+            for row in self.models.rows(pass) {
+                put(layers, self.models.request(file, row, layer::OBJ, fog));
+            }
+            let volume = self.core.hits.volume;
+            let rows = if step { self.objects.step_pass(pass, v.eye, volume, file) } else { Vec::new() };
             for row in rows {
-                self.base.object_draw(layers, layer::OBJ, to_screen, row);
+                put(layers, self.objects.request(file, row, layer::OBJ, fog));
             }
         }
         for pass in [DrawPass::Floor, DrawPass::Other] {
-            for row in self.base.rows(pass).collect::<Vec<_>>() {
-                self.base.row_draw(layers, layer::OBJ, to_screen, row);
+            for row in self.models.rows(pass) {
+                put(layers, self.models.request(file, row, layer::OBJ, fog));
             }
         }
         let frames = if step {
             self.glow_frames()
         } else {
-            let saved = (self.glows, self.base.core.field_rand);
+            let saved = (self.glows, self.core.field_rand);
             let f = self.glow_frames();
-            (self.glows, self.base.core.field_rand) = saved;
+            (self.glows, self.core.field_rand) = saved;
             f
         };
         self.glows
@@ -262,11 +272,11 @@ mod tests {
     fn area_13() {
         let Some(archive) = archive() else { return };
         let mut a = Area13::new(&archive, Volume::Mut, 0, Rng::new(0)).unwrap();
-        assert_eq!((0..7).filter(|&r| a.base.model(r).is_some()).count(), 7);
-        assert!(a.base.object(0).is_some());
-        assert_eq!(a.base.core.lights.lights.len(), 11);
+        assert_eq!((0..7).filter(|&r| a.models.model(r).is_some()).count(), 7);
+        assert!(a.objects.object(0).is_some());
+        assert_eq!(a.core.lights.lights.len(), 11);
         assert!(a.bg.is_some());
-        assert!(!a.base.core.hits.models.is_empty());
+        assert!(!a.core.hits.models.is_empty());
         assert!(a.pat_num > 0);
         assert!(a.glows.iter().all(|g| g.frame < u32::from(a.pat_num) && (30..130).contains(&g.wait)));
         let mut layers = Layers::default();

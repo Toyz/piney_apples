@@ -584,9 +584,9 @@ fn search_bt_walks_from_its_stages_landmark() {
     assert_eq!(p.walk_spd, 0x4060_0000, "3.5 a frame");
     let Stage::World(w) = &s.stage else { unreachable!() };
     let mut start = [0; 4];
-    let town = w.world().town().base.no;
+    let town = w.world().town().def.no;
     assert_eq!(town, 2, "Carmina Gadelica");
-    let _ = piney_world::town::pc::Search::set_up(&p.town.borrow(), &w.world().town().base.core.file, 165, 0)
+    let _ = piney_world::town::pc::Search::set_up(&p.town.borrow(), &w.world().town().core.file, 165, 0)
         .map(|set| start = set.pos);
     assert_eq!((p.char.pos[0], p.char.pos[1]), (start[0], start[1]), "not at its landmark");
     // Its walk (act 6 routes it, then 3): it glimmers below 0.3, moves,
@@ -661,7 +661,7 @@ fn search_bt_shot() {
         let bt = world.pcs().iter().find(|p| p.row.id == 165);
         eprintln!(
             "town {} kite {:?} bt {:?}",
-            world.town().base.no,
+            world.town().def.no,
             world.player().body.pos.map(f32::from_bits),
             bt.map(|p| (p.char.pos.map(f32::from_bits), f32::from_bits(p.char.transparency), p.char.drawn, p.act_num))
         );

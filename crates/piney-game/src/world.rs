@@ -208,8 +208,8 @@ impl WorldMode {
         st.announcements = crate::desktop::announcements(iso);
         let mut world =
             World::enter_after(&mut disc, archive.clone(), state, before).map_err(|e| format!("The World: {e}"))?;
-        let t = &world.town().base;
-        let map = piney_world::map::town::TownMap::open(archive, world.volume(), t.no, &t.core.file.stem)
+        let t = &world.town();
+        let map = piney_world::map::town::TownMap::open(archive, world.volume(), t.def.no, &t.core.file.stem)
             .map_err(|e| tracing::warn!("the town's map: {e}"))
             .ok()
             .map(Box::new);
@@ -1366,14 +1366,14 @@ impl Mode for WorldMode {
             }
             // ccSoundMain's scene sounds: Mac Anu's canals, the breeder's
             // tune by DMY_merchant6.
-            let town = &self.world.town().base;
+            let town = &self.world.town();
             let breeder =
                 town.core.file.ccs.find_object("DMY_merchant6").and_then(|o| town.core.file.scene.dummies.get(&o));
             let scene_sound = piney_audio::scene::SceneInput {
                 camera: Some(self.world.camera().active().pos),
                 kite: self.world.player().body.pos,
                 block: 0,
-                mac_anu: town.no == 0,
+                mac_anu: town.def == &piney_world::town::mac_anu::MAC_ANU,
                 breeder: breeder.map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), 0x3f80_0000]),
             };
             self.events.push(Event::SceneSound(scene_sound));
@@ -1558,15 +1558,7 @@ impl Mode for WorldMode {
             (None, None) => String::new(),
         };
         let fade = self.st.fade.alpha().map_or(String::new(), |a| format!(" - fade {a}"));
-        let town = match self.world.town().base.no {
-            0 => "Mac Anu",
-            1 => "Dun Loireag",
-            2 => "Carmina Gadelica",
-            3 => "Fort Ouph",
-            4 => "Lia Fail",
-            5 => "town06",
-            _ => "a Root Town",
-        };
+        let town = self.world.town().def.name;
         format!(
             "The World - {town} - {phase} - Kite at ({:.0}, {:.0}, {:.0}) act {} speed {:.1}{target}{menu}{leaving}{events}{fade}",
             p[0],

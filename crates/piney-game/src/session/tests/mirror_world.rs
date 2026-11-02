@@ -217,7 +217,7 @@ fn fields_66_and_91_are_their_maps() {
         let w = a.world();
         let sky = w.place().story::<SkyMap>().unwrap_or_else(|| panic!("{disc}: field {field} is no story map"));
         assert_eq!(sky.class, class, "{disc}");
-        let start = sky.base.core.start.map(f32::from_bits);
+        let start = sky.core.start.map(f32::from_bits);
         if class == Class::Mirror {
             assert_eq!(start[..3], [4600.0, -4700.0, 910.0], "{disc}: the start");
         }
@@ -307,7 +307,7 @@ fn in_dun_loireag() -> Option<(Session, &'static piney_data::area::AreaTables)> 
     let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let tables = crate::area::area_tables(&mut d).unwrap();
     let (mut state, vm) = crate::start::state_at(&iso, 116).unwrap();
-    state.save.set_u8(offset::LAST_TOWN, piney_world::DUN_LOIREAG as u8);
+    state.save.set_u8(offset::LAST_TOWN, piney_world::town::dun_loireag::DUN_LOIREAG.no as u8);
     let scene = piney_world::area::Scene::log_in(&mut state.save);
     let mut s = Session::in_world(iso, archive, None, state, Some(vm), scene, None).unwrap();
     let mut pad = Pad::default();
@@ -336,7 +336,7 @@ fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_
             && let Some(m) = a.world().place().story::<SkyMap>()
         {
             assert!(!m.started, "the map drew before the first look");
-            return (m.base.core.field_rand.expect("the sky draws from fieldrand"), m.move_tex.scroll());
+            return (m.core.field_rand.expect("the sky draws from fieldrand"), m.move_tex.scroll());
         }
     }
     panic!("no Mirror World: {}", Mode::title(s));
@@ -472,11 +472,17 @@ fn the_holy_grounds_scroll_carries_across_visits() {
 /// each visit started them at 0.
 #[test]
 fn dun_loireags_scrolls_carry_across_visits() {
-    use piney_world::town::dun_loireag::DunLoireag;
+    use piney_world::systems::scrolls::Scrolls;
+    use piney_world::systems::water::Water;
+    use piney_world::town::dun_loireag::DUN_LOIREAG;
     use piney_world::town::scroll_statics as statics;
     let Some((mut s, tables)) = in_dun_loireag() else { return };
     let town = |s: &Session| match &s.stage {
-        Stage::World(w) => w.world().town().class::<DunLoireag>().map(|d| (d.bg_scroll, d.bg_scroll2, d.water_u)),
+        Stage::World(w) if w.world().town().def == &DUN_LOIREAG => {
+            let systems = w.world().town().systems();
+            let v = systems.get::<Scrolls>()?.v.clone();
+            Some(([v[0], v[1]], v[2], systems.get::<Water>()?.u))
+        }
         _ => None,
     };
     let left = town(&s).expect("Dun Loireag");

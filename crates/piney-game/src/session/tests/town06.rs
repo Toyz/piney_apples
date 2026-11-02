@@ -20,7 +20,7 @@ fn event_301_goes_through_town_5() {
         s.step(&pad);
         s.take_events();
         if let Stage::World(w) = &s.stage {
-            let t = w.world().town().base.no;
+            let t = w.world().town().def.no;
             if towns.last() != Some(&t) {
                 towns.push(t);
             }

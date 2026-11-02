@@ -1,11 +1,11 @@
 //! The Root Towns as `ccThFieldDisp` (priority 96) draws them each frame, and
 //! what else their constructors set up: the collision mesh, the lights and
-//! the fog. Each town is a class of its own in the game (`ROOTTOWN01` .. `05`);
-//! here [`Base`] holds what every constructor builds the same way, each class
-//! is a module implementing [`RootTown`] (town/mac_anu.rs .. town/lia_fail.rs), and
-//! [`Town`] is the base and its class. A class's `select` is its `Draw`'s
-//! choice of pieces for the frame; [`RootTown::draw`] draws them
-//! (docs/engine/statics.md).
+//! the fog. Each town is a class of its own in the game (`ROOTTOWN01` ..
+//! `06`); here each is a [`TownDef`] (town/mac_anu.rs .. town/relic_city.rs):
+//! [`BASE_TOWN`] with its files, lights, fog, its systems
+//! (`crate::systems`) and its `Draw`'s steps. A [`Town`] is the def, the
+//! core every area holds and its systems; [`Town::step`] runs the steps,
+//! [`Town::requests`] hands back what they drew (docs/engine/root-towns.md).
 
 #[doc(alias = "ROOTTOWN03")]
 pub mod carmina_gadelica;
@@ -29,16 +29,17 @@ pub mod pc;
 pub mod relic_city;
 pub mod ride;
 
-use std::any::Any;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
+use piney_data::classes::TownGameClass;
+use piney_data::dungeon::Rng;
 use piney_data::scene::Scene;
-use piney_data::statics::{self, DrawPass, ModelTable, ObjTable, PlacedModel, Position};
+use piney_data::statics::Position;
+use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -47,8 +48,8 @@ use crate::area::AreaCore;
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::{HitModel, Hits};
 use crate::story_map::holy_ground::FlareCamera;
+use crate::systems::{BuildCx, DrawCx, Drawn, Request, Step, SystemDef, Systems};
 
 /// `vftoi12`'s 4096.
 const K4096: F = 0x4580_0000;
@@ -349,20 +350,6 @@ pub(crate) fn read_lights(file: &SceneFile, anim: usize, table: &[(i32, &str)]) 
     Ok(TownLights { ambient: ambient.unwrap_or(Vec3::ZERO), lights: out, fog: None })
 }
 
-/// One `STATICOBJECT`.
-#[derive(Clone, Debug)]
-pub(crate) struct Object {
-    /// Its `RT_OBJTABLE` row.
-    pub(crate) row: usize,
-    pub(crate) pass: DrawPass,
-    pub(crate) play: Play,
-    /// `ccCoord::SetMatrix_PosRotZYX(pos, rot)` of its dummy, as stored.
-    pub(crate) root: [V4; 4],
-    /// +0x10: the dummy's position (zero without one).
-    pub(crate) pos: V4,
-    pub(crate) clip: F,
-}
-
 /// What a town's `Draw` starts besides its drawing, for the host: effects
 /// and sounds, in order.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -419,105 +406,6 @@ pub struct TownSprite {
     /// 0)` and PRIM's fog bit); `ROOTTOWN05`'s glows keep them, so the
     /// buildings hide them.
     pub depth: bool,
-}
-
-/// What every Root Town class's constructor builds the same way from its
-/// [`Spec`].
-pub struct Base {
-    /// `ChangeScene`'s town number (`game.town`): 0 Mac Anu .. 4 Lia Fail.
-    pub no: i32,
-    /// The file (`town01` .. `town05`, or a `d` variant in crisis), the
-    /// lights, the collision, and `fieldrand` for a class that draws from it.
-    pub core: AreaCore,
-    pub(crate) table: &'static ModelTable,
-    /// By row: where each static model draws.
-    pub(crate) models: Vec<Option<PlacedModel>>,
-    pub(crate) objects: Vec<Object>,
-    pub fog: FogParams,
-    /// `ccSys.bgColor` (+0x18) as the constructor set it: None keeps
-    /// `ccSetupGameCtrl`'s black.
-    pub clear: Option<[u8; 3]>,
-    /// What the draws started for the host ([`Base::take_events`]).
-    pub(crate) events: Vec<TownEvent>,
-    /// Dummies whose rotation the game wrote (from Mutation on,
-    /// `setMerchant`'s Event NPC's), by name: the markers read them so for
-    /// as long as the town's file stays loaded, across a scene change to
-    /// the same town too (the session carries them).
-    pub written: Vec<(String, V4)>,
-}
-
-/// How a town's scroll comes back once a step takes it to 1.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Wrap {
-    /// Above 1, back to 0 (`DrawBG`'s scrolls).
-    Past,
-    /// At 1 or above, back to 0 (Dun Loireag's and Carmina Gadelica's water).
-    AtOrPast,
-    /// Above 1, less 1 (Mac Anu's water).
-    Less,
-}
-
-impl Wrap {
-    /// `u` stepped by `step`, wrapped.
-    pub fn step(self, u: F, step: F) -> F {
-        let u = ee::add(u, step);
-        match self {
-            Wrap::Past if !ee::le(u, ONE) => 0,
-            Wrap::AtOrPast if !ee::lt(u, ONE) => 0,
-            Wrap::Less if !ee::le(u, ONE) => ee::sub(u, ONE),
-            _ => u,
-        }
-    }
-}
-
-/// `DrawBG`'s scrolls: each stepped by its step, back to 0 past 1.
-pub fn step_scrolls(scrolls: &mut [F], steps: &[F]) {
-    for (x, &step) in scrolls.iter_mut().zip(steps) {
-        *x = Wrap::Past.step(*x, step);
-    }
-}
-
-/// A town's water scroll: its step a frame and how it wraps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WaterSpec {
-    pub step: F,
-    pub wrap: Wrap,
-}
-
-impl WaterSpec {
-    pub fn step(self, u: F) -> F {
-        self.wrap.step(u, self.step)
-    }
-}
-
-/// A Root Town class: what `ROOTTOWN01` .. `05` hold besides the [`Base`],
-/// and their `Draw` (virtual in the game, through each class's vtable).
-pub trait RootTown: Any {
-    /// The class's `Draw` for this frame into the field's layers through
-    /// `to_screen`, stepping what it steps; the `ccEff`s it draws (the lens
-    /// flare, the clouds, Lia Fail's glows) are handed back for the host's
-    /// effects to draw.
-    fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite>;
-
-    /// `waterAnm[k]`'s animation time (0 in a town without water).
-    fn water_time(&self, _k: usize) -> u32 {
-        0
-    }
-
-    /// Water 0 as the last draw left it (None in a town without water).
-    fn water0(&self) -> Option<&WaterZero> {
-        None
-    }
-
-    /// The class's scroll statics ([`scroll_statics`]) as the game holds them.
-    fn take_statics(&mut self, _s: &[u32; piney_desktop::SCROLL_STATICS]) {}
-    fn put_statics(&self, _s: &mut [u32; piney_desktop::SCROLL_STATICS]) {}
-}
-
-/// A Root Town as the field holds it: the base and its class.
-pub struct Town {
-    pub base: Base,
-    class: Box<dyn RootTown>,
 }
 
 /// A clump's models as `ccClump::Draw` draws them: each node's own
@@ -669,41 +557,6 @@ impl WaterZero {
     }
 }
 
-/// Water 0's `ccAnm::Draw` on `layer`: every object its animation poses,
-/// the water's model with its edits.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn water0_draw(
-    layers: &mut Layers,
-    layer: i16,
-    to_screen: Mat4,
-    file: &SceneFile,
-    play: &Play,
-    root: Mat4,
-    water: &WaterZero,
-) {
-    let rows = play.uv_rows(file);
-    let morph = play.morph(file);
-    let edits = water.edits();
-    for (entry, obj, world) in anm_pieces(file, play, root, &[]) {
-        let target = file.scene.ext.get(&obj).copied().unwrap_or(obj);
-        let Some(&model) = file.obj_model.get(&target) else { continue };
-        let m = object_morph(file, &morph, entry);
-        let e = (model == water.model.object).then_some(&edits);
-        let d = Draw {
-            file,
-            model,
-            world,
-            alpha: 1.0,
-            rows: &rows,
-            lights: None,
-            nodes: &[],
-            morph: m,
-            clut_swaps: Vec::new(),
-        };
-        draw::model_edited(layers, layer, to_screen, &d, e, draw::Fogging::None);
-    }
-}
-
 /// Where each draw's scroll statics sit in `SaveState::scroll_statics`:
 /// statics of the executable's own small data (INF names; 0 at power-on),
 /// which no load sets again (docs/engine/root-towns.md).
@@ -748,71 +601,187 @@ pub mod scroll_statics {
     }
 }
 
-/// A class's number, tables, light animation, fog and clear colour, as its
-/// constructor names them.
-pub(crate) struct Spec {
-    pub(crate) no: i32,
-    pub(crate) models: &'static str,
-    /// The class's `RT_OBJTABLE`, None for a class with no static objects.
-    pub(crate) objects: Option<&'static str>,
-    pub(crate) light_anim: &'static str,
-    pub(crate) lights: &'static [(i32, &'static str)],
-    pub(crate) fog: FogParams,
-    pub(crate) clear: Option<[u8; 3]>,
+/// What `WORLD_MAN::GO(0)` makes a town from: the disc, the save's crisis
+/// byte and `fieldrand`.
+pub struct TownEnv<'a> {
+    pub archive: &'a Arc<Archive>,
+    pub volume: Volume,
+    pub crisis: bool,
+    pub rng: Rng,
 }
 
-impl Base {
-    /// The part of a constructor every class shares: the scene file
-    /// `stem`, the static models and objects of its tables
-    /// (`STATICMODEL`, `STATICOBJECT`), the light animation's lights at
-    /// frame 1, the collision mesh, the fog and the clear colour.
-    pub(crate) fn read(archive: &Arc<Archive>, stem: &str, spec: &Spec) -> Result<Base> {
-        Base::read_volume(archive, piney_data::volume::Volume::Inf, stem, spec)
+/// What a Root Town is: its class, the discs that have it, its files
+/// (normal and crisis), its lights, fog and clear colour, where Kite
+/// starts, its systems as its constructor makes them and its `Draw`'s
+/// steps in the game's order. One `static` a town, so a def is its address.
+#[derive(Debug)]
+pub struct TownDef {
+    /// `game.town`: 0 Mac Anu .. 4 Lia Fail, 5 Quarantine's sixth.
+    pub no: i32,
+    pub class: TownGameClass,
+    /// What the window's title calls it.
+    pub name: &'static str,
+    pub volumes: &'static [Volume],
+    pub file: &'static str,
+    /// `town0Nd`, loaded when the save's crisis byte is set.
+    pub crisis_file: Option<&'static str>,
+    /// Whose statics tables its rows are: Infection's for the first five
+    /// on every disc, Quarantine's for the sixth.
+    pub tables: Volume,
+    /// The light animation and the class's light table (`town00Light`
+    /// ..: the distant light, then the omnis).
+    pub light_anim: &'static str,
+    pub lights: &'static [(i32, &'static str)],
+    pub fog: FogParams,
+    /// `ccSys.bgColor` as the constructor sets it: None keeps
+    /// `ccSetupGameCtrl`'s black.
+    pub clear: Option<[u8; 3]>,
+    /// `WORLD_MAN::SetCharPosition`'s place and heading for Kite (main
+    /// 0x001a1190); None where it has no case (`StartPos` keeps what the
+    /// scene before left, QUA main 0x001b3ac0).
+    pub start: Option<(V4, V4)>,
+    pub systems: &'static [SystemDef],
+    pub order: &'static [Step],
+}
+
+/// One def is one town.
+impl PartialEq for TownDef {
+    fn eq(&self, other: &TownDef) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for TownDef {}
+
+/// What `ROOTTOWN` gives every town: every disc, no crisis file,
+/// Infection's tables, no clear colour; no systems and an empty `Draw`.
+pub static BASE_TOWN: TownDef = TownDef {
+    no: -1,
+    class: TownGameClass::Roottown,
+    name: "a Root Town",
+    volumes: &Volume::ALL,
+    file: "",
+    crisis_file: None,
+    tables: Volume::Inf,
+    light_anim: "",
+    lights: &[],
+    fog: FogParams { near: 0.0, far: 0.0, near_rate: 0.0, far_rate: 0.0, colour: [0; 3] },
+    clear: None,
+    start: None,
+    systems: &[],
+    order: &[],
+};
+
+/// `GO(0)`'s towns.
+pub static TOWNS: [&TownDef; 6] = [
+    &mac_anu::MAC_ANU,
+    &dun_loireag::DUN_LOIREAG,
+    &carmina_gadelica::CARMINA_GADE,
+    &fort_ouph::FORT_OUPH,
+    &lia_fail::LIA_FAIL,
+    &relic_city::RELIC_CITY,
+];
+
+impl TownDef {
+    /// `game.town` `no`'s def on `volume`.
+    pub fn of(no: i32, volume: Volume) -> Option<&'static TownDef> {
+        TOWNS.iter().copied().find(|d| d.no == no && d.volumes.contains(&volume))
+    }
+}
+
+/// A Root Town as the field holds it: its def, the core every area holds,
+/// its systems and what its last `Draw` made.
+pub struct Town {
+    pub def: &'static TownDef,
+    /// The file (the crisis one in crisis), the lights, the collision, and
+    /// `fieldrand` when a system draws from it.
+    pub core: AreaCore,
+    /// Dummies whose rotation the game wrote (from Mutation on,
+    /// `setMerchant`'s Event NPC's), by name: the markers read them so for
+    /// as long as the town's file stays loaded, across a scene change to
+    /// the same town too (the session carries them).
+    pub written: Vec<(String, V4)>,
+    systems: Systems,
+    /// The last `Draw`'s pieces, and the effects and sounds its steps
+    /// started since the host last took them.
+    frame: Vec<Drawn>,
+    events: Vec<TownEvent>,
+}
+
+impl Town {
+    /// The town `WORLD_MAN::GO(0)` builds for `game.town` `no`, `crisis` the
+    /// save's crisis byte.
+    pub fn open(archive: &Arc<Archive>, volume: Volume, no: i32, crisis: bool) -> Result<Town> {
+        Town::open_with(archive, volume, no, crisis, Rng::POWER_ON)
     }
 
-    /// [`Base::read`] with `volume`'s tables (the story maps').
-    pub(crate) fn read_volume(
-        archive: &Arc<Archive>,
-        volume: piney_data::volume::Volume,
-        stem: &str,
-        spec: &Spec,
-    ) -> Result<Base> {
-        let file = Rc::new(SceneFile::read(archive, stem)?);
-        let (models_of, objs_of, _) = statics::of(volume);
-        let table =
-            models_of.iter().find(|t| t.name == spec.models).ok_or_else(|| Error::NotFound(spec.models.into()))?;
-        let obj_table: Option<&ObjTable> = spec
-            .objects
-            .map(|name| objs_of.iter().find(|t| t.name == name).ok_or_else(|| Error::NotFound(name.into())))
-            .transpose()?;
-        let (c, sc) = (&file.ccs, &file.scene);
-        let mut models = vec![None; table.rows.len()];
-        for p in table.place(c, sc) {
-            models[p.row] = Some(p);
+    /// [`Town::open`] with `fieldrand` as the game has it (`rng`), which
+    /// the systems' draws take from.
+    pub fn open_with(archive: &Arc<Archive>, volume: Volume, no: i32, crisis: bool, rng: Rng) -> Result<Town> {
+        let def = TownDef::of(no, volume).ok_or_else(|| Error::NotFound(format!("town {no}: {volume:?} has none")))?;
+        Town::build(def, &TownEnv { archive, volume, crisis, rng })
+    }
+
+    /// `def`'s constructor: its file, the light animation's lights at
+    /// frame 1, the collision mesh (the disc's square root), the fog, and
+    /// its systems.
+    pub fn build(def: &'static TownDef, env: &TownEnv) -> Result<Town> {
+        let stem = def.crisis_file.filter(|_| env.crisis).unwrap_or(def.file);
+        let mut core = AreaCore::read(env.archive, def.tables, stem, def.light_anim, def.lights, def.fog)?;
+        // The towns' tables are Infection's on every disc; the collision
+        // takes the disc's square root.
+        core.hits.volume = env.volume;
+        let file = core.file.clone();
+        let mut cx =
+            BuildCx { archive: env.archive, tables: def.tables, file: &file, crisis: env.crisis, rng: env.rng };
+        let systems = Systems::build(def.systems, &mut cx)?;
+        core.field_rand = def.systems.iter().any(SystemDef::field_rand).then_some(env.rng);
+        Ok(Town { def, core, written: Vec::new(), systems, frame: Vec::new(), events: Vec::new() })
+    }
+
+    /// The systems, for tests and probes to read by kind.
+    pub fn systems(&self) -> &Systems {
+        &self.systems
+    }
+
+    /// `fieldrand` as the draws leave it; None for a town none of whose
+    /// systems draws from it.
+    pub fn field_rand(&self) -> Option<Rng> {
+        self.core.field_rand
+    }
+
+    /// `fieldrand` set from outside (a gate menu's `SimGenerateCode`).
+    pub fn set_field_rand(&mut self, rng: Rng) {
+        if let Some(r) = &mut self.core.field_rand {
+            *r = rng;
         }
-        let mut objects = Vec::new();
-        for (row, r) in obj_table.map_or(&[][..], |t| t.rows).iter().enumerate() {
-            // STATICOBJECT makes only the ccAnm when the row names one.
-            let Some(play) = r.anime.and_then(|n| Play::new(&file, n)) else { continue };
-            let (pos, rot) = dummy_bits(&r.position, c, sc);
-            let root = pos_rot_zyx(pos, rot);
-            objects.push(Object { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() });
-        }
-        let light_anim = file.anim(spec.light_anim).ok_or_else(|| Error::NotFound(spec.light_anim.into()))?;
-        let lights = read_lights(&file, light_anim, spec.lights)?;
-        let hits = Hits::new(volume, HitModel::read(volume, c)?);
-        let lights = TownLights { fog: Some(spec.fog), ..lights };
-        Ok(Base {
-            no: spec.no,
-            core: AreaCore { file, hits, lights, field_rand: None, start: [0; 4] },
-            table,
-            models,
-            objects,
-            fog: spec.fog,
-            clear: spec.clear,
-            events: Vec::new(),
-            written: Vec::new(),
-        })
+    }
+
+    /// The scroll statics as the game holds them, into each system.
+    pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        self.systems.take(s);
+    }
+
+    /// Each system's scroll statics written back.
+    pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        self.systems.put(s);
+    }
+
+    /// The town's `Draw` for this frame: its def's steps in order.
+    pub fn step(&mut self, v: &TownView) {
+        self.frame.clear();
+        self.systems.run(self.def.order, &mut self.core, v, &mut self.frame, &mut self.events);
+    }
+
+    /// What the last [`Town::step`] put in the frame, in its order.
+    pub fn frame(&self) -> &[Drawn] {
+        &self.frame
+    }
+
+    /// The last frame's pieces as generic draws.
+    pub fn requests(&self) -> Vec<Request<'_>> {
+        let cx = DrawCx { core: &self.core, fog: self.depth_fog() };
+        self.systems.requests(&self.frame, &cx)
     }
 
     /// What the draws started since the last call: effects and sounds.
@@ -820,242 +789,11 @@ impl Base {
         std::mem::take(&mut self.events)
     }
 
-    /// A static model row's placement.
-    pub fn model(&self, row: usize) -> Option<PlacedModel> {
-        self.models.get(row).copied().flatten()
-    }
-
-    /// A static object's animation time and root matrix, by its row.
-    pub fn object(&self, row: usize) -> Option<(u32, [V4; 4])> {
-        self.objects.iter().find(|o| o.row == row).map(|o| (o.play.time, o.root))
-    }
-
-    /// The model table's rows of `pass`, in order.
-    pub(crate) fn rows(&self, pass: DrawPass) -> impl Iterator<Item = usize> + use<> {
-        let rows = self.table.rows;
-        (0..rows.len()).filter(move |&row| rows[row].pass == pass)
-    }
-
-    /// A pass's static objects: the rows of those of `pass` that
-    /// [`Base::object_step`] draws, stepped, in order.
-    pub(crate) fn step_objects(&mut self, pass: DrawPass, eye: V4) -> Vec<usize> {
-        let mut out = Vec::new();
-        for i in 0..self.objects.len() {
-            if self.objects[i].pass == pass && self.object_step(i, eye) {
-                out.push(self.objects[i].row);
-            }
-        }
-        out
-    }
-
-    /// `STATICOBJECT::Draw` (0x005cfe70) up to the draw: within its clip of
-    /// the eye (`sceVu0SubVector`, x x + y y, `sqrt` in double; `sqrt.s`
-    /// from Outbreak on) or with a clip of 0, the animation steps. True
-    /// when it is to be drawn.
-    pub(crate) fn object_step(&mut self, i: usize, eye: V4) -> bool {
-        let volume = self.core.hits.volume;
-        let o = &mut self.objects[i];
-        let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
-        let d = ee::ground_dist(volume, dx, dy);
-        if !(ee::lt(d, o.clip) || ee::eq(o.clip, 0)) {
-            return false;
-        }
-        o.play.forward(&self.core.file);
-        true
-    }
-
-    /// The static model of a row, as drawn, on `layer`.
-    pub(crate) fn row_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, row: usize) {
-        self.row_draw_with(layers, layer, to_screen, row, self.depth_fog());
-    }
-
-    /// The same with its fog: `STATICMODEL::DrawWithOutFog` draws with
-    /// none.
-    pub(crate) fn row_draw_with(
-        &self,
-        layers: &mut Layers,
-        layer: i16,
-        to_screen: Mat4,
-        row: usize,
-        fog: draw::Fogging,
-    ) {
-        let Some(p) = self.model(row) else { return };
-        let rows = Default::default();
-        let d = Draw {
-            file: &self.core.file,
-            model: p.model,
-            world: Mat4::from_translation(p.pos),
-            alpha: 1.0,
-            rows: &rows,
-            lights: None,
-            nodes: &[],
-            morph: Vec::new(),
-            clut_swaps: Vec::new(),
-        };
-        draw::model_edited(layers, layer, to_screen, &d, None, fog);
-    }
-
-    /// A static object as drawn, on `layer`.
-    pub(crate) fn object_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, row: usize) {
-        let Some(o) = self.objects.iter().find(|o| o.row == row) else { return };
-        let root = draw::mat(&o.root);
-        let fm = &*self.core.file;
-        anim_draw_fog(layers, layer, to_screen, fm, &o.play, root, &[], 1.0, None, None, self.depth_fog());
-    }
-
     /// The town's `SetFog` as VU1 fogs its buildings and objects (the sky,
     /// clouds and water have `SetFogSw(0)`).
     pub fn depth_fog(&self) -> draw::Fogging {
-        draw::Fogging::Depth(self.fog.depth())
+        draw::Fogging::Depth(self.def.fog.depth())
     }
-
-    /// A clump's models at `world` on `layer`, with the scrolled materials'
-    /// offsets `rows`.
-    pub(crate) fn clump_draw(
-        &self,
-        layers: &mut Layers,
-        layer: i16,
-        to_screen: Mat4,
-        models: &[u32],
-        world: Mat4,
-        rows: &HashMap<u32, [u8; 2]>,
-    ) {
-        for &m in models {
-            let d = Draw {
-                file: &self.core.file,
-                model: m,
-                world,
-                alpha: 1.0,
-                rows,
-                lights: None,
-                nodes: &[],
-                morph: Vec::new(),
-                clut_swaps: Vec::new(),
-            };
-            draw::model(layers, layer, to_screen, &d);
-        }
-    }
-}
-
-/// What `WORLD_MAN::GO(0)` makes a town from: the disc, the save's crisis
-/// byte and `fieldrand`. Every town's `new` takes it.
-pub struct TownEnv<'a> {
-    pub archive: &'a Arc<Archive>,
-    pub volume: piney_data::volume::Volume,
-    pub crisis: bool,
-    pub rng: piney_data::dungeon::Rng,
-}
-
-/// One case of `GO(0)`'s town switch: `game.town`, the class, the discs
-/// that have it, and its constructor.
-pub struct TownDef {
-    pub no: i32,
-    /// The game's class.
-    pub class: &'static str,
-    pub volumes: &'static [piney_data::volume::Volume],
-    pub make: fn(&TownEnv<'_>) -> Result<Town>,
-}
-
-/// `GO(0)`'s towns.
-pub static TOWNS: [TownDef; 6] =
-    [mac_anu::DEF, dun_loireag::DEF, carmina_gadelica::DEF, fort_ouph::DEF, lia_fail::DEF, relic_city::DEF];
-
-impl Town {
-    pub(crate) fn new(base: Base, class: impl RootTown) -> Town {
-        Town { base, class: Box::new(class) }
-    }
-
-    /// The town `WORLD_MAN::GO(0)` builds for `game.town` `no`
-    /// (`ROOTTOWN01` .. `05`, and Quarantine's `06`), `crisis` the save's
-    /// crisis byte.
-    pub fn open(archive: &Arc<Archive>, volume: piney_data::volume::Volume, no: i32, crisis: bool) -> Result<Town> {
-        Town::open_with(archive, volume, no, crisis, piney_data::dungeon::Rng::POWER_ON)
-    }
-
-    /// [`Town::open`] with `fieldrand` as the game has it (`rng`), which
-    /// `ROOTTOWN05`'s constructor and the classes' draws take from.
-    pub fn open_with(
-        archive: &Arc<Archive>,
-        volume: piney_data::volume::Volume,
-        no: i32,
-        crisis: bool,
-        rng: piney_data::dungeon::Rng,
-    ) -> Result<Town> {
-        let def = TOWNS
-            .iter()
-            .find(|d| d.no == no && d.volumes.contains(&volume))
-            .ok_or_else(|| Error::NotFound(format!("town {no}: {volume:?} has none")))?;
-        let mut town = (def.make)(&TownEnv { archive, volume, crisis, rng })?;
-        // The towns' tables are Infection's on every disc; the collision
-        // takes the disc's square root.
-        town.base.core.hits.volume = volume;
-        town.set_field_rand(rng);
-        Ok(town)
-    }
-
-    /// `fieldrand` as the class's draws leave it; None for a class that
-    /// does not draw from it.
-    pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
-        self.base.core.field_rand
-    }
-
-    /// The scroll statics as the game holds them, for the class's draws.
-    pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        self.class.take_statics(s);
-    }
-
-    /// The class's scroll statics written back.
-    pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        self.class.put_statics(s);
-    }
-
-    /// `fieldrand` set from outside (a gate menu's `SimGenerateCode`).
-    pub fn set_field_rand(&mut self, rng: piney_data::dungeon::Rng) {
-        if let Some(r) = &mut self.base.core.field_rand {
-            *r = rng;
-        }
-    }
-
-    /// The class, when it is a `T`.
-    pub fn class<T: RootTown>(&self) -> Option<&T> {
-        (&*self.class as &dyn Any).downcast_ref()
-    }
-
-    /// The base and the class, when it is a `T` (what the class's own
-    /// `select` steps).
-    pub fn parts_mut<T: RootTown>(&mut self) -> Option<(&mut Base, &mut T)> {
-        let class = (&mut *self.class as &mut dyn Any).downcast_mut()?;
-        Some((&mut self.base, class))
-    }
-
-    /// The class's `Draw` for this frame ([`RootTown::draw`]).
-    pub fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
-        self.class.draw(&mut self.base, layers, to_screen, v)
-    }
-
-    /// `waterAnm[k]`'s animation time (0 in a town without water).
-    pub fn water_time(&self, k: usize) -> u32 {
-        self.class.water_time(k)
-    }
-
-    /// Water 0 as the last draw left it (None in a town without water).
-    pub fn water0(&self) -> Option<&WaterZero> {
-        self.class.water0()
-    }
-}
-
-/// `DrawBG`'s crisis offsets: the scroll's `vftoi12` less each material's
-/// crop, the first material in U, the second in U and V (STROW values).
-pub(crate) fn crisis_rows(file: &SceneFile, mats: &[&str; 2], uv: u16) -> HashMap<u32, [u8; 2]> {
-    let mut rows = HashMap::new();
-    for (i, name) in mats.iter().enumerate() {
-        let Some(mat) = file.ccs.find_object(name) else { continue };
-        let Some(m) = file.scene.materials.get(&mat) else { continue };
-        let du = uv.wrapping_sub(m.crop_u);
-        let dv = if i == 1 { uv.wrapping_sub(m.crop_v) } else { 0 };
-        rows.insert(mat, [(du >> 4) as u8, (dv >> 4) as u8]);
-    }
-    rows
 }
 
 /// `ccModel::SetUV` (0x0013abe0) of every material of `file`: the offset
@@ -1114,7 +852,7 @@ pub fn object_morph(file: &SceneFile, morph: &[(u32, Vec<(u32, f32)>)], entry: u
 /// world): each index entry at its own place (an ExtObj copy draws its
 /// piece again, [`Play::instances`]), then each object of `extra` no entry
 /// names, by piece and in the index's order within one.
-fn anm_pieces(file: &SceneFile, play: &Play, root: Mat4, extra: &[u32]) -> Vec<(u32, u32, Mat4)> {
+pub(crate) fn anm_pieces(file: &SceneFile, play: &Play, root: Mat4, extra: &[u32]) -> Vec<(u32, u32, Mat4)> {
     let mut out: Vec<(u32, u32, Mat4)> =
         play.instances(file, root).into_iter().map(|i| (i.entry, i.object, i.world)).collect();
     let named: std::collections::HashSet<u32> = out.iter().map(|p| p.1).collect();
@@ -1242,7 +980,7 @@ pub(crate) mod tests {
     fn town_lights() {
         let Some(archive) = archive() else { return };
         let t = Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
-        let l = &t.base.core.lights;
+        let l = &t.core.lights;
         assert_eq!(l.ambient, Vec3::new(113.0, 113.0, 120.0) / 255.0);
         assert_eq!(l.lights.len(), 6);
         assert_eq!((l.lights[0].kind, l.lights[0].intensity, l.lights[0].priority), (1, 1.0, -1));

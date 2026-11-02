@@ -609,7 +609,7 @@ fn event_25_opens_in_area_23s_shrine() {
         panic!("not back in town: {title}; blocks {played:?}; last calls {calls:?}");
     }
     let Stage::World(w) = &s.stage else { unreachable!() };
-    assert_eq!(w.world().town().base.no, 1, "Dun Loireag");
+    assert_eq!(w.world().town().def.no, 1, "Dun Loireag");
     let bans = piney_world::dungeon::bans_of(&w.world().state().save);
     assert!(bans.contains(&[23, 0, 2, 2]), "block 16's area_ban: {bans:?}");
     let vm = take_vm(&mut s).expect("the event task");
