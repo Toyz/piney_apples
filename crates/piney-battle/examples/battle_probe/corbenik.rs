@@ -13,7 +13,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::first::First;
 use piney_battle::boss::corbenik::seed::Seed;
 use piney_battle::boss::corbenik::{self, Gen, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -426,10 +426,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
 
 /// The seeds' characters, by slot.
 fn seed_chars(scene: &Scene, me: usize) -> [usize; 8] {
-    match scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
-        Some(Class::Corbenik(x)) => x.seed_me,
-        _ => [0; 8],
-    }
+    let b = scene.chars[me].foe_state().and_then(|f| f.boss.as_ref());
+    b.and_then(|b| b.systems.get::<First>()).map_or([0; 8], |x| x.seed_me)
 }
 
 pub(crate) fn v3(v: &V4) -> String {
@@ -548,8 +546,7 @@ fn first_json(b: &Boss, x: &First) -> String {
 fn seed_json(scene: &Scene, s: usize) -> String {
     let ch = &scene.chars[s];
     let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()) else { return "[]".into() };
-    let Class::CorbenikSeed(x) = &b.class else { return "[]".into() };
-    let x: &Seed = x;
+    let Some(x) = b.systems.get::<Seed>() else { return "[]".into() };
     format!(
         "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{},{},{},{},{},{},{}]",
         b.base.act_num,
@@ -595,7 +592,7 @@ fn frame_json(
     menu: &[i32; 7],
     cam_type: i32,
 ) -> String {
-    let Class::Corbenik(x) = &b.class else { return "{}".into() };
+    let Some(x) = b.systems.get::<First>() else { return "{}".into() };
     let ch = &scene.chars[me];
     let effs: Vec<String> = b
         .base

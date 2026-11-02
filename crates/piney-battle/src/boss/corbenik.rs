@@ -19,9 +19,8 @@ pub mod stardust;
 mod tests;
 pub mod third;
 
-use piney_data::volume::Volume;
-
 use piney_data::field::ee;
+use piney_data::tables::combat::{self, Combat};
 
 use super::{BaseActs, BossBase, Cx, Fx as BossFx, PassMode, Tbl, word};
 use crate::geom::V4;
@@ -65,102 +64,50 @@ pub const GROW: [F; 3] = [0x3f80_0000, 0x4080_0000, 0x4170_0000];
 /// The seeds `ccBoss08` carries (`m_seedTbl[8]`).
 pub const SEEDS: usize = 8;
 
-/// Corbenik's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct CorbenikData {
-    /// `boss08AnmTbl`, `boss08SeedAnmTbl`: the clip by act.
-    pub anims: Vec<Option<String>>,
-    pub seed_anims: Vec<Option<String>>,
-    /// `boss08ActNormalTbl` through its closing -1 (`SetPatternMode(0)`'s;
-    /// any other mode is a null table).
-    pub normal: Vec<i32>,
-    /// The second form's: `boss08bAnmTbl`, `boss08BNormalActTbl`,
-    /// `boss08BSuperActTbl`, the roots' two clip tables and the barrier's
-    /// hit clip (`boss08DmgBarriar`).
-    pub b_anims: Vec<Option<String>>,
-    pub b_normal: Vec<i32>,
-    pub b_super: Vec<i32>,
-    pub root_anims_a: Vec<Option<String>>,
-    pub root_anims_b: Vec<Option<String>>,
-    pub dmg_barrier: Vec<Option<String>>,
-    /// The third form's: `boss08cAnmTbl`, its two pattern tables (mode 0
-    /// and, from half its HP, mode 1), the eyes' and killer eyes' clips,
-    /// the killer eyes' three pattern tables (by slot), their skills and
-    /// compels, the slave attack's rows, the killer eyes' throws and the
-    /// reflected laser's rings (radii, heights).
-    pub c_anims: Vec<Option<String>>,
-    pub c_first: Vec<i32>,
-    pub c_normal: Vec<i32>,
-    pub eye_anims: Vec<Option<String>>,
-    pub killer_anims: Vec<Option<String>>,
-    pub killer_acts: [Vec<i32>; 3],
-    pub killer_skills: Vec<i32>,
-    pub killer_compels: Vec<i32>,
-    pub slave_ids: Vec<i32>,
-    pub killer_turns: Vec<F>,
-    pub refrect_radii: Vec<F>,
-    pub refrect_heights: Vec<F>,
+/// Corbenik's tables (`tables::combat`), the volume's.
+fn tables(cx: &Cx) -> &'static Combat {
+    combat::of(cx.volume())
 }
 
-impl CorbenikData {
-    /// The volume's.
-    pub fn of(volume: Volume) -> CorbenikData {
-        let t = piney_data::tables::combat::of(volume);
-        let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
-        CorbenikData {
-            anims: s(t.corbenik_anims),
-            seed_anims: s(t.corbenik_seed_anims),
-            normal: t.corbenik_normal.to_vec(),
-            b_anims: s(t.corbenik_b_anims),
-            b_normal: t.corbenik_b_normal.to_vec(),
-            b_super: t.corbenik_b_super.to_vec(),
-            root_anims_a: s(t.corbenik_root_anims_a),
-            root_anims_b: s(t.corbenik_root_anims_b),
-            dmg_barrier: s(t.corbenik_dmg_barrier),
-            c_anims: s(t.corbenik_c_anims),
-            c_first: t.corbenik_c_first.to_vec(),
-            c_normal: t.corbenik_c_normal.to_vec(),
-            eye_anims: s(t.corbenik_eye_anims),
-            killer_anims: s(t.corbenik_killer_anims),
-            killer_acts: [
-                t.corbenik_killer_acts.to_vec(),
-                t.corbenik_downner_acts.to_vec(),
-                t.corbenik_rips_acts.to_vec(),
-            ],
-            killer_skills: t.corbenik_killer_skills.to_vec(),
-            killer_compels: t.corbenik_killer_compels.to_vec(),
-            slave_ids: t.corbenik_slave_ids.to_vec(),
-            killer_turns: bits(t.corbenik_killer_turns),
-            refrect_radii: bits(t.corbenik_refrect_radii),
-            refrect_heights: bits(t.corbenik_refrect_heights),
-        }
-    }
+/// A clip table (`boss08AnmTbl`, ...) as `actAnmTbl` holds it.
+fn clips(t: &[Option<&str>]) -> Vec<Option<String>> {
+    t.iter().map(|a| a.map(str::to_string)).collect()
+}
 
-    /// The third form's table by [`Tbl`] (0 the first, 1 the normal).
-    pub(crate) fn words_c(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::Normal => &self.c_first,
-            Tbl::Super => &self.c_normal,
-            _ => &[],
-        }
+/// The first form's table by [`Tbl`] (`boss08ActNormalTbl` for mode 0,
+/// `SetPatternMode(0)`'s; any other mode a null table).
+pub(crate) fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
+    match t {
+        Tbl::Normal => tables(cx).corbenik_normal,
+        _ => &[],
     }
+}
 
-    /// The table by [`Tbl`] (mode 0 the normal; no other).
-    pub(crate) fn words(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::Normal => &self.normal,
-            _ => &[],
-        }
+/// The second form's table by [`Tbl`] (`boss08BNormalActTbl`,
+/// `boss08BSuperActTbl`).
+pub(crate) fn words_b(cx: &Cx, t: Tbl) -> &'static [i32] {
+    match t {
+        Tbl::Normal => tables(cx).corbenik_b_normal,
+        Tbl::Super => tables(cx).corbenik_b_super,
+        _ => &[],
     }
+}
 
-    /// The second form's table by [`Tbl`] (0 the normal, 1 the super).
-    pub(crate) fn words_b(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::Normal => &self.b_normal,
-            Tbl::Super => &self.b_super,
-            _ => &[],
-        }
+/// The third form's table by [`Tbl`] (mode 0 its first, from half its HP
+/// the normal).
+pub(crate) fn words_c(cx: &Cx, t: Tbl) -> &'static [i32] {
+    match t {
+        Tbl::Normal => tables(cx).corbenik_c_first,
+        Tbl::Super => tables(cx).corbenik_c_normal,
+        _ => &[],
     }
+}
+
+/// A killer eye's pattern table by its slot (the killer, the downer and
+/// the rips tables).
+pub(crate) fn killer_acts(cx: &Cx, slot: usize) -> &'static [i32] {
+    let t = tables(cx);
+    [t.corbenik_killer_acts, t.corbenik_downner_acts, t.corbenik_rips_acts].get(slot).copied().unwrap_or(&[])
 }
 
 /// What Corbenik and its effects show beside its body.
@@ -351,10 +298,6 @@ pub enum Gen {
 
 /// The base's patterns as Corbenik's forms run them: both w lanes 1.
 const BASE_ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
-
-fn bits(v: &[f32]) -> Vec<F> {
-    v.iter().map(|f| f.to_bits()).collect()
-}
 
 // --- shared by the forms ---------------------------------------------------------------
 

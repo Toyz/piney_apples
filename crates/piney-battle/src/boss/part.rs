@@ -5,7 +5,7 @@
 
 use std::ops::{Deref, DerefMut};
 
-use super::{Boss, BossBase, BossDef, Class, Cx, SystemKind};
+use super::{Boss, BossBase, BossDef, Cx, SystemKind};
 
 /// A part's own members, as its boss holds them: its [`Class`] variant,
 /// or its system on the def's list.
@@ -165,32 +165,8 @@ part_system! {
     super::magus::leaf::Leaf,
     super::kyvia::core::Core,
     super::kyvia::gomora::Gomora,
-}
-
-/// `PartClass` for the parts' variants.
-macro_rules! part_class {
-    ($($t:ty => $v:ident),* $(,)?) => {$(
-        impl PartClass for $t {
-            fn take_from(b: &mut Boss) -> Option<Box<Self>> {
-                match std::mem::replace(&mut b.class, Class::Plain) {
-                    Class::$v(x) => Some(x),
-                    other => {
-                        b.class = other;
-                        None
-                    }
-                }
-            }
-
-            fn put_into(b: &mut Boss, x: Box<Self>) {
-                b.class = Class::$v(x);
-            }
-        }
-    )*};
-}
-
-part_class! {
-    super::corbenik::seed::Seed => CorbenikSeed,
-    super::corbenik::second::Root => CorbenikRoot,
-    super::corbenik::eye::Eye => CorbenikEye,
-    super::corbenik::eye::Killer => CorbenikKiller,
+    super::corbenik::seed::Seed,
+    super::corbenik::second::Root,
+    super::corbenik::eye::Eye,
+    super::corbenik::eye::Killer,
 }

@@ -12,8 +12,9 @@ use super::eye::{self, Eye, Killer};
 use super::laser::{Refrect, Tera};
 use super::{Gen, Pic, manager_pass_x, word};
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
+use crate::boss::systems::{BossSystem, Hook, Others, Systems};
 use crate::boss::{
-    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
+    Anm, BaseActs, BodyDraw, Boss, BossBase, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
 };
 use crate::boss::{Part, Parts};
 use crate::enemy_ai::get_dirc;
@@ -153,7 +154,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     });
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
-    b.anm_tbl = cx.data.corbenik.c_anims.clone();
+    b.anm_tbl = super::clips(super::tables(cx).corbenik_c_anims);
     b.exit = 0;
     b.draw_sw = 1;
     b.body_hit_sw = 1;
@@ -208,7 +209,9 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     }
     x.eyes.put(cx);
     x.killers.put(cx);
-    Boss::of(&crate::boss::defs::CORBENIK_THIRD, b, Class::CorbenikC(x))
+    let mut boss = Boss::build(&crate::boss::defs::CORBENIK_THIRD, b);
+    *boss.systems.get_mut::<Third>().expect("the third form's def has its own") = *x;
+    boss
 }
 
 /// `SetupSlave` (0x003bd960): the sixteen eyes made (each its own
@@ -234,53 +237,36 @@ fn setup_slave(x: &mut Third, cx: &mut Cx) {
 
 // --- the frame ------------------------------------------------------------------------------------
 
-impl crate::boss::BossClass for Third {
-    /// The eyes, then the killer eyes.
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
+impl BossSystem for Third {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        let x = self;
+        match hook {
+            // The eyes and killer eyes out of their characters for the
+            // frame (or the affect), and back.
+            Hook::Lend => {
+                x.eyes = Parts::take(cx, &x.eye_me);
+                x.killers = Parts::take(cx, &x.killer_me);
+            }
+            Hook::Return => {
+                x.eyes.put(cx);
+                x.killers.put(cx);
+            }
+            Hook::Pass => manager_pass_x(b, cx, Some(x)),
+            Hook::Think => think(b, x, cx),
+            Hook::PreDraw if b.draw_sw != 0 => pre_draw_anm(b, x, cx),
+            Hook::Draw if b.draw_sw != 0 => draw(b, x, cx),
+            Hook::Action => slave(b, x, cx),
+            Hook::Affect => affect(b, x, cx),
+            _ => {}
+        }
+    }
+
+    /// The body where it stands; the eyes, then the killer eyes.
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body =
+            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
         out.parts.extend(self.eye_me.iter().chain(self.killer_me.iter()));
     }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
-    }
-}
-
-/// The effect manager's pass, then `ccBoss08_c::Main` (0x003b99b0, the
-/// base's).
-pub(crate) fn main(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
-    x.eyes = Parts::take(cx, &x.eye_me);
-    x.killers = Parts::take(cx, &x.killer_me);
-    manager_pass_x(b, cx, Some(x));
-    frame(b, x, cx);
-    x.eyes.put(cx);
-    x.killers.put(cx);
-}
-
-fn frame(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
-    if b.exit != 0 {
-        return;
-    }
-    let me = cx.me;
-    b.prologue(cx);
-    b.tick_stop();
-    think(b, x, cx);
-    b.lock_party(cx);
-    b.move_(cx);
-    if b.draw_sw != 0 {
-        pre_draw_anm(b, x, cx);
-        draw(b, x, cx);
-    }
-    slave(b, x, cx);
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
 
 /// `PreDrawAnm` (0x003b99d0): the base's (the clip forward), then the
@@ -370,7 +356,7 @@ impl Patterns for Third {
     const ACTS: BaseActs = super::BASE_ACTS;
 
     fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        cx.data.corbenik.words_c(b.pat_tbl)
+        super::words_c(cx, b.pat_tbl)
     }
 
     fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
@@ -961,7 +947,7 @@ fn on_slave_attack(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
         1 => {
             if k == -1 {
                 let n = cx.cc.rand() % 3;
-                k = word(&cx.data.corbenik.slave_ids, n.abs());
+                k = word(super::tables(cx).corbenik_slave_ids, n.abs());
             }
             let v = x.killer_view(b, cx);
             let mut found = false;
@@ -1249,10 +1235,9 @@ fn calc_tera_laser_pos(x: &mut Third, cx: &mut Cx) {
 /// off the way back from the target), all set off from 1500 behind the
 /// target and 200 up at `v0` slowing to arrive in `n` frames.
 fn setup_refrect_laser_pos(b: &BossBase, x: &mut Third, cx: &mut Cx, v0: F, n: i32) {
-    let radii = &cx.data.corbenik.refrect_radii;
-    let heights = &cx.data.corbenik.refrect_heights;
-    let r = |k: usize| radii.get(k).copied().unwrap_or(0);
-    let h = |k: usize| heights.get(k).copied().unwrap_or(0);
+    let t = super::tables(cx);
+    let r = |k: usize| t.corbenik_refrect_radii.get(k).map_or(0, |f| f.to_bits());
+    let h = |k: usize| t.corbenik_refrect_heights.get(k).map_or(0, |f| f.to_bits());
     for p in &mut x.eyes {
         p.x.act_pos = cx.scene.chars[p.me].pos;
     }
@@ -1329,8 +1314,6 @@ fn calc_laser_turning_points(cx: &mut Cx) -> Vec<usize> {
 /// stream 88 and the normal table; at 0 the death (14); a hit's note
 /// (`ccSeOn3DNote(195, pos, abs(ccRand() % 5) + 60)`).
 pub(crate) fn affect(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
-    x.eyes = Parts::take(cx, &x.eye_me);
-    x.killers = Parts::take(cx, &x.killer_me);
     b.base_affect_with(cx, &mut |b, cx, n, forbid, af| change_action(b, x, cx, n, forbid, af));
     let me = cx.me;
     let t = cx.scene.chars[me].affect.ty;
@@ -1351,6 +1334,4 @@ pub(crate) fn affect(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             cx.out(Out::Se3dNote { se: 195, pos, note: n as u8 });
         }
     }
-    x.eyes.put(cx);
-    x.killers.put(cx);
 }

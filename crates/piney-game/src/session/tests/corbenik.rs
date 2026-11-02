@@ -2,8 +2,10 @@
 //! first two forms in one task, then the third once the save says so;
 //! under god from the arena with shots. docs/engine/boss-corbenik.md.
 
+use piney_battle::boss::corbenik::first::First;
 use piney_battle::boss::corbenik::seed;
-use piney_battle::boss::{Boss, Class, defs};
+use piney_battle::boss::defs::{CORBENIK, CORBENIK_SECOND, CORBENIK_THIRD};
+use piney_battle::boss::{Boss, defs};
 
 use super::arena::{EVENT_313, EVENT_313_THIRD, arena_session, god_shots_for};
 use super::*;
@@ -117,7 +119,7 @@ fn corbenik_fight_to_its_end() {
         let c = a.world().combat();
         let Some(me) = c.boss_char() else { return };
         let Some(b) = c.scene.chars[me].foe_state().and_then(|x| x.boss.as_ref()) else { return };
-        if let Class::Corbenik(x) = &b.class {
+        if let Some(x) = b.systems.get::<First>() {
             for (i, &k) in x.seed_me.iter().enumerate() {
                 let Some(sb) = c.scene.chars[k].foe_state().and_then(|x| x.boss.as_ref()) else { continue };
                 let now = sb.base.act_num;
@@ -172,7 +174,7 @@ fn corbenik_fight_to_its_end() {
             let at = |k: usize| c.scene.chars[k].pos.map(f32::from_bits);
             let kite = c.members.first().map(|&(_, k)| at(k)).unwrap_or_default();
             let d = |q: [f32; 4]| (q[0] - kite[0]).hypot(q[1] - kite[1]) as i32;
-            if let Class::Corbenik(x) = &b.class {
+            if let Some(x) = b.systems.get::<First>() {
                 let seeds: Vec<String> = (x.seed_me.iter())
                     .filter_map(|&k| {
                         let sb = c.scene.chars[k].foe_state()?.boss.as_ref()?;
@@ -185,10 +187,10 @@ fn corbenik_fight_to_its_end() {
             }
         }
         last = hp;
-        let form = match b.class {
-            Class::Corbenik(_) => 1,
-            Class::CorbenikB(_) => 2,
-            Class::CorbenikC(_) => 3,
+        let form = match b.def {
+            d if d == &CORBENIK => 1,
+            d if d == &CORBENIK_SECOND => 2,
+            d if d == &CORBENIK_THIRD => 3,
             _ => return,
         };
         if forms.last().map(|&(_, n, _)| n) != Some(form) {

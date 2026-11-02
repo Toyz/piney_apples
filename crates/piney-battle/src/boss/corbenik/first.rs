@@ -11,8 +11,9 @@ use super::eff::{self, Fx};
 use super::seed::{self, Seed};
 use super::{Gen, Pic, SEEDS, manager_pass, word, wrap_hi};
 use crate::boss::Parts;
+use crate::boss::systems::{BossSystem, Hook, Others, Systems};
 use crate::boss::{
-    BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_change_next_pattern,
+    BaseActs, BodyDraw, Boss, BossBase, Cx, EffKind, Out, Output, Patterns, Tbl, VF0, base_change_next_pattern,
     base_exec_pattern_index,
 };
 use crate::enemy_ai::{get_dirc, rand_f2};
@@ -124,7 +125,7 @@ fn seeds_targetable(x: &mut First, cx: &mut Cx, on: bool) {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = crate::boss::kyvia::plain_boss();
-    b.anm_tbl = cx.data.corbenik.anims.clone();
+    b.anm_tbl = super::clips(super::tables(cx).corbenik_anims);
     b.exit = 0;
     b.draw_sw = 1;
     b.body_hit_sw = 1;
@@ -156,7 +157,9 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     x.seeds = Parts::take(cx, &x.seed_me);
     set_pattern_mode(&mut b, &mut x, cx, 0);
     x.seeds.put(cx);
-    Boss::of(&crate::boss::defs::CORBENIK, b, Class::Corbenik(x))
+    let mut boss = Boss::build(&crate::boss::defs::CORBENIK, b);
+    *boss.systems.get_mut::<First>().expect("the first form's def has its own") = *x;
+    boss
 }
 
 /// `SetPatternMode(m)` (0x003adc30): mode 0 the normal table (any other a
@@ -166,33 +169,46 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut First, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = cx.data.corbenik.words(t);
+    let tbl = super::words(cx, t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 // --- the frame -----------------------------------------------------------------------------
 
-impl crate::boss::BossClass for First {
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
+impl BossSystem for First {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        let x = self;
+        match hook {
+            // The seeds out of their characters for the frame (or the
+            // affect), and back.
+            Hook::Lend => x.seeds = Parts::take(cx, &x.seed_me),
+            Hook::Return => x.seeds.put(cx),
+            Hook::Pass => manager_pass(b, cx),
+            Hook::Think => think(b, x, cx),
+            Hook::PreDraw if b.draw_sw != 0 => pre_draw_anm(b),
+            // `Slave` (0x003ad030): each seed not exited, its own `Main`.
+            Hook::Action => {
+                for k in 0..SEEDS {
+                    if x.seeds[k].b.base.exit == 0 {
+                        seed::main(b, x, k, cx);
+                    }
+                }
+            }
+            Hook::Affect => affect(b, x, cx),
+            _ => {}
+        }
+    }
+
+    /// The body where it stands, its seeds as parts.
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut Output) {
+        out.body =
+            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
         out.parts.extend(self.seed_me);
     }
 
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-
-    fn next(&mut self, b: &mut BossBase, cx: &mut Cx) -> Option<Boss> {
+    /// Once exited, the second form in its place.
+    fn hand_over(&mut self, b: &mut BossBase, cx: &mut Cx) -> Option<Boss> {
         (b.exit != 0).then(|| next_form(b, self, cx)).flatten()
-    }
-
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
     }
 }
 
@@ -220,39 +236,6 @@ fn next_form(b: &mut BossBase, x: &First, cx: &mut Cx) -> Option<Boss> {
     Some(super::second::new(cx, kite_pos, kite_dirc, b.center_pos, effects))
 }
 
-/// The effect manager's pass, then `ccBoss08::Main` (0x003ad000):
-/// `ccBoss::Main` (its `Slave` each seed's own `Main`), `hold` cleared.
-pub(crate) fn main(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
-    x.seeds = Parts::take(cx, &x.seed_me);
-    manager_pass(b, cx);
-    frame(b, x, cx);
-    x.seeds.put(cx);
-    cx.scene.chars[cx.me].cond[cond::HOLD] = 0;
-}
-
-/// `ccBoss::Main` (QUA gcmn 0x0035fda0) on the first form: `PreDrawAnm`
-/// its own (the blink, the vibe's scale), `Slave` the seeds'.
-fn frame(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
-    if b.exit != 0 {
-        return;
-    }
-    b.prologue(cx);
-    b.tick_stop();
-    think(b, x, cx);
-    b.lock_party(cx);
-    b.move_(cx);
-    if b.draw_sw != 0 {
-        pre_draw_anm(b);
-        b.draw(cx);
-    }
-    // `Slave` (0x003ad030): each seed not exited, its own `Main`.
-    for k in 0..SEEDS {
-        if x.seeds[k].b.base.exit == 0 {
-            seed::main(b, x, k, cx);
-        }
-    }
-}
-
 /// `ccBoss08::PreDrawAnm` (0x003ad5d0): the clip forward. Its blink
 /// and its vibe's scale are the flash's alone (`_ChangeVibeType(4)`,
 /// which nothing calls): the scale stays 1 and no fog is set.
@@ -266,7 +249,7 @@ impl Patterns for First {
     const ACTS: BaseActs = super::BASE_ACTS;
 
     fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        cx.data.corbenik.words(b.pat_tbl)
+        super::words(cx, b.pat_tbl)
     }
 
     fn change_next_pattern(&mut self, b: &mut BossBase, cx: &mut Cx) {
@@ -731,12 +714,6 @@ fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
 /// mark and the HP down; at 0 the death (each seed's too); else a type-1
 /// blow the damage act. No cheat, no drain.
 pub(crate) fn affect(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
-    x.seeds = Parts::take(cx, &x.seed_me);
-    affect_of(b, x, cx);
-    x.seeds.put(cx);
-}
-
-fn affect_of(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     let me = cx.me;
     if b.act_forbid == 2 || b.lock_player != 0 {
         return;

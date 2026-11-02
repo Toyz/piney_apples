@@ -12,8 +12,9 @@ use super::third::Third;
 use super::{Pic, word};
 use crate::boss::Part;
 use crate::boss::kyvia::{as_me, dp, fabs, fp, head, plain_boss, set_base_param};
+use crate::boss::systems::{BossSystem, Hook, Others, Systems};
 use crate::boss::{
-    AfterImageParams, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index,
+    AfterImageParams, BaseActs, BossBase, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -134,7 +135,7 @@ pub struct MasterView {
 pub(crate) fn new_eye(cx: &mut Cx, me: usize) -> Part<Eye> {
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
-    b.anm_tbl = cx.data.corbenik.eye_anims.clone();
+    b.anm_tbl = super::clips(super::tables(cx).corbenik_eye_anims);
     b.exit = 0;
     b.draw_sw = 1;
     let pos = cx.scene.chars[me].pos;
@@ -148,7 +149,7 @@ pub(crate) fn new_eye(cx: &mut Cx, me: usize) -> Part<Eye> {
         *r = rand_f(cx.cc, 0x3c8e_fa35);
     }
     let x = Eye { hit, pos_b: VF0, pos_bp: VF0, move_vector_b: VF0, rot_dirc, ..Eye::default() };
-    Part { b: Box::new(Boss::of(&crate::boss::defs::EYE, b, Class::Plain)), x: Box::new(x), me }
+    Part::of(&crate::boss::defs::EYE, b, x, me)
 }
 
 /// `SetupSlave`'s part of an eye (0x003bd960): `SetMaster`, on, act 0 held
@@ -344,7 +345,7 @@ pub struct Killer {
 pub(crate) fn new_killer(cx: &mut Cx, me: usize, kite_pos: V4, kite_dirc: V4) -> Part<Killer> {
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
-    b.anm_tbl = cx.data.corbenik.killer_anims.clone();
+    b.anm_tbl = super::clips(super::tables(cx).corbenik_killer_anims);
     b.exit = 1;
     b.draw_sw = 0;
     b.body_hit_sw = 0;
@@ -360,7 +361,7 @@ pub(crate) fn new_killer(cx: &mut Cx, me: usize, kite_pos: V4, kite_dirc: V4) ->
     }
     let eai = AfterImageParams { color: 0xffff_ffff, ss: VF0, es: VF0, ..AfterImageParams::default() };
     let x = Killer { hit, eai, spin: VF0, press_start: VF0, ..Killer::default() };
-    Part { b: Box::new(Boss::of(&crate::boss::defs::KILLER_EYE, b, Class::Plain)), x: Box::new(x), me }
+    Part::of(&crate::boss::defs::KILLER_EYE, b, x, me)
 }
 
 /// What a killer eye reads of the body.
@@ -535,7 +536,7 @@ impl Patterns for KillerRules<'_> {
     const ACTS: BaseActs = super::BASE_ACTS;
 
     fn words<'d>(&self, _b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        &cx.data.corbenik.killer_acts[self.slot]
+        super::killer_acts(cx, self.slot)
     }
 
     /// `ExecPatternIndex` (0x003bfe90): 7 the wander (act 8, its length the
@@ -563,7 +564,7 @@ impl Patterns for KillerRules<'_> {
             }
             14 => {
                 let n = cx.cc.rand() % 13;
-                let sid = word(&cx.data.corbenik.killer_skills, n.abs());
+                let sid = word(super::tables(cx).corbenik_killer_skills, n.abs());
                 if let Some(tp) = target
                     && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
                 {
@@ -578,7 +579,7 @@ impl Patterns for KillerRules<'_> {
             }
             15 => {
                 let n = cx.cc.rand() % 3;
-                let sid = word(&cx.data.corbenik.killer_compels, n.abs());
+                let sid = word(super::tables(cx).corbenik_killer_compels, n.abs());
                 if let Some(tp) = target
                     && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
                 {
@@ -691,7 +692,7 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
                 b.transparency = t;
                 b.set_transparency = t;
             } else if c == 120 {
-                let turn = word_f(&cx.data.corbenik.killer_turns, x.slave_id.rem_euclid(3));
+                let turn = word_f(super::tables(cx).corbenik_killer_turns, x.slave_id.rem_euclid(3));
                 let mut a = ee::add(ee::sub(b.dirc[2], HALF_PI), ee::mul(0x3f06_0a92, turn));
                 if !ee::le(a, PI) {
                     a = ee::sub(a, TWO_PI);
@@ -775,8 +776,8 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     }
 }
 
-fn word_f(tbl: &[F], i: i32) -> F {
-    usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
+fn word_f(tbl: &[f32], i: i32) -> F {
+    usize::try_from(i).ok().and_then(|k| tbl.get(k)).map_or(0, |f| f.to_bits())
 }
 
 /// `OnThinkBodyPress` (0x003c0c30), six steps: its target (or the nearest;
@@ -952,9 +953,9 @@ pub(crate) fn on_exit(b: &mut BossBase, _cx: &mut Cx) {
     b.exit = 1;
 }
 
-impl crate::boss::BossClass for Eye {
+impl BossSystem for Eye {
     /// `ccBoss08Eye::PreDrawAnm` (0x003bed70): turned XYZ.
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut crate::boss::Output) {
         let pos = cx.scene.chars[cx.me].pos;
         let m = geom::rot_matrix_x(&geom::unit_matrix(), b.dirc[0]);
         let m = geom::rot_matrix_y(&m, b.dirc[1]);
@@ -969,9 +970,11 @@ impl crate::boss::BossClass for Eye {
     }
 }
 
-impl crate::boss::BossClass for Killer {
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, cx);
+impl BossSystem for Killer {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Affect {
+            affect(b, cx);
+        }
     }
 }
 

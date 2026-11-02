@@ -7,7 +7,7 @@ use super::first::{self, First, act};
 use super::seed::{self, Seed};
 use super::{Pic, ROW, SEEDS};
 use crate::affect::{self, AffectCtx};
-use crate::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, FxCall, Out, Tbl, VF0};
+use crate::boss::{Boss, BossData, BossEnv, CamView, Cx, FxCall, Out, Tbl, VF0};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -162,18 +162,13 @@ impl Fight {
     }
 
     fn first(&mut self) -> First {
-        match &self.boss().class {
-            Class::Corbenik(x) => (**x).clone(),
-            _ => panic!("not Corbenik"),
-        }
+        self.boss().systems.get::<First>().expect("the first form's own").clone()
     }
 
     fn seed(&self, s: usize) -> (Boss, Seed) {
         let b = self.scene.chars[s].foe_state().unwrap().boss.as_ref().unwrap();
-        match &b.class {
-            Class::CorbenikSeed(x) => ((**b).clone(), (**x).clone()),
-            _ => panic!("not a seed"),
-        }
+        let x = b.systems.get::<Seed>().expect("a seed's own");
+        ((**b).clone(), x.clone())
     }
 }
 
@@ -281,10 +276,7 @@ fn fight_b() -> Option<Fight> {
 
 impl Fight {
     fn second(&mut self) -> super::second::Second {
-        match &self.boss().class {
-            Class::CorbenikB(x) => (**x).clone(),
-            _ => panic!("not the second form"),
-        }
+        self.boss().systems.get::<super::second::Second>().expect("the second form's own").clone()
     }
 }
 
@@ -320,7 +312,7 @@ fn the_barrier_takes_the_blows_and_its_count_kills() {
     let Some(mut f) = fight_b() else { return };
     let me = f.me;
     let hp = f.scene.chars[me].hp;
-    if let Class::CorbenikB(x) = &mut f.boss().class {
+    if let Some(x) = f.boss().systems.get_mut::<super::second::Second>() {
         x.barrier = true;
         x.life_counter = 4100;
     }
@@ -352,10 +344,7 @@ fn fight_c() -> Option<Fight> {
 
 impl Fight {
     fn third(&mut self) -> super::third::Third {
-        match &self.boss().class {
-            Class::CorbenikC(x) => (**x).clone(),
-            _ => panic!("not the third form"),
-        }
+        self.boss().systems.get::<super::third::Third>().expect("the third form's own").clone()
     }
 
     fn part(&self, c: usize) -> &Boss {
@@ -378,7 +367,7 @@ fn the_third_form_rides_its_eyes_on_the_dummy() {
     for &e in &x.eye_me {
         assert_eq!(f.part(e).base.exit, 0, "an eye is in");
         let (ep, b) = (f.scene.chars[e].pos, f.part(e));
-        let Class::CorbenikEye(y) = &b.class else { panic!("not an eye") };
+        let y = b.systems.get::<super::eye::Eye>().expect("an eye's own");
         let want = crate::geom::vadd([pos[0], pos[1], piney_data::field::ee::add(pos[2], 0x4396_0000), ONE], y.pos_b);
         assert_eq!(ep[..3], want[..3], "on the dummy plus its offset");
     }

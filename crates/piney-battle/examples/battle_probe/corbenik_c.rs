@@ -13,7 +13,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::eye::{Eye, Killer};
 use piney_battle::boss::corbenik::third::{self, Third};
 use piney_battle::boss::corbenik::{Pic, laser};
-use piney_battle::boss::{Boss, BossData, BossEnv, Class, Cx, FxCall, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, Cx, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -145,10 +145,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, dummy: V4, t:
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
-        let killers = match &boss.class {
-            Class::CorbenikC(x) => x.killer_me,
-            _ => [0; 3],
-        };
+        let killers = boss.systems.get::<Third>().map_or([0; 3], |x| x.killer_me);
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let mut out = Vec::new();
         let cell = RefCell::new(std::mem::take(&mut cc));
@@ -304,8 +301,7 @@ fn third_json(b: &Boss, x: &Third) -> String {
 fn eye_json(scene: &Scene, e: usize) -> String {
     let ch = &scene.chars[e];
     let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()) else { return "[]".into() };
-    let Class::CorbenikEye(x) = &b.class else { return "[]".into() };
-    let x: &Eye = x;
+    let Some(x) = b.systems.get::<Eye>() else { return "[]".into() };
     format!(
         "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]",
         b.base.act_num,
@@ -331,8 +327,7 @@ fn eye_json(scene: &Scene, e: usize) -> String {
 fn killer_json(scene: &Scene, k: usize) -> String {
     let ch = &scene.chars[k];
     let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()) else { return "[]".into() };
-    let Class::CorbenikKiller(x) = &b.class else { return "[]".into() };
-    let x: &Killer = x;
+    let Some(x) = b.systems.get::<Killer>() else { return "[]".into() };
     format!(
         "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{},{}]",
         b.base.act_num,
@@ -375,7 +370,7 @@ fn frame_json(
     cc: &Genrand,
     menu: &[i32; 7],
 ) -> String {
-    let Class::CorbenikC(x) = &b.class else { return "{}".into() };
+    let Some(x) = b.systems.get::<Third>() else { return "{}".into() };
     let ch = &scene.chars[me];
     let effs: Vec<String> = b
         .base

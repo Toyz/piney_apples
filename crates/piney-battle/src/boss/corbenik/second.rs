@@ -11,8 +11,9 @@ use piney_data::field::ee;
 use super::eff::{self, Fx};
 use super::{Pic, manager_pass, word, wrap_hi, wrap_lo};
 use crate::boss::kyvia::{as_me, plain_boss, set_base_param};
+use crate::boss::systems::{BossSystem, Hook, Others, Systems};
 use crate::boss::{
-    AfterImageParams, Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
+    AfterImageParams, Anm, BaseActs, BodyDraw, Boss, BossBase, Cx, EffKind, Out, Patterns, Tbl, VF0,
     base_change_next_pattern, base_exec_pattern_index, blur,
 };
 use crate::boss::{Part, Parts};
@@ -220,7 +221,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     let mut b = plain_boss();
     b.effects = effects;
     set_base_param(cx, me, ROW);
-    b.anm_tbl = cx.data.corbenik.b_anims.clone();
+    b.anm_tbl = super::clips(super::tables(cx).corbenik_b_anims);
     b.exit = 0;
     b.draw_sw = 1;
     b.body_hit_sw = 1;
@@ -243,7 +244,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     });
     x.anm_w.set(ANM_WAVE, cx.clips);
     x.anm_root_l.set(ANM_ROOT_L, cx.clips);
-    if let Some(Some(c)) = cx.data.corbenik.dmg_barrier.first() {
+    if let Some(Some(c)) = super::tables(cx).corbenik_dmg_barrier.first() {
         x.anm_barrier.set(c, cx.clips);
     }
     b.change_action(cx, act::NEUTRAL, 0, true);
@@ -254,7 +255,9 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     cx.out(Out::Blur(blur::Set::Enable));
     init_elements(&b, &mut x, cx);
     set_pattern_mode(&mut b, &mut x, cx, 0);
-    Boss::of(&crate::boss::defs::CORBENIK_SECOND, b, Class::CorbenikB(x))
+    let mut boss = Boss::build(&crate::boss::defs::CORBENIK_SECOND, b);
+    *boss.systems.get_mut::<Second>().expect("the second form's def has its own") = *x;
+    boss
 }
 
 /// `ccBoss08Root::ccBoss08Root` (0x003b8c10): row 8, its clips by
@@ -263,16 +266,16 @@ fn new_root(cx: &mut Cx, me: usize, k: usize) -> Part<Root> {
     let mut b = plain_boss();
     set_base_param(cx, me, ROW);
     b.anm_tbl = if cx.cc.rand() & 1 != 0 {
-        cx.data.corbenik.root_anims_a.clone()
+        super::clips(super::tables(cx).corbenik_root_anims_a)
     } else {
-        cx.data.corbenik.root_anims_b.clone()
+        super::clips(super::tables(cx).corbenik_root_anims_b)
     };
     b.anm.speed = 512;
     b.body_hit_sw = 0;
     b.draw_sw = 1;
     b.exit = 1;
     let _ = k;
-    Part { b: Box::new(Boss::of(&crate::boss::defs::ROOT, b, Class::Plain)), x: Box::new(Root::default()), me }
+    Part::of(&crate::boss::defs::ROOT, b, Root::default(), me)
 }
 
 /// `_InitElement` (0x003b74b0): each element's clip the body's own, a
@@ -299,7 +302,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = cx.data.corbenik.words_b(t);
+    let tbl = super::words_b(cx, t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -308,8 +311,9 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
 /// `ccBoss08Root::PreDrawAnm` (0x003b8fb0, `@1033`): at 1.5x.
 const ROOT_SCALE: F = 0x3fc0_0000;
 
-impl crate::boss::BossClass for Root {
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+impl BossSystem for Root {
+    /// Its body at its place, at 1.5x.
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut crate::boss::Output) {
         let pos = cx.scene.chars[cx.me].pos;
         out.body = crate::boss::BodyDraw {
             pos,
@@ -321,57 +325,38 @@ impl crate::boss::BossClass for Root {
     }
 }
 
-impl crate::boss::BossClass for Second {
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
-        out.parts.extend(self.root_me);
-    }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
-    }
-}
-
-/// The effect manager's pass, then `ccBoss08_b::Main` (0x003b2610).
-pub(crate) fn main(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
-    x.roots = Parts::take(cx, &x.root_me);
-    manager_pass(b, cx);
-    frame(b, x, cx);
-    x.roots.put(cx);
-}
-
-fn frame(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
-    if b.exit != 0 {
-        return;
-    }
-    let me = cx.me;
-    b.prologue(cx);
-    b.tick_stop();
-    // The barrier's message's wait.
-    if b.act_num != act::DIE && x.barrier && !x.time_up && x.msg_shown {
-        let c = x.msg_count;
-        x.msg_count = c - 1;
-        if c <= 0 {
-            x.time_up = true;
+impl BossSystem for Second {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        let x = self;
+        match hook {
+            // The roots out of their characters for the frame, and back.
+            Hook::Lend => x.roots = Parts::take(cx, &x.root_me),
+            Hook::Return => x.roots.put(cx),
+            Hook::Pass => manager_pass(b, cx),
+            Hook::Think => {
+                // The barrier's message's wait.
+                if b.act_num != act::DIE && x.barrier && !x.time_up && x.msg_shown {
+                    let c = x.msg_count;
+                    x.msg_count = c - 1;
+                    if c <= 0 {
+                        x.time_up = true;
+                    }
+                }
+                think(b, x, cx);
+            }
+            Hook::PreDraw if b.draw_sw != 0 => pre_draw_anm(b, x, cx),
+            Hook::Action => slave(b, x, cx),
+            Hook::Affect => affect(b, x, cx),
+            _ => {}
         }
     }
-    think(b, x, cx);
-    b.lock_party(cx);
-    b.move_(cx);
-    if b.draw_sw != 0 {
-        pre_draw_anm(b, x, cx);
-        b.draw(cx);
+
+    /// The body where it stands, its roots as parts.
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body =
+            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
+        out.parts.extend(self.root_me);
     }
-    slave(b, x, cx);
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
 
 /// `PreDrawAnm` (0x003b3600): the clip forward (not in the press past its
@@ -416,7 +401,7 @@ impl Patterns for Second {
     const ACTS: BaseActs = super::BASE_ACTS;
 
     fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        cx.data.corbenik.words_b(b.pat_tbl)
+        super::words_b(cx, b.pat_tbl)
     }
 
     /// `ccBoss08_b::ChangeNextPattern` (0x003b3200): a barrier asked for is
@@ -1705,7 +1690,20 @@ fn root_order(b: &mut BossBase, cx: &mut Cx, n: i16) {
 /// over, a quake of 30 frames and the ground's radiate, then still; dying
 /// (14), faded out over 15 frames. Drawn at 1.5.
 fn root_main(b: &mut BossBase, x: &mut Root, cx: &mut Cx) {
-    b.base_main(cx, &mut |b, cx| match b.act_num {
+    if b.exit != 0 {
+        return;
+    }
+    b.prologue(cx);
+    b.tick_stop();
+    root_think(b, x, cx);
+    b.lock_party(cx);
+    b.move_(cx);
+    b.forward_and_draw(cx);
+}
+
+/// `ccBoss08Root::Think` (0x003b8e80).
+fn root_think(b: &mut BossBase, x: &mut Root, cx: &mut Cx) {
+    match b.act_num {
         3 => {
             if b.anm_status != 0 {
                 x.quake_time = 30;
@@ -1724,7 +1722,7 @@ fn root_main(b: &mut BossBase, x: &mut Root, cx: &mut Cx) {
             b.set_transparency = t;
         }
         _ => {}
-    });
+    }
 }
 
 // --- Affect ---------------------------------------------------------------------------------------
@@ -1786,7 +1784,7 @@ pub(crate) fn affect(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                     x.msg_shown = true;
                     x.msg_count = 3630;
                 }
-                if let Some(Some(c)) = cx.data.corbenik.dmg_barrier.first() {
+                if let Some(Some(c)) = super::tables(cx).corbenik_dmg_barrier.first() {
                     x.anm_barrier.set(c, cx.clips);
                 }
                 x.flash_barrier = true;

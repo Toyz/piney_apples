@@ -38,7 +38,6 @@ use crate::rand::Rng;
 use crate::scene::Scene;
 use crate::tables::Tables;
 use crate::world::CharHit;
-use class::BossClass;
 pub use defs::BossDef;
 pub use output::{AnmLayer, Blend, BodyDraw, Figure, Follow, Output, PicFile, Picture, Root, Spot, Trail};
 pub use part::{Part, PartClass, Parts};
@@ -87,16 +86,15 @@ pub mod act {
     pub const RAND_DRIVE: i16 = 21;
 }
 
-/// Every boss's tables, for the volume ([`corbenik::CorbenikData`]).
+/// Every boss's tables, for the volume: none of its own now, each boss's
+/// a view of the volume's `tables::combat`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct BossData {
-    pub corbenik: corbenik::CorbenikData,
-}
+pub struct BossData;
 
 impl BossData {
     /// The volume's.
-    pub fn of(volume: piney_data::volume::Volume) -> BossData {
-        BossData { corbenik: corbenik::CorbenikData::of(volume) }
+    pub fn of(_volume: piney_data::volume::Volume) -> BossData {
+        BossData
     }
 }
 
@@ -104,22 +102,6 @@ impl BossData {
 /// `Affect` run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Class {
-    /// `ccBoss08`, the first form: its seeds are bosses of their own
-    /// characters.
-    Corbenik(Box<corbenik::first::First>),
-    /// `ccBoss08Seed`.
-    CorbenikSeed(Box<corbenik::seed::Seed>),
-    /// `ccBoss08_b`, the second form: its roots are bosses of their own
-    /// characters.
-    CorbenikB(Box<corbenik::second::Second>),
-    /// `ccBoss08Root`.
-    CorbenikRoot(Box<corbenik::second::Root>),
-    /// `ccBoss08_c`: Corbenik's third form; its eyes and killer eyes are
-    /// bosses of their own characters.
-    CorbenikC(Box<corbenik::third::Third>),
-    /// `ccBoss08Eye`, `ccBoss08KillerEye`.
-    CorbenikEye(Box<corbenik::eye::Eye>),
-    CorbenikKiller(Box<corbenik::eye::Killer>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }

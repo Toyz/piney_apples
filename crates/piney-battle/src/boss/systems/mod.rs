@@ -55,6 +55,8 @@ pub enum Hook {
     Lock,
     /// Its `PreDrawAnm` before the body's.
     PreDraw,
+    /// Its `Draw` in place of the body's (what it reads of the body drawn).
+    Draw,
     /// What its `Main` does after `ccBoss::Main`'s.
     Late,
     /// Its `Affect`.
@@ -211,6 +213,17 @@ systems! {
     Innis(super::innis::Innis),
     Images(super::innis::Images),
     Missiles(super::innis::Missiles),
+    /// Corbenik's forms' own (`ccBoss08`, `ccBoss08_b`, `ccBoss08_c`).
+    CorbenikFirst(super::corbenik::first::First),
+    CorbenikSecond(super::corbenik::second::Second),
+    CorbenikThird(super::corbenik::third::Third),
+    /// Corbenik's parts' own: a seed (`ccBoss08Seed`), a root
+    /// (`ccBoss08Root`), an eye (`ccBoss08Eye`), a killer eye
+    /// (`ccBoss08KillerEye`).
+    Seed(super::corbenik::seed::Seed),
+    Root(super::corbenik::second::Root),
+    Eye(super::corbenik::eye::Eye),
+    Killer(super::corbenik::eye::Killer),
     /// Kyvia's core's own (`kyviaCore`) and a gomora's (`kyviaGomora`).
     KyviaCore(super::kyvia::core::Core),
     Gomora(super::kyvia::gomora::Gomora),

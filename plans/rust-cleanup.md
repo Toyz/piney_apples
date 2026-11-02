@@ -368,6 +368,10 @@ Where the code does by hand, per kind, what a system should do once:
       image's `ccBoss::Main` its own, the slave's `base_main` gone) and
       its own; `InnisData` gone. The magic square stays one of its acts:
       its state is the acts' shared counters and camera.)
+      (worklog 555: Corbenik's three forms each its own system, its parts
+      lent, the first's hand-over its system's; a seed, a root, an eye
+      and a killer eye each its own system; `CorbenikData` gone, and with
+      it the last of `BossData`'s fields.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

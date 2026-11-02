@@ -11,7 +11,8 @@ use super::first::{self, First};
 use super::{Pic, SEED_ROW};
 use crate::boss::Part;
 use crate::boss::kyvia::{as_me, plain_boss, set_base_param};
-use crate::boss::{Boss, BossBase, Class, Cx, EffKind, Out, VF0};
+use crate::boss::systems::{BossSystem, Hook, Others, Systems};
+use crate::boss::{BossBase, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::param::cond;
@@ -81,14 +82,14 @@ pub const IMAGE: crate::boss::AfterImageParams = crate::boss::AfterImageParams {
 pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32) -> Part<Seed> {
     let mut b = plain_boss();
     set_base_param(cx, me, SEED_ROW);
-    b.anm_tbl = cx.data.corbenik.seed_anims.clone();
+    b.anm_tbl = super::clips(super::tables(cx).corbenik_seed_anims);
     cx.scene.chars[me].pos = VF0;
     b.dirc = VF0;
     let base = cx.scene.chars[me].base();
     let hit = CharHit { radius: base.width, height: base.height, kind: base.ty as u32, ..CharHit::default() };
     as_me(cx, me, |cx| b.change_action(cx, act::WAIT, 3, true));
     let x = Seed { master, slave_id: k, hit, exp_count: 150, blink_time: 30, ..Seed::default() };
-    Part { b: Box::new(Boss::of(&crate::boss::defs::SEED, b, Class::Plain)), x: Box::new(x), me }
+    Part::of(&crate::boss::defs::SEED, b, x, me)
 }
 
 /// `ccBoss08Seed::Main` (0x003b06a0), `x.seeds[k]` its own frame: the
@@ -401,8 +402,15 @@ fn on_dead(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
 const DRAW_UP: F = 0x4248_0000;
 const DRAW_SCALE: F = 0x4040_0000;
 
-impl crate::boss::BossClass for Seed {
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+impl BossSystem for Seed {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Affect {
+            affect(b, cx);
+        }
+    }
+
+    /// Its body at its place, drawn again at 3x 50 up.
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut crate::boss::Output) {
         let pos = cx.scene.chars[cx.me].pos;
         out.body = crate::boss::BodyDraw {
             pos,
@@ -411,10 +419,6 @@ impl crate::boss::BossClass for Seed {
             matrix: Some(super::pos_rot_zyx_scale([pos[0], pos[1], ee::add(pos[2], DRAW_UP), ONE], b.dirc, DRAW_SCALE)),
             again: b.draw_sw != 0 && b.exit == 0,
         };
-    }
-
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, cx);
     }
 }
 

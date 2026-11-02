@@ -3,7 +3,7 @@ title: Bosses - Corbenik
 status: partial
 volumes: QUA, INF
 covers: QUA gcmn.prg:0x003ac9f0-0x003b1a40 (boss08.cpp), 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003ad000 Main, 0x003ad030 Slave, 0x003ad0d0 Affect, 0x003ad460 Think, 0x003ad5d0 PreDrawAnm, 0x003ad9d0 SendMessage, 0x003adae0 ExecPatternIndex, 0x003adc30 SetPatternMode, 0x003adce0 OnThinkNeutral, 0x003ade20 ChangeNextPattern, 0x003ade90 _calcJumpPos, 0x003adf80 WaveFuncCB, 0x003adff0 OnThinkWave, 0x003ae780 OnThinkEscape, 0x003aea40 OnThinkSeed, 0x003aed10 OnThinkFlash, 0x003af090 OnThinkPollen, 0x003af190 OnThinkBodyPress, 0x003af4b0 OnThinkDie, 0x003af990 OnThinkMagic, 0x003aff40 _ChangeVibeType, 0x003affd0 _BeginBlink, 0x003b00b0 ccBoss08Seed::ccBoss08Seed, 0x003b03b0 ccBoss08Seed::Affect, 0x003b06a0 ccBoss08Seed::Main, 0x003b09f0 ccBoss08Seed::PreDrawAnm, 0x003b0ac0 ccBoss08Seed::Think, 0x003b0b50 ccBoss08Seed::Order, 0x003b0f40 OnThinkFly, 0x003b1440 OnExit, 0x003b1500 OnThinkCountDown, 0x003b17b0 OnThinkFire, 0x003b1970 OnThinkDead, 0x00376ea0 ccBossEffFlush::Draw, 0x00377c80 ccBossEffWave::Draw, 0x0037dd60 ccBossEffWaveCreate, 0x0037dec0 ccBossEffFlushCreate, 0x00360120 ccBoss::Move, 0x005ec630 boss08AnmTbl, 0x005ec690 boss08SeedAnmTbl, 0x005ec6e0 boss08ActNormalTbl, 0x003b1a50 boss08BBlurParamCB, 0x003b1b90 ccThBoss08b_Main, 0x003b1c50 ccBoss08_b::ccBoss08_b, 0x003b2610 ccBoss08_b::Main, 0x003b2a00 Slave, 0x003b2ae0 Affect, 0x003b3020 Think, 0x003b3200 ChangeNextPattern, 0x003b32f0 SetPatternMode, 0x003b33c0 ExecPatternIndex, 0x003b3600 PreDrawAnm, 0x003b3820 IsValidArea, 0x003b38a0 OnThinkNeutral, 0x003b3a40 OnThinkEscape, 0x003b3d00 OnThinkSybly, 0x003b4160 OnThinkWave, 0x003b4500 OnThinkStarDust, 0x003b4cd0 OnThinkBodyPress, 0x003b5b80 the barrier's message, 0x003b5cf0 the death, 0x003b5f60 OnThinkMagic, 0x003b6340 OnThinkSetupBarrier, 0x003b6750 the return, 0x003b6960 OnThinkRandomDrive, 0x003b6f50 _EntryElement, 0x003b7140 _DrawElement, 0x003b74b0 _InitElement, 0x003b7560 OnThinkRootDrain, 0x003b8910 SetupRoot, 0x003b8b00 EntryRoot, 0x003b8c10 ccBoss08Root::ccBoss08Root, 0x003b8e00 ccBoss08Root::Order, 0x003b8e80 ccBoss08Root::Think, 0x003b8fb0 ccBoss08Root::PreDrawAnm, 0x00372e10 ccBossEffTransform, 0x00374bb0 ccBossEffStarDustFlash, 0x00375c60 ccBossEffThunder3, 0x00378600 ccBossEffDrain::Draw, 0x00379600 ccBossEffLaserRain, 0x005ec730 boss08BNormalActTbl, 0x005ec790 boss08BSuperActTbl, 0x005ec7e0 boss08bAnmTbl, 0x005ec840 boss08RootAnmTblA, 0x005ec890 boss08RootAnmTblB, 0x003781e8 boss08DmgBarriar, 0x003b9070 ccThBoss08c_Main, 0x003b9140 _RefrectLaserCB, 0x003b9250 ccBoss08_c::ccBoss08_c, 0x003b9810 Affect, 0x003b99d0 PreDrawAnm, 0x003b9a50 Think, 0x003b9b90 SetPatternMode, 0x003b9c50 ExecPatternIndex, 0x003b9ff0 OnThinkNeutral, 0x003ba210 the death, 0x003ba9c0 OnThinkDataDrain, 0x003bad50 OnThinkEntryEye, 0x003bb460 OnThinkWave, 0x003bb750 OnThinkTeraLaser, 0x003bc430 OnThinkSlaveAttack, 0x003bc6c0 OnThinkWander, 0x003bc900 OnThinkLaser, 0x003bd6c0 ChangeAction, 0x003bd870 Slave, 0x003bd960 SetupSlave, 0x003bdbc0 EntryKiller, 0x003bdc50 CalcTeraLaserPos, 0x003bdf00 SetupRefrectLaserPos, 0x003be760 ResetRefrectLaserPos, 0x003be7c0 CalcLaserTurningPoints, 0x003be920 ccBoss08Eye, 0x003bf360 ccBoss08KillerEye, 0x00376f60 ccBossEffRefrectionLaser, 0x00377d40 ccBossEffEnergyGrow2, 0x003781e0 the tera laser's charge, 0x00378900 ccBossEffTeraLaser, 0x00360630 ccBoss::ExecPatternIndex, 0x00363d70 ccBossCam::SetMode, 0x0050fc70 boss08cAnmTbl, 0x0050fd20 the third form's first table, 0x0050fdd0 boss08CNormalActTbl
-worklog: 450, 451, 452, 453
+worklog: 450, 451, 452, 453, 555
 ---
 
 # Bosses - Corbenik
@@ -122,7 +122,7 @@ holds act changes off with forbid 3). 13 and 21 do nothing: no drain.
 ## The seeds
 
 `ccBoss08Seed` (row 44) lives in its own `ccChar` (the port: a character
-of its own, `Class::CorbenikSeed`). `Main` is the base's in another
+of its own, def `SEED`, its own system `seed::Seed`). `Main` is the base's in another
 order (the lock before the stop); `Move` is the base's (its body hit
 pushed out, the push's height dropped).
 
@@ -388,7 +388,18 @@ switch only note themselves.
 
 `piney_world::combat::boss` runs the forms where event 313 makes them
 (`entry 7 7`, field 8's arena), each by its def (`defs::CORBENIK`,
-`CORBENIK_SECOND`, `CORBENIK_THIRD`):
+`CORBENIK_SECOND`, `CORBENIK_THIRD`). Each form is one system of its own
+(`first::First`, `second::Second`, `third::Third`, worklog 555), its
+parts lent for the frame (`Lend`, `Return`): the effects' pass, then
+`ccBoss::Main`'s blocks around its `Think`, its `PreDrawAnm` (the third
+its own `Draw` too, which reads the body's matrix) and its `Slave`. The
+first form lends its seeds and the third its eyes for their `Affect`
+too; the first form's hand-over (`Boss::hand_over`, its def's
+`hand_over`) is the second form made as it exits. A seed, a root, an
+eye and a killer eye are each a def (`SEED`, `ROOT`, `EYE`,
+`KILLER_EYE`) of one system, its own; the roots' `Main` is written out
+from `ccBoss::Main`'s blocks. The tables are views of the volume's
+`tables::combat`.
 
 - **The start.** `ccThBoss08` reads `saveData` +0x652f (`eventStatus[55]`,
   which block 18 adds 1 to): 1 makes the third form (row 9, its sixteen

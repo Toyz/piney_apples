@@ -3739,7 +3739,7 @@ fn prey(c: &piney_world::combat::Combat, skip: &[usize]) -> Option<usize> {
 /// 990, 800 around, setting off every seed within it): each with its
 /// frames left. Magic cannot touch them (mDef 9990); blows can (250 HP).
 fn live_seeds(c: &piney_world::combat::Combat) -> Vec<(usize, i32)> {
-    use piney_battle::boss::{Class, corbenik::seed::act};
+    use piney_battle::boss::corbenik::seed::act;
     let Some(r) = c.boss.as_ref().filter(|r| !r.exit && r.look.def.class == BossGameClass::CcBoss08) else {
         return Vec::new();
     };
@@ -3747,7 +3747,7 @@ fn live_seeds(c: &piney_world::combat::Combat) -> Vec<(usize, i32)> {
         .filter(|&k| c.scene.listed(k) && c.scene.chars[k].hp > 0)
         .filter_map(|k| {
             let b = c.scene.chars[k].foe_state()?.boss.as_ref()?;
-            let Class::CorbenikSeed(x) = &b.class else { return None };
+            let x = b.systems.get::<piney_battle::boss::corbenik::seed::Seed>()?;
             (b.base.act_num == act::COUNT_DOWN).then_some((k, x.exp_count))
         })
         .collect()

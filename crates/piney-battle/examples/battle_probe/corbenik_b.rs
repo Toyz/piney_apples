@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::second::{self, Second};
 use piney_battle::boss::corbenik::{self, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, Class, Cx, Effects, FxCall, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, Cx, Effects, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -289,7 +289,7 @@ fn second_json(b: &Boss, x: &Second) -> String {
 fn root_json(scene: &Scene, r: usize) -> String {
     let ch = &scene.chars[r];
     let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()) else { return "[]".into() };
-    let Class::CorbenikRoot(x) = &b.class else { return "[]".into() };
+    let Some(x) = b.systems.get::<piney_battle::boss::corbenik::second::Root>() else { return "[]".into() };
     format!(
         "[{},{},{},{},{},{},{},{},\"{}\",{},{}]",
         b.base.act_num,
@@ -320,7 +320,7 @@ fn frame_json(
     cc: &Genrand,
     menu: &[i32; 7],
 ) -> String {
-    let Class::CorbenikB(x) = &b.class else { return "{}".into() };
+    let Some(x) = b.systems.get::<Second>() else { return "{}".into() };
     let ch = &scene.chars[me];
     let effs: Vec<String> = b
         .base

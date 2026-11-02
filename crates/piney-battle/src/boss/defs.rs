@@ -378,7 +378,11 @@ pub static TARVOS: BossDef = BossDef {
 /// Corbenik (`ccBoss08`, `x81`): its forms' and parts' clumps, the first
 /// form's the body ([`corbenik::BODIES`]). Code 7 makes the first form,
 /// or the third when the save says (`ccThBoss08`); the first makes no
-/// camera.
+/// camera. The first form is its own (its seeds lent for the frame and
+/// for its `Affect`); `ccThBoss08`'s frame: the effects' pass, then
+/// `ccBoss08::Main` (0x003ad000), `ccBoss::Main` with its own
+/// `PreDrawAnm` and `Slave` (each seed's `Main`), the hold let go. Once it
+/// exits its hand-over makes the second form.
 pub static CORBENIK: BossDef = BossDef {
     code: Some(7),
     class: BossGameClass::CcBoss08,
@@ -391,19 +395,98 @@ pub static CORBENIK: BossDef = BossDef {
         true => corbenik::third::new(cx, s.kite_pos, s.kite_dirc, s.center, s.dummy),
         false => corbenik::first::new(cx, s.kite_pos, s.kite_dirc, s.center),
     },
+    systems: &[Kind::CorbenikFirst],
+    order: &[
+        Step::Run(Kind::CorbenikFirst, Hook::Lend),
+        Step::Run(Kind::CorbenikFirst, Hook::Pass),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::CorbenikFirst, Hook::Think),
+            Step::LockParty,
+            Step::Move,
+            Step::Run(Kind::CorbenikFirst, Hook::PreDraw),
+            Step::Draw,
+            Step::Run(Kind::CorbenikFirst, Hook::Action),
+        ]),
+        Step::Run(Kind::CorbenikFirst, Hook::Return),
+        Step::ClearHold,
+    ],
+    affect: &[
+        Step::Run(Kind::CorbenikFirst, Hook::Lend),
+        Step::Run(Kind::CorbenikFirst, Hook::Affect),
+        Step::Run(Kind::CorbenikFirst, Hook::Return),
+    ],
+    pass: &[],
+    hand_over: &[Step::Run(Kind::CorbenikFirst, Hook::HandOver)],
     ..BASE_BOSS
 };
 
 /// Corbenik's second form (`ccBoss08_b`), which the first's task makes as
-/// it exits: `InitBossCamera(200, 1000)`.
-pub static CORBENIK_SECOND: BossDef =
-    BossDef { code: None, class: BossGameClass::CcBoss08B, cam: CamDef::Transfer(CAM_TRANSFER), ..CORBENIK };
+/// it exits: `InitBossCamera(200, 1000)`. Its own (its roots lent for the
+/// frame); the effects' pass, then `ccBoss08_b::Main` (0x003b2610):
+/// `ccBoss::Main` with the barrier's message's wait before its `Think`, its
+/// own `PreDrawAnm` and `Slave` (each root's `Main`), the hold let go.
+pub static CORBENIK_SECOND: BossDef = BossDef {
+    code: None,
+    class: BossGameClass::CcBoss08B,
+    cam: CamDef::Transfer(CAM_TRANSFER),
+    systems: &[Kind::CorbenikSecond],
+    order: &[
+        Step::Run(Kind::CorbenikSecond, Hook::Lend),
+        Step::Run(Kind::CorbenikSecond, Hook::Pass),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::CorbenikSecond, Hook::Think),
+            Step::LockParty,
+            Step::Move,
+            Step::Run(Kind::CorbenikSecond, Hook::PreDraw),
+            Step::Draw,
+            Step::Run(Kind::CorbenikSecond, Hook::Action),
+            Step::ClearHold,
+        ]),
+        Step::Run(Kind::CorbenikSecond, Hook::Return),
+    ],
+    affect: &[Step::Run(Kind::CorbenikSecond, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
+    ..CORBENIK
+};
 
-/// Corbenik's third form (`ccBoss08_c`): `InitBossCamera(980, 1500)`.
+/// Corbenik's third form (`ccBoss08_c`): `InitBossCamera(980, 1500)`. Its
+/// own (its eyes and killer eyes lent for the frame and for its
+/// `Affect`); the effects' pass, then `ccBoss08_c::Main` (0x003b99b0, the
+/// base's): its own `PreDrawAnm` and `Draw` (the body's matrix read),
+/// `Slave` (each eye's `Main`, then each killer eye's), the hold let go.
 pub static CORBENIK_THIRD: BossDef = BossDef {
     code: None,
     class: BossGameClass::CcBoss08C,
     cam: CamDef::Transfer([0, corbenik::third::CAM_Y, corbenik::third::CAM_Z, ONE]),
+    systems: &[Kind::CorbenikThird],
+    order: &[
+        Step::Run(Kind::CorbenikThird, Hook::Lend),
+        Step::Run(Kind::CorbenikThird, Hook::Pass),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::CorbenikThird, Hook::Think),
+            Step::LockParty,
+            Step::Move,
+            Step::Run(Kind::CorbenikThird, Hook::PreDraw),
+            Step::Run(Kind::CorbenikThird, Hook::Draw),
+            Step::Run(Kind::CorbenikThird, Hook::Action),
+            Step::ClearHold,
+        ]),
+        Step::Run(Kind::CorbenikThird, Hook::Return),
+    ],
+    affect: &[
+        Step::Run(Kind::CorbenikThird, Hook::Lend),
+        Step::Run(Kind::CorbenikThird, Hook::Affect),
+        Step::Run(Kind::CorbenikThird, Hook::Return),
+    ],
+    pass: &[],
+    hand_over: &[],
     ..CORBENIK
 };
 
@@ -552,11 +635,48 @@ pub static BROTHER: BossDef = BossDef {
     hand_over: &[],
     ..BASE_PART
 };
-/// Corbenik's seeds, roots, eyes and killer eyes.
-pub static SEED: BossDef = BossDef { class: BossGameClass::CcBoss08Seed, ..BASE_PART };
-pub static ROOT: BossDef = BossDef { class: BossGameClass::CcBoss08Root, ..BASE_PART };
-pub static EYE: BossDef = BossDef { class: BossGameClass::CcBoss08Eye, ..BASE_PART };
-pub static KILLER_EYE: BossDef = BossDef { class: BossGameClass::CcBoss08KillerEye, ..BASE_PART };
+/// Corbenik's seed (`ccBoss08Seed`): its own, its `Affect` its own; its
+/// frame the first form's `Slave`.
+pub static SEED: BossDef = BossDef {
+    class: BossGameClass::CcBoss08Seed,
+    systems: &[Kind::Seed],
+    order: &[],
+    affect: &[Step::Run(Kind::Seed, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
+/// A root of the second form (`ccBoss08Root`): its own; its `Affect`
+/// `ccBoss`'s.
+pub static ROOT: BossDef = BossDef {
+    class: BossGameClass::CcBoss08Root,
+    systems: &[Kind::Root],
+    order: &[],
+    affect: &[Step::BaseAffect],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
+/// The third form's eye (`ccBoss08Eye`): its own; its `Affect` `ccBoss`'s.
+pub static EYE: BossDef = BossDef {
+    class: BossGameClass::CcBoss08Eye,
+    systems: &[Kind::Eye],
+    order: &[],
+    affect: &[Step::BaseAffect],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
+/// A killer eye (`ccBoss08KillerEye`): its own, its `Affect` its own.
+pub static KILLER_EYE: BossDef = BossDef {
+    class: BossGameClass::CcBoss08KillerEye,
+    systems: &[Kind::Killer],
+    order: &[],
+    affect: &[Step::Run(Kind::Killer, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
 
 /// `bossFunc`: the def each code starts.
 pub static BOSSES: [&BossDef; 12] = [
