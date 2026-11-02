@@ -39,6 +39,14 @@ impl Frame {
     pub fn new() -> Self {
         Frame { width: SCREEN_WIDTH, height: SCREEN_HEIGHT, ..Default::default() }
     }
+
+    /// Whether a command samples the frame before this one as it was left
+    /// ([`TexRef::PreviousFrame`]).
+    pub fn reads_previous(&self) -> bool {
+        self.cmds.iter().any(
+            |c| matches!(c, Cmd::Prim(p) if p.state.texture.as_ref().is_some_and(|t| t.tex == TexRef::PreviousFrame)),
+        )
+    }
 }
 
 /// R, G, B, A; 0x80 = 1.0.

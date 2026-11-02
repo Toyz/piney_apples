@@ -10,6 +10,7 @@
 
 mod area;
 mod area_host;
+mod catch_up;
 mod console;
 mod desktop;
 mod dvd;
@@ -413,6 +414,7 @@ impl App {
         self.last = now;
         let rate = f64::from(self.mode.frame_rate().max(1));
         let mut steps = 0;
+        let mut undrawn = catch_up::CatchUp::default();
         while self.vblanks >= rate && steps < MAX_CATCH_UP {
             self.vblanks -= rate;
             steps += 1;
@@ -429,6 +431,7 @@ impl App {
             }
             // The quit prompt stops the game under it.
             if self.quit.is_some() {
+                self.draw(&mut undrawn);
                 self.quit_frame(&live);
                 continue;
             }
@@ -503,13 +506,16 @@ impl App {
             if let Some(a) = &self.audio {
                 a.frame();
             }
-            // Every frame is drawn, caught up or not: a frame can sample
-            // the one before it (a stream's feedback).
+            // Drawn when presented, or when the next frame samples it (a
+            // stream's feedback).
             if let Some(gs) = &mut self.gs {
-                gs.set_overlay(self.mode.archive());
-                gs.render(&frame);
+                undrawn.stepped(frame, self.mode.archive(), |f, overlay| {
+                    gs.set_overlay(overlay);
+                    gs.render(f);
+                });
             }
         }
+        self.draw(&mut undrawn);
         if steps == MAX_CATCH_UP {
             self.vblanks = self.vblanks.min(rate);
         }
@@ -519,6 +525,16 @@ impl App {
             // Where the game is: the console's `where`.
             let title = if self.launching { "piney".to_string() } else { format!("piney - {}", self.volume.title()) };
             w.window.set_title(&title);
+        }
+    }
+
+    /// The frame a redraw held back, drawn.
+    fn draw(&mut self, undrawn: &mut catch_up::CatchUp) {
+        if let Some(gs) = &mut self.gs {
+            undrawn.draw(|f, overlay| {
+                gs.set_overlay(overlay);
+                gs.render(f);
+            });
         }
     }
 

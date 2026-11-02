@@ -7345,6 +7345,9 @@ mod tests {
     /// Issue #76: the cures' sound.
     mod cure_sound;
 
+    /// Issue #77: Mac Anu's frame times, a diagnostic.
+    mod mac_anu_frames;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

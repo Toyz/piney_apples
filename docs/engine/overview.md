@@ -3,7 +3,7 @@ title: How the game is put together
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x0015a780 main, 0x00167940 ccThMother, 0x001671e0 ccGame::ChangeRequest, 0x001680e0 ccThLoadOverlay, 0x0010a5f0 ccSystem::Ctrl, 0x001099e0 VSyncCallBack, 0x0015a5c0 ccThControl, 0x00159e10 ccTscb::Breath, 0x00102d40 ccPad::Read, 0x00102a50 ccPad::Ctrl, 0x00102bf0 ccPad::SetActuater, 0x0010a740 ccSystem::Ctrl (the motors), 0x0010a900 ccSystem::Init, 0x0010ad20 ccSystem::SetScreenMode, 0x0010ad40 ccSystem::SetScreenModeMain, 0x0010ab30 ccSystem::SetDisplayOffset, 0x0010ac40 ccSystem::SwapDoubleBuffer, 0x0010de50 sceGsSetDefDispEnv
-worklog: 15, 18, 40, 331, 339, 340
+worklog: 15, 18, 40, 331, 339, 340, 552
 ---
 
 # How the game is put together
@@ -85,6 +85,13 @@ VSyncCallBack                           every vertical blank
 `frameRate` is vertical blanks per frame: 1 = 60 fps, 2 = 30 fps (NTSC). The
 field game runs at 30, the desktop, bulletin board and demo at 60; event
 scripts can change it.
+
+The port counts vertical blanks at 59.94 Hz of wall time and steps the
+frames that are due on each redraw, four at most. A redraw shows only its
+last frame, so a frame it catches up is drawn only when the next one samples
+its picture (`TexRef::PreviousFrame`). In a town the draw costs about 2.5
+times the step: Mac Anu's views carry 200,000 to 265,000 vertices, put
+through on the CPU (worklog 552).
 
 ## Tasks
 

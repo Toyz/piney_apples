@@ -595,7 +595,6 @@ impl Gs {
         let mut copies: Vec<FrameCopy> = Vec::new();
         // The shadow packets, by where they stand among the draws.
         let mut shadows: Vec<(usize, &piney_draw::ShadowPass)> = Vec::new();
-        let mut uses_previous = false;
         for cmd in &frame.cmds {
             match cmd {
                 Cmd::Prim(p) => {
@@ -616,10 +615,7 @@ impl Gs {
                                     });
                                     Some(TexKey::Copy(copies.len() - 1))
                                 }
-                                TexRef::PreviousFrame => {
-                                    uses_previous = true;
-                                    Some(TexKey::Previous)
-                                }
+                                TexRef::PreviousFrame => Some(TexKey::Previous),
                                 // The whole frame copied; the shader reads it
                                 // through the smaller texture's grid.
                                 TexRef::ScaledFrame { .. } | TexRef::SampledFrame { .. } => {
@@ -803,7 +799,7 @@ impl Gs {
         self.fill_vertex_buffers(&verts);
         let mut encoder = self.device.create_command_encoder(&Default::default());
         // The last frame's picture, taken before this frame clears it.
-        if uses_previous {
+        if frame.reads_previous() {
             if self.previous.as_ref().is_none_or(|p| (p.width, p.height) != (pw, ph)) {
                 self.previous = Some(self.copy_texture(pw, ph));
             }
