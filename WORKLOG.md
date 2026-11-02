@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-542 entries: audio 43, battle 146, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 57, ui 102, video 16, volumes 94, world 152. 132 entries still have open questions - [listed below](#still-open).
+543 entries: audio 43, battle 146, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 58, ui 102, video 16, volumes 94, world 152. 132 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -550,10 +550,11 @@ The [reference](docs/README.md) says what is true now.
 | 536 | [An unknown pattern word lets the neutral go (forbid 1) in every class: Fidchell, Macha and Tarvos fall back on ccBoss::ExecPatternIndex, BaseActs.other_forbid gone](worklog/0536-an-unknown-pattern-word-lets-the-neutral-go-forbid-1-in.md) | 2026-10-30 | battle |
 | 537 | [Bosses as defs, step one: the request flow; one Output and generic Outs the field and the effects read the same for every boss, inputs through Cx::field, Corbenik's form change a hand-over](worklog/0537-bosses-as-defs-step-one-the-request-flow-one-output-and.md) | 2026-10-30 | battle |
 | 538 | [GameClass: the classes only later volumes have, read from their code: ROOTTOWN06 and Quarantine's ccFellow18-20](worklog/0538-gameclass-the-classes-only-later-volumes-have-read-from.md) | 2026-11-01 | tooling |
-| 539 | [GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) | 2026-11-01 | tooling |
+| 539 | [GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) - *corrected by [543](worklog/0543-gameclass-the-carry-s-mismatches-settled-by-whose-vtable.md)* | 2026-11-01 | tooling |
 | 540 | [Bosses as defs, step two: one runner over a def's steps, the systems as objects, Skeith made of them](worklog/0540-bosses-as-defs-step-two-one-runner-over-a-def-s-steps-the.md) | 2026-11-01 | battle |
 | 541 | [Bosses as defs: Fidchell made of systems, its wave and its own](worklog/0541-bosses-as-defs-fidchell-made-of-systems-its-wave-and-its-own.md) | 2026-11-01 | battle |
 | 542 | [Bosses as defs: Tarvos made of systems, its own PreDrawAnm before the body's Draw](worklog/0542-bosses-as-defs-tarvos-made-of-systems-its-own-predrawanm.md) | 2026-11-01 | battle |
+| 543 | [GameClass: the carry's mismatches settled by whose vtable the constructor stores, not by likeness](worklog/0543-gameclass-the-carry-s-mismatches-settled-by-whose-vtable.md) | 2026-11-01 | tooling |
 
 ## Still open
 

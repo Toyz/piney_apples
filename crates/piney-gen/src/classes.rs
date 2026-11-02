@@ -231,49 +231,43 @@ fn vtables(out: &mut BTreeMap<String, Class>) -> Result<(), String> {
     Ok(())
 }
 
-/// Class `n`'s constructor on volume `k` stores table `t`, not the
-/// vtable the symbols name. On Infection the symbols are the ELF's own,
-/// so the code is wrong. On a carried volume the carry placed one of the
-/// two names wrongly: when the constructor is Infection's (its shape
-/// alike, [`SAME_CODE`]) the vtable's name is off and `t` is the class's;
-/// else the constructor is that of the class whose vtable `t` is (or of
-/// one no symbol names).
+/// Class `n`'s constructor on volume `k` stores table `t` at its vptr,
+/// not the vtable the symbols name. On Infection the symbols are the
+/// ELF's own, so the code is wrong. On a carried volume the carry placed
+/// one name wrongly, and `t` says which: another class's vtable (in the
+/// symbols) makes the constructor that class's (Outbreak's and
+/// Quarantine's `ccDarkUpheavalMngrElement` stores the Soil one's); a table
+/// no symbol names is the class's own, the named one then stored by no
+/// constructor (Mutation's `ccBossEffEnergyGrow2`).
 fn reassign(out: &mut BTreeMap<String, Class>, n: &str, k: usize, t: u32) -> Result<(), String> {
     let v = VOLUMES[k];
     let c = &out[n];
-    let inf = crate::volume::Vol::Inf;
-    let (Some(ctor), Some(home)) = (c.ctor[k], c.ctor[inf.index()]) else {
-        return Err(format!("{} {n}: the symbols' vtable {:x?}, the code's {t:#x}", v.tag(), c.vtable[k]));
-    };
-    let shape = |v: crate::volume::Vol, va: u32, overlay| -> Result<Vec<u32>, String> {
-        let p = crate::volume::open(v, overlay)?.p;
-        Ok(crate::xfer::shape(&code_words(&p, va, sized_end(&p, va)?)?))
-    };
-    let alike = crate::xfer::likeness(&shape(inf, home, c.overlay[inf.index()])?, &shape(v, ctor, c.overlay[k])?);
-    if alike >= SAME_CODE {
-        out.get_mut(n).expect("listed").vtable[k] = Some(t);
-        return Ok(());
+    let named = c.vtable[k];
+    if v == crate::volume::Vol::Inf {
+        return Err(format!("{} {n}: the symbols' vtable {named:x?}, the code's {t:#x}", v.tag()));
     }
-    let c = out.get_mut(n).expect("listed");
-    let (ctor, overlay, stores) = (c.ctor[k].take(), c.overlay[k].take(), std::mem::take(&mut c.stores[k]));
-    if let Some(m) = out.values_mut().find(|m| m.vtable[k] == Some(t)) {
-        if m.ctor[k].is_some_and(|x| Some(x) != ctor) {
+    let Some(m) = out.keys().find(|m| out[*m].vtable[k] == Some(t)).cloned() else {
+        if out.values().any(|m| m.stores[k].iter().any(|s| Some(s.1) == named)) {
             return Err(format!(
-                "{} {n}: its carried constructor {ctor:x?} stores {t:#x}, whose class has its own",
+                "{} {n}: its named vtable {named:x?} is stored, and its constructor stores {t:#x}",
                 v.tag()
             ));
         }
-        (m.ctor[k], m.overlay[k], m.stores[k]) = (ctor, overlay, stores);
+        out.get_mut(n).expect("listed").vtable[k] = Some(t);
+        return Ok(());
+    };
+    let c = out.get_mut(n).expect("listed");
+    let (ctor, overlay, stores) = (c.ctor[k].take(), c.overlay[k].take(), std::mem::take(&mut c.stores[k]));
+    let m = out.get_mut(&m).expect("listed");
+    if m.ctor[k].is_some_and(|x| Some(x) != ctor) {
+        return Err(format!(
+            "{} {n}: its carried constructor {ctor:x?} stores {t:#x}, whose class has its own",
+            v.tag()
+        ));
     }
+    (m.ctor[k], m.overlay[k], m.stores[k]) = (ctor, overlay, stores);
     Ok(())
 }
-
-/// How alike a carried constructor's shape is to Infection's
-/// ([`crate::xfer::likeness`]) at least when it is that class's: Mutation's
-/// `ccBossEffEnergyGrow2` (0.6, the same energy-charge generator built),
-/// not Outbreak's and Quarantine's `ccDarkUpheavalMngrElement` (0.42, a
-/// quarter of its size: `ccSoilUpheavalMngrElement`'s).
-const SAME_CODE: f64 = 0.5;
 
 /// The code at `va` up to `end` as words.
 fn code_words(p: &Program, va: u32, end: u32) -> Result<Vec<u32>, String> {
