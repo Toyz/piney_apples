@@ -53,6 +53,11 @@ pub enum Hook {
     Affect,
     /// The boss that takes its place once its frame ends.
     HandOver,
+    /// Its parts out of their characters for the frame, and back.
+    Lend,
+    Return,
+    /// Its parts' effect slots counted (the manager's one array).
+    Tick,
     /// A class's whole `Main` ([`Step::Class`]).
     Main,
 }
@@ -74,6 +79,9 @@ pub trait SystemKind: Sized {
     const KIND: Kind;
     fn of(s: &System) -> Option<&Self>;
     fn of_mut(s: &mut System) -> Option<&mut Self>;
+    fn wrap(x: Box<Self>) -> System;
+    /// The object, or the system back when it is another kind.
+    fn unwrap(s: System) -> Result<Box<Self>, System>;
 }
 
 /// The systems: the enum of their objects, their kinds, and the one
@@ -143,6 +151,18 @@ macro_rules! systems {
                     _ => None,
                 }
             }
+
+            fn wrap(x: Box<Self>) -> System {
+                System::$v(x)
+            }
+
+            fn unwrap(s: System) -> Result<Box<Self>, System> {
+                match s {
+                    System::$v(x) => Ok(x),
+                    #[allow(unreachable_patterns)]
+                    s => Err(s),
+                }
+            }
         })*
     };
 }
@@ -154,6 +174,12 @@ systems! {
     Skeith(super::skeith::Skeith),
     /// Fidchell's own (`ccBoss04`).
     Fidchell(super::fidchell::Fidchell),
+    /// Gorre's own (`ccBoss05`), its brothers and its Kerse.
+    Gorre(super::gorre::Gorre),
+    Brothers(super::gorre::Brothers),
+    Kerse(super::gorre::Kerse),
+    /// A Gorre brother's own (`ccBoss05Brother`).
+    Brother(super::gorre::brother::Brother),
     /// Macha's own (`ccBoss06`).
     Macha(super::macha::Macha),
     /// Tarvos's own (`ccBoss07`).
@@ -177,6 +203,18 @@ impl Systems {
 
     pub fn get_mut<T: SystemKind>(&mut self) -> Option<&mut T> {
         self.0.iter_mut().find_map(T::of_mut)
+    }
+
+    /// `T`'s object out of the list (a part's own, lent with it).
+    pub(crate) fn take<T: SystemKind>(&mut self) -> Option<Box<T>> {
+        let k = self.0.iter().position(|s| s.kind() == T::KIND)?;
+        T::unwrap(self.0.remove(k)).ok()
+    }
+
+    /// `T`'s object back at its place in `def`'s list.
+    pub(crate) fn put<T: SystemKind>(&mut self, def: &super::BossDef, x: Box<T>) {
+        let k = def.systems.iter().position(|&k| k == T::KIND).unwrap_or(self.0.len());
+        self.0.insert(k.min(self.0.len()), T::wrap(x));
     }
 
     /// The system of `T`'s kind and the others beside it.
@@ -207,6 +245,19 @@ impl Others<'_> {
     /// The sibling of `T`'s kind.
     pub fn get_mut<T: SystemKind>(&mut self) -> Option<&mut T> {
         self.before.iter_mut().chain(self.after.iter_mut()).find_map(T::of_mut)
+    }
+
+    /// The siblings of `A`'s and `B`'s kinds (two kinds, two objects).
+    pub fn pair_mut<A: SystemKind, B: SystemKind>(&mut self) -> Option<(&mut A, &mut B)> {
+        let (mut a, mut b) = (None, None);
+        for s in self.before.iter_mut().chain(self.after.iter_mut()) {
+            match s.kind() {
+                k if k == A::KIND => a = A::of_mut(s),
+                k if k == B::KIND => b = B::of_mut(s),
+                _ => {}
+            }
+        }
+        Some((a?, b?))
     }
 }
 

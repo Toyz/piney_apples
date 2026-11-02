@@ -1800,12 +1800,11 @@ impl StoryPilot {
         let barred = |kind: i32| foe.is_some_and(|e| bars(e, kind));
         let by_defence = foe.is_some_and(|e| match &c.scene.chars[e].body {
             piney_battle::chara::Body::Foe(fo) => {
-                use piney_battle::boss::Class;
                 use piney_battle::param::elm;
                 // Gorre's brothers share one protect gauge, which each
                 // fills by the lower of its two PP defences (9990 against
                 // the other kind): the kind that breaks it.
-                if matches!(fo.boss.as_ref().map(|b| &b.class), Some(Class::GorreBrother(_))) {
+                if fo.boss.as_ref().is_some_and(|b| b.def == &piney_battle::boss::defs::BROTHER) {
                     fo.row.p_def_pp > fo.row.m_def_pp
                 } else {
                     let real = c.scene.real(e);
@@ -3547,7 +3546,7 @@ fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
         .filter(|&p| up(p))
         .filter_map(|p| {
             let f = c.scene.chars[p].foe_state()?;
-            matches!(f.boss.as_ref().map(|b| &b.class), Some(Class::GorreBrother(_))).then_some((p, f.row.p_def_pp))
+            f.boss.as_ref().is_some_and(|b| b.def == &piney_battle::boss::defs::BROTHER).then_some((p, f.row.p_def_pp))
         })
         .min_by_key(|&(_, d)| d)
         .map(|(p, _)| p);

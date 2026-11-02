@@ -225,7 +225,10 @@ pub static FIDCHELL: BossDef = BossDef {
 /// Gorre (`ccBoss05`, `x51`): its body (which its Kerse's `ANM_ex51act1`
 /// poses) and its brothers' clumps, whose objects their clips draw: the
 /// first's `ANM_ex51*`, the second's `ANM_ex52*`, both brothers' Epitaph
-/// `ANM_ex5x*`. `InitBossCamera(200, 1500)`.
+/// `ANM_ex5x*`. `InitBossCamera(200, 1500)`. Its brothers, its own and its
+/// Kerse; `ccBoss05::Main` (OUT gcmn 0x004aa210): the effects' count (one
+/// array for the three), then its own up to `Slave`, each brother's `Main`
+/// (`Slave`) and the hold let go. Its `Affect` is empty.
 pub static GORRE: BossDef = BossDef {
     code: Some(4),
     class: BossGameClass::CcBoss05,
@@ -234,6 +237,17 @@ pub static GORRE: BossDef = BossDef {
     part: PartBody::ByClip,
     cam: CamDef::Transfer([0, 0x44bb_8000, 0x4348_0000, ONE]),
     make: |cx, s| gorre::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    systems: &[Kind::Brothers, Kind::Gorre, Kind::Kerse],
+    order: &[
+        Step::Run(Kind::Brothers, Hook::Lend),
+        Step::TickEffects,
+        Step::Run(Kind::Brothers, Hook::Tick),
+        Step::Live(&[Step::Run(Kind::Gorre, Hook::Think), Step::Run(Kind::Brothers, Hook::Action), Step::ClearHold]),
+        Step::Run(Kind::Brothers, Hook::Return),
+    ],
+    affect: &[],
+    pass: &[],
+    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -390,8 +404,17 @@ pub static LEAF: BossDef = BossDef { class: BossGameClass::CcBoss03Leaf, ..BASE_
 /// Kyvia's core (`kyviaCore`) and gomoras (`kyviaGomora`).
 pub static CORE: BossDef = BossDef { class: BossGameClass::KyviaCore, ..BASE_PART };
 pub static GOMORA: BossDef = BossDef { class: BossGameClass::KyviaGomora, ..BASE_PART };
-/// A Gorre brother (`ccBoss05Brother`).
-pub static BROTHER: BossDef = BossDef { class: BossGameClass::CcBoss05Brother, ..BASE_PART };
+/// A Gorre brother (`ccBoss05Brother`): its own, its `Affect` its own;
+/// its frame Gorre's `Slave`.
+pub static BROTHER: BossDef = BossDef {
+    class: BossGameClass::CcBoss05Brother,
+    systems: &[Kind::Brother],
+    order: &[],
+    affect: &[Step::Run(Kind::Brother, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
 /// Corbenik's seeds, roots, eyes and killer eyes.
 pub static SEED: BossDef = BossDef { class: BossGameClass::CcBoss08Seed, ..BASE_PART };
 pub static ROOT: BossDef = BossDef { class: BossGameClass::CcBoss08Root, ..BASE_PART };

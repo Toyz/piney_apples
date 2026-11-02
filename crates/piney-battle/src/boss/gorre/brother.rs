@@ -9,9 +9,10 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::super::kyvia::{self};
-use super::super::{ANM_WAVE, Anm, Boss, BossBase, Class, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
-use super::Gorre;
-use crate::boss::Part;
+use super::super::systems::{BossSystem, Hook, Others};
+use super::super::{ANM_WAVE, Anm, Boss, BossBase, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
+use super::{Brothers, G, Gorre, Kerse};
+use crate::boss::{Part, Parts};
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
 use crate::param::cond;
@@ -112,7 +113,9 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
     let mut b = kyvia::plain_boss();
     b.exit = 0;
     b.draw_sw = 1;
-    b.anm_tbl = cx.data.gorre.brother_anims[usize::try_from(id).unwrap_or(0)].clone();
+    let c = piney_data::tables::combat::of(cx.volume());
+    let anims = if id == 0 { c.gorre_brother_anims } else { c.gorre_brother2_anims };
+    b.anm_tbl = anims.iter().map(|a| a.map(str::to_string)).collect();
     // `pos_p` is left at 0: only the first `Move` derives it.
     cx.scene.chars[me].pos = geom::apply_matrix(&translate(cx.scene.chars[master_me].pos), offset);
     b.dirc = dirc;
@@ -122,7 +125,7 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
     let mut anm_w = Anm::new();
     anm_w.set(ANM_WAVE, cx.clips);
     let x = Brother { offset, rad_spd: INIT_SPD, rad_accel: INIT_ACCEL, id, master_me, anm_w, ..Brother::default() };
-    Part { b: Box::new(Boss::of(&crate::boss::defs::BROTHER, b, Class::Plain)), x: Box::new(x), me }
+    Part::of(&crate::boss::defs::BROTHER, b, x, me)
 }
 
 fn translate(t: V4) -> geom::M4 {
@@ -138,7 +141,7 @@ fn as_brother<R>(p: &mut Part<Brother>, cx: &mut Cx, f: impl FnOnce(&mut Boss, &
 }
 
 /// `m_sendMsgFlag[msg] = 1; m_parent->SendMessage(this, msg)`.
-fn report(gb: &mut BossBase, gx: &mut Gorre, k: usize, msg: Msg, cx: &mut Cx) {
+fn report(gb: &mut BossBase, gx: &mut G<'_>, k: usize, msg: Msg, cx: &mut Cx) {
     gx.brothers[k].x.sent[msg as usize] = true;
     let old = std::mem::replace(&mut cx.me, gx.brothers[k].x.master_me);
     super::message::send(gb, gx, k, msg, cx);
@@ -148,7 +151,7 @@ fn report(gb: &mut BossBase, gx: &mut Gorre, k: usize, msg: Msg, cx: &mut Cx) {
 /// `ccBoss05Brother::Main` (OUT gcmn 0x004aefb0): the base's `Main` with
 /// its own `Think` and `Move`, then `hold` cleared and, while Gorre holds
 /// the party, a broken protect's count run on.
-pub(super) fn frame(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+pub(super) fn frame(gb: &mut BossBase, gx: &mut G<'_>, k: usize, cx: &mut Cx) {
     let me = gx.brothers[k].me;
     let old = std::mem::replace(&mut cx.me, me);
     if gx.brothers[k].b.base.exit == 0 {
@@ -197,7 +200,7 @@ enum Wave {
 }
 
 /// `ccBoss05Brother::Think` (OUT gcmn 0x004af020).
-fn think(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn think(gb: &mut BossBase, gx: &mut G<'_>, k: usize, cx: &mut Cx) {
     match gx.brothers[k].b.base.act_num {
         act::NEUTRAL => on_neutral(gb, gx, k, cx),
         act::EPITAPH => on_epitaph(gb, gx, k, cx),
@@ -225,7 +228,7 @@ fn orbit(x: &mut Brother) {
 
 /// `OnThinkNeutral` (OUT gcmn 0x004af0e0): stopped or held, a report
 /// ([`Msg::Held`]); else a turn toward the master and a step round it.
-fn on_neutral(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn on_neutral(gb: &mut BossBase, gx: &mut G<'_>, k: usize, cx: &mut Cx) {
     gx.brothers[k].b.base.move_spd = 0;
     if super::stopped_or_held(&gx.brothers[k].b.base, cx) {
         return report(gb, gx, k, Msg::Held, cx);
@@ -237,7 +240,7 @@ fn on_neutral(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
 
 /// `OnThinkEpitaph` (OUT gcmn 0x004af1f0): the turn first, whatever
 /// holds it; then as [`on_neutral`].
-fn on_epitaph(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn on_epitaph(gb: &mut BossBase, gx: &mut G<'_>, k: usize, cx: &mut Cx) {
     let p = &mut gx.brothers[k];
     p.b.base.move_spd = 0;
     face_master(&mut p.b.base, &p.x, cx);
@@ -252,7 +255,7 @@ fn on_epitaph(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
 /// master, the wave's strike (skill 18 at frame 55 of the clip), then home
 /// to within 300 and [`Msg::WaveDone`]. The Epitaph's has no sound on the
 /// way out, a slower trail, its own clips and no turn or body hit after.
-fn on_wave(gb: &mut BossBase, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
+fn on_wave(gb: &mut BossBase, gx: &mut G<'_>, k: usize, kind: Wave, cx: &mut Cx) {
     let (me, master) = (gx.brothers[k].me, gx.brothers[k].x.master_me);
     let (pp, mpp) = (cx.scene.chars[me].pos_p, cx.scene.chars[master].pos_p);
     let to_master = get_dirc(pp, mpp);
@@ -404,7 +407,7 @@ fn strike(b: &mut BossBase, x: &mut Brother, kind: Wave, cx: &mut Cx) {
 /// ([`Msg::TornadeHidden`]: Gorre at the target), fade back, then 211
 /// frames round the master at a quickening turn ([`Msg::TornadeSpell`] at
 /// 120, [`Msg::TornadeDone`] after).
-fn on_tornade(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn on_tornade(gb: &mut BossBase, gx: &mut G<'_>, k: usize, cx: &mut Cx) {
     let (me, master) = (gx.brothers[k].me, gx.brothers[k].x.master_me);
     let (pp, mpp) = (cx.scene.chars[me].pos_p, cx.scene.chars[master].pos_p);
     let p = &mut gx.brothers[k];
@@ -486,7 +489,7 @@ pub(super) fn wrap_pi(v: F) -> F {
 
 /// `OnThinkDead` (OUT gcmn 0x004b0490): the dead effect at its place and
 /// off the lists; once the effect is gone, [`Msg::Dead`] and `OnExit`.
-fn on_dead(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
+fn on_dead(gb: &mut BossBase, gx: &mut G<'_>, k: usize, cx: &mut Cx) {
     let p = &mut gx.brothers[k];
     match p.b.base.act_proccess {
         0 => {
@@ -534,9 +537,11 @@ pub(super) fn order(p: &mut Part<Brother>, cx: &mut Cx, on: i16) {
     });
 }
 
-impl crate::boss::BossClass for Brother {
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect_alone(b, self, cx);
+impl BossSystem for Brother {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Affect {
+            affect_alone(b, self, cx);
+        }
     }
 }
 
@@ -549,36 +554,27 @@ fn affect_alone(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
     let master = x.master_me;
     let taken = cx.scene.chars.get_mut(master).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take());
     let Some(mut gb) = taken else { return };
-    // Gorre's own members, taken from its character for the span.
-    let mut gx = match std::mem::replace(&mut gb.class, Class::Plain) {
-        Class::Gorre(x) => x,
-        other => {
-            gb.class = other;
-            Box::default()
+    let Boss { base: gbase, systems, .. } = &mut *gb;
+    if let Some((own, mut o)) = systems.split::<Gorre>()
+        && let Some((br, kerse)) = o.pair_mut::<Brothers, Kerse>()
+    {
+        let k = usize::from(br.me[1] == me);
+        let mine = Part::of(&crate::boss::defs::BROTHER, std::mem::take(b), std::mem::take(x), me);
+        let mut parts = Parts::take_with(cx, &br.me, mine);
+        let mut gx = G { own, brothers: &mut parts, kerse };
+        // The report first (a drain only before the brother's Epitaph,
+        // `CheckEpitaph`); what Gorre makes of it is Gorre's to show.
+        let start = cx.out.len();
+        if cx.scene.chars[me].affect.ty != 13 || gx.brothers[k].b.base.epitaph == 0 {
+            report(gbase, &mut gx, k, Msg::Affect, cx);
         }
-    };
-    let k = usize::from(gx.brother_me[1] == me);
-    let (other, found) = Part::take_or_stand_in(cx, gx.brother_me[1 - k]);
-    gx.brothers[1 - k] = other;
-    let base = std::mem::take(b);
-    gx.brothers[k] = Part {
-        b: Box::new(Boss::of(&crate::boss::defs::BROTHER, base, Class::Plain)),
-        x: Box::new(std::mem::take(x)),
-        me,
-    };
-    // The report first (a drain only before the brother's Epitaph,
-    // `CheckEpitaph`); what Gorre makes of it is Gorre's to show.
-    let start = cx.out.len();
-    if cx.scene.chars[me].affect.ty != 13 || gx.brothers[k].b.base.epitaph == 0 {
-        report(&mut gb.base, &mut gx, k, Msg::Affect, cx);
+        gbase.pending.extend(cx.out.split_off(start));
+        local_affect(&mut gx.brothers[k].b.base, cx);
+        let part = std::mem::take(&mut gx.brothers[k]);
+        *b = part.b.base;
+        *x = *part.x;
+        parts.put(cx);
     }
-    gb.base.pending.extend(cx.out.split_off(start));
-    local_affect(&mut gx.brothers[k].b.base, cx);
-    let part = std::mem::take(&mut gx.brothers[k]);
-    *b = part.b.base;
-    *x = *part.x;
-    std::mem::take(&mut gx.brothers[1 - k]).put_back(cx, found);
-    gb.class = Class::Gorre(gx);
     if let Some(f) = cx.scene.chars[master].foe_state_mut() {
         f.boss = Some(gb);
     }

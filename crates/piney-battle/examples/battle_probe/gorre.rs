@@ -10,7 +10,8 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::gorre;
 use piney_battle::boss::gorre::brother::Brother;
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, Out};
+use piney_battle::boss::gorre::{Brothers, Gorre};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -190,10 +191,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
         let mut out = Vec::new();
-        let brothers = match &boss.class {
-            Class::Gorre(x) => x.brother_me,
-            _ => unreachable!("Gorre's own boss"),
-        };
+        let brothers = boss.systems.get::<Brothers>().expect("Gorre's brothers").me;
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         // What an affect asked for: Gorre's (its reports), then each
         // brother's own, in the order the game makes them.
@@ -396,7 +394,7 @@ fn part_json(b: &Boss, scene: &Scene, c: usize, gorre: usize) -> String {
         b.base.pat_index,
         b.base.pat_num,
         // `m_patMode`: Gorre's own (a brother has none).
-        if let Class::Gorre(x) = &b.class { x.pat_mode } else { 0 },
+        b.systems.get::<Gorre>().map_or(0, |x| x.pat_mode),
         // Whose block `param` points at, and all of it.
         match scene.param_owner(c) {
             o if o == c => "own",
@@ -435,17 +433,15 @@ fn frame_json(
     menu: &[i32; 6],
     max_range: u32,
 ) -> String {
-    let Class::Gorre(x) = &b.class else { return "{}".into() };
-    // `x.brothers` is scratch (filled only for the span of `main`/`new`);
-    // the persistent copy sits on each brother's own scene character
-    // (`brother_me`, `kyvia::Part`'s way), fetched fresh here.
+    let Some(brothers) = b.systems.get::<Brothers>().map(|br| br.me) else { return "{}".into() };
+    // Each brother sits on its own scene character between frames (lent
+    // to Gorre's `Brothers` only for its frame), fetched fresh here.
     let brother = |bm: usize| -> (&Boss, &Brother) {
         let gb = scene.chars[bm].foe_state().unwrap().boss.as_ref().unwrap();
-        let Class::GorreBrother(bx) = &gb.class else { unreachable!("a brother's own character") };
-        (gb, bx)
+        (gb, gb.systems.get::<Brother>().expect("a brother's own character"))
     };
-    let (b0, x0) = brother(x.brother_me[0]);
-    let (b1, x1) = brother(x.brother_me[1]);
+    let (b0, x0) = brother(brothers[0]);
+    let (b1, x1) = brother(brothers[1]);
     // The game's `_g_bossEffManager` is one array shared by Gorre and both
     // brothers; the port keeps each's own separate, so slot indices never
     // line up. Compared unordered instead: every (kind, enabled) alive.
@@ -463,8 +459,8 @@ fn frame_json(
         .map(|&c| format!("[{},{},{}]", scene.chars[c].hp, scene.chars[c].cond[1], scene.chars[c].cond[0]))
         .collect();
     let gorre = part_json(b, scene, me, me);
-    let br0 = format!("{{{},{}}}", part_json(b0, scene, x.brother_me[0], me), brother_json(x0));
-    let br1 = format!("{{{},{}}}", part_json(b1, scene, x.brother_me[1], me), brother_json(x1));
+    let br0 = format!("{{{},{}}}", part_json(b0, scene, brothers[0], me), brother_json(x0));
+    let br1 = format!("{{{},{}}}", part_json(b1, scene, brothers[1], me), brother_json(x1));
     format!(
         "{{{},\"maxrange\":{},\"br0\":{},\"br1\":{},\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
          \"menu\":[{},{},{},{},{},{}],\"listed\":[{},{},{}],\"rand\":{},\"cc\":{}}}",
@@ -482,8 +478,8 @@ fn frame_json(
         menu[4],
         menu[5],
         u8::from(scene.listed(me)),
-        u8::from(scene.listed(x.brother_me[0])),
-        u8::from(scene.listed(x.brother_me[1])),
+        u8::from(scene.listed(brothers[0])),
+        u8::from(scene.listed(brothers[1])),
         rand.0,
         cc.mti,
     )

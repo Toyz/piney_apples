@@ -5,13 +5,14 @@
 
 use std::ops::{Deref, DerefMut};
 
-use super::{Boss, Class, Cx};
+use super::{Boss, BossBase, BossDef, Class, Cx, SystemKind};
 
-/// A part's own members, as its [`Class`] variant holds them.
+/// A part's own members, as its boss holds them: its [`Class`] variant,
+/// or its system on the def's list.
 pub trait PartClass: Default + Sized {
-    fn wrap(x: Box<Self>) -> Class;
-    /// The members, or the class back when it is another.
-    fn unwrap(c: Class) -> Result<Box<Self>, Class>;
+    /// The members out of the boss, None when it holds none.
+    fn take_from(b: &mut Boss) -> Option<Box<Self>>;
+    fn put_into(b: &mut Boss, x: Box<Self>);
 }
 
 /// One of the fight's parts as the master's frame holds it: its `ccBoss`,
@@ -28,10 +29,9 @@ impl<T: PartClass> Part<T> {
     /// another class, is left as it was.
     pub fn take(cx: &mut Cx, me: usize) -> Option<Part<T>> {
         let mut b = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take())?;
-        match T::unwrap(std::mem::replace(&mut b.class, Class::Plain)) {
-            Ok(x) => Some(Part { b, x, me }),
-            Err(other) => {
-                b.class = other;
+        match T::take_from(&mut b) {
+            Some(x) => Some(Part { b, x, me }),
+            None => {
                 if let Some(f) = cx.scene.chars[me].foe_state_mut() {
                     f.boss = Some(b);
                 }
@@ -43,7 +43,7 @@ impl<T: PartClass> Part<T> {
     /// The part put back into its character.
     pub fn put(self, cx: &mut Cx) {
         let Part { mut b, x, me } = self;
-        b.class = T::wrap(x);
+        T::put_into(&mut b, x);
         if let Some(f) = cx.scene.chars[me].foe_state_mut() {
             f.boss = Some(b);
         }
@@ -79,6 +79,19 @@ impl<T: PartClass> Parts<T> {
     /// Each of `mes` taken out of its character, in order.
     pub fn take(cx: &mut Cx, mes: &[usize]) -> Parts<T> {
         let (list, found) = mes.iter().map(|&me| Part::take_or_stand_in(cx, me)).unzip();
+        Parts { list, found }
+    }
+
+    /// [`Parts::take`] with `own` in place of its character's (one already
+    /// out of it: its own `Affect`), never put back.
+    pub fn take_with(cx: &mut Cx, mes: &[usize], own: Part<T>) -> Parts<T> {
+        let mut own = Some(own);
+        let (list, found) = (mes.iter())
+            .map(|&me| match own.take_if(|p| p.me == me) {
+                Some(p) => (p, false),
+                None => Part::take_or_stand_in(cx, me),
+            })
+            .unzip();
         Parts { list, found }
     }
 
@@ -122,19 +135,51 @@ impl<'a, T> IntoIterator for &'a mut Parts<T> {
     }
 }
 
+impl<T: SystemKind + Default> Part<T> {
+    /// A part of `def` at character `me`: its boss with the def's other
+    /// systems as their constructors start them, `x` its own.
+    pub fn of(def: &'static BossDef, base: BossBase, x: T, me: usize) -> Part<T> {
+        let mut b = Boss::build(def, base);
+        let _ = b.systems.take::<T>();
+        Part { b: Box::new(b), x: Box::new(x), me }
+    }
+}
+
+/// `PartClass` for the parts that are systems on their def's list.
+macro_rules! part_system {
+    ($($t:ty),* $(,)?) => {$(
+        impl PartClass for $t {
+            fn take_from(b: &mut Boss) -> Option<Box<Self>> {
+                b.systems.take::<$t>()
+            }
+
+            fn put_into(b: &mut Boss, x: Box<Self>) {
+                b.systems.put(b.def, x);
+            }
+        }
+    )*};
+}
+
+part_system! {
+    super::gorre::brother::Brother,
+}
+
 /// `PartClass` for the parts' variants.
 macro_rules! part_class {
     ($($t:ty => $v:ident),* $(,)?) => {$(
         impl PartClass for $t {
-            fn wrap(x: Box<Self>) -> Class {
-                Class::$v(x)
+            fn take_from(b: &mut Boss) -> Option<Box<Self>> {
+                match std::mem::replace(&mut b.class, Class::Plain) {
+                    Class::$v(x) => Some(x),
+                    other => {
+                        b.class = other;
+                        None
+                    }
+                }
             }
 
-            fn unwrap(c: Class) -> Result<Box<Self>, Class> {
-                match c {
-                    Class::$v(x) => Ok(x),
-                    other => Err(other),
-                }
+            fn put_into(b: &mut Boss, x: Box<Self>) {
+                b.class = Class::$v(x);
             }
         }
     )*};
@@ -144,7 +189,6 @@ part_class! {
     super::kyvia::core::Core => KyviaCore,
     super::kyvia::gomora::Gomora => Gomora,
     super::magus::leaf::Leaf => MagusLeaf,
-    super::gorre::brother::Brother => GorreBrother,
     super::corbenik::seed::Seed => CorbenikSeed,
     super::corbenik::second::Root => CorbenikRoot,
     super::corbenik::eye::Eye => CorbenikEye,

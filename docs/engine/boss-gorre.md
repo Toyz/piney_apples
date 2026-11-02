@@ -333,6 +333,26 @@ In the port: `piney_effect::gorre::PhotonFlash`, made by `Make::FinalPhotonFlash
 from piney-game's `boss_make`; it runs alone in the effects' manager, the
 ring made after its `Draw` in the same pass.
 
+## In the port
+
+`GORRE`'s systems (worklog 546) are its brothers (`gorre::Brothers`: their
+characters, each brother lent out of its own for Gorre's frame), its own
+(`gorre::Gorre`: `m_patMode`, the spells, the boss camera) and its Kerse
+(`gorre::Kerse`: the fade, the place it shows Gorre, the flash). Its frame:
+
+```text
+order:  Brothers.Lend, TickEffects, Brothers.Tick, Live[Gorre.Think,
+        Brothers.Action, ClearHold], Brothers.Return
+affect: (none: ccBoss05::Affect is empty)
+draw:   Brothers (the parts), Gorre (its body, not shown), Kerse (Gorre at
+        its place in step 2)
+```
+
+`Gorre.Think` is `ccBoss05::Main` up to `Slave`, `Brothers.Action` the
+`Slave`. A brother (`BROTHER`) is its own system (`gorre::brother::Brother`)
+with its `Affect`; a part's own system leaves its boss's list while the
+part is lent (`Part<T>`) and goes back to its place in the def's.
+
 ## Tables
 
 `tables::combat`: `gorre_normal`, `gorre_super`, `gorre_epitaph` (each

@@ -1,7 +1,7 @@
 //! Issue #73 on Outbreak: Gorre's fight and the ending after it, as the
 //! player's own pad log plays them (`PINEY_PADLOG`).
 
-use piney_battle::boss::Class;
+use piney_battle::boss::gorre::Brothers;
 
 use super::*;
 
@@ -26,11 +26,13 @@ fn issue_73_replay() {
         if let Some(Stage::Area(a)) = mode.session().map(|s| &mut s.stage) {
             let c = a.world_mut().combat_mut();
             if let Some(me) = c.boss_char()
-                && let Some(Class::Gorre(x)) =
-                    c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+                && let Some(br) = c.scene.chars[me]
+                    .foe_state()
+                    .and_then(|f| f.boss.as_ref())
+                    .and_then(|b| b.systems.get::<Brothers>())
             {
                 fight += 1;
-                drawn += u32::from(x.brother_me.iter().all(|k| c.cast.actors.get(k).is_some_and(|a| a.drawn)));
+                drawn += u32::from(br.me.iter().all(|k| c.cast.actors.get(k).is_some_and(|a| a.drawn)));
                 after = None;
             } else if fight > 0 && after.is_none() {
                 after = Some(f);

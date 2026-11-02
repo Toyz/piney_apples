@@ -2,9 +2,10 @@
 //! second phase boss: `bossTbl` row 4, `bossFunc` code 4, fought in event
 //! 218 in field 5. Outbreak's gcmn.prg 0x004a9130-0x004b0b50 (names and
 //! layouts from Infection's DWARF). Gorre is never listed nor struck; it
-//! orders its brothers (each a [`Boss`] on its own character, a [`Part`]
-//! for the span of Gorre's frame, as Kyvia's core and gomoras), which
-//! report back ([`message`]) and share its one HP. docs/engine/boss-gorre.md.
+//! orders its brothers (each a [`Boss`] on its own character, lent to
+//! Gorre's [`Brothers`] for its frame), which report back ([`message`])
+//! and share its one HP; its Kerse shows it ([`Kerse`]).
+//! docs/engine/boss-gorre.md.
 
 pub mod brother;
 mod message;
@@ -12,13 +13,15 @@ mod message;
 mod tests;
 
 use piney_data::field::ee;
-use piney_data::volume::Volume;
+use piney_data::tables::combat;
 
 use self::brother::Brother;
+use super::systems::{BossSystem, Hook, Others};
 use super::{
-    BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, PI, Patterns, TWO_PI, Tbl, VF0, base_exec_pattern_index, word,
+    BaseActs, BodyDraw, Boss, BossBase, Cx, EffKind, Out, Output, PI, Patterns, TWO_PI, Tbl, VF0,
+    base_exec_pattern_index, word,
 };
-use crate::boss::Part;
+use crate::boss::{Part, Parts};
 use crate::enemy_ai::get_dirc;
 use crate::event::{Event, Who};
 use crate::geom::{self, V4};
@@ -77,95 +80,140 @@ fn brother_image(b: &BossBase, who: usize, cx: &mut Cx) {
     cx.out(Out::AfterImageAnm { who, clip, frame: b.anm.frame(), pos, dirc: b.dirc, params });
 }
 
-/// Gorre's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct GorreData {
-    /// `boss05NormalActTbl`, `boss05SuperActTbl`, `boss05EpitaphActTbl`,
-    /// each through its closing `-1`.
-    pub normal: Vec<i32>,
-    pub super_: Vec<i32>,
-    pub epitaph: Vec<i32>,
-    /// `Boss05AnmTbl`: the act's clip.
-    pub anims: Vec<Option<String>>,
-    /// `boss05SlaveAnmTbl1`, `boss05SlaveAnmTbl2`: each brother's own clip
-    /// by act (`ccBoss05Brother::Init`, by `CheckSlaveID`).
-    pub brother_anims: [Vec<Option<String>>; 2],
-    /// `@1777`: `OnThinkSkill`'s four spells, one by `ccRand() & 3`.
-    pub skills: [i32; 4],
-    /// `@1672`: `OnThinkMagic`'s four, one by `abs(ccRand()) & 3`.
-    pub magic_skills: [i32; 4],
-    /// `@2074`: `SendMessage`'s msg 7, the Tornade's spell, by
-    /// `ccRand() & 3`.
-    pub tornade_skills: [i32; 4],
-}
-
-impl GorreData {
-    /// The volume's.
-    pub fn of(volume: Volume) -> GorreData {
-        let t = piney_data::tables::combat::of(volume);
-        let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
-        let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
-        GorreData {
-            normal: t.gorre_normal.to_vec(),
-            super_: t.gorre_super.to_vec(),
-            epitaph: t.gorre_epitaph.to_vec(),
-            anims: s(t.gorre_anims),
-            brother_anims: [s(t.gorre_brother_anims), s(t.gorre_brother2_anims)],
-            skills: std::array::from_fn(|k| pick(t.gorre_skills, k)),
-            magic_skills: std::array::from_fn(|k| pick(t.gorre_magic_skills, k)),
-            tornade_skills: std::array::from_fn(|k| pick(t.gorre_tornade_skills, k)),
-        }
-    }
-
-    fn words(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::None => &[],
-            Tbl::Normal => &self.normal,
-            Tbl::Super => &self.super_,
-            Tbl::Epitaph => &self.epitaph,
-        }
+/// Gorre's tables, the volume's (`tables::combat`): `boss05NormalActTbl`,
+/// `boss05SuperActTbl`, `boss05EpitaphActTbl`, each through its closing
+/// -1, as `patTbl` points at them.
+fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
+    let c = combat::of(cx.volume());
+    match t {
+        Tbl::None => &[],
+        Tbl::Normal => c.gorre_normal,
+        Tbl::Super => c.gorre_super,
+        Tbl::Epitaph => c.gorre_epitaph,
     }
 }
 
-/// `ccBoss05`'s own members: the two brothers (+0x29350, +0x29354), each
-/// its own [`Boss`] on its own scene character (`brother_me`, persistent);
-/// `brothers` is scratch, filled only for the span of [`main`] (or of a
-/// brother's `Affect`), the way Kyvia's `Tree` holds its core and gomoras.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// A spell of four (`@1777` the Skill's, `@1672` the Magic's, `@2074` the
+/// Tornade's), a word past the table's end 0.
+fn pick(v: &[i32], k: usize) -> i32 {
+    v.get(k).copied().unwrap_or(0)
+}
+
+/// `ccBoss05`'s own members, as its constructor starts them (the boss
+/// camera on).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Gorre {
-    pub brother_me: [usize; 2],
     /// `m_patMode` (+0x29408): 0 the Normal table, 1 the Super, 2 the
     /// Epitaph's.
     pub pat_mode: i32,
     /// `stageEffId`: the stage effect a spell holds.
     pub stage_eff_id: i32,
-    pub brothers: [Part<Brother>; 2],
     /// `useBossCam` (+0x150): the boss camera on (`InitBossCamera`), until
     /// `OffBossCamera` as the three fall.
     pub cam_sw: bool,
-    /// `m_transparency`: the Kerse's fade, the brothers' then Gorre's.
-    pub fade: F,
-    /// `m_talkPos`, `m_talkDirc[2]`: where the Kerse shows Gorre (500 off
-    /// the target, facing the camera).
-    pub talk_pos: V4,
-    pub talk_dirc: F,
-    /// `m_effAdrs`: the Kerse's FinalPhotonFlash.
-    pub flash: Option<i32>,
     /// `m_skillID`: `OnThinkSkill`'s or `OnThinkMagic`'s spell.
     pub skill_id: i32,
     /// `m_effStart`: `effSkillStart`'s frames before its `endFlag`.
     pub skill_start: Option<i32>,
 }
 
+impl Default for Gorre {
+    fn default() -> Gorre {
+        Gorre { pat_mode: 0, stage_eff_id: 0, cam_sw: true, skill_id: 0, skill_start: None }
+    }
+}
+
+/// The two brothers (+0x29350, +0x29354): each its own [`Boss`] on its
+/// own scene character (`me`), lent out of it for Gorre's frame
+/// ([`Hook::Lend`] to [`Hook::Return`]) and for a brother's own `Affect`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Brothers {
+    pub me: [usize; 2],
+    parts: Parts<Brother>,
+}
+
+/// The Kerse's members: `m_transparency` (the fade, the brothers' then
+/// Gorre's), `m_talkPos` and `m_talkDirc[2]` (where it shows Gorre, 500
+/// off the target, facing the camera), `m_effAdrs` (its FinalPhotonFlash).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Kerse {
+    pub fade: F,
+    pub talk_pos: V4,
+    pub talk_dirc: F,
+    pub flash: Option<i32>,
+}
+
+/// What Gorre's code holds of its systems for a step: its own members,
+/// its brothers as lent and its Kerse.
+pub(super) struct G<'a> {
+    pub own: &'a mut Gorre,
+    pub brothers: &'a mut [Part<Brother>],
+    pub kerse: &'a mut Kerse,
+}
+
+impl BossSystem for Gorre {
+    /// `ccBoss05::Main` up to `Slave` ([`frame`]).
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Think {
+            let (br, kerse) = o.pair_mut::<Brothers, Kerse>().expect("Gorre's def has its brothers and Kerse");
+            frame(b, &mut G { own: self, brothers: &mut br.parts, kerse }, cx);
+        }
+    }
+
+    /// Its body at its place, undrawn: only the Kerse shows it.
+    fn draw(&self, b: &BossBase, cx: &mut Cx, out: &mut Output) {
+        out.body = BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, ..BodyDraw::default() };
+    }
+}
+
+impl BossSystem for Brothers {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        match hook {
+            Hook::Lend => self.parts = Parts::take(cx, &self.me),
+            Hook::Return => self.parts.put(cx),
+            Hook::Tick => {
+                for p in self.parts.iter_mut() {
+                    p.b.base.effects.tick();
+                }
+            }
+            // `Slave` (OUT gcmn 0x004ad980): each brother's own `Main`.
+            Hook::Action => {
+                let (own, kerse) = o.pair_mut::<Gorre, Kerse>().expect("Gorre's def has its own and Kerse");
+                let mut x = G { own, brothers: &mut self.parts, kerse };
+                for k in 0..2 {
+                    brother::frame(b, &mut x, k, cx);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The brothers, drawn as parts.
+    fn draw(&self, _b: &BossBase, _cx: &mut Cx, out: &mut Output) {
+        out.parts.extend(self.me);
+    }
+}
+
+impl BossSystem for Kerse {
+    /// Its step 2 shows Gorre at `m_talkPos` (`SetMatrix_PosRotZYX`,
+    /// `ccBoss::Draw`).
+    fn draw(&self, b: &BossBase, _cx: &mut Cx, out: &mut Output) {
+        if b.act_num == act::KERSE && b.act_proccess == 2 {
+            out.body =
+                BodyDraw { pos: self.talk_pos, dirc: [0, 0, self.talk_dirc, ONE], shown: true, ..BodyDraw::default() };
+        }
+    }
+}
+
 // --- small rules ------------------------------------------------------------------------
 
 /// `this->br0->Order(on)` / `br1->Order(on)`.
-fn order_brother(x: &mut Gorre, k: usize, cx: &mut Cx, on: i16) {
+fn order_brother(x: &mut G<'_>, k: usize, cx: &mut Cx, on: i16) {
     brother::order(&mut x.brothers[k], cx, on);
 }
 
 /// Both brothers' `Order(on)`.
-fn order_both(x: &mut Gorre, cx: &mut Cx, on: i16) {
+fn order_both(x: &mut G<'_>, cx: &mut Cx, on: i16) {
     for k in 0..2 {
         order_brother(x, k, cx, on);
     }
@@ -173,14 +221,14 @@ fn order_both(x: &mut Gorre, cx: &mut Cx, on: i16) {
 
 /// A brother's own call (`EraseCmndTarget`, `EntryCmndTarget`): `cx.me`
 /// its character for the span of `f`.
-fn on_brother(x: &mut Gorre, k: usize, cx: &mut Cx, f: impl FnOnce(&mut Boss, &mut Cx)) {
+fn on_brother(x: &mut G<'_>, k: usize, cx: &mut Cx, f: impl FnOnce(&mut Boss, &mut Cx)) {
     let old = std::mem::replace(&mut cx.me, x.brothers[k].me);
     f(&mut x.brothers[k].b, cx);
     cx.me = old;
 }
 
 /// Both brothers untargetable (`EraseCmndTarget`), the cursor off.
-fn erase_brothers(x: &mut Gorre, cx: &mut Cx) {
+fn erase_brothers(x: &mut G<'_>, cx: &mut Cx) {
     for k in 0..2 {
         on_brother(x, k, cx, |bb, cx| bb.base.erase_cmnd_target(cx));
     }
@@ -188,7 +236,7 @@ fn erase_brothers(x: &mut Gorre, cx: &mut Cx) {
 }
 
 /// Both brothers targetable again (`EntryCmndTarget`), the cursor back.
-fn entry_brothers(x: &mut Gorre, cx: &mut Cx) {
+fn entry_brothers(x: &mut G<'_>, cx: &mut Cx) {
     for k in 0..2 {
         on_brother(x, k, cx, |bb, cx| bb.base.entry_cmnd_target(cx));
     }
@@ -210,7 +258,7 @@ fn stopped_or_held(b: &BossBase, cx: &Cx) -> bool {
 /// `ccBoss05::ChangeAction` (OUT gcmn 0x004aa6b0): the base's own, then
 /// both brothers `Order`'d into the same act, taken or not (not from
 /// [`new`]: its first `ChangeAction` comes before the brothers).
-fn change_action(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx, act: i16, forbid: i16, af: bool) {
+fn change_action(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx, act: i16, forbid: i16, af: bool) {
     b.change_action(cx, act, forbid, af);
     order_both(x, cx, act);
 }
@@ -240,7 +288,7 @@ fn focus_camera(cx: &mut Cx, vp: V4, d: V4, off: V4) {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = cx.data.gorre.anims.clone();
+    b.anm_tbl = combat::of(cx.volume()).gorre_anims.iter().map(|a| a.map(str::to_string)).collect();
     b.exit = 0;
     b.draw_sw = 1;
     // `OffBodyHit()` (vtable +0x60), not On: Gorre itself takes no direct
@@ -272,80 +320,28 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         *slot = bm;
     }
 
-    let mut x = Gorre { brother_me, cam_sw: true, ..Gorre::default() };
     b.pat_tbl = Tbl::Normal;
     b.pat_index = 0;
-    x.pat_mode = 0;
-    let found: [bool; 2] = std::array::from_fn(|k| {
-        let (part, found) = Part::take_or_stand_in(cx, brother_me[k]);
-        x.brothers[k] = part;
-        found
-    });
-    let tbl = cx.data.gorre.words(Tbl::Normal);
-    b.pat_index = x.exec_pattern_index(&mut b, cx, tbl, 0);
-    for (k, ok) in found.into_iter().enumerate() {
-        std::mem::take(&mut x.brothers[k]).put_back(cx, ok);
-    }
-    Boss::of(&crate::boss::defs::GORRE, b, Class::Gorre(Box::new(x)))
+    let mut boss = Boss::build(&crate::boss::defs::GORRE, b);
+    let Boss { base: b, systems, .. } = &mut boss;
+    let (own, mut o) = systems.split::<Gorre>().expect("Gorre's def has it");
+    let (br, kerse) = o.pair_mut::<Brothers, Kerse>().expect("Gorre's def has its brothers and Kerse");
+    own.pat_mode = 0;
+    br.me = brother_me;
+    br.parts = Parts::take(cx, &brother_me);
+    let tbl = words(cx, Tbl::Normal);
+    b.pat_index = G { own, brothers: &mut br.parts, kerse }.exec_pattern_index(b, cx, tbl, 0);
+    br.parts.put(cx);
+    boss
 }
 
 // --- the frame --------------------------------------------------------------------------------
-
-impl crate::boss::BossClass for Gorre {
-    /// The brothers; its body drawn only in the Kerse's step 2
-    /// (`SetMatrix_PosRotZYX(m_talkPos, m_talkDirc)`, `ccBoss::Draw`); its
-    /// `Main` draws nothing else.
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = if b.act_num == act::KERSE && b.act_proccess == 2 {
-            crate::boss::BodyDraw {
-                pos: self.talk_pos,
-                dirc: [0, 0, self.talk_dirc, ONE],
-                shown: true,
-                ..Default::default()
-            }
-        } else {
-            crate::boss::BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, ..Default::default() }
-        };
-        out.parts.extend(self.brother_me);
-    }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    /// `ccBoss05::Affect` (OUT gcmn 0x004aa200): empty (and Gorre is never
-    /// listed, so nothing reaches it); the fight is won through its brothers.
-    fn affect(&mut self, _b: &mut BossBase, _cx: &mut Cx) {}
-}
-
-pub(super) fn main(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
-    let found: [bool; 2] = std::array::from_fn(|k| {
-        let (part, found) = Part::take_or_stand_in(cx, x.brother_me[k]);
-        x.brothers[k] = part;
-        found
-    });
-    // The effect manager's pass: one array for the three.
-    b.effects.tick();
-    for p in &mut x.brothers {
-        p.b.base.effects.tick();
-    }
-    if b.exit == 0 {
-        frame(b, x, cx);
-        // `Slave` (OUT gcmn 0x004ad980): each brother's own `Main`.
-        for k in 0..2 {
-            brother::frame(b, x, k, cx);
-        }
-        cx.scene.chars[cx.me].cond[crate::param::cond::HOLD] = 0;
-    }
-    for (k, ok) in found.into_iter().enumerate() {
-        std::mem::take(&mut x.brothers[k]).put_back(cx, ok);
-    }
-}
 
 /// `ccBoss05::Main` (OUT gcmn 0x004aa210) up to `Slave`: `CalcRealEx(0)`,
 /// the centre's distance and heading, the stop's count, `hold` while a
 /// brother's is set, `Think`, the party held while `lockPlayer` (a broken
 /// protect's count on), `Move`, the count handed to both brothers.
-fn frame(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn frame(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     calc_real_ex(b, x, cx);
     b.calc_target_info(cx);
@@ -364,7 +360,7 @@ fn frame(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     // The broken protect's count handed to both brothers' `param`s (after
     // the drain's 21 the one block, written onto itself).
     let count = cx.scene.param(me).map_or(0, |p| p.pp_count);
-    for b in &x.brothers {
+    for b in x.brothers.iter() {
         if let Some(p) = cx.scene.param_mut(b.me) {
             p.pp_count = count;
         }
@@ -375,7 +371,7 @@ fn frame(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// the protect's return is shown on both brothers, each with its
 /// `SetProtect` (`effProtect(brother, 1, kind)`, 0x004a980c, 0x004a9844),
 /// not on Gorre, whose body is not drawn.
-fn calc_real_ex(b: &mut BossBase, x: &Gorre, cx: &mut Cx) {
+fn calc_real_ex(b: &mut BossBase, x: &G<'_>, cx: &mut Cx) {
     let me = cx.me;
     let from = cx.ev.len();
     b.calc_real(cx);
@@ -383,7 +379,7 @@ fn calc_real_ex(b: &mut BossBase, x: &Gorre, cx: &mut Cx) {
     for e in raised {
         match e {
             Event::Protect { on: Who::Char(c), broken, kind } if c == me => {
-                for p in &x.brothers {
+                for p in x.brothers.iter() {
                     cx.ev.push(Event::Protect { on: Who::Char(p.me), broken, kind });
                     cx.ev.push(Event::SetProtect { state: 1, on: Who::Char(p.me) });
                 }
@@ -399,11 +395,11 @@ fn calc_real_ex(b: &mut BossBase, x: &Gorre, cx: &mut Cx) {
 /// Gorre's patterns: OUT's `ccBoss::ExecPatternIndex` (0x0046dd20): an
 /// unknown word's neutral forbid 1 (0x0046e384), the dash's vector and the
 /// still vector `vf0`, w 1 (0x0046df4c, 0x0046dd68).
-impl Patterns for Gorre {
+impl Patterns for G<'_> {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        cx.data.gorre.words(b.pat_tbl)
+        words(cx, b.pat_tbl)
     }
 
     fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
@@ -498,7 +494,7 @@ impl Patterns for Gorre {
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss05::Think` (OUT gcmn 0x00498670).
-fn think(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
         act::DMG0 | act::DMG1 => on_dmg(b, x, cx),
@@ -527,7 +523,7 @@ fn think(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkNeutral` (0x004987f0) and its `act` 15 twin, and `OnThinkEpitaph`
 /// (0x0049b0d0, which also counts): the wait (`Boss::wait_over`), then the
 /// next pattern at the nearest.
-fn on_neutral(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_neutral(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     b.set_dirc(b.target_dirc);
@@ -542,13 +538,13 @@ fn on_neutral(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     x.change_next_pattern(b, cx);
 }
 
-fn on_epitaph(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_epitaph(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     b.act_count += 1;
     on_neutral(b, x, cx);
 }
 
 /// `OnThinkDmg` (0x004990e0): back to the neutral at once.
-fn on_dmg(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_dmg(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
     change_action(b, x, cx, n, 1, true);
     b.spd_down(0, 0x40a0_0000);
@@ -556,11 +552,11 @@ fn on_dmg(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 
 /// `OnThinkDrain` (OUT gcmn 0x004aaa40): drained, the Epitaph (act 12,
 /// which marks `epitaph`) and its table, `m_patMode` 2.
-fn on_drain(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_drain(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     change_action(b, x, cx, act::EPITAPH, 3, true);
     b.set_pattern_tbl(Tbl::Epitaph);
-    x.pat_mode = 2;
-    let tbl = cx.data.gorre.words(Tbl::Epitaph);
+    x.own.pat_mode = 2;
+    let tbl = words(cx, Tbl::Epitaph);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -569,7 +565,7 @@ fn on_drain(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// frame 115 the camera's quake and at 115 the flash and a wave shock at
 /// each brother; the brothers' own [`Msg::WaveDone`] ends it. The plain
 /// Wave runs a broken protect's count on.
-fn on_wave(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let c = b.act_count;
     b.act_count += 1;
     if b.act_num == act::WAVE
@@ -584,7 +580,7 @@ fn on_wave(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
                 on_brother(x, k, cx, |bb, cx| bb.base.erase_cmnd_target(cx));
             }
             cx.cursor(true);
-            for p in &mut x.brothers {
+            for p in x.brothers.iter_mut() {
                 p.b.base.body_hit_sw = 0;
             }
             b.act_proccess += 1;
@@ -608,19 +604,19 @@ fn on_wave(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkTalk` (OUT gcmn 0x004acdf0): a member (type 2) held under the
 /// cinema; at 45 its stream (71); once the menu is shut the second
 /// brother's skill 20 on it and a flash.
-fn on_talk(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_talk(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     stream_attack(b, x, cx, 2, 71);
 }
 
 /// `OnThinkDataDrainAtk` (OUT gcmn 0x004ac060): as [`on_talk`] with a
 /// target of type 0 and stream 72, then the drain (`EntryAffect` 13).
-fn on_data_drain_atk(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_data_drain_atk(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     stream_attack(b, x, cx, 0, 72);
 }
 
 /// The Talk and the Data Drain: their shared steps, by their target type
 /// and stream.
-fn stream_attack(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx, ty: i32, stream: i32) {
+fn stream_attack(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx, ty: i32, stream: i32) {
     let me = cx.me;
     let c = b.act_count;
     b.act_count += 1;
@@ -671,7 +667,7 @@ fn stream_attack(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx, ty: i32, stream: 
 /// `OnThinkDashCenter` (OUT gcmn 0x004ac320): the base's dash at 50, the
 /// brothers untargetable and held, a trail of both; at the dash's place
 /// (or 121 frames) the next pattern.
-fn on_dash_center(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_dash_center(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     b.spd_up(0x4248_0000, 0x4248_0000);
     match b.act_proccess {
@@ -717,7 +713,7 @@ fn on_dash_center(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkChase` (OUT gcmn 0x004ad320): at a target (type 7) at 100, the
 /// brothers turned with Gorre, untargetable; close (300) or 60 frames on,
 /// the next pattern; out of the arena, a dash of 500 back.
-fn on_chase(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_chase(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -733,7 +729,7 @@ fn on_chase(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
         1 => {
             b.move_dirc = b.target_dirc;
             b.dirc[2] = b.target_dirc;
-            for p in &mut x.brothers {
+            for p in x.brothers.iter_mut() {
                 p.b.base.dirc = b.dirc;
             }
             let c = b.act_count;
@@ -753,7 +749,7 @@ fn on_chase(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkEscape` (OUT gcmn 0x004aaf40): every 32 frames a way a quarter
 /// turn off the target's, across the centre's (the centre's own out of the
 /// arena); at 100 on a target, 30 after 60 frames, the next pattern at 300.
-fn on_escape(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_escape(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     let quarter = 0x3fc9_0fdb;
     let c = b.act_count;
@@ -797,7 +793,7 @@ fn on_escape(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// `OnThinkWander` (OUT gcmn 0x004aba30): a way drawn (`ccRandF(pi)`),
 /// then 120 frames at 30 turning to it (still while stopped or held); out
 /// of the arena, a dash of 500 back.
-fn on_wander(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_wander(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -836,7 +832,7 @@ const FADE_SLOW: F = 0x3d08_8889;
 /// the FinalPhotonFlash; the second brother's skill 19 at the target; once
 /// the flash is gone the brothers back, fading in; the stage fader out;
 /// Gorre undrawn and neutral (forbid 3).
-fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_kerse(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let c = b.act_count;
     match b.act_proccess {
         0 => {
@@ -847,8 +843,8 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             b.calc_target_info(cx);
             b.lock_player(cx, true);
             cx.out(Out::SwitchLayer);
-            x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
-            x.fade = ONE;
+            x.own.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
+            x.kerse.fade = ONE;
             b.transparency = ONE;
             b.set_transparency = ONE;
             erase_brothers(x, cx);
@@ -860,25 +856,25 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             cx.out(Out::CameraChange(3));
             cx.out(Out::CameraPos { cam: 3, pos: eye });
             cx.out(Out::CameraView { cam: 3, view: vp });
-            x.talk_pos = b.calc_effect_camera_pos(cx, b.target_pos, 0xc3fa_0000);
-            x.talk_dirc = get_dirc(super::w2p(cx, x.talk_pos), super::w2p(cx, eye));
+            x.kerse.talk_pos = b.calc_effect_camera_pos(cx, b.target_pos, 0xc3fa_0000);
+            x.kerse.talk_dirc = get_dirc(super::w2p(cx, x.kerse.talk_pos), super::w2p(cx, eye));
             b.act_proccess += 1;
         }
         1 => {
-            let t = x.fade;
-            for p in &mut x.brothers {
+            let t = x.kerse.fade;
+            for p in x.brothers.iter_mut() {
                 p.b.base.transparency = t;
                 p.b.base.set_transparency = t;
             }
             let t = ee::sub(t, FADE_FAST);
             if ee::lt(t, 0) {
-                for p in &mut x.brothers {
+                for p in x.brothers.iter_mut() {
                     p.b.base.draw_sw = 0;
                 }
-                x.fade = ONE;
+                x.kerse.fade = ONE;
                 b.act_proccess += 1;
             } else {
-                x.fade = t;
+                x.kerse.fade = t;
             }
         }
         2 => {
@@ -889,17 +885,17 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
                     cx.out(Out::Se { se: 191 });
                 }
                 f if (f as u32) >= 80 => {
-                    let mut t = ee::sub(x.fade, FADE_SLOW);
+                    let mut t = ee::sub(x.kerse.fade, FADE_SLOW);
                     if ee::lt(t, 0) {
                         t = 0;
                         let tp = b.target_pos;
-                        x.flash = Some(b.effect_at(cx, EffKind::FinalPhotonFlash, tp, VF0));
+                        x.kerse.flash = Some(b.effect_at(cx, EffKind::FinalPhotonFlash, tp, VF0));
                         b.act_count = 0;
                         b.act_proccess += 1;
                     }
                     b.transparency = t;
                     b.set_transparency = t;
-                    x.fade = t;
+                    x.kerse.fade = t;
                 }
                 _ => {}
             }
@@ -916,8 +912,8 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
                     bb.base.skill_damage(cx, None, Some(tp), 19);
                 });
             }
-            if !b.effects.enabled(x.flash) {
-                for p in &mut x.brothers {
+            if !b.effects.enabled(x.kerse.flash) {
+                for p in x.brothers.iter_mut() {
                     p.b.base.draw_sw = 1;
                 }
                 b.act_count = 0;
@@ -925,13 +921,13 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             }
         }
         4 => {
-            let mut t = ee::add(x.fade, FADE_FAST);
+            let mut t = ee::add(x.kerse.fade, FADE_FAST);
             if !ee::le(t, ONE) {
                 t = ONE;
                 b.act_proccess += 1;
             }
-            x.fade = t;
-            for p in &mut x.brothers {
+            x.kerse.fade = t;
+            for p in x.brothers.iter_mut() {
                 p.b.base.transparency = t;
                 p.b.base.set_transparency = t;
             }
@@ -939,7 +935,7 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
         5 => {
             b.act_count += 1;
             if c == 15 {
-                let id = std::mem::replace(&mut x.stage_eff_id, -1);
+                let id = std::mem::replace(&mut x.own.stage_eff_id, -1);
                 b.end_stage_effect(cx, id, 0x8000_0000, 15);
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -965,7 +961,7 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// held, the brothers untargetable, the cinema (68) and camera 3 on the
 /// target; the brothers' own Tornade does the rest ([`Msg::TornadeHidden`],
 /// [`Msg::TornadeSpell`], [`Msg::TornadeDone`]).
-fn on_tornade(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_tornade(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     if b.act_proccess != 0 {
         return;
     }
@@ -992,7 +988,7 @@ fn on_tornade(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// fader, camera 3 and the spell's cinema; once `effSkillStart` ends the
 /// caster's `ccItemSkillCompel` on the target; 50 frames on the fader out;
 /// 15 more, the next pattern.
-fn on_skill(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_skill(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     b.set_dirc(b.target_dirc);
     let caster = |sid: i32| usize::from(!matches!(sid, 157 | 158));
@@ -1004,29 +1000,29 @@ fn on_skill(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             }
             b.calc_target_info(cx);
             cx.out(Out::SwitchLayer);
-            x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
+            x.own.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
             let k = (cx.cc.rand() & 3).unsigned_abs() as usize;
-            x.skill_id = cx.data.gorre.skills[k];
+            x.own.skill_id = pick(combat::of(cx.volume()).gorre_skills, k);
             let who = x.brothers[usize::from(k >= 2)].me;
-            cx.out(Out::SkillStart { who, sid: x.skill_id });
-            x.skill_start = Some(super::fidchell::eff::SKILL_START_LIFE);
+            cx.out(Out::SkillStart { who, sid: x.own.skill_id });
+            x.own.skill_start = Some(super::fidchell::eff::SKILL_START_LIFE);
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
             focus_camera(cx, vp, [0, 0, b.target_dirc, ONE], [0x447a_0000, 0, 0, ONE]);
             erase_brothers(x, cx);
             b.lock_player(cx, true);
-            cx.out(Out::CinemaSkill(x.skill_id));
+            cx.out(Out::CinemaSkill(x.own.skill_id));
             b.act_proccess += 1;
         }
         1 => {
             // The start's controller: its endFlag once its life is out.
-            if let Some(n) = x.skill_start {
-                x.skill_start = (n > 1).then_some(n - 1);
+            if let Some(n) = x.own.skill_start {
+                x.own.skill_start = (n > 1).then_some(n - 1);
             }
-            if x.skill_start.is_some() {
+            if x.own.skill_start.is_some() {
                 return;
             }
-            let sid = x.skill_id;
+            let sid = x.own.skill_id;
             let k = caster(sid);
             let target = cx.scene.chars[me].target_char;
             on_brother(x, k, cx, |bb, cx| {
@@ -1046,7 +1042,7 @@ fn on_skill(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             let c = b.act_count;
             b.act_count += 1;
             if c == 50 {
-                let id = std::mem::replace(&mut x.stage_eff_id, -1);
+                let id = std::mem::replace(&mut x.own.stage_eff_id, -1);
                 b.end_stage_effect(cx, id, 0x6400_0000, 15);
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -1072,7 +1068,7 @@ fn on_skill(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// `abs(ccRand()) & 3`) named in the cinema under the stage fader and
 /// camera 3; at 15 the second brother casts it on the target; 60 on the
 /// brothers back; 15 more, the fader out and the next pattern.
-fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_magic(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     let c = b.act_count;
     match b.act_proccess {
@@ -1083,7 +1079,7 @@ fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             }
             b.calc_target_info(cx);
             cx.out(Out::SwitchLayer);
-            x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
+            x.own.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
             b.lock_player(cx, true);
             erase_brothers(x, cx);
             b.act_proccess += 1;
@@ -1091,15 +1087,15 @@ fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             vp[2] = ee::add(vp[2], 0x4348_0000);
             focus_camera(cx, vp, [0, 0, b.target_dirc, ONE], [CAM_Y, 0, 0x42c8_0000, ONE]);
             let k = (cx.cc.rand().unsigned_abs() & 3) as usize;
-            x.skill_id = cx.data.gorre.magic_skills[k];
-            cx.out(Out::CinemaSkill(x.skill_id));
+            x.own.skill_id = pick(combat::of(cx.volume()).gorre_magic_skills, k);
+            cx.out(Out::CinemaSkill(x.own.skill_id));
         }
         1 => {
             b.act_count += 1;
             if c == 15 {
                 let br1 = x.brothers[1].me;
                 if let Some(t) = cx.scene.chars[me].target_char
-                    && let Some(s) = item::item_skill_request(cx.t, cx.scene, br1, t, x.skill_id, 0, false, cx.rand)
+                    && let Some(s) = item::item_skill_request(cx.t, cx.scene, br1, t, x.own.skill_id, 0, false, cx.rand)
                 {
                     cx.out(Out::SkillFrom { user: br1, target: t, skill: s });
                 }
@@ -1121,7 +1117,7 @@ fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
                 cx.out(Out::SwitchLayer);
                 cx.cinema_off();
                 cx.out(Out::CameraChange(2));
-                let id = std::mem::replace(&mut x.stage_eff_id, -1);
+                let id = std::mem::replace(&mut x.own.stage_eff_id, -1);
                 b.end_stage_effect(cx, id, 0x6400_0000, 15);
                 b.unlock_player();
                 entry_brothers(x, cx);
@@ -1136,7 +1132,7 @@ fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 /// dead and set 300 either side of Gorre across the way to the centre,
 /// camera 3 3000 off Gorre looking at it; their own [`Msg::Dead`] ends
 /// the fight.
-fn on_dead(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
+fn on_dead(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     if b.act_proccess != 0 {
         return;
     }

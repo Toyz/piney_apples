@@ -652,7 +652,9 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   (alike on every volume). Fidchell is its wave and its own (its
   prediction, spells and camera; the volume's tables viewed the same
   way, worklog 541); Tarvos the same (worklog 542), and Macha (its eyes
-  read through `Cx::field` as its laser leaves, worklog 545). The other
+  read through `Cx::field` as its laser leaves, worklog 545), and Gorre
+  (its brothers, its own and its Kerse, a brother its own system,
+  worklog 546). The other
   classes still run as one
   `Step::Class` through `Class::with_rules` to their `BossClass` impl:
   `Class::Innis` is Mutation's `ccBoss02` ([Innis](boss-innis.md)),

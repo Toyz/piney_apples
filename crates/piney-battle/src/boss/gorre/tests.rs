@@ -12,6 +12,7 @@ use crate::param::{Base, SpcParam};
 use crate::rand::Rand;
 use crate::scene::Scene;
 use crate::tables::Tables;
+use piney_data::volume::Volume;
 
 struct Fight {
     t: Tables,
@@ -134,8 +135,12 @@ impl Fight {
     }
 
     fn gorre(&mut self) -> &mut Gorre {
-        let Class::Gorre(x) = &mut self.boss().class else { panic!("not Gorre") };
-        x
+        self.boss().systems.get_mut::<Gorre>().expect("Gorre's own")
+    }
+
+    /// The brothers' characters.
+    fn brothers(&mut self) -> [usize; 2] {
+        self.boss().systems.get::<Brothers>().expect("Gorre's brothers").me
     }
 
     /// Frames until `done` holds (at most `n`).
@@ -159,12 +164,12 @@ fn stands_behind_kite_with_two_brothers_beside_it() {
     assert!(!f.scene.ene_list.contains(&me), "Gorre itself is never listed");
     assert_eq!(f.boss().base.pat_tbl, Tbl::Normal);
     assert_eq!(f.boss().base.act_num, act::NEUTRAL);
-    let br = f.gorre().brother_me;
+    let br = f.brothers();
     assert_ne!(br[0], br[1], "two distinct brothers");
     for m in br {
         assert!(f.scene.ene_list.contains(&m), "each brother entered");
         let Some(bb) = f.scene.chars[m].foe_state().unwrap().boss.as_ref() else { panic!("no boss on the brother") };
-        assert!(matches!(bb.class, Class::GorreBrother(_)));
+        assert!(bb.def == &crate::boss::defs::BROTHER && bb.systems.get::<Brother>().is_some());
     }
 }
 
@@ -180,14 +185,14 @@ fn runs_its_first_pattern_without_panicking() {
 
 /// An `EntryAffect` on a brother (Kite's), as a hit, a drain or a heal.
 fn affect_brother(f: &mut Fight, k: usize, kind: i16, p0: i16) {
-    let on = f.gorre().brother_me[k];
+    let on = f.brothers()[k];
     f.entry(on, kind, p0);
 }
 
 #[test]
 fn a_hit_on_a_brother_takes_the_three_s_one_hp() {
     let Some(mut f) = fight() else { return };
-    let br = f.gorre().brother_me;
+    let br = f.brothers();
     let (hp, mhp) = (f.scene.chars[br[0]].hp, f.scene.chars[br[0]].max_hp);
     affect_brother(&mut f, 0, 1, 1000);
     // cheatHP: a tenth, never under half.
@@ -216,7 +221,7 @@ fn the_three_fall_together_and_the_fight_ends() {
     f.frame();
     affect_brother(&mut f, 0, 1, i16::MAX);
     assert_eq!(f.boss().base.act_num, act::DEAD);
-    let br = f.gorre().brother_me;
+    let br = f.brothers();
     f.until(600, |f| f.boss().base.exit != 0);
     assert_ne!(f.boss().base.exit, 0, "both brothers' dead effects over");
     for m in br {
@@ -229,14 +234,15 @@ fn the_tables_run_to_their_closing_minus_one() {
     if fight().is_none() {
         return;
     }
-    let d = GorreData::of(Volume::Out);
+    let c = combat::of(Volume::Out);
     // Pattern 10's operand is a -1 too; Outbreak's Super table is four
     // words longer than its symbol's size (Infection's).
-    for (t, n) in [(&d.normal, 39), (&d.super_, 51), (&d.epitaph, 26)] {
+    for (t, n) in [(c.gorre_normal, 39), (c.gorre_super, 51), (c.gorre_epitaph, 26)] {
         assert_eq!(t.len(), n);
         assert_eq!(t.last(), Some(&-1));
     }
-    assert_eq!(d.skills, [157, 158, 159, 160]);
-    assert_eq!(d.magic_skills, [200, 212, 232, 264]);
-    assert_eq!(d.tornade_skills, [200, 212, 232, 264]);
+    let four = |v: &[i32]| -> [i32; 4] { std::array::from_fn(|k| pick(v, k)) };
+    assert_eq!(four(c.gorre_skills), [157, 158, 159, 160]);
+    assert_eq!(four(c.gorre_magic_skills), [200, 212, 232, 264]);
+    assert_eq!(four(c.gorre_tornade_skills), [200, 212, 232, 264]);
 }

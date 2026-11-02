@@ -783,11 +783,14 @@ fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
         if i >= frames {
             break;
         }
-        let Some(Class::Gorre(x)) = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+        let Some(bm) = c.scene.chars[me]
+            .foe_state()
+            .and_then(|f| f.boss.as_ref())
+            .and_then(|b| b.systems.get::<piney_battle::boss::gorre::Brothers>())
+            .map(|br| br.me)
         else {
             continue;
         };
-        let bm = x.brother_me;
         // Due while drawSW holds and ccBoss::Draw drew it (not faded out
         // by the camera's distance).
         let due = bm.map(|k| {

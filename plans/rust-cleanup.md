@@ -355,7 +355,9 @@ Where the code does by hand, per kind, what a system should do once:
       before `Step::Draw`.)
       (worklog 543: GameClass's carry mismatches settled by whose vtable
       the constructor stores; 544: the defs statics, a def its address;
-      545: Macha, its wave and its own, its eyes through `Cx::field`.)
+      545: Macha, its wave and its own, its eyes through `Cx::field`;
+      546: Gorre, its brothers, its own and its Kerse; a part's own a
+      system, `Part<T>` lending it off its boss's list.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

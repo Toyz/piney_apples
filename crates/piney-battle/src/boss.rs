@@ -94,7 +94,6 @@ pub struct BossData {
     pub innis: innis::InnisData,
     pub magus: magus::MagusData,
     pub kyvia: kyvia::KyviaData,
-    pub gorre: gorre::GorreData,
     pub corbenik: corbenik::CorbenikData,
 }
 
@@ -105,7 +104,6 @@ impl BossData {
             innis: innis::InnisData::of(volume),
             magus: magus::MagusData::of(volume),
             kyvia: kyvia::KyviaData::of(volume),
-            gorre: gorre::GorreData::of(volume),
             corbenik: corbenik::CorbenikData::of(volume),
         }
     }
@@ -128,11 +126,6 @@ pub enum Class {
     KyviaCore(Box<kyvia::core::Core>),
     /// `kyviaGomora`.
     Gomora(Box<kyvia::gomora::Gomora>),
-    /// `ccBoss05`: the body; its two brothers are bosses of their own
-    /// characters ([`gorre::brother::Brother`]).
-    Gorre(Box<gorre::Gorre>),
-    /// `ccBoss05Brother`.
-    GorreBrother(Box<gorre::brother::Brother>),
     /// `ccBoss08`, the first form: its seeds are bosses of their own
     /// characters.
     Corbenik(Box<corbenik::first::First>),

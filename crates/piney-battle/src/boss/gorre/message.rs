@@ -5,7 +5,7 @@
 use piney_data::field::ee;
 
 use super::brother::Msg;
-use super::{CAM_Y, Gorre, ROW, act, change_action, entry_brothers, on_brother};
+use super::{CAM_Y, G, ROW, act, change_action, entry_brothers, on_brother, pick, words};
 use crate::boss::{BossBase, Cx, Out, Patterns, Tbl};
 use crate::event::{Event, Who};
 use crate::item;
@@ -14,14 +14,14 @@ use crate::item;
 /// the Tornade, one by `ccRand() & 3`.
 fn tornade_skill(cx: &mut Cx) -> i32 {
     let k = (cx.cc.rand() & 3).unsigned_abs() as usize;
-    cx.data.gorre.tornade_skills[k]
+    pick(piney_data::tables::combat::of(cx.volume()).gorre_tornade_skills, k)
 }
 
 /// `SendMessage(br, msg)`: brother `from`'s report, `cx.me` Gorre's own
 /// character. The Wave's end, the Tornade's steps and a death wait on both
 /// brothers' flags (and clear them, but the Tornade's end: the next
 /// Tornade's first report ends it at once); an affect and a hold at once.
-pub(super) fn send(b: &mut BossBase, x: &mut Gorre, from: usize, msg: Msg, cx: &mut Cx) {
+pub(super) fn send(b: &mut BossBase, x: &mut G<'_>, from: usize, msg: Msg, cx: &mut Cx) {
     let n = msg as usize;
     let both = x.brothers.iter().all(|p| p.x.sent[n]);
     match msg {
@@ -64,7 +64,7 @@ pub(super) fn send(b: &mut BossBase, x: &mut Gorre, from: usize, msg: Msg, cx: &
             }
         }
     }
-    for p in &mut x.brothers {
+    for p in x.brothers.iter_mut() {
         p.x.sent[n] = false;
     }
     if msg == Msg::WaveDone {
@@ -76,7 +76,7 @@ pub(super) fn send(b: &mut BossBase, x: &mut Gorre, from: usize, msg: Msg, cx: &
 /// takes the three's one HP (a tenth, never under half, while `cheatHP`,
 /// the broken protect shared), down to the death; a heal (7, 9) adds to
 /// it; a drain (13) the Drain; 21 all three to row 4's stats at 6000.
-fn on_report_affect(b: &mut BossBase, x: &mut Gorre, from: usize, cx: &mut Cx) {
+fn on_report_affect(b: &mut BossBase, x: &mut G<'_>, from: usize, cx: &mut Cx) {
     let me = cx.me;
     let bm = x.brothers[from].me;
     let a = &cx.scene.chars[bm].affect;
@@ -132,11 +132,11 @@ fn on_report_affect(b: &mut BossBase, x: &mut Gorre, from: usize, cx: &mut Cx) {
             // `GetPP() >= GetMaxPP() / 2`: the Super table, once.
             let gp = cx.scene.param(me).map_or(0, |p| p.pp);
             let max = cx.t.bosses.get(ROW).map_or(0, |r| r.max_pp);
-            if x.pat_mode == 0 && gp >= max >> 1 {
+            if x.own.pat_mode == 0 && gp >= max >> 1 {
                 b.set_pattern_tbl(Tbl::Super);
-                x.pat_mode = 1;
-                let tbl = cx.data.gorre.words(Tbl::Super).to_vec();
-                b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
+                x.own.pat_mode = 1;
+                let tbl = words(cx, Tbl::Super);
+                b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
             }
         }
         _ => {}
@@ -144,7 +144,7 @@ fn on_report_affect(b: &mut BossBase, x: &mut Gorre, from: usize, cx: &mut Cx) {
 }
 
 /// The three's one HP.
-fn share_hp(x: &Gorre, me: usize, cx: &mut Cx, hp: i16) {
+fn share_hp(x: &G<'_>, me: usize, cx: &mut Cx, hp: i16) {
     for c in [me, x.brothers[0].me, x.brothers[1].me] {
         cx.scene.chars[c].hp = hp;
     }
@@ -154,7 +154,7 @@ fn share_hp(x: &Gorre, me: usize, cx: &mut Cx, hp: i16) {
 /// Gorre's; at a fresh break (300) the other's protect breaks with it, its
 /// picture too (`effProtect(other, 0, 2)`, OUT gcmn 0x004add68); its gauge
 /// is Gorre's and the other's.
-fn share_protect(x: &Gorre, me: usize, from: usize, cx: &mut Cx) {
+fn share_protect(x: &G<'_>, me: usize, from: usize, cx: &mut Cx) {
     let (bm, other) = (x.brothers[from].me, x.brothers[1 - from].me);
     let count = |cx: &Cx| cx.scene.param(bm).map_or(0, |p| p.pp_count);
     // Each through the character's `param`, in the game's order.
@@ -183,8 +183,8 @@ fn share_protect(x: &Gorre, me: usize, from: usize, cx: &mut Cx) {
 /// The three down (HP 0): the boss camera off, the party's conditions
 /// cleared and the party held, the brothers untargetable, the music out,
 /// Gorre's Dead (forbid 2).
-fn fall(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
-    if std::mem::take(&mut x.cam_sw) {
+fn fall(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
+    if std::mem::take(&mut x.own.cam_sw) {
         cx.out(Out::BossCamOff);
     }
     cx.out(Out::ClearSpcCondition);
