@@ -120,8 +120,8 @@ pub struct Session {
     load_started: bool,
     /// `--dvd`'s disc timing, when on ...
     dvd: Option<crate::dvd::Dvd>,
-    /// ... the frames the new scene waits for its files, under the loading
-    /// display ...
+    /// ... the vertical blanks the new scene waits for its files, under the
+    /// loading display (each frame takes its `frameRate`) ...
     hold: u32,
     /// ... and the files the last scene's set-up read, which the next does
     /// not read again (`loadCheck`).
@@ -360,7 +360,7 @@ impl Session {
             self.load_disp = None;
         }
         if let Some(dvd) = self.dvd {
-            self.hold = dvd.frames(&files, &self.resident);
+            self.hold = dvd.vblanks(&files, &self.resident);
         }
         self.resident = files.into_keys().collect();
         stage
@@ -1076,8 +1076,9 @@ impl Mode for Session {
         };
         // `--dvd`: the new scene's files still loading; only the loading
         // display runs.
+        // The hold is in vertical blanks; a game frame takes `frameRate`.
         if self.hold > 0 && self.at_load {
-            self.hold -= 1;
+            self.hold = self.hold.saturating_sub(Mode::frame_rate(self).max(1));
             let mut frame = Frame::new();
             if let Some(ld) = &mut self.load_disp
                 && ld.frame(false)
@@ -8042,7 +8043,9 @@ mod area15 {
 
     /// `--dvd`: the Chaos Gate's warp to area 15 waits for its files under
     /// the loading display (the area's card fading in, the scene not yet
-    /// stepped), then plays; the frames the files take are printed.
+    /// stepped), then plays. The wait is the disc's time in vertical blanks,
+    /// so at the field's two a frame it takes half as many frames (issue
+    /// #81: it took one frame a blank, twice the disc's time).
     #[test]
     fn a_warp_waits_for_the_disc_under_the_loading_display() {
         let Some((iso, archive)) = disc() else { return };
@@ -8055,15 +8058,18 @@ mod area15 {
         wait(&mut s, 100);
         s.go(Pending::Words([code.a, code.b, code.c]));
         hold(&mut s, 128, 128, 400, |s| s.hold > 0);
-        let frames = s.hold;
-        eprintln!("area 15 from Mac Anu: {frames} frames of disc");
+        let (blanks, rate) = (s.hold, Mode::frame_rate(&s));
+        assert_eq!(rate, 2, "the field's frame rate");
+        let frames = blanks.div_ceil(rate);
+        eprintln!("area 15 from Mac Anu: {blanks} vertical blanks of disc, {frames} frames");
         assert!(s.load_disp.is_some(), "no loading display");
         assert!(playing(&s).is_none());
         wait(&mut s, frames - 1);
-        assert_eq!(s.hold, 1);
+        assert!((1..=rate).contains(&s.hold), "{} blanks left a frame before the end", s.hold);
         assert!(!s.load_started, "the scene ran during the load");
-        hold(&mut s, 128, 128, 400, |s| playing(s).is_some());
+        wait(&mut s, 1);
         assert_eq!(s.hold, 0);
+        hold(&mut s, 128, 128, 400, |s| playing(s).is_some());
     }
 
     /// The game over in area 14's field, forced as a lost key item forces it

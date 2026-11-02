@@ -266,7 +266,9 @@ its own save folder there (`BASLUS-20267DOTHACK` is Infection's,
 `BASLUS-20564DOTHACK` Quarantine's). The options (volumes, voice language,
 screen position, vibration, the message window) are kept in
 `settings.toml` in the port's folder. Whatever any part's Option menu
-sets, every part starts with.
+sets, every part starts with. The port's own `disc_speed` there is 0 (off):
+set it to 3, say, and loads between areas take about as long as the PS2's
+DVD drive at that speed, as `--dvd 3` (or `--cdrom 3`) does for one run.
 
 A part's clear data carries into the next as on the PS2: save after the
 ending's staff roll, then choose CONVERT on the next part's title and the

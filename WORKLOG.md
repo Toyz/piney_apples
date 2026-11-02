@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-558 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 5, engine 26, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 104, video 17, volumes 97, world 155. 143 entries still have open questions - [listed below](#still-open).
+559 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 155. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -570,6 +570,7 @@ The [reference](docs/README.md) says what is true now.
 | 556 | [Bosses as defs: the class machinery and BossData out; a bare ccBoss its own def's steps, Patterns::words by the volume, actAnmTbl a static slice](worklog/0556-bosses-as-defs-the-class-machinery-and-bossdata-out-a-bare.md) | 2026-11-02 | battle |
 | 557 | [Area 125 in the dungeon harness: a heap past 32 MiB, and the doors past the room array's last row](worklog/0557-area-125-in-the-dungeon-harness-a-heap-past-32-mib-and-the.md) | 2026-11-02 | world, test, tooling, volumes |
 | 558 | [Tartarga's skin: CompleteChunk gives a bone or skin model its clump's node list, SetAnm resolves it to the anm's objects](worklog/0558-tartarga-s-skin-completechunk-gives-a-bone-or-skin-model.md) | 2026-11-02 | render, format, decomp, volumes |
+| 559 | [Issue #81: the disc's loading time held twice too long; --cdrom and a disc_speed setting](worklog/0559-issue-81-the-disc-s-loading-time-held-twice-too-long-cdrom.md) | 2026-11-02 | engine, disc, ui |
 
 ## Still open
 

@@ -3,7 +3,8 @@
 //! port keeps one copy in `settings.toml` in its folder
 //! (`piney_data::pack::home`), put into every save as it is made or loaded and
 //! written back whenever a menu changes one. One `name = number` a line, each
-//! the save's own value.
+//! the save's own value, then the port's own options, which no save holds
+//! ([`PORT_KEYS`]): `store` keeps their lines as they are.
 
 use std::path::{Path, PathBuf};
 
@@ -32,6 +33,28 @@ const FIELDS: [Field; 13] = [
     Field { name: "field_camera", at: offset::CAMERA_MODE, short: false },
     Field { name: "map_mode", at: offset::MAP_MODE, short: false },
 ];
+
+/// `disc_speed = N`: loads between areas take the PS2 disc's time at N times
+/// DVD 1x, as `--dvd N` (`crate::dvd`), for runs started without the flag;
+/// 0, the default, leaves them instant (issue #81).
+pub const DISC_SPEED: &str = "disc_speed";
+
+/// The port's own keys, with the value `store` writes when the file has none.
+const PORT_KEYS: [(&str, &str); 1] = [(DISC_SPEED, "0")];
+
+/// A line's `name = value`, comments and blanks left out.
+fn entry(line: &str) -> Option<(&str, &str)> {
+    let line = line.split('#').next().unwrap_or("").trim();
+    let (name, value) = line.split_once('=')?;
+    Some((name.trim(), value.trim()))
+}
+
+/// The disc's speed `path` asks for, when above 0.
+pub fn disc_speed(path: &Path) -> Option<f64> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let speed = text.lines().filter_map(entry).find(|&(n, _)| n == DISC_SPEED)?.1;
+    speed.parse::<f64>().ok().filter(|&v| v > 0.0)
+}
 
 /// The options, in [`FIELDS`]' order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,10 +87,7 @@ impl Settings {
     pub fn load(path: &Path, base: &SaveData) -> Option<Settings> {
         let text = std::fs::read_to_string(path).ok()?;
         let mut s = Settings::of(base);
-        for line in text.lines() {
-            let line = line.split('#').next().unwrap_or("").trim();
-            let Some((name, value)) = line.split_once('=') else { continue };
-            let (name, value) = (name.trim(), value.trim());
+        for (name, value) in text.lines().filter_map(entry) {
             if let (Some(i), Ok(v)) = (FIELDS.iter().position(|f| f.name == name), value.parse::<i16>()) {
                 s.0[i] = v;
             }
@@ -75,11 +95,20 @@ impl Settings {
         Some(s)
     }
 
-    /// Written to `path` (its folder made if need be).
+    /// Written to `path` (its folder made if need be), the port's own
+    /// keys' lines kept as the file had them.
     pub fn store(&self, path: &Path) {
+        let old = std::fs::read_to_string(path).unwrap_or_default();
         let mut text = String::from("# piney's options, kept for all four parts.\n");
         for (f, v) in FIELDS.iter().zip(&self.0) {
             text.push_str(&format!("{} = {v}\n", f.name));
+        }
+        for (key, default) in PORT_KEYS {
+            match old.lines().find(|l| entry(l).is_some_and(|(n, _)| n == key)) {
+                Some(line) => text.push_str(line),
+                None => text.push_str(&format!("{key} = {default}")),
+            }
+            text.push('\n');
         }
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -115,6 +144,27 @@ mod tests {
         got.apply(&mut b);
         assert_eq!(Settings::of(&b), Settings::of(&a));
         assert_eq!(b.i16(offset::SCREEN_X), -3);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Issue #81: `disc_speed` is off until the file asks (written as 0),
+    /// and an option stored again keeps the line as the player wrote it.
+    #[test]
+    fn the_disc_speed_survives_a_store() {
+        let dir = std::env::current_exe().unwrap().parent().unwrap().join("settings-disc-test");
+        let path = dir.join("settings.toml");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut a = SaveData::new();
+        Settings::of(&a).store(&path);
+        assert_eq!(disc_speed(&path), None, "off by default");
+        assert!(std::fs::read_to_string(&path).unwrap().contains("disc_speed = 0"));
+        let text = std::fs::read_to_string(&path).unwrap().replace("disc_speed = 0", "disc_speed = 2.5 # a slow drive");
+        std::fs::write(&path, text).unwrap();
+        a.set_i16(offset::MAIN_VOL, 100);
+        Settings::of(&a).store(&path);
+        assert_eq!(disc_speed(&path), Some(2.5));
+        assert!(std::fs::read_to_string(&path).unwrap().contains("disc_speed = 2.5 # a slow drive"));
+        assert_eq!(Settings::load(&path, &SaveData::new()).unwrap().main_volume(), 100);
         let _ = std::fs::remove_dir_all(dir);
     }
 }

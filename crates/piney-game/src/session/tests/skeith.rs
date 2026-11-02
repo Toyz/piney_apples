@@ -363,11 +363,12 @@ fn event_30_stream_shots() {
 /// `ccSetupGameCtrl` waits on that pass (`ccEnableThEvent(2)`, 0x00168f94)
 /// before `ccLoadResourceFL` puts the loading display up, so no frame of
 /// the streams carries its band; it shows after them, here over 30 frames
-/// of disc (`--dvd`'s hold; the port's own loads take none).
+/// of disc (`--dvd`'s hold, 60 vertical blanks at the field's two a frame;
+/// the port's own loads take none).
 #[test]
 fn event_30_streams_play_before_the_loading_display() {
     let Some(mut s) = event_30_arena_from(2) else { return };
-    s.hold = 30;
+    s.hold = 60;
     let mut pad = Pad::default();
     pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
     let (mut streamed, mut over, mut after) = (BTreeSet::new(), 0u32, 0u32);
