@@ -12,7 +12,7 @@ use super::eff::{self, Fx};
 use super::{Pic, manager_pass, word, wrap_hi, wrap_lo};
 use crate::boss::kyvia::{as_me, plain_boss, set_base_param};
 use crate::boss::{
-    AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
+    AfterImageParams, Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
     base_change_next_pattern, base_exec_pattern_index, blur,
 };
 use crate::boss::{Part, Parts};
@@ -415,8 +415,8 @@ fn slave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
 impl Patterns for Second {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.corbenik.words_b(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        cx.data.corbenik.words_b(b.pat_tbl)
     }
 
     /// `ccBoss08_b::ChangeNextPattern` (0x003b3200): a barrier asked for is

@@ -88,13 +88,12 @@ pub mod act {
 }
 
 /// Every boss's tables, for the volume ([`innis::InnisData`],
-/// [`magus::MagusData`], [`kyvia::KyviaData`], [`fidchell::FidchellData`]).
+/// [`magus::MagusData`], [`kyvia::KyviaData`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossData {
     pub innis: innis::InnisData,
     pub magus: magus::MagusData,
     pub kyvia: kyvia::KyviaData,
-    pub fidchell: fidchell::FidchellData,
     pub gorre: gorre::GorreData,
     pub macha: macha::MachaData,
     pub tarvos: tarvos::TarvosData,
@@ -108,7 +107,6 @@ impl BossData {
             innis: innis::InnisData::of(volume),
             magus: magus::MagusData::of(volume),
             kyvia: kyvia::KyviaData::of(volume),
-            fidchell: fidchell::FidchellData::of(volume),
             gorre: gorre::GorreData::of(volume),
             macha: macha::MachaData::of(volume),
             tarvos: tarvos::TarvosData::of(volume),
@@ -134,8 +132,6 @@ pub enum Class {
     KyviaCore(Box<kyvia::core::Core>),
     /// `kyviaGomora`.
     Gomora(Box<kyvia::gomora::Gomora>),
-    /// `ccBoss04`.
-    Fidchell(Box<fidchell::Fidchell>),
     /// `ccBoss05`: the body; its two brothers are bosses of their own
     /// characters ([`gorre::brother::Brother`]).
     Gorre(Box<gorre::Gorre>),
@@ -1303,6 +1299,11 @@ impl Cx<'_> {
 
     fn dead(&self, c: usize) -> bool {
         self.scene.chars[c].cond[cond::DEAD] != 0
+    }
+
+    /// The disc's volume.
+    fn volume(&self) -> piney_data::volume::Volume {
+        self.actx.volume
     }
 
     fn annihilated(&self) -> bool {

@@ -649,12 +649,13 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   `ccBoss::Draw`'s body. Skeith is systems: his wave (`systems::wave`,
   `m_anmw`) and his own (`boss::skeith::Skeith`: his effects and fades,
   `m_patMode`, `m_actDirc`); his tables are views of `tables::combat`
-  (alike on every volume). The other classes still run as one
+  (alike on every volume). Fidchell is its wave and its own (its
+  prediction, spells and camera; the volume's tables viewed the same
+  way, worklog 541). The other classes still run as one
   `Step::Class` through `Class::with_rules` to their `BossClass` impl:
   `Class::Innis` is Mutation's `ccBoss02` ([Innis](boss-innis.md)),
   `Class::Magus` ([Magus](boss-magus.md)), `Class::Kyvia`
-  ([Kyvia](boss-kyvia.md)), `Class::Fidchell` Outbreak's `ccBoss04`
-  ([Fidchell](boss-fidchell.md)), `Class::Macha` Quarantine's `ccBoss06`
+  ([Kyvia](boss-kyvia.md)), `Class::Macha` Quarantine's `ccBoss06`
   ([Macha](boss-macha.md)), `Class::Tarvos` its `ccBoss07`
   ([Tarvos](boss-tarvos.md)).
 - Every boss class derives from `ccBoss` itself, none from `ccBoss01`

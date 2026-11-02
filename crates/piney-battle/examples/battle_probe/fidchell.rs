@@ -9,7 +9,8 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::fidchell::{self, Fidchell, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out};
+use piney_battle::boss::systems::wave::Wave;
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -375,7 +376,8 @@ fn frame_json(
     menu: &[i32; 6],
     max_range: u32,
 ) -> String {
-    let Class::Fidchell(x) = &b.class else { return "{}".into() };
+    let Some(x) = b.systems.get::<Fidchell>() else { return "{}".into() };
+    let wave = &b.systems.get::<Wave>().expect("its wave").anm;
     let ch = &scene.chars[me];
     let f = scene.param(me).unwrap();
     let effs: Vec<String> = b
@@ -431,9 +433,9 @@ fn frame_json(
         b.base.anm.clip.as_deref().unwrap_or(""),
         b.base.anm.frame(),
         b.base.anm.speed,
-        x.anm_w.clip.as_deref().unwrap_or(""),
-        x.anm_w.frame(),
-        x.anm_w.speed,
+        wave.clip.as_deref().unwrap_or(""),
+        wave.frame(),
+        wave.speed,
         fid_json(b, x),
         max_range,
         effs.join(","),

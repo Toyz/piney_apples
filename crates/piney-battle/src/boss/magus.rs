@@ -17,7 +17,7 @@ use self::leaf::Leaf;
 use super::blur::Set;
 use super::kyvia::fabs;
 use super::{
-    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fade, Fx, LoopOp, Out, PassMode, Patterns, VF0,
+    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Fade, Fx, LoopOp, Out, PassMode, Patterns, VF0,
     base_exec_pattern_index, word,
 };
 use crate::boss::Part;
@@ -776,8 +776,8 @@ fn change_action(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, n: i16, forbid: i
 impl Patterns for Magus {
     const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, _b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        &data.magus.epitaph
+    fn words<'d>(&self, _b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        &cx.data.magus.epitaph
     }
 
     fn epitaph(&self, _b: &BossBase) -> bool {

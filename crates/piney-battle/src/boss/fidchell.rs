@@ -2,7 +2,7 @@
 //! row 3, `bossFunc` code 3, fought in event 207 (M307) in field 4. Ported
 //! from Outbreak's gcmn.prg (0x004a3470-0x004a900c; names and layouts from
 //! Infection's DWARF, whose gcmn carries the class unused), with Outbreak's
-//! `ccBoss` base under it ([`frame`]). It predicts one of four spells, then
+//! `ccBoss` base under it (`defs::FIDCHELL`'s steps). It predicts one of four spells, then
 //! casts it; the spells are effects of their own ([`eff`]).
 //! docs/engine/boss-fidchell.md.
 
@@ -12,12 +12,14 @@ mod tests;
 
 use piney_data::field::ee;
 use piney_data::libm;
-use piney_data::volume::Volume;
+use piney_data::tables::combat;
 
 use self::eff::{Fx, MeteoSworm, RockTower, ThunderStorm};
 use super::blur::{BlurFunc, Set};
+use super::systems::wave::Wave;
+use super::systems::{BossSystem, Hook, Others};
 use super::{
-    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
+    Anm, BaseActs, Boss, BossBase, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
     base_exec_pattern_index, word,
 };
 use crate::enemy_ai::get_dirc;
@@ -76,53 +78,25 @@ pub const PRED_VOICE_EVENT: i32 = -40;
 /// sysLayer's view)` in its constructor (OUT gcmn 0x004a361c).
 pub const PRED_TEXT_LAYER: i16 = 254;
 
-/// Fidchell's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct FidchellData {
-    /// `boss04NormalActTbl`, `boss04SuperActTbl`, `boss04EpitaphActTbl`, each
-    /// to its -1.
-    pub normal: Vec<i32>,
-    pub super_: Vec<i32>,
-    pub epitaph: Vec<i32>,
-    /// `boss0xAnmTbl`: the clip by act.
-    pub anims: Vec<Option<String>>,
-    /// `@1038`, `@1039`: the prediction's text clip and voice by `m_predId`.
-    pub pred_texts: Vec<Option<String>>,
-    pub pred_voices: [i32; 4],
-    /// `@1441`: the skill the prediction lays on each member.
-    pub pred_skills: [i32; 4],
-    /// `@2048`: `OnThinkSkill`'s; `@2081`: `OnThinkMagic`'s.
-    pub skills: [i32; 3],
-    pub magic_skills: [i32; 4],
+/// Fidchell's tables, the volume's (`tables::combat`): `boss04NormalActTbl`,
+/// `boss04SuperActTbl`, `boss04EpitaphActTbl` as `patTbl` points at them,
+/// each to its -1.
+fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
+    let c = combat::of(cx.volume());
+    match t {
+        Tbl::None => &[],
+        Tbl::Normal => c.fidchell_normal,
+        Tbl::Super => c.fidchell_super,
+        Tbl::Epitaph => c.fidchell_epitaph,
+    }
 }
 
-impl FidchellData {
-    /// The volume's.
-    pub fn of(volume: Volume) -> FidchellData {
-        let t = piney_data::tables::combat::of(volume);
-        let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
-        let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
-        FidchellData {
-            normal: t.fidchell_normal.to_vec(),
-            super_: t.fidchell_super.to_vec(),
-            epitaph: t.fidchell_epitaph.to_vec(),
-            anims: s(t.fidchell_anims),
-            pred_texts: s(t.fidchell_pred_texts),
-            pred_voices: std::array::from_fn(|k| pick(t.fidchell_pred_voices, k)),
-            pred_skills: std::array::from_fn(|k| pick(t.fidchell_pred_skills, k)),
-            skills: std::array::from_fn(|k| pick(t.fidchell_skills, k)),
-            magic_skills: std::array::from_fn(|k| pick(t.fidchell_magic_skills, k)),
-        }
-    }
-
-    fn words(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::None => &[],
-            Tbl::Normal => &self.normal,
-            Tbl::Super => &self.super_,
-            Tbl::Epitaph => &self.epitaph,
-        }
-    }
+/// `@1038`, `@1039`: the prediction's text clip and voice by `m_predId`;
+/// `@1441`: the skill the prediction lays on each member; `@2048`:
+/// `OnThinkSkill`'s; `@2081`: `OnThinkMagic`'s. A word past a table's end
+/// is 0.
+fn pick(v: &[i32], k: usize) -> i32 {
+    v.get(k).copied().unwrap_or(0)
 }
 
 /// `PREDICTION_T` (`m_predInfo`, +0x29530): the spell's camera and fade.
@@ -168,11 +142,10 @@ pub enum Pic {
     Shock { pos: V4, turn: F, vels: [V4; 5] },
 }
 
-/// `ccBoss04`'s own members (+0x29350 on).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// `ccBoss04`'s own members (+0x29350 on) beside its wave (`anmw`,
+/// `xeffect`'s `ANM_xx11wave`), as its constructor starts them.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fidchell {
-    /// `anmw`: `xeffect`'s `ANM_xx11wave`.
-    pub anm_w: Anm,
     /// `m_predTxt`: the text's `ccAnm`, its place (+0x29480) and turn.
     pub pred_txt: Anm,
     pub pred_pos: V4,
@@ -198,6 +171,31 @@ pub struct Fidchell {
     /// Camera 3's eye and view as Fidchell last set them, which its own
     /// `cameraGetPos(3)` and `cameraGetView(3)` read back.
     pub cam3: (V4, V4),
+}
+
+impl Default for Fidchell {
+    fn default() -> Fidchell {
+        Fidchell {
+            pred_txt: Anm::new(),
+            pred_pos: VF0,
+            pred_dirc: VF0,
+            eff_magic: None,
+            eff_dead: None,
+            br: false,
+            eff_start: None,
+            act_sub_proccess: 0,
+            act_sub_count: 0,
+            stage_eff_id: -1,
+            pred_id: 0,
+            reserve_pred: 0,
+            rot_z: 0,
+            transparency: 0,
+            skill_id: 0,
+            pred: PredInfo::default(),
+            pat_mode: 0,
+            cam3: (VF0, VF0),
+        }
+    }
 }
 
 // --- small rules ------------------------------------------------------------------------
@@ -252,7 +250,7 @@ fn wrap_lo(v: F) -> F {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = cx.data.fidchell.anims.clone();
+    b.anm_tbl = combat::of(cx.volume()).fidchell_anims.iter().map(|a| a.map(str::to_string)).collect();
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -264,16 +262,6 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     cx.scene.chars[me].pos = pos;
     b.dirc = kite_dirc;
     b.change_action(cx, act::NEUTRAL, 0, true);
-    let x = Fidchell {
-        anm_w: Anm::new(),
-        pred_txt: Anm::new(),
-        pred_pos: VF0,
-        pred_dirc: VF0,
-        stage_eff_id: -1,
-        pred: PredInfo::default(),
-        cam3: (VF0, VF0),
-        ..Fidchell::default()
-    };
     crate::fellow::entry_cmnd(cx.scene, me);
     // InitCenterPos; InitStageEffect; InitBossCamera(250, 1500), its
     // MaxRenge 600; the blur on under ccBoss03BlurParamCB.
@@ -283,13 +271,15 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     cx.out(Out::CamMaxRange(CAM_MAX_RANGE));
     cx.out(Out::Blur(Set::Enable));
     cx.out(Out::Blur(Set::Func(BlurFunc::Boss03)));
-    let mut x = Box::new(x);
     // SetPatternTbl(boss04NormalActTbl), m_patMode 0, the first pattern.
     b.pat_tbl = Tbl::Normal;
     b.pat_index = 0;
+    let mut boss = Boss::build(&crate::boss::defs::FIDCHELL, b);
+    let Boss { base: b, systems, .. } = &mut boss;
+    let (x, _) = systems.split::<Fidchell>().expect("Fidchell's def has it");
     x.pat_mode = 0;
-    start_table(&mut b, &mut x, cx, Tbl::Normal);
-    Boss::of(&crate::boss::defs::FIDCHELL, b, Class::Fidchell(x))
+    start_table(b, x, cx, Tbl::Normal);
+    boss
 }
 
 /// A table's start as the constructor, `Affect` and `OnThinkDrain` make it:
@@ -301,53 +291,26 @@ fn start_table(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
         return;
     }
     x.reserve_pred = 0;
-    let tbl = cx.data.fidchell.words(t);
+    let tbl = words(cx, t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::BossClass for Fidchell {
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
-        out.wave = Some(self.anm_w.posed);
-    }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
+impl BossSystem for Fidchell {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        match hook {
+            Hook::Pass => manager_pass(b, self, cx),
+            Hook::Think => think(b, self, o, cx),
+            Hook::Affect => affect(b, self, cx),
+            _ => {}
+        }
     }
 }
 
-/// `ccThBossEffect`'s pass and `ccBoss::Main` (OUT gcmn 0x0046d490) under
-/// Fidchell's `Think`.
-pub(super) fn main(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
-    manager_pass(b, x, cx);
-    frame(b, x, cx);
-}
-
-/// `ccBoss::Main` (OUT gcmn 0x0046d490): Outbreak's, `ccGetDist` its
-/// `sqrt.s`; `Action` and `Slave` are the base's (nothing).
-fn frame(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
-    if b.exit != 0 {
-        return;
-    }
-    let me = cx.me;
-    b.prologue(cx);
-    b.tick_stop();
-    think(b, x, cx);
-    b.lock_party(cx);
-    b.move_(cx);
-    // ccBoss::PreDrawAnm (0x0046e6c0).
-    b.forward_and_draw(cx);
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
+/// Its wave, beside it.
+fn wave<'a>(o: &'a mut Others) -> &'a mut Wave {
+    o.get_mut::<Wave>().expect("Fidchell's def has a wave")
 }
 
 /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
@@ -382,8 +345,8 @@ fn manager_pass(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
 impl Patterns for Fidchell {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.fidchell.words(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        words(cx, b.pat_tbl)
     }
 
     /// `ccBoss04::ExecPatternIndex(tbl, i)` (OUT gcmn 0x004a40b0), falling back
@@ -478,18 +441,18 @@ impl Patterns for Fidchell {
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss04::Think` (OUT gcmn 0x004a3f00).
-fn think(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Fidchell, o: &mut Others, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
         act::DMG0 | act::DMG1 => on_dmg(b, cx),
         act::PREDICTION => on_prediction(b, x, cx),
-        act::WAVE => on_wave(b, x, cx, false),
+        act::WAVE => on_wave(b, x, wave(o), cx, false),
         act::EXEC_PREDICTION => on_exec_prediction(b, x, cx),
         act::DRAIN_ATK => on_drain_atk(b, x, cx),
         act::DASH_CENTER => on_dash_center(b, x, cx),
         act::DATA_DRAIN => on_drain(b, x, cx),
         act::EPITAPH => on_epitaph(b, x, cx),
-        act::EPITAPH_WAVE => on_wave(b, x, cx, true),
+        act::EPITAPH_WAVE => on_wave(b, x, wave(o), cx, true),
         act::DEAD => on_dead(b, x, cx),
         act::ESCAPE => on_escape(b, x, cx),
         act::CHASE => on_chase(b, x, cx),
@@ -534,11 +497,11 @@ fn on_dmg(b: &mut BossBase, cx: &mut Cx) {
 
 /// `OnThinkWave` (0x004a48e0) and `OnThinkEpitaphWave` (0x004a82a0, its
 /// frames earlier): the wave, boss skill 13 by the clip's frame.
-fn on_wave(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, drained: bool) {
+fn on_wave(b: &mut BossBase, x: &mut Fidchell, w: &mut Wave, cx: &mut Cx, drained: bool) {
     match b.act_proccess {
         0 => {
-            x.anm_w.set(super::ANM_WAVE, cx.clips);
-            x.anm_w.speed = 512;
+            w.anm.set(super::ANM_WAVE, cx.clips);
+            w.anm.speed = 512;
             b.act_proccess += 1;
         }
         1 => {
@@ -563,7 +526,7 @@ fn on_wave(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, drained: bool) {
             if cx.cam.shake && cx.boss_cam {
                 cx.quake_vec([0x4170_0000; 3]);
             }
-            let done = x.anm_w.forward();
+            let done = w.anm.forward();
             cx.out(Out::DrawWave);
             if b.anm_status != 0 && done {
                 x.change_next_pattern(b, cx);
@@ -627,8 +590,8 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         }
         2 => {
             let k = x.pred_id as usize;
-            if let Some(Some(clip)) = cx.data.fidchell.pred_texts.get(k).cloned() {
-                x.pred_txt.set(&clip, cx.clips);
+            if let Some(Some(clip)) = combat::of(cx.volume()).fidchell_pred_texts.get(k).copied() {
+                x.pred_txt.set(clip, cx.clips);
             }
             // cameraGetPos(camID), cameraGetRot(camID), each w 1, through
             // W2P; the text 1000 ahead of the eye toward the turn.
@@ -641,7 +604,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), d), NEG_HALF_PI);
             let v = geom::apply_matrix(&m, [0x447a_0000, 0, 0, ONE]);
             x.pred_pos = super::p2w(cx, geom::vadd(p, v));
-            let voice = cx.data.fidchell.pred_voices[k];
+            let voice = pick(combat::of(cx.volume()).fidchell_pred_voices, k);
             cx.out(Out::Voice { event: PRED_VOICE_EVENT, msg: voice });
             b.act_proccess += 1;
         }
@@ -667,7 +630,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             b.act_proccess += 1;
         }
         4 if c == 0 => {
-            let sid = cx.data.fidchell.pred_skills[x.pred_id as usize & 3];
+            let sid = pick(combat::of(cx.volume()).fidchell_pred_skills, x.pred_id as usize & 3);
             for m in cx.party.members.into_iter().flatten() {
                 if cx.target_ok(Some(m))
                     && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
@@ -1360,7 +1323,7 @@ fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let off = [0x447a_0000, 0, 0, ONE];
             on_magic_camera_at(b, x, cx, vp, d, off, 3);
             let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
-            x.skill_id = cx.data.fidchell.skills[k];
+            x.skill_id = pick(combat::of(cx.volume()).fidchell_skills, k);
             cx.out(Out::SkillStart { who: me, sid: x.skill_id });
             x.eff_start = Some(eff::SKILL_START_LIFE);
             b.erase_cmnd_target(cx);
@@ -1440,7 +1403,7 @@ fn on_magic(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let d = [0, 0, b.target_dirc, ONE];
             let off = [0x447a_0000, 0, 0, ONE];
             on_magic_camera_at(b, x, cx, vp, d, off, 3);
-            x.skill_id = cx.data.fidchell.magic_skills[(cx.env.count & 3) as usize];
+            x.skill_id = pick(combat::of(cx.volume()).fidchell_magic_skills, (cx.env.count & 3) as usize);
             cx.out(Out::CinemaSkill(x.skill_id));
             b.act_proccess += 1;
         }

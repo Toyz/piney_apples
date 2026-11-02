@@ -13,8 +13,7 @@ use super::{Pic, word};
 use crate::boss::Part;
 use crate::boss::kyvia::{as_me, dp, fabs, fp, head, plain_boss, set_base_param};
 use crate::boss::{
-    AfterImageParams, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
-    base_exec_pattern_index,
+    AfterImageParams, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -535,8 +534,8 @@ impl<'a> KillerRules<'a> {
 impl Patterns for KillerRules<'_> {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, _b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        &data.corbenik.killer_acts[self.slot]
+    fn words<'d>(&self, _b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        &cx.data.corbenik.killer_acts[self.slot]
     }
 
     /// `ExecPatternIndex` (0x003bfe90): 7 the wander (act 8, its length the
@@ -764,7 +763,7 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
             b.pat_tbl = Tbl::Normal;
             b.pat_index = 0;
             let mut r = KillerRules::new(x, v);
-            let tbl = r.words(b, cx.data);
+            let tbl = r.words(b, cx);
             b.pat_index = r.exec_pattern_index(b, cx, tbl, 0);
             b.draw_sw = 1;
             b.exit = 0;

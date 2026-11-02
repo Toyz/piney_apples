@@ -154,7 +154,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 impl Patterns for Skeith {
     const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0 };
 
-    fn words<'d>(&self, b: &BossBase, _: &'d BossData) -> &'d [i32] {
+    fn words<'d>(&self, b: &BossBase, _: &Cx<'d>) -> &'d [i32] {
         words(b.pat_tbl)
     }
 

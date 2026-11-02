@@ -149,6 +149,8 @@ systems! {
     Wave(wave::Wave),
     /// Skeith's own (`ccBoss01`).
     Skeith(super::skeith::Skeith),
+    /// Fidchell's own (`ccBoss04`).
+    Fidchell(super::fidchell::Fidchell),
 }
 
 /// A boss's systems, in its def's order.

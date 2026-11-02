@@ -199,6 +199,25 @@ pub const FIDCHELL: BossDef = BossDef {
     body: BodyPick::Epitaph("ANM_ex4x"),
     cam: CamDef::Transfer([0, 0x44bb_8000, 0x437a_0000, ONE]),
     make: |cx, s| fidchell::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    systems: &[Kind::Wave, Kind::Fidchell],
+    // ccThBossEffect's pass (its effects' Draw), then Outbreak's
+    // ccBoss::Main (OUT gcmn 0x0046d490) around its Think; its Action
+    // and Slave are the base's (nothing).
+    order: &[
+        Step::Run(Kind::Fidchell, Hook::Pass),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Fidchell, Hook::Think),
+            Step::LockParty,
+            Step::Move,
+            Step::ForwardAndDraw,
+            Step::ClearHold,
+        ]),
+    ],
+    affect: &[Step::Run(Kind::Fidchell, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
     ..BASE_BOSS
 };
 

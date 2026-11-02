@@ -16,8 +16,8 @@ use piney_data::volume::Volume;
 use self::eff::Fx;
 use super::blur::{BlurFunc, Set};
 use super::{
-    AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fx as BossFx, Out, PassMode,
-    Patterns, Tbl, VF0, base_exec_pattern_index, word,
+    AfterImageParams, Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl,
+    VF0, base_exec_pattern_index, word,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
@@ -349,8 +349,8 @@ fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
 impl Patterns for Macha {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.macha.words(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        cx.data.macha.words(b.pat_tbl)
     }
 
     /// `ccBoss06::ExecPatternIndex(tbl, i)` (0x003a3bb0), falling back on

@@ -5,7 +5,7 @@
 
 use piney_data::field::ee;
 
-use super::super::{BossBase, BossData, Cx, NEG_HALF_PI, Out, act};
+use super::super::{BossBase, Cx, NEG_HALF_PI, Out, act};
 use crate::geom;
 
 type F = u32;
@@ -30,7 +30,7 @@ pub(crate) trait Patterns {
     const ACTS: BaseActs;
 
     /// `patTbl`'s words.
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32];
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32];
 
     fn epitaph(&self, b: &BossBase) -> bool {
         b.epitaph != 0
@@ -63,7 +63,7 @@ pub(crate) fn word(tbl: &[i32], i: i32) -> i32 {
 /// the table's end back to its start, still, the neutral (the epitaph's
 /// held), then the next word run.
 pub(crate) fn base_change_next_pattern<C: Patterns + ?Sized>(c: &mut C, b: &mut BossBase, cx: &mut Cx) {
-    let tbl = c.words(b, cx.data);
+    let tbl = c.words(b, cx);
     if word(tbl, b.pat_index) == -1 {
         b.pat_index = 0;
     }

@@ -12,7 +12,7 @@ use super::seed::{self, Seed};
 use super::{Gen, Pic, SEEDS, manager_pass, word, wrap_hi};
 use crate::boss::Parts;
 use crate::boss::{
-    BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_change_next_pattern,
+    BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_change_next_pattern,
     base_exec_pattern_index,
 };
 use crate::enemy_ai::{get_dirc, rand_f2};
@@ -265,8 +265,8 @@ fn pre_draw_anm(b: &mut BossBase) {
 impl Patterns for First {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.corbenik.words(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        cx.data.corbenik.words(b.pat_tbl)
     }
 
     fn change_next_pattern(&mut self, b: &mut BossBase, cx: &mut Cx) {

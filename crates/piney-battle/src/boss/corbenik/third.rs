@@ -13,7 +13,7 @@ use super::laser::{Refrect, Tera};
 use super::{Gen, Pic, manager_pass_x, word};
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
 use crate::boss::{
-    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
+    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
 };
 use crate::boss::{Part, Parts};
 use crate::enemy_ai::get_dirc;
@@ -362,15 +362,15 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Third, cx: &mut Cx, m: i32) {
     };
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = x.words(b, cx.data);
+    let tbl = x.words(b, cx);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 impl Patterns for Third {
     const ACTS: BaseActs = super::BASE_ACTS;
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.corbenik.words_c(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        cx.data.corbenik.words_c(b.pat_tbl)
     }
 
     fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {

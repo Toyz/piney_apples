@@ -333,14 +333,17 @@ Each `Draw` above also draws, on the effect layer (the manager's
 
 ## In the port
 
-`piney_battle::boss::fidchell` (`Class::Fidchell`) is the rules;
+`piney_battle::boss::fidchell` is the rules: `FIDCHELL`'s systems are
+its wave (`systems::wave`) and its own (`fidchell::Fidchell`), its frame
+the effects' pass, then `ccBoss::Main`'s blocks around its `Think`
+(worklog 541);
 `fidchell::eff` the three spells as the rules keep them (`EffKind::
 MeteoSworm`, `ThunderStorm`, `RockTower`: their lives, `ccRand` draws,
 sounds, the meteor's camera view, and what each `Draw` drew: a meteor
 moved, a bolt's points, segments, transparency and patterns' draws, a
 tower's place and transparency before it moved). They run on a small
 `eff::Host` (`ccRand`, the frame, `ccGetDist`, the calls): the boss's `Cx`
-in the fight. The tables are the combat group's `fidchell_*` entries
+in the fight. The tables are views of the combat group's `fidchell_*` entries
 (data version 16) and `cinema_skill_rows` (17: OUT 0x00472550 run in eemu
 by piney-gen for fields 0-31 and skills under 512). The base's `Main` is ported with
 Outbreak's `ccGetDist` (`sqrt_of`: `sqrt.s` on Outbreak and Quarantine);

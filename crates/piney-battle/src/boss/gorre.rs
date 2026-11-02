@@ -16,8 +16,7 @@ use piney_data::volume::Volume;
 
 use self::brother::Brother;
 use super::{
-    BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, PI, Patterns, TWO_PI, Tbl, VF0,
-    base_exec_pattern_index, word,
+    BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, PI, Patterns, TWO_PI, Tbl, VF0, base_exec_pattern_index, word,
 };
 use crate::boss::Part;
 use crate::enemy_ai::get_dirc;
@@ -403,8 +402,8 @@ fn calc_real_ex(b: &mut BossBase, x: &Gorre, cx: &mut Cx) {
 impl Patterns for Gorre {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.gorre.words(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        cx.data.gorre.words(b.pat_tbl)
     }
 
     fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {

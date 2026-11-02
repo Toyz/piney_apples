@@ -16,7 +16,7 @@ use piney_data::volume::Volume;
 
 use self::eff::Fx;
 use super::{
-    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
+    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
     base_exec_pattern_index, word,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
@@ -382,8 +382,8 @@ fn spike_hit(b: &mut BossBase, cx: &mut Cx, t: usize, pos: V4, index: i32) {
 impl Patterns for Tarvos {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
-    fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
-        data.tarvos.words(b.pat_tbl)
+    fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
+        cx.data.tarvos.words(b.pat_tbl)
     }
 
     /// `ccBoss07::ExecPatternIndex(tbl, i)` (0x003a8700), falling back on

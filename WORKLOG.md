@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-540 entries: audio 43, battle 144, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 57, ui 102, video 16, volumes 94, world 152. 130 entries still have open questions - [listed below](#still-open).
+541 entries: audio 43, battle 145, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 57, ui 102, video 16, volumes 94, world 152. 131 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -552,9 +552,11 @@ The [reference](docs/README.md) says what is true now.
 | 538 | [GameClass: the classes only later volumes have, read from their code: ROOTTOWN06 and Quarantine's ccFellow18-20](worklog/0538-gameclass-the-classes-only-later-volumes-have-read-from.md) | 2026-11-01 | tooling |
 | 539 | [GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) | 2026-11-01 | tooling |
 | 540 | [Bosses as defs, step two: one runner over a def's steps, the systems as objects, Skeith made of them](worklog/0540-bosses-as-defs-step-two-one-runner-over-a-def-s-steps-the.md) | 2026-11-01 | battle |
+| 541 | [Bosses as defs: Fidchell made of systems, its wave and its own](worklog/0541-bosses-as-defs-fidchell-made-of-systems-its-wave-and-its-own.md) | 2026-11-01 | battle |
 
 ## Still open
 
+- [541. Bosses as defs: Fidchell made of systems, its wave and its own](worklog/0541-bosses-as-defs-fidchell-made-of-systems-its-wave-and-its-own.md) - nothing this step opened; Tarvos, Macha, Gorre, Magus, Kyvia, Innis and Corbenik remain to convert, then Class...
 - [540. Bosses as defs, step two: one runner over a def's steps, the systems as objects, Skeith made of them](worklog/0540-bosses-as-defs-step-two-one-runner-over-a-def-s-steps-the.md) - nothing this step opened; the item goes on with each boss's own systems (Fidchell next), then Class, each_class!...
 - [539. GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) - nothing this step opened.
 - [537. Bosses as defs, step one: the request flow; one Output and generic Outs the field and the effects read the same for every boss, inputs through Cx::field, Corbenik's form change a hand-over](worklog/0537-bosses-as-defs-step-one-the-request-flow-one-output-and.md) - none this step opened; the boss item's next steps are the runner and the shared systems, then each boss's own systems.

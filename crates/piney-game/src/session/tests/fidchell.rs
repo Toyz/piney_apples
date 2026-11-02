@@ -2,7 +2,7 @@
 //! town 3, as area 73's dungeon leaves the game), the prediction and each
 //! spell and a skill forced in turn; what shows and sounds.
 
-use piney_battle::boss::Class;
+use piney_battle::boss::fidchell::Fidchell;
 use piney_battle::boss::fidchell::act;
 use piney_input::Raw;
 
@@ -96,7 +96,7 @@ fn run(s: &mut Session, mut each: impl FnMut(&Session, u32, &Frame, &Seen)) {
                 b.base.act_num = act;
                 b.base.act_proccess = 0;
                 b.base.act_count = 0;
-                if let Class::Fidchell(x) = &mut b.class
+                if let Some(x) = b.systems.get_mut::<Fidchell>()
                     && pred >= 0
                 {
                     x.pred_id = pred;

@@ -349,6 +349,8 @@ Where the code does by hand, per kind, what a system should do once:
       in `systems::patterns`, the wave a shared system; Skeith converted
       (his wave and his own, his tables views of `tables::combat`). The
       other classes run as one `Step::Class` until theirs land.)
+      (worklog 541: Fidchell, its wave and its own; `Patterns::words`
+      reads through the `Cx`, the volume's tables viewed.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

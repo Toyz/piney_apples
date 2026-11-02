@@ -12,6 +12,7 @@ use crate::param::{Base, SpcParam};
 use crate::rand::Rand;
 use crate::scene::Scene;
 use crate::tables::Tables;
+use piney_data::volume::Volume;
 
 struct Fight {
     t: Tables,
@@ -124,8 +125,7 @@ impl Fight {
     }
 
     fn fid(&mut self) -> &mut Fidchell {
-        let Class::Fidchell(x) = &mut self.boss().class else { panic!("not Fidchell") };
-        x
+        self.boss().systems.get_mut::<Fidchell>().expect("Fidchell's own")
     }
 
     /// Frames until `done` holds (at most `n`).
@@ -145,7 +145,7 @@ impl Fight {
         self.fid().pred_id = pred;
         let me = self.me;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        let Class::Fidchell(x) = &mut b.class else { panic!("not Fidchell") };
+        let (x, _) = b.systems.split::<Fidchell>().expect("Fidchell's own");
         self.with_cx(|cx| x.exec_pattern(&mut b.base, cx, 15, 0));
         self.scene.chars[me].foe_state_mut().unwrap().boss = Some(b);
         self.until(3000, |f| f.boss().base.act_num != act::EXEC_PREDICTION)
@@ -180,7 +180,7 @@ fn the_prediction_lays_its_skill_on_the_members_then_its_spell_comes() {
     let Some(p) = predicted else { panic!("no prediction") };
     assert_eq!(f.boss().base.act_num, act::EXEC_PREDICTION, "pattern 15 casts it");
     assert!(outs.contains(&Out::Cinema(Some(PRED_CINEMA[p as usize]))));
-    let sid = f.data.fidchell.pred_skills[p as usize];
+    let sid = pick(combat::of(Volume::Out).fidchell_pred_skills, p as usize);
     assert_eq!(outs.iter().filter(|o| matches!(o, Out::Skill(_, s) if s.sid == sid)).count(), 2, "each member");
     assert!(outs.iter().any(|o| matches!(o, Out::Voice { .. })));
     assert_eq!(f.fid().reserve_pred, 0);
