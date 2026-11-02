@@ -267,27 +267,54 @@ pub fn movies(volume: piney_data::volume::Volume) -> Vec<i32> {
     all
 }
 
+/// Step 0's movie as the menu asks for it. An enemy's stream is known
+/// at once. Any other target's is its `base->id`'s as its own
+/// `Affect(21)` leaves it: `EntryAffect` calls that at once (QUA gcmn
+/// 0x0047f2e0) and Tarvos's `SetDefMode(2)` there puts its base back on
+/// row 6 from a guard's 42 or 43, so the runtime reads the id after the
+/// affect ([`Movie::stream`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Movie {
+    Stream(i32),
+    ByBaseId { target: u32 },
+}
+
+impl Movie {
+    /// The stream played: a target's by its `base->id` now (`None` once
+    /// `ccCheckTarget` fails, the small enemy's).
+    pub fn stream(self, volume: piney_data::volume::Volume, id: impl FnOnce(u32) -> Option<i16>) -> i32 {
+        let m = Movies::of(volume);
+        match self {
+            Movie::Stream(num) => num,
+            Movie::ByBaseId { target } => match id(target) {
+                Some(id) => usize::try_from(id).ok().and_then(|k| m.by_id.get(k)).copied().unwrap_or(m.other),
+                None => m.small,
+            },
+        }
+    }
+}
+
 /// Step 0's movie (0x00532ce4 - 0x00532e8c): an enemy's by its size, only
 /// with `drainDemo` on; any other target's by its `base->id` whatever
 /// `drainDemo` says (0 is Skeith's 18); the small enemy's when `cmndTarget`
 /// is gone ([`Movies`]).
-fn movie(x: &Ctx) -> Option<i32> {
+fn movie(x: &Ctx) -> Option<Movie> {
     let m = Movies::of(x.texts.volume);
-    let Some(t) = x.target.as_ref() else { return Some(m.small) };
+    let Some(t) = x.target.as_ref() else { return Some(Movie::Stream(m.small)) };
     if t.is(0x60) {
         if x.save.save.u8(DRAIN_DEMO) == 0 {
             return None;
         }
         return match t.object_size {
-            4 => Some(m.small),
-            3 => Some(m.middle),
-            1 => Some(m.large),
+            4 => Some(Movie::Stream(m.small)),
+            3 => Some(Movie::Stream(m.middle)),
+            1 => Some(Movie::Stream(m.large)),
             // No enemy row has another size; the game would play the
             // stream a register last held.
             _ => None,
         };
     }
-    Some(usize::try_from(t.id).ok().and_then(|k| m.by_id.get(k)).copied().unwrap_or(m.other))
+    Some(Movie::ByBaseId { target: t.handle })
 }
 
 /// The movie's loop (0x00532f60 - 0x00532fe4): `ccBreathThread(1)` until
@@ -337,8 +364,8 @@ fn run(m: &mut MenuCtrl, x: &mut Ctx, r: Resume) -> Flow {
                 x.req.push(Request::Affect { target: t.handle, kind: 21 });
             }
             match movie(x) {
-                Some(num) => {
-                    x.req.push(Request::DrainMovie(num));
+                Some(movie) => {
+                    x.req.push(Request::DrainMovie(movie));
                     m.data_drain.movie_done = false;
                     wait(Resume::Movie(1))
                 }

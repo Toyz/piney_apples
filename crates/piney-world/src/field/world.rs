@@ -1829,6 +1829,16 @@ impl FieldWorld {
         };
         let b = Combat::bounds(area, hits);
         let ents = self.combat.ctrl.list(piney_battle::entry::Kind::Enemy);
+        // The globals as the caller (a menu, a script) finds them.
+        self.combat.env = piney_battle::chara::Env {
+            plcol: self.save.save.u8(piney_data::save::offset::PLCOL),
+            menu_forbid: i16::from(self.menu_view.forbid),
+            in_battle: self.combat.battle.in_battle,
+            count: self.count,
+            menu_type: self.menu_type,
+            sp_regene_speed: false,
+            area,
+        };
         self.combat.affect_now(on, by, kind, p, hits, b, &mut self.save.save, &ents);
     }
 

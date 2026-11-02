@@ -163,11 +163,12 @@ pub enum Request {
     /// before the movie, as [`Request::Affect`]). The runtime answers with
     /// [`FieldUi::drain_drops`] before the menu's next frame.
     DataDrain { target: u32, sid: i32 },
-    /// Step 0's movie: `ccStartThread(ccThExecuteStream)` playing stream
-    /// `num`. The runtime plays it and says when it has ended with
-    /// [`FieldUi::drain_movie_done`]; the menu task breathes without its
-    /// `Disp` meanwhile.
-    DrainMovie(i32),
+    /// Step 0's movie: `ccStartThread(ccThExecuteStream)` playing the
+    /// stream [`menus::drain::Movie::stream`] picks, after the requests
+    /// before it (a boss's affect). The runtime plays it and says when it
+    /// has ended with [`FieldUi::drain_movie_done`]; the menu task breathes
+    /// without its `Disp` meanwhile.
+    DrainMovie(menus::drain::Movie),
     /// `StreamMenu`'s (menu 74) stream: `ccStartThread(ccThExecuteStream)`
     /// playing stream `num`, answered with [`FieldUi::stream_menu_done`]
     /// when it has ended.

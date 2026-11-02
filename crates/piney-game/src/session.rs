@@ -7339,6 +7339,9 @@ mod tests {
     /// Issue #74: Bitter Fantasy Mirror World, fields 66 and 67.
     mod mirror_world;
 
+    /// Players' pad logs replayed (issues #78-#80), a diagnostic.
+    mod player_logs;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

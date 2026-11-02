@@ -388,6 +388,10 @@ pub struct Combat {
     /// newlib's `rand()`, `ccRand()` (MT19937), `ccRandS`'s state.
     pub rand: Rand,
     pub cc: Genrand,
+    /// The globals as the world last gave them (the frame's, or a menu's
+    /// at its `EntryAffect`), for a boss's `Affect` run from outside its
+    /// own frame.
+    pub env: Env,
     pub rnds: u16,
     pub kite: Option<usize>,
     /// The party's characters: (registry id, scene index), Kite first.
@@ -697,6 +701,7 @@ impl Combat {
             player: kite::Player::default(),
             rand: Rand::new(seed),
             cc: Genrand::default(),
+            env: Env::default(),
             rnds: 0,
             kite: None,
             members: Vec::new(),
@@ -1482,6 +1487,7 @@ impl Combat {
             sp_regene_speed: false,
             area,
         };
+        self.env = env;
         let annihilated = self.annihilated();
         let game = party_ai::Game {
             in_battle,
@@ -2760,13 +2766,27 @@ impl Combat {
         hits: &mut Hits,
         bounds: MapBounds,
     ) {
-        let t = &self.data.t;
+        let d = self.data.clone();
         let party = self.party;
         let checks = self.skill_checks();
         let chk = |c: usize| checks.get(c).copied().unwrap_or(0);
-        let aff = AffectCtx { party: &party, menu: true, skill_check: &chk, boss: None, volume: self.data.volume };
+        // bossAffectFunc runs the fight's boss's Affect inside EntryAffect
+        // (QUA gcmn 0x0047f2e0), with the fight's ccRand.
+        let clips = self.boss.as_ref().filter(|r| !r.exit).map(|r| r.clips.clone());
+        let clip = |name: &str| clips.as_ref().and_then(|c| c.get(name).copied());
+        let cc = RefCell::new(std::mem::take(&mut self.cc));
+        let benv = d.bosses.as_ref().filter(|_| clips.is_some()).map(|data| piney_battle::boss::BossEnv {
+            t: &d.t,
+            data,
+            clips: &clip,
+            env: &self.env,
+            game_over: false,
+            cc: Some(&cc),
+        });
+        let aff = AffectCtx { party: &party, menu: true, skill_check: &chk, boss: benv.as_ref(), volume: d.volume };
         let mut ev = Events::new();
-        affect::entry_affect(t, &mut self.scene, &aff, on, by, kind, p, &mut self.rand, &mut ev);
+        affect::entry_affect(&d.t, &mut self.scene, &aff, on, by, kind, p, &mut self.rand, &mut ev);
+        self.cc = cc.into_inner();
         for e in ev {
             self.consequence(e, hits, bounds, false);
         }

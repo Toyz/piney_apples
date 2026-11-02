@@ -2,8 +2,8 @@
 title: Bosses - Tarvos
 status: partial
 volumes: QUA, INF
-covers: QUA gcmn.prg:0x003a81e0-0x003ac9f0 (boss07.cpp), 0x003a8300 ccBoss07::ccBoss07, 0x003a8700 ExecPatternIndex, 0x003a8e00 SetPatternMode, 0x003a8eb0 OnMagicCamera, 0x003a9040 SetDefMode, 0x003a91e0 Main, 0x003a9260 Affect, 0x003a96b0 PreDrawAnm, 0x003a9750 Think, 0x003a9920 OnThinkNeutral, 0x003a9a80 OnThinkDrain, 0x003a9bc0 OnThinkDead, 0x003a9cb0 OnThinkSacrifice, 0x003aa060 OnThinkWave, 0x003aa2a0 OnThinkSkill, 0x003aa7b0 OnThinkDashCenter, 0x003aa9b0 OnThinkMagic, 0x003aaea0 OnThinkPhantom, 0x003ab0d0 OnThinkDataDrainAtk, 0x003ab360 OnThinkSpikeShot, 0x003ab560 _SpikeShotCB, 0x003ab620 OnThinkWander, 0x003ab7b0 OnThinkTransfer, 0x003abf20 OnThinkChase, 0x003ac210 OnThinkEscape, 0x003ac4d0 OnThinkReturn, 0x003ac5f0 OnThinkEpitaph, 0x003ac750 OnThinkEpitaphWave, 0x003ac9e0 OnThinkPoison, 0x003738f0 ccBossEffSpikeRain::ccBossEffSpikeRain, 0x00373d60 ccBossEffSpikeRain::Draw, 0x0037a4b0 ccBossEffPhantom::ccBossEffPhantom, 0x0037a980 InitRadiateParam, 0x0037ac50 ChangePtclGenerator, 0x0037add0 ccBossEffPhantom::Draw, 0x0037b7b0 ccBossEffEruptionCreate, 0x0037d180 ccBossEffSpikeRainCreate, 0x0037d760 ccBossEffExplode2Create, 0x0037db00 ccBossEffTransEffectCreate, 0x0037dca0 ccBossEffPhantomCreate, 0x005ec420 boss0xAnmTbl, 0x005ec490 boss07NormalActTbl, 0x005ec510 boss07SuperActTbl, 0x005ec5a0 boss07EpitaphActTbl, 0x005ec5f8 @1178, 0x005ec618 @1517, 0x003781e0 @1568
-worklog: 447
+covers: QUA gcmn.prg:0x003a81e0-0x003ac9f0 (boss07.cpp), 0x003a8300 ccBoss07::ccBoss07, 0x003a8700 ExecPatternIndex, 0x003a8e00 SetPatternMode, 0x003a8eb0 OnMagicCamera, 0x003a9040 SetDefMode, 0x003a91e0 Main, 0x003a9260 Affect, 0x003a96b0 PreDrawAnm, 0x003a9750 Think, 0x003a9920 OnThinkNeutral, 0x003a9a80 OnThinkDrain, 0x003a9bc0 OnThinkDead, 0x003a9cb0 OnThinkSacrifice, 0x003aa060 OnThinkWave, 0x003aa2a0 OnThinkSkill, 0x003aa7b0 OnThinkDashCenter, 0x003aa9b0 OnThinkMagic, 0x003aaea0 OnThinkPhantom, 0x003ab0d0 OnThinkDataDrainAtk, 0x003ab360 OnThinkSpikeShot, 0x003ab560 _SpikeShotCB, 0x003ab620 OnThinkWander, 0x003ab7b0 OnThinkTransfer, 0x003abf20 OnThinkChase, 0x003ac210 OnThinkEscape, 0x003ac4d0 OnThinkReturn, 0x003ac5f0 OnThinkEpitaph, 0x003ac750 OnThinkEpitaphWave, 0x003ac9e0 OnThinkPoison, 0x003738f0 ccBossEffSpikeRain::ccBossEffSpikeRain, 0x00373d60 ccBossEffSpikeRain::Draw, 0x0037a4b0 ccBossEffPhantom::ccBossEffPhantom, 0x0037a980 InitRadiateParam, 0x0037ac50 ChangePtclGenerator, 0x0037add0 ccBossEffPhantom::Draw, 0x0037b7b0 ccBossEffEruptionCreate, 0x0037d180 ccBossEffSpikeRainCreate, 0x0037d760 ccBossEffExplode2Create, 0x0037db00 ccBossEffTransEffectCreate, 0x0037dca0 ccBossEffPhantomCreate, 0x005ec420 boss0xAnmTbl, 0x005ec490 boss07NormalActTbl, 0x005ec510 boss07SuperActTbl, 0x005ec5a0 boss07EpitaphActTbl, 0x005ec5f8 @1178, 0x005ec618 @1517, 0x003781e0 @1568; QUA gcmn.prg:0x0047f170 ccChar::EntryAffect, 0x00362c70 bossAffectFunc, 0x0043ede0 ccMenuCtrl::DataDrainMenu
+worklog: 447, 548
 ---
 
 # Bosses - Tarvos
@@ -107,7 +107,10 @@ Magic, 25 Data Drain attack, 26 Poison (returns at once); any other
   2000 of the centre, `ANM_ex71out0`, the fog thinning; then the other
   guard. The body is not posed while the stream plays (act 21, step 2).
 - **Drain.** HP 7000, the guard dropped (`SetDefMode(2)`), the Epitaph's
-  table; the gauge left at -1.
+  table; the gauge left at -1. `EntryAffect(21)` runs this inside
+  `DataDrainMenu`, so its base is row 6 again when the menu picks the
+  movie by `base->id`: stream 100, Tarvos's own (`SetDefMode(0)` and
+  `(1)` store rows 42 and 43 in `ccChar+0`, 0x003a9070 and 0x003a9108).
 
 ## Its effects
 

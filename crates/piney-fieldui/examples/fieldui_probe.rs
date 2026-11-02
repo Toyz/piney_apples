@@ -1030,7 +1030,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Request::GateHackSound(n) => format!("[\"gate_hack_snd\",{n}]"),
                             Request::DrainLevelDown => "[\"level_down\"]".into(),
                             Request::GameOver => "[\"game_over\"]".into(),
-                            Request::DrainMovie(num) => {
+                            Request::DrainMovie(m) => {
+                                let num = m.stream(ui.texts().volume, |h| find(&world, h).map(|c| c.id));
                                 movie_end = Some(fr + movie_len);
                                 format!("[\"drain_movie\",{num}]")
                             }

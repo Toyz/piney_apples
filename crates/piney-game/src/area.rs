@@ -1512,8 +1512,17 @@ impl AreaMode {
             // The Key Items refuse a Ryu Book outside a town (help 8), so
             // its cover never plays here.
             R::BookStream(_) => {}
-            R::DrainMovie(num) | R::StreamMenu(num) => {
-                self.stream_menu = matches!(r, R::StreamMenu(_));
+            R::DrainMovie(movie) => {
+                self.stream_menu = false;
+                // The boss's Affect(21), a request before this one, has
+                // been carried out: its base->id is the one it left.
+                let chars = &self.world.combat().scene.chars;
+                let id = |h| handle_index(&self.world, h).and_then(|i| chars.get(i)).map(|c| c.base().id);
+                let num = movie.stream(self.ui.texts().volume, id);
+                self.start_movie(num);
+            }
+            R::StreamMenu(num) => {
+                self.stream_menu = true;
                 self.start_movie(num);
             }
             // ccThStrParty: StreamMenu's members drawn into its stream.

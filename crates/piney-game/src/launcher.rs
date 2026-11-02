@@ -497,6 +497,10 @@ pub(crate) fn replay_pad_log(
         let t = l.split(" | launcher - ").nth(1)?;
         Volume::ALL.iter().position(|v| t.starts_with(&format!("{} - ", v.title())))
     });
+    // A log begun from the console's `pad_log` keeps no titles of the
+    // launcher's: `PINEY_LAUNCHER_ROW` names the row (0 Infection .. 3
+    // Quarantine).
+    let row = std::env::var("PINEY_LAUNCHER_ROW").ok().and_then(|r| r.parse::<usize>().ok()).or(row);
     let memo = PathBuf::from(format!("{log}.launcher-test"));
     std::fs::write(&memo, row.unwrap_or(0).to_string()).unwrap();
     let mut steps = crate::padlog::read(log).unwrap();
