@@ -468,8 +468,17 @@ impl Mode for LauncherMode {
 /// frame ran: its line in the log, the mode and its events, the engine
 /// (whose `render` takes the frame's samples).
 #[cfg(test)]
-pub(crate) fn replay_pad_log(
+pub(crate) fn replay_pad_log(log: &str, each: impl FnMut(u32, &mut dyn Mode, &[Event], &piney_audio::Audio, &Frame)) {
+    replay_pad_log_with(log, |_, _, raw| raw, |_| true, each);
+}
+
+/// [`replay_pad_log`] with `pad` choosing each frame's pad (the log's
+/// given) and `heard` the events routed to the engine.
+#[cfg(test)]
+pub(crate) fn replay_pad_log_with(
     log: &str,
+    mut pad_of: impl FnMut(u32, &mut dyn Mode, piney_input::Raw) -> piney_input::Raw,
+    heard: impl Fn(&Event) -> bool,
     mut each: impl FnMut(u32, &mut dyn Mode, &[Event], &piney_audio::Audio, &Frame),
 ) {
     fn copy(src: &Path, dst: &Path) {
@@ -517,11 +526,12 @@ pub(crate) fn replay_pad_log(
                 continue;
             }
         };
+        let raw = pad_of(line, mode.as_mut(), raw);
         pad.read(&raw);
         let frame = mode.step(&pad);
         let events = mode.take_events();
         let boot = events.iter().find_map(|e| if let Event::Boot(p) = e { Some(p.clone()) } else { None });
-        crate::handle(events.clone(), Some(&audio));
+        crate::handle(events.iter().filter(|e| heard(e)).cloned().collect(), Some(&audio));
         audio.frame();
         each(line, mode.as_mut(), &events, &audio, &frame);
         if let Some(path) = boot {

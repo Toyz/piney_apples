@@ -7342,6 +7342,9 @@ mod tests {
     /// Players' pad logs replayed (issues #78-#80), a diagnostic.
     mod player_logs;
 
+    /// Issue #76: the cures' sound.
+    mod cure_sound;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

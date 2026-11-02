@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-550 entries: audio 43, battle 152, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 129, save 16, script 62, test 239, tooling 58, ui 104, video 17, volumes 95, world 154. 139 entries still have open questions - [listed below](#still-open).
+551 entries: audio 44, battle 153, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 129, save 16, script 62, test 239, tooling 58, ui 104, video 17, volumes 95, world 154. 140 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -562,9 +562,11 @@ The [reference](docs/README.md) says what is true now.
 | 548 | [Tarvos's drain plays its own movie: a boss's Affect runs inside EntryAffect](worklog/0548-tarvos-s-drain-plays-its-own-movie-a-boss-s-affect-runs.md) | 2026-11-01 | battle, video, ui |
 | 549 | [Cubia's white flashes were its gomoras' after-images drawn as the whole body; Tartarga posed through his skin's own clump](worklog/0549-cubia-s-white-flashes-were-its-gomoras-after-images-drawn.md) | 2026-11-01 | battle, render, world |
 | 550 | [Area 125's fifteen floors: the dungeon runtime keeps the disc's floor count, so B10 has its stairs down](worklog/0550-area-125-s-fifteen-floors-the-dungeon-runtime-keeps-the.md) | 2026-11-02 | world, volumes, ui |
+| 551 | [The cures' only sound is the skill start's: Antidote and Restorative play 104 as the game does](worklog/0551-the-cures-only-sound-is-the-skill-start-s-antidote-and.md) | 2026-11-02 | audio, battle |
 
 ## Still open
 
+- [551. The cures' only sound is the skill start's: Antidote and Restorative play 104 as the game does](worklog/0551-the-cures-only-sound-is-the-skill-start-s-antidote-and.md) - what the reporter heard as silence: the port asks for and plays the game's one sound for these items (104); whether...
 - [550. Area 125's fifteen floors: the dungeon runtime keeps the disc's floor count, so B10 has its stairs down](worklog/0550-area-125-s-fifteen-floors-the-dungeon-runtime-keeps-the.md) - the dungeon runtime harness (tools/test_dungeon_rt.py) cannot run area 125 as it stands: the game's Generate over...
 - [549. Cubia's white flashes were its gomoras' after-images drawn as the whole body; Tartarga posed through his skin's own clump](worklog/0549-cubia-s-white-flashes-were-its-gomoras-after-images-drawn.md) - the game's code path that gives a model outside the made clump its own clump's node table: ccAnm::SetAnm (QUA main...
 - [548. Tarvos's drain plays its own movie: a boss's Affect runs inside EntryAffect](worklog/0548-tarvos-s-drain-plays-its-own-movie-a-boss-s-affect-runs.md) - the movie's pictures (stream 100's Tarvos) are not compared with the game's frame by frame
