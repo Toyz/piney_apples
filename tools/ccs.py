@@ -268,6 +268,9 @@ class Survey:
         self.disagree = collections.Counter()       # kind -> chunks longer or shorter than size
         self.closes = collections.Counter()         # END_FRAMES name -> members
         self.animated = self.frames = self.unterminated = self.unordered = 0
+        # Bone and skin models' objects by how many clumps list them (0, 1,
+        # 2+): CompleteChunk gives such a model its clump's node list.
+        self.skin_clumps = collections.Counter()
 
 
 def survey(spec):
@@ -280,7 +283,19 @@ def survey(spec):
         prev = None
         ok = False
         tops = []
+        objs, mtypes, clumps = {}, {}, []
         for off, t, n, end in c.chunks():
+            if t is not None and n:
+                kind = t & 0xFFFF
+                if kind == 0x0100:
+                    o, _parent, model = struct.unpack_from("<III", c.data, off + 8)
+                    objs[o] = model
+                elif kind == 0x0800:
+                    model, _scale, mtype = struct.unpack_from("<IfH", c.data, off + 8)
+                    mtypes[model] = mtype
+                elif kind == 0x0900:
+                    k = struct.unpack_from("<H", c.data, off + 12)[0]
+                    clumps.append(set(struct.unpack_from(f"<{k}I", c.data, off + 16)))
             if t is None:
                 kind = kind_name(prev & 0xFFFF) if prev is not None else "start"
                 s.lost[kind] += 1
@@ -295,6 +310,9 @@ def survey(spec):
             if end == len(c.data):
                 ok = True
         s.clean += ok
+        for o, model in objs.items():
+            if mtypes.get(model, 0) & 6:
+                s.skin_clumps[min(2, sum(o in nodes for nodes in clumps))] += 1
         if not tops or tops[-1] not in END_FRAMES:
             s.unterminated += 1
             continue
@@ -313,6 +331,8 @@ def print_survey(s):
     print(f"frame section: {s.animated} members hold frames, {s.frames} frames in all "
           f"({s.unordered} members not numbered 0, 1, 2, ...); closed by "
           f"{dict(s.closes)}, {s.unterminated} not closed")
+    print(f"bone and skin models' objects listed by no clump {s.skin_clumps[0]}, by one "
+          f"{s.skin_clumps[1]}, by two or more {s.skin_clumps[2]}")
     print("chunks seen before any walk was lost (and how many disagree with their size field):")
     for k, n in sorted(s.counts.items()):
         note = f"  ({s.disagree[k]} disagree)" if s.disagree[k] else ""

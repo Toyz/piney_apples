@@ -69,11 +69,12 @@ pub struct Body {
     /// makes each anm its own `ccMorpher`, which its clip's `F_Morpher`
     /// records set and `ccModel::Draw` applies (Kyvia's gomoras' and core's).
     pub morphers: HashMap<u32, u32>,
-    /// A model on an object outside the clump indexes the node table of
-    /// the file's clump that lists its object: Tartarga's `cts1`
-    /// (`cts2`, `cts4` too) hangs its skin on `OBJ_cts1body`, a node of
-    /// `CMP_t0` (49 nodes), while `CMP_trall` holds `OBJ_trall` alone.
-    /// (object, that clump's nodes, resolved as `nodes` are).
+    /// A bone or skin model on an object outside the clump indexes the
+    /// node list of the file's clump that lists its object
+    /// (`ccStream::CompleteChunk` 0x00147c20, `ccAnm::SetAnm` 0x00151950):
+    /// Tartarga's `cts1` (`cts2`, `cts4` too) hangs his skin on
+    /// `OBJ_cts1body`, a node of `CMP_t0`. (object, that clump's nodes,
+    /// resolved as `nodes` are; worklog 558.)
     pub model_clumps: Vec<(u32, Vec<u32>)>,
 }
 

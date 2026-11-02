@@ -2,8 +2,8 @@
 title: The CCSF Model chunk
 status: solid
 volumes: INF
-covers: INF SLUS_202.67:0x0014bce0 Decode_Model, 0x0014b890 Decode_Mmat01, 0x0014a600 Decode_Mmat02, 0x00140920 DecodeShadowModel, 0x0013a440 ccModel::Init, VU1 micro 0x063 mc_DrawTriFast
-worklog: 10, 17, 244, 549
+covers: INF SLUS_202.67:0x0014bce0 Decode_Model, 0x0014b890 Decode_Mmat01, 0x0014a600 Decode_Mmat02, 0x00140920 DecodeShadowModel, 0x0013a440 ccModel::Init, VU1 micro 0x063 mc_DrawTriFast, 0x00147c20 ccStream::CompleteChunk, 0x00151950 ccAnm::SetAnm, 0x0013f860 ccModel::DrawBoneType
+worklog: 10, 17, 244, 549, 558
 ---
 
 # The CCSF Model chunk
@@ -156,15 +156,29 @@ and 138 of `xddesk01`.
 Bone and skin positions are in clump-node space. Local matrix =
 T * Rx * Ry * Rz * S, rotation in degrees (`SetMatrix_PosRotZYXScale`,
 `0x00138120`); world = parent world * local (`0x00138380`); a vertex lands at
-node world * position. Slot `i` is the `i`-th node of the model's clump -
-inferred, consistent with every pose checked. The model's clump is the one
-whose node list holds the model's object, which need not be the clump a
-character is made from: Tartarga's `cts1` (and `cts2`, `cts4`) has
-`CMP_trall` with `OBJ_trall` alone and `CMP_t0` with 49 nodes, its skin
-`MDL_cts1body` on `OBJ_cts1body`, the 49th of `CMP_t0`. Posed through
-`CMP_t0` the body stands where event 310's cameras frame it; through
-`CMP_trall` every vertex fell to its feet (issue #80). Axes are Z-up,
-right-handed.
+node world * position. Slot `i` is the `i`-th node of the model's clump:
+the clump whose node list holds the model's object, which need not be the
+clump a character is made from. Three steps give a bone or skin model its
+slots:
+
+- `ccStream::CompleteChunk` (`0x00147c20`), once the file is decoded: for
+  every clump, and every node of it whose model has `mtype & 6`, it stores
+  the clump's node list and count in the model data (+0x44, +0x48).
+- `ccAnm::SetAnm` (`0x00151950`; QUA `0x00150610`): for every such model
+  among the objects the clump applied or the animation made, it allocates
+  `ccModel`+0x10 with +0x14 entries. Entry `i` is the object made for node
+  `i` of that list.
+- `ccModel::DrawBoneType` (`0x0013f860`) poses slot `i` by entry `i`, with
+  no null test.
+
+No bone or skin model's object is in no clump or in two on any volume
+(`tools/ccs.py survey`: 190 objects on Infection, 194 on each later volume,
+each in one clump). Tartarga's `cts1` (and `cts2`, `cts4`) has `CMP_trall`
+with `OBJ_trall` alone, which `ccRtownPC` makes him from, and `CMP_t0` with
+49 nodes. His skin `MDL_cts1body` hangs on `OBJ_cts1body`, the 49th of
+`CMP_t0`, so it is posed through `CMP_t0`'s nodes as the animation moves
+them. Through `CMP_trall` every vertex fell to his feet (issue #80). Axes
+are Z-up, right-handed.
 
 ## Types seen
 
