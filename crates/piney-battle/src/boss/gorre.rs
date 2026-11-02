@@ -16,7 +16,7 @@ use piney_data::field::ee;
 use piney_data::tables::combat;
 
 use self::brother::Brother;
-use super::systems::{BossSystem, Hook, Others};
+use super::systems::{BossSystem, Hook, Others, Systems};
 use super::{
     BaseActs, BodyDraw, Boss, BossBase, Cx, EffKind, Out, Output, PI, Patterns, TWO_PI, Tbl, VF0,
     base_exec_pattern_index, word,
@@ -155,13 +155,14 @@ impl BossSystem for Gorre {
     /// `ccBoss05::Main` up to `Slave` ([`frame`]).
     fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
         if hook == Hook::Think {
-            let (br, kerse) = o.pair_mut::<Brothers, Kerse>().expect("Gorre's def has its brothers and Kerse");
+            let br = o.take::<Brothers>().expect("Gorre's def has its brothers");
+            let kerse = o.take::<Kerse>().expect("Gorre's def has its Kerse");
             frame(b, &mut G { own: self, brothers: &mut br.parts, kerse }, cx);
         }
     }
 
     /// Its body at its place, undrawn: only the Kerse shows it.
-    fn draw(&self, b: &BossBase, cx: &mut Cx, out: &mut Output) {
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut Output) {
         out.body = BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, ..BodyDraw::default() };
     }
 }
@@ -178,7 +179,8 @@ impl BossSystem for Brothers {
             }
             // `Slave` (OUT gcmn 0x004ad980): each brother's own `Main`.
             Hook::Action => {
-                let (own, kerse) = o.pair_mut::<Gorre, Kerse>().expect("Gorre's def has its own and Kerse");
+                let own = o.take::<Gorre>().expect("Gorre's def has its own");
+                let kerse = o.take::<Kerse>().expect("Gorre's def has its Kerse");
                 let mut x = G { own, brothers: &mut self.parts, kerse };
                 for k in 0..2 {
                     brother::frame(b, &mut x, k, cx);
@@ -189,7 +191,7 @@ impl BossSystem for Brothers {
     }
 
     /// The brothers, drawn as parts.
-    fn draw(&self, _b: &BossBase, _cx: &mut Cx, out: &mut Output) {
+    fn draw(&self, _b: &BossBase, _all: &Systems, _cx: &mut Cx, out: &mut Output) {
         out.parts.extend(self.me);
     }
 }
@@ -197,7 +199,7 @@ impl BossSystem for Brothers {
 impl BossSystem for Kerse {
     /// Its step 2 shows Gorre at `m_talkPos` (`SetMatrix_PosRotZYX`,
     /// `ccBoss::Draw`).
-    fn draw(&self, b: &BossBase, _cx: &mut Cx, out: &mut Output) {
+    fn draw(&self, b: &BossBase, _all: &Systems, _cx: &mut Cx, out: &mut Output) {
         if b.act_num == act::KERSE && b.act_proccess == 2 {
             out.body =
                 BodyDraw { pos: self.talk_pos, dirc: [0, 0, self.talk_dirc, ONE], shown: true, ..BodyDraw::default() };
@@ -325,7 +327,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let mut boss = Boss::build(&crate::boss::defs::GORRE, b);
     let Boss { base: b, systems, .. } = &mut boss;
     let (own, mut o) = systems.split::<Gorre>().expect("Gorre's def has it");
-    let (br, kerse) = o.pair_mut::<Brothers, Kerse>().expect("Gorre's def has its brothers and Kerse");
+    let br = o.take::<Brothers>().expect("Gorre's def has its brothers");
+    let kerse = o.take::<Kerse>().expect("Gorre's def has its Kerse");
     own.pat_mode = 0;
     br.me = brother_me;
     br.parts = Parts::take(cx, &brother_me);

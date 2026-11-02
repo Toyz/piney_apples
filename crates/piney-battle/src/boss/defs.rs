@@ -178,7 +178,11 @@ pub static INNIS: BossDef = BossDef {
 };
 
 /// Magus (`ccBoss03`, `x31`): its body and its leaves' model; it turns
-/// camera 3 itself.
+/// camera 3 itself. Its wave, leaves, laser, needles and its own;
+/// `ccThBoss03`'s frame (MUT gcmn 0x0049f580): what it reads of the body,
+/// the leaves lent, the effects' pass (the needles'), the attack's wait;
+/// `ccBoss::Main` with its own `Move` and `PreDrawAnm` and `Slave()`; then
+/// `CalcCamera`, the PP count, the holds let go.
 pub static MAGUS: BossDef = BossDef {
     code: Some(2),
     class: BossGameClass::CcBoss03,
@@ -186,6 +190,33 @@ pub static MAGUS: BossDef = BossDef {
     images: &["CMP_ex31leaf"],
     part: PartBody::First,
     make: |cx, s| magus::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    systems: &[Kind::Wave, Kind::Leaves, Kind::Laser, Kind::Needles, Kind::Magus],
+    order: &[
+        Step::Run(Kind::Leaves, Hook::Early),
+        Step::Run(Kind::Laser, Hook::Early),
+        Step::Run(Kind::Leaves, Hook::Lend),
+        Step::Run(Kind::Needles, Hook::Pass),
+        Step::Run(Kind::Magus, Hook::Early),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Magus, Hook::Think),
+            Step::LockParty,
+            Step::Run(Kind::Magus, Hook::Move),
+            Step::Run(Kind::Magus, Hook::PreDraw),
+            Step::Run(Kind::Laser, Hook::PreDraw),
+            Step::Draw,
+            Step::Run(Kind::Leaves, Hook::Action),
+            Step::ClearHold,
+        ]),
+        Step::Run(Kind::Magus, Hook::Late),
+        Step::ClearHold,
+        Step::Run(Kind::Leaves, Hook::Late),
+        Step::Run(Kind::Leaves, Hook::Return),
+    ],
+    affect: &[Step::Run(Kind::Magus, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
     ..BASE_BOSS
 };
 
@@ -399,8 +430,17 @@ pub static KYVIA_FOURTH: BossDef = BossDef {
 
 // --- the parts ---------------------------------------------------------------------------
 
-/// Magus's leaf (`ccBoss03Leaf`).
-pub static LEAF: BossDef = BossDef { class: BossGameClass::CcBoss03Leaf, ..BASE_PART };
+/// Magus's leaf (`ccBoss03Leaf`): its own, its `Affect` its own; its frame
+/// Magus's `Slave()`.
+pub static LEAF: BossDef = BossDef {
+    class: BossGameClass::CcBoss03Leaf,
+    systems: &[Kind::Leaf],
+    order: &[],
+    affect: &[Step::Run(Kind::Leaf, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
+    ..BASE_PART
+};
 /// Kyvia's core (`kyviaCore`) and gomoras (`kyviaGomora`).
 pub static CORE: BossDef = BossDef { class: BossGameClass::KyviaCore, ..BASE_PART };
 pub static GOMORA: BossDef = BossDef { class: BossGameClass::KyviaGomora, ..BASE_PART };

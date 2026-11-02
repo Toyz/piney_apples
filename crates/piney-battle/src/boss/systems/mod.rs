@@ -45,6 +45,11 @@ pub enum Hook {
     Pass,
     Think,
     Action,
+    /// What its `Main` does before `ccBoss::Main`'s (what it reads of the
+    /// body as last drawn, its own counts).
+    Early,
+    /// Its `Move` in place of `ccBoss`'s.
+    Move,
     /// Its `PreDrawAnm` before the body's.
     PreDraw,
     /// What its `Main` does after `ccBoss::Main`'s.
@@ -63,11 +68,12 @@ pub enum Hook {
 }
 
 /// What a system does: its steps on the shared members and its siblings,
-/// what it shows, the boss it hands over to.
+/// what it shows (beside the boss's other systems, `all`), the boss it
+/// hands over to.
 pub(crate) trait BossSystem {
     fn step(&mut self, _hook: Hook, _b: &mut BossBase, _others: &mut Others, _cx: &mut Cx) {}
 
-    fn draw(&self, _b: &BossBase, _cx: &mut Cx, _out: &mut Output) {}
+    fn draw(&self, _b: &BossBase, _all: &Systems, _cx: &mut Cx, _out: &mut Output) {}
 
     fn hand_over(&mut self, _b: &mut BossBase, _cx: &mut Cx) -> Option<Boss> {
         None
@@ -120,9 +126,9 @@ macro_rules! systems {
                 }
             }
 
-            fn draw(&self, b: &BossBase, cx: &mut Cx, out: &mut Output) {
+            fn draw(&self, b: &BossBase, all: &Systems, cx: &mut Cx, out: &mut Output) {
                 match self {
-                    $(System::$v(s) => s.draw(b, cx, out),)*
+                    $(System::$v(s) => s.draw(b, all, cx, out),)*
                 }
             }
 
@@ -180,6 +186,13 @@ systems! {
     Kerse(super::gorre::Kerse),
     /// A Gorre brother's own (`ccBoss05Brother`).
     Brother(super::gorre::brother::Brother),
+    /// Magus's own (`ccBoss03`), its leaves, laser and needles.
+    Magus(super::magus::Magus),
+    Leaves(super::magus::Leaves),
+    Laser(super::magus::Laser),
+    Needles(super::magus::Needles),
+    /// A Magus leaf's own (`ccBoss03Leaf`).
+    Leaf(super::magus::leaf::Leaf),
     /// Macha's own (`ccBoss06`).
     Macha(super::macha::Macha),
     /// Tarvos's own (`ccBoss07`).
@@ -225,9 +238,9 @@ impl Systems {
     }
 
     fn at(&mut self, k: usize) -> (&mut System, Others<'_>) {
-        let (before, rest) = self.0.split_at_mut(k);
-        let (me, after) = rest.split_first_mut().expect("in the list");
-        (me, Others { before, after })
+        let mut all: Vec<&mut System> = self.0.iter_mut().collect();
+        let me = all.remove(k);
+        (me, Others(all))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &System> {
@@ -236,28 +249,19 @@ impl Systems {
 }
 
 /// The systems beside the one stepping.
-pub struct Others<'a> {
-    before: &'a mut [System],
-    after: &'a mut [System],
-}
+pub struct Others<'a>(Vec<&'a mut System>);
 
-impl Others<'_> {
+impl<'a> Others<'a> {
     /// The sibling of `T`'s kind.
     pub fn get_mut<T: SystemKind>(&mut self) -> Option<&mut T> {
-        self.before.iter_mut().chain(self.after.iter_mut()).find_map(T::of_mut)
+        self.0.iter_mut().find_map(|s| T::of_mut(s))
     }
 
-    /// The siblings of `A`'s and `B`'s kinds (two kinds, two objects).
-    pub fn pair_mut<A: SystemKind, B: SystemKind>(&mut self) -> Option<(&mut A, &mut B)> {
-        let (mut a, mut b) = (None, None);
-        for s in self.before.iter_mut().chain(self.after.iter_mut()) {
-            match s.kind() {
-                k if k == A::KIND => a = A::of_mut(s),
-                k if k == B::KIND => b = B::of_mut(s),
-                _ => {}
-            }
-        }
-        Some((a?, b?))
+    /// The sibling of `T`'s kind for the whole step, apart from the rest
+    /// (so a step can hold several at once).
+    pub fn take<T: SystemKind>(&mut self) -> Option<&'a mut T> {
+        let k = self.0.iter().position(|s| s.kind() == T::KIND)?;
+        T::of_mut(self.0.swap_remove(k))
     }
 }
 
@@ -354,7 +358,7 @@ impl Boss {
         output.body = base.body_draw(cx);
         class.with_rules(|r| r.show(base, cx, output));
         for s in &systems.0 {
-            s.draw(base, cx, output);
+            s.draw(base, systems, cx, output);
         }
         let me = cx.me;
         for k in 0..self.output.parts.len() {

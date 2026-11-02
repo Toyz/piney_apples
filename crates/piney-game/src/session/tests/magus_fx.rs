@@ -6,8 +6,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use piney_battle::boss::Class;
-use piney_battle::boss::magus::act;
+use piney_battle::boss::magus::leaf::Leaf;
+use piney_battle::boss::magus::{Laser, Leaves, Magus, act};
 use piney_input::{Buttons, Raw};
 
 use super::skeith::event_115_session;
@@ -72,20 +72,25 @@ fn fight_heard(
             break;
         }
         let hidden = c.cast.actors.get(&me).map_or(0, |a| a.ch.play.hidden.len());
-        let leaves = match c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
-            Some(Class::Magus(x)) => x.leaves.clone(),
-            _ => Vec::new(),
-        };
+        let leaves = c.scene.chars[me]
+            .foe_state()
+            .and_then(|f| f.boss.as_ref())
+            .and_then(|b| b.systems.get::<Leaves>())
+            .map_or_else(Vec::new, |l| l.me.clone());
         let dropped = leaves
             .iter()
             .filter(|&&l| {
-                matches!(c.scene.chars[l].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class),
-                    Some(Class::MagusLeaf(x)) if x.drop != 0)
+                let leaf = c.scene.chars[l].foe_state().and_then(|f| f.boss.as_ref());
+                leaf.and_then(|b| b.systems.get::<Leaf>()).is_some_and(|x| x.drop != 0)
             })
             .count();
         let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) else { continue };
         let neutral = b.base.act_num == act::NEUTRAL;
-        let Class::Magus(x) = &mut b.class else { continue };
+        let shocks = match b.base.act_num {
+            act::LASER => b.systems.get::<Laser>().map_or(0, |l| l.shock_at.iter().flatten().count()),
+            _ => 0,
+        };
+        let Some(x) = b.systems.get_mut::<Magus>() else { continue };
         if neutral && dropped == 0 && i >= laser_at {
             x.reserve_laser = 1;
             laser_at = i + 3000;
@@ -93,7 +98,6 @@ fn fight_heard(
         if i % 1500 == 1499 {
             x.dmg_count = 0;
         }
-        let shocks = if b.base.act_num == act::LASER { x.shock_at.iter().flatten().count() } else { 0 };
         let now = Seen {
             act: b.base.act_num,
             draws: census.boss_draws,

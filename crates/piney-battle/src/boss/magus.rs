@@ -1,9 +1,11 @@
 //! Magus (`ccBoss03`, boss03.cpp) and its twelve leaves (`ccBoss03Leaf`,
 //! [`leaf`]), as Mutation's gcmn.prg has them (0x0049da20-0x004a7974; names
 //! and layouts from Infection's DWARF). `ccBossEntryStart(2)` starts
-//! `ccThBoss03`, which news the boss ([`new`]) and runs [`main`] each frame;
-//! Mutation's event 115 fights it in the arena of field 3. Each leaf is a
-//! `ccBoss` of its own character, taken out of it for the body's frame.
+//! `ccThBoss03`, which news the boss ([`new`]) and runs `MAGUS`'s steps each
+//! frame; Mutation's event 115 fights it in the arena of field 3. Each leaf
+//! is a `ccBoss` of its own character, lent to Magus's [`Leaves`] for the
+//! body's frame; its laser's shocks are [`Laser`], its needles' pass
+//! [`Needles`].
 //! docs/engine/boss-magus.md.
 
 pub mod leaf;
@@ -12,12 +14,15 @@ mod tests;
 
 use piney_data::field::ee;
 use piney_data::libm;
+use piney_data::tables::combat;
 
 use self::leaf::Leaf;
 use super::blur::Set;
 use super::kyvia::fabs;
+use super::systems::wave::Wave;
+use super::systems::{BossSystem, Hook, Others, Systems};
 use super::{
-    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Fade, Fx, LoopOp, Out, PassMode, Patterns, VF0,
+    BaseActs, Boss, BossBase, Cx, EffKind, Fade, Fx, LoopOp, Out, Output, PassMode, Patterns, VF0,
     base_exec_pattern_index, word,
 };
 use crate::boss::Part;
@@ -77,7 +82,7 @@ pub const LIGHT_OBJS: [&str; LEAVES] = [
 /// The laser's clip, and its objects that are the shocks
 /// (`OBJ_ex31les00`-`55`, every fifth).
 const LASER_CLIP: &str = "ANM_ex31atc2";
-const SHOCK_OBJS: [&str; LEAVES] = [
+pub const SHOCK_OBJS: [&str; LEAVES] = [
     "OBJ_ex31les00",
     "OBJ_ex31les05",
     "OBJ_ex31les10",
@@ -126,33 +131,10 @@ pub mod act {
     pub const NEEDLE: i16 = 31;
 }
 
-/// Magus's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct MagusData {
-    /// `boss03EpitaphActTbl`: the patterns once drained, to its -1.
-    pub epitaph: Vec<i32>,
-    /// `Boss03AnmTbl`, `Boss03SlaveAnmTbl`: the clip by act.
-    pub anims: Vec<Option<String>>,
-    pub leaf_anims: Vec<Option<String>>,
-    /// `@1538` (pattern 10's), `@2301` (the sixth leaf's).
-    pub skills: [i32; 3],
-    pub drop_skills: [i32; 3],
-}
-
-impl MagusData {
-    /// The volume's.
-    pub fn of(volume: piney_data::volume::Volume) -> MagusData {
-        let t = piney_data::tables::combat::of(volume);
-        let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
-        let three = |v: &[i32]| std::array::from_fn(|k| v.get(k).copied().unwrap_or(0));
-        MagusData {
-            epitaph: t.magus_epitaph.to_vec(),
-            anims: s(t.magus_anims),
-            leaf_anims: s(t.magus_leaf_anims),
-            skills: three(t.magus_skills),
-            drop_skills: three(t.magus_drop_skills),
-        }
-    }
+/// A spell of three (`@1538` pattern 10's, `@2301` the sixth leaf's), a
+/// word past the table's end 0.
+fn pick(v: &[i32], k: usize) -> i32 {
+    v.get(k).copied().unwrap_or(0)
 }
 
 /// `ccBoss03LaserShock` (0x40 bytes) as the rules keep it: the index
@@ -242,11 +224,10 @@ pub enum Held {
 }
 
 /// `ccBoss03`'s own members (+0x29350 on, Mutation's offsets: four more
-/// words at +0x52720, the rest from `m_blurRad` on 16 bytes later).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// words at +0x52720, the rest from `m_blurRad` on 16 bytes later) beside
+/// its wave (`m_anmw`), leaves and laser, as its constructor starts them.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Magus {
-    /// `m_anmw`: `xeffect`'s `ANM_xx11wave`.
-    pub anm_w: Anm,
     pub eff_dead: Option<i32>,
     pub animate_chase: Fade,
     pub act_cnt: i32,
@@ -258,7 +239,6 @@ pub struct Magus {
     pub epitaph: i32,
     /// `m_camID`: 3 while `CalcCamera` flies camera 3.
     pub cam_id: i32,
-    pub shock_idx: i32,
     pub prepare_explode_all: i32,
     pub dropping: i32,
     pub reserve_laser: i32,
@@ -281,47 +261,214 @@ pub struct Magus {
     pub regrow: i32,
     pub blur_rad: F,
     pub blur_scale: F,
-    pub shocks: [Shock; 12],
     pub no_leaf: i32,
     pub cam_count: i32,
     pub prev_laser: V4,
     pub prev_dirc: V4,
     /// `actPos` (+0x1b0, a `ccBoss` member only Magus uses).
     pub act_pos: V4,
-    /// `slaveCtrl[0]`: the leaves' characters, by slave.
-    pub leaves: Vec<usize>,
-    /// Where each leaf hangs on the body (`OBJ_ex31leafNN`'s world place as
-    /// last posed), which `Init` reads; the runtime sets it each frame.
-    pub leaf_pos: [V4; LEAVES],
-    /// The shocks' objects' places (`OBJ_ex31les00`-`55`), the runtime's
-    /// as `leaf_pos`: where the thunder starts.
+}
+
+impl Default for Magus {
+    fn default() -> Magus {
+        Magus {
+            eff_dead: None,
+            animate_chase: Fade { transparency: ONE, ..Fade::default() },
+            act_cnt: 0,
+            is_neutral_anm: 0,
+            atk_wait: 0,
+            prev_rise: 0,
+            laser_flash: -1,
+            grow_interval: 0,
+            epitaph: 0,
+            cam_id: 1,
+            prepare_explode_all: 0,
+            dropping: 0,
+            reserve_laser: 0,
+            explosion: 0,
+            dmg_count: 100,
+            high_drive: 0,
+            reserve_leaf_drop: 1,
+            explode_leaf_num: 0,
+            laser_count: 0,
+            grow_se: false,
+            stuck: 0,
+            pushed: 0,
+            stage_id: -1,
+            regrow: 0,
+            blur_rad: 0,
+            blur_scale: 0x3f80_a3d7,
+            no_leaf: 0,
+            cam_count: 0,
+            prev_laser: [0; 4],
+            prev_dirc: [0; 4],
+            act_pos: [0; 4],
+        }
+    }
+}
+
+/// The twelve leaves (`slaveCtrl[0]`, their characters by slave), each a
+/// boss of its own lent out of its character for the body's frame
+/// ([`Hook::Lend`] to [`Hook::Return`]; one missing is skipped), and where
+/// each hangs on the body (`OBJ_ex31leafNN`'s world place as last posed,
+/// which a leaf's `Init` reads; one the model lacks kept).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Leaves {
+    pub me: Vec<usize>,
+    pub pos: [V4; LEAVES],
+    parts: Vec<Part<Leaf>>,
+}
+
+impl Leaves {
+    /// How many leaves have fallen (`m_bDrop`).
+    fn dropped(&self) -> usize {
+        self.parts.iter().filter(|p| p.x.drop != 0).count()
+    }
+}
+
+/// The laser's twelve shocks (`ccBoss03LaserShock`, `m_shockIdx`) and what
+/// the frame reads of them off the body as last drawn: their objects'
+/// places (`OBJ_ex31les00`-`55`, where the thunder starts) and where each
+/// beam meets the ground (`ccHitCheckLM`'s contact, None for -1; until
+/// the laser reads them, each under its place).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Laser {
+    pub shocks: [Shock; LEAVES],
+    pub shock_idx: i32,
     pub shock_pos: [V4; LEAVES],
-    /// Where each shock's beam meets the ground (`ccHitCheckLM`'s contact,
-    /// None for -1), the runtime's as `leaf_pos`; until it says, each meets
-    /// it under its place.
     pub shock_at: [Option<V4>; LEAVES],
 }
 
-/// The leaves out of their characters for the body's frame.
-#[derive(Debug, Default)]
-pub struct Leaves(pub Vec<Part<Leaf>>);
-
-impl Leaves {
-    /// The leaves taken out of their characters.
-    pub fn take(cx: &mut Cx, leaves: &[usize]) -> Leaves {
-        Leaves(leaves.iter().filter_map(|&me| Part::take(cx, me)).collect())
+impl Default for Laser {
+    fn default() -> Laser {
+        Laser {
+            shocks: [Shock { transparency: ONE, ..Shock::default() }; LEAVES],
+            shock_idx: 0,
+            shock_pos: [[0; 4]; LEAVES],
+            shock_at: [Some(VF0); LEAVES],
+        }
     }
+}
 
-    /// Everything put back.
-    pub fn put(self, cx: &mut Cx) {
-        for p in self.0 {
-            p.put(cx);
+/// The effect manager's pass over Magus's effects, whose only lives of
+/// their own are its needles' ([`Needle`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Needles;
+
+impl BossSystem for Magus {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        match hook {
+            // The attack's wait counted down where it waits.
+            Hook::Early => {
+                if matches!(b.act_num, act::RETURN | act::WANDER | act::STOP | act::EPITAPH | act::NEUTRAL) {
+                    self.atk_wait = (self.atk_wait - 1).max(0);
+                }
+            }
+            Hook::Think => {
+                let ls = o.take::<Leaves>().expect("Magus's def has its leaves");
+                let l = o.take::<Laser>().expect("Magus's def has its laser");
+                let w = o.take::<Wave>().expect("Magus's def has its wave");
+                think(b, self, ls, l, w, cx);
+            }
+            Hook::Move => mov(b, self, cx),
+            Hook::PreDraw => {
+                if b.draw_sw != 0 && (b.act_num != act::LASER || b.act_proccess != 1) {
+                    b.anm_status = i8::from(b.anm.forward());
+                }
+            }
+            Hook::Late => {
+                calc_camera(b, self, cx);
+                if b.lock_player != 0 {
+                    cx.pp_count_tick();
+                }
+            }
+            Hook::Affect => affect(b, self, cx),
+            _ => {}
         }
     }
 
-    /// How many leaves have fallen (`m_bDrop`).
-    fn dropped(&self) -> usize {
-        self.0.iter().filter(|p| p.x.drop != 0).count()
+    /// Its images hidden while it goes to the centre.
+    fn draw(&self, b: &BossBase, _all: &Systems, _cx: &mut Cx, out: &mut Output) {
+        out.hidden_in_images = b.act_num == act::TO_CENTRE;
+    }
+}
+
+impl BossSystem for Leaves {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        match hook {
+            // Where each leaf hangs on the body as last drawn.
+            Hook::Early => {
+                for (k, name) in LEAF_OBJS.iter().enumerate() {
+                    if let Some(p) = cx.field.node(cx.me, name) {
+                        self.pos[k] = p;
+                    }
+                }
+            }
+            Hook::Lend => self.parts = self.me.iter().filter_map(|&me| Part::take(cx, me)).collect(),
+            Hook::Return => {
+                for p in std::mem::take(&mut self.parts) {
+                    p.put(cx);
+                }
+            }
+            // `Slave()`: each leaf not exited drawn and run.
+            Hook::Action => {
+                let x = o.take::<Magus>().expect("Magus's def has its own");
+                for k in 0..self.parts.len() {
+                    if self.parts[k].b.base.exit == 0 {
+                        self.parts[k].b.base.draw_sw = 1;
+                        leaf::main(self, k, b, x, cx);
+                    }
+                }
+            }
+            Hook::Late => {
+                for p in &self.parts {
+                    cx.scene.chars[p.me].cond[cond::HOLD] = 0;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The leaves as parts; the dropped leaves' objects and lights
+    /// (`m_bDrop`) hidden, unless in the Epitaph (`ccBoss03::PreDrawAnm`
+    /// 0x004a0a90 and 0x0049e7f0) or the grow (act 26); act 8's
+    /// after-image callback (0x0049e7c0) hides them likewise.
+    fn draw(&self, b: &BossBase, all: &Systems, cx: &mut Cx, out: &mut Output) {
+        out.parts.extend_from_slice(&self.me);
+        let dropped = |c: usize| {
+            let leaf = cx.scene.chars[c].foe_state().and_then(|f| f.boss.as_deref());
+            leaf.and_then(|l| l.systems.get::<Leaf>()).is_some_and(|l| l.drop != 0)
+        };
+        let epitaph = all.get::<Magus>().is_some_and(epitaph);
+        if !epitaph && b.act_num != act::LEAF_GROW {
+            for (k, _) in self.me.iter().enumerate().filter(|&(_, &c)| dropped(c)) {
+                out.hidden.extend([LEAF_OBJS[k], LIGHT_OBJS[k]]);
+            }
+        }
+    }
+}
+
+impl BossSystem for Laser {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        match hook {
+            Hook::Early => read_shocks(b, self, cx),
+            // `ccBoss03::PreDrawAnm`'s third step of the laser: the
+            // shocks' beams by the clip's frame.
+            Hook::PreDraw
+                if b.draw_sw != 0 && b.act_num == act::LASER && b.act_proccess == 2 && b.anm.frame() >= 100 =>
+            {
+                shocks_draw(b, self, cx);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl BossSystem for Needles {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Pass {
+            manager_pass(b, cx);
+        }
     }
 }
 
@@ -371,7 +518,7 @@ fn held(b: &BossBase, cx: &Cx) -> bool {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = cx.data.magus.anims.clone();
+    b.anm_tbl = combat::of(cx.volume()).magus_anims.iter().map(|a| a.map(str::to_string)).collect();
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -381,22 +528,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     pos[1] = ee::sub(pos[1], 0x43fa_0000);
     cx.scene.chars[me].pos = pos;
     b.dirc = kite_dirc;
-    let mut x = Magus {
-        anm_w: Anm::new(),
-        cam_id: 1,
-        laser_flash: -1,
-        dmg_count: 100,
-        stage_id: -1,
-        animate_chase: Fade { transparency: ONE, ..Fade::default() },
-        shocks: [Shock { transparency: ONE, ..Shock::default() }; 12],
-        shock_at: [Some(VF0); LEAVES],
-        ..Magus::default()
-    };
-    x.atk_wait = (cx.cc.rand() & 31).abs();
-    for k in 0..LEAVES {
-        let lme = leaf::new(cx, k as i32);
-        x.leaves.push(lme);
-    }
+    let mut x = Magus { atk_wait: (cx.cc.rand() & 31).abs(), ..Magus::default() };
+    let leaves: Vec<usize> = (0..LEAVES).map(|k| leaf::new(cx, k as i32)).collect();
     crate::fellow::entry_cmnd(cx.scene, me);
     change_action(&mut b, &mut x, cx, act::NEUTRAL, 3, true);
     // InitCenterPos; InitStageEffect (the stage fader).
@@ -408,97 +541,16 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     for s in [Set::Enable, Set::Abgr(BLUR), Set::Scale(0x3f81_47ae)] {
         cx.out(Out::Blur(s));
     }
-    x.blur_rad = 0;
-    x.blur_scale = 0x3f80_a3d7;
     // SetPatternTbl(boss03EpitaphActTbl): its index 0.
     b.pat_index = 0;
-    x.reserve_leaf_drop = 1;
-    Boss::of(&crate::boss::defs::MAGUS, b, Class::Magus(Box::new(x)))
+    let mut boss = Boss::build(&crate::boss::defs::MAGUS, b);
+    let (own, mut o) = boss.systems.split::<Magus>().expect("Magus's def has its own");
+    *own = x;
+    o.take::<Leaves>().expect("Magus's def has its leaves").me = leaves;
+    boss
 }
 
 // --- the frame --------------------------------------------------------------------------------
-
-impl crate::boss::BossClass for Magus {
-    /// The wave as posed and the leaves; the dropped leaves' objects and
-    /// lights (`m_bDrop`) hidden, unless in the Epitaph (`ccBoss03::
-    /// PreDrawAnm` 0x004a0a90 and 0x0049e7f0) or the grow (act 26); act 8's
-    /// after-image callback (0x0049e7c0) hides them likewise.
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
-        out.wave = Some(self.anm_w.posed);
-        out.parts.extend_from_slice(&self.leaves);
-        let dropped = |c: usize| match cx.scene.chars[c].foe_state().and_then(|f| f.boss.as_deref()) {
-            Some(Boss { class: Class::MagusLeaf(l), .. }) => l.drop != 0,
-            _ => false,
-        };
-        if self.epitaph == 0 && b.act_num != act::LEAF_GROW {
-            for (k, _) in self.leaves.iter().enumerate().filter(|&(_, &c)| dropped(c)) {
-                out.hidden.extend([LEAF_OBJS[k], LIGHT_OBJS[k]]);
-            }
-        }
-        out.hidden_in_images = b.act_num == act::TO_CENTRE;
-    }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
-    }
-}
-
-/// `ccThBossEffect`'s pass and `ccBoss03::Main` (0x0049f580).
-pub(super) fn main(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
-    read_body(b, x, cx);
-    let mut ls = Leaves::take(cx, &x.leaves);
-    manager_pass(b, cx);
-    if matches!(b.act_num, act::RETURN | act::WANDER | act::STOP | act::EPITAPH | act::NEUTRAL) {
-        x.atk_wait -= 1;
-        if x.atk_wait < 0 {
-            x.atk_wait = 0;
-        }
-    }
-    if b.exit == 0 {
-        frame(b, x, &mut ls, cx);
-    }
-    calc_camera(b, x, cx);
-    let me = cx.me;
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
-    for p in &ls.0 {
-        cx.scene.chars[p.me].cond[cond::HOLD] = 0;
-    }
-    if b.lock_player != 0 {
-        cx.pp_count_tick();
-    }
-    ls.put(cx);
-}
-
-/// `ccBoss::Main` (0x00471c10) with Magus's `Think`, `Move` and
-/// `PreDrawAnm`, then `Slave()`: each leaf not exited drawn and run.
-fn frame(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
-    let me = cx.me;
-    b.prologue(cx);
-    b.tick_stop();
-    think(b, x, ls, cx);
-    b.lock_party(cx);
-    mov(b, x, cx);
-    if b.draw_sw != 0 {
-        pre_draw_anm(b, x, cx);
-        b.draw(cx);
-    }
-    for k in 0..ls.0.len() {
-        if ls.0[k].b.base.exit == 0 {
-            ls.0[k].b.base.draw_sw = 1;
-            leaf::main(ls, k, b, x, cx);
-        }
-    }
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
-}
 
 /// Magus's `Move` (Mutation's, 0x0049f400): `ccBoss::Move`, counting the
 /// frames in a row the body was pushed out of something.
@@ -527,23 +579,15 @@ fn mov(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     ch.pos = pos;
 }
 
-/// What the frame reads of the body as it was last drawn: where each leaf
-/// hangs (`OBJ_ex31leafNN`'s world place, which a leaf's `Init` reads;
-/// one the model lacks kept), and in the laser the shocks as
-/// `SetupLaserShock` and `PreDrawAnm` find them: the clip one step on from
-/// the body's anm (from frame 0 under another clip, as `SetupLaserShock`
-/// follows `SetAnm` and a step), each shock's place and where its beam,
-/// turned by its leaf of the other parity, meets the land.
-fn read_body(b: &BossBase, x: &mut Magus, cx: &mut Cx) {
-    let me = cx.me;
-    for (k, name) in LEAF_OBJS.iter().enumerate() {
-        if let Some(p) = cx.field.node(me, name) {
-            x.leaf_pos[k] = p;
-        }
-    }
+/// What the laser reads of the body as last drawn: the clip one step on
+/// from the body's anm (from frame 0 under another clip, as
+/// `SetupLaserShock` follows `SetAnm` and a step), each shock's place and
+/// where its beam, turned by its leaf of the other parity, meets the land.
+fn read_shocks(b: &BossBase, l: &mut Laser, cx: &mut Cx) {
     if b.act_num != act::LASER {
         return;
     }
+    let me = cx.me;
     let mut anm = b.anm.clone();
     if anm.clip.as_deref() != Some(LASER_CLIP) {
         anm.set(LASER_CLIP, cx.clips);
@@ -557,39 +601,33 @@ fn read_body(b: &BossBase, x: &mut Magus, cx: &mut Cx) {
     }
     for k in 0..LEAVES {
         let (Some((a, _)), Some((_, leaf))) = (found[k], found[LEAVES + (k ^ 1)]) else {
-            (x.shock_pos[k], x.shock_at[k]) = (VF0, None);
+            (l.shock_pos[k], l.shock_at[k]) = (VF0, None);
             continue;
         };
         let end = shock_beam(a, &leaf, b.dirc);
-        (x.shock_pos[k], x.shock_at[k]) = (a, cx.field.line(a, end, 0x2000_0000));
+        (l.shock_pos[k], l.shock_at[k]) = (a, cx.field.line(a, end, 0x2000_0000));
     }
 }
 
-/// `ccBoss03::PreDrawAnm` (0x004a08c0): the clip forward (not in the
-/// laser's second step), and in its third the shocks' beams by the clip's
-/// frame.
-fn pre_draw_anm(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
-    if b.act_num != act::LASER || b.act_proccess != 1 {
-        b.anm_status = i8::from(b.anm.forward());
+/// The shocks' beams in the laser's third step (`ccBoss03::PreDrawAnm`
+/// 0x004a08c0), by the clip's frame: asked before their bursts, with
+/// what their draws leave.
+fn shocks_draw(b: &BossBase, l: &mut Laser, cx: &mut Cx) {
+    let n = (((b.anm.frame() - 100) as u32 / 15) * 2).min(11) as usize;
+    let at = cx.out.len();
+    cx.out(Pic::Shocks { shocks: Vec::new() });
+    for k in 0..=n {
+        shock_draw(l, k, cx);
     }
-    if b.act_num == act::LASER && b.act_proccess == 2 && b.anm.frame() >= 100 {
-        let n = (((b.anm.frame() - 100) as u32 / 15) * 2).min(11) as usize;
-        // Asked before their bursts, with what their draws leave.
-        let at = cx.out.len();
-        cx.out(Pic::Shocks { shocks: Vec::new() });
-        for k in 0..=n {
-            shock_draw(x, k, cx);
-        }
-        let shocks = (0..=n).filter_map(|k| Some((x.shock_at[k]?, x.shocks[k].transparency))).collect();
-        cx.out[at] = Pic::Shocks { shocks }.into();
-    }
+    let shocks = (0..=n).filter_map(|k| Some((l.shock_at[k]?, l.shocks[k].transparency))).collect();
+    cx.out[at] = Pic::Shocks { shocks }.into();
 }
 
 /// `ccBoss03LaserShock::Draw` (0x004a7630) as far as the rules go
 /// ([`Shock::draw`]), its burst shown.
-fn shock_draw(x: &mut Magus, k: usize, cx: &mut Cx) {
-    if let Some(turn) = x.shocks[k].draw(x.shock_at[k].is_some(), cx.cc)
-        && let Some(at) = x.shock_at[k]
+fn shock_draw(l: &mut Laser, k: usize, cx: &mut Cx) {
+    if let Some(turn) = l.shocks[k].draw(l.shock_at[k].is_some(), cx.cc)
+        && let Some(at) = l.shock_at[k]
     {
         cx.out(Pic::ShockBurst { at, turn });
     }
@@ -777,7 +815,7 @@ impl Patterns for Magus {
     const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, _b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        &cx.data.magus.epitaph
+        combat::of(cx.volume()).magus_epitaph
     }
 
     fn epitaph(&self, _b: &BossBase) -> bool {
@@ -817,7 +855,7 @@ impl Patterns for Magus {
                 change_action(b, x, cx, n, 3, true);
             }
             9..=11 => {
-                let pat_tbl = &cx.data.magus.epitaph;
+                let pat_tbl = combat::of(cx.volume()).magus_epitaph;
                 if pat != 11 {
                     let ty = word(pat_tbl, s0);
                     s0 += 1;
@@ -835,7 +873,7 @@ impl Patterns for Magus {
                 b.calc_target_info(cx);
                 let sid = if pat == 10 {
                     let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
-                    cx.data.magus.skills[k]
+                    pick(combat::of(cx.volume()).magus_skills, k)
                 } else {
                     let s = word(pat_tbl, s0);
                     s0 += 1;
@@ -857,17 +895,17 @@ impl Patterns for Magus {
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss03::Think` (0x0049fa50).
-fn think(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, l: &mut Laser, w: &mut Wave, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, ls, cx),
-        act::WAVE => on_wave(b, x, cx),
+        act::WAVE => on_wave(b, x, w, cx),
         act::DRAIN_ATK => on_drain_atk(b, x, cx),
         act::DASH => on_dash(b, x, cx),
         act::TO_CENTRE => on_to_centre(b, x, cx),
         act::CAST => on_cast(b, x, cx),
         act::DATA_DRAIN => on_data_drain(b, x, ls, cx),
         act::EPITAPH => on_epitaph(b, x, cx),
-        act::EPITAPH_WAVE => on_epitaph_wave(b, x, cx),
+        act::EPITAPH_WAVE => on_epitaph_wave(b, x, w, cx),
         act::DIE => on_die(b, x, cx),
         act::ESCAPE => on_escape(b, x, cx),
         act::CHASE => on_chase(b, x, cx),
@@ -875,7 +913,7 @@ fn think(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
         act::WANDER => on_wander(b, x, cx),
         act::STOP => on_stop(b, x, cx),
         act::LEAF_COUNT_DOWN => on_leaf_count_down(b, x, ls, cx),
-        act::LASER => on_laser(b, x, cx),
+        act::LASER => on_laser(b, x, l, cx),
         act::LEAF_GROW => on_leaf_grow(b, x, ls, cx),
         act::RISE => on_rise(b, x, ls, cx),
         act::FALL => on_fall(b, x, ls, cx),
@@ -902,7 +940,7 @@ fn on_neutral(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     cx.scene.chars[me].target_char = t;
     if t.is_none() {
         if x.prepare_explode_all != 0 {
-            for k in 0..ls.0.len() {
+            for k in 0..ls.parts.len() {
                 leaf::order(ls, k, 27, b, x, cx);
             }
         }
@@ -988,7 +1026,7 @@ fn on_data_drain(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) 
     x.epitaph = 1;
     change_action(b, x, cx, act::EPITAPH, 3, true);
     b.move_spd = 0;
-    for k in 0..ls.0.len() {
+    for k in 0..ls.parts.len() {
         leaf::order(ls, k, 27, b, x, cx);
     }
 }
@@ -1052,10 +1090,10 @@ fn on_chase(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
 }
 
 /// `OnThinkEpitaphWave` (0x004a17d0): the drained wave, row 12 at 60.
-fn on_epitaph_wave(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
+fn on_epitaph_wave(b: &mut BossBase, x: &mut Magus, w: &mut Wave, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
-            x.anm_w.set(super::ANM_WAVE, cx.clips);
+            w.anm.set(super::ANM_WAVE, cx.clips);
             b.act_proccess += 1;
             cx.se3d(223);
         }
@@ -1076,8 +1114,8 @@ fn on_epitaph_wave(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
                 }
                 let pos = cx.pos();
                 cx.out(Out::CameraShake { pos, s: [2, 2, 3, 2] });
-                let done = x.anm_w.forward();
-                x.anm_w.speed = 512;
+                let done = w.anm.forward();
+                w.anm.speed = 512;
                 cx.out(Out::DrawWave);
                 if done && b.anm_status != 0 {
                     change_action(b, x, cx, act::EPITAPH, 3, true);
@@ -1423,7 +1461,7 @@ fn on_escape(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
 
 /// `OnThinkWave` (0x004a2c40): SEs at 0 and 30, the wave at 35, boss
 /// skill 12 25 frames on.
-fn on_wave(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut Magus, w: &mut Wave, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             let c = b.act_count;
@@ -1434,7 +1472,7 @@ fn on_wave(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
                 cx.se3d(224);
             }
             if b.act_count == 35 {
-                x.anm_w.set(super::ANM_WAVE, cx.clips);
+                w.anm.set(super::ANM_WAVE, cx.clips);
                 b.act_count = 0;
                 b.act_proccess += 1;
                 cx.out(Out::Flash { t: 15, colour: 0x80e0_ffff });
@@ -1450,8 +1488,8 @@ fn on_wave(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             }
             let pos = cx.pos();
             cx.out(Out::CameraShake { pos, s: [2, 2, 3, 2] });
-            x.anm_w.speed = 512;
-            let done = x.anm_w.forward();
+            w.anm.speed = 512;
+            let done = w.anm.forward();
             cx.out(Out::DrawWave);
             if b.anm_status != 0 && done {
                 change_action(b, x, cx, act::NEUTRAL, 3, true);
@@ -1548,12 +1586,12 @@ fn on_leaf_drop(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     }
     x.act_cnt = 0;
     let mut id = -1;
-    for k in 0..ls.0.len() {
-        if ls.0[k].x.drop == 0 {
-            ls.0[k].x.act_cnt = 0;
-            ls.0[k].b.base.exit = 0;
+    for k in 0..ls.parts.len() {
+        if ls.parts[k].x.drop == 0 {
+            ls.parts[k].x.act_cnt = 0;
+            ls.parts[k].b.base.exit = 0;
             leaf::order(ls, k, 24, b, x, cx);
-            id = ls.0[k].x.slave_id;
+            id = ls.parts[k].x.slave_id;
             break;
         }
     }
@@ -1579,7 +1617,7 @@ fn on_leaf_drop(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     cx.scene.chars[me].target_char = t;
     if cx.target_ok(t) {
         let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
-        let sid = cx.data.magus.drop_skills[k];
+        let sid = pick(combat::of(cx.volume()).magus_drop_skills, k);
         if let Some(tp) = t
             && let Some(s) = item::item_skill_compel(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
         {
@@ -1605,8 +1643,8 @@ fn on_leaf_count_down(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut
     if c < 0 {
         return;
     }
-    for k in 0..ls.0.len() {
-        if ls.0[k].x.drop != 0 && ls.0[k].b.base.exit == 0 {
+    for k in 0..ls.parts.len() {
+        if ls.parts[k].x.drop != 0 && ls.parts[k].b.base.exit == 0 {
             leaf::order(ls, k, 25, b, x, cx);
         }
     }
@@ -1620,7 +1658,7 @@ fn on_leaf_grow(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     if b.act_count == 1 {
-        for k in 0..ls.0.len() {
+        for k in 0..ls.parts.len() {
             leaf::order(ls, k, 29, b, x, cx);
         }
         x.grow_se = true;
@@ -1636,9 +1674,9 @@ fn on_leaf_grow(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     if b.anm_status == 0 {
         return;
     }
-    for k in 0..ls.0.len() {
+    for k in 0..ls.parts.len() {
         leaf::order(ls, k, 30, b, x, cx);
-        ls.0[k].x.drop = 0;
+        ls.parts[k].x.drop = 0;
     }
     x.dropping = 0;
     if x.grow_se {
@@ -1663,10 +1701,10 @@ fn on_destroy_leaf(b: &mut BossBase, _x: &mut Magus, ls: &mut Leaves, cx: &mut C
         return;
     }
     for _ in 0..LEAVES {
-        for k in 0..ls.0.len() {
-            if ls.0[k].x.drop == 0 {
-                ls.0[k].x.act_cnt = 0;
-                ls.0[k].b.base.exit = 0;
+        for k in 0..ls.parts.len() {
+            if ls.parts[k].x.drop == 0 {
+                ls.parts[k].x.act_cnt = 0;
+                ls.parts[k].b.base.exit = 0;
                 leaf::order(ls, k, 28, b, _x, cx);
                 break;
             }
@@ -1676,7 +1714,7 @@ fn on_destroy_leaf(b: &mut BossBase, _x: &mut Magus, ls: &mut Leaves, cx: &mut C
 
 /// `OnThinkLaser` (0x004a3ae0): locked, cinema 9, camera 3; up to 1500,
 /// the laser clip and its shocks, down with boss skill 9 at the target.
-fn on_laser(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
+fn on_laser(b: &mut BossBase, x: &mut Magus, l: &mut Laser, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
@@ -1719,9 +1757,9 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
                 if b.anm.clip.is_some() {
                     b.anm.forward();
                 }
-                setup_laser_shock(x);
+                setup_laser_shock(l);
                 for k in 0..LEAVES {
-                    let at = Place::At(x.shock_pos[k]);
+                    let at = Place::At(l.shock_pos[k]);
                     cx.out(Pic::Particles { which: Gen::Thunder, at, held: None });
                 }
                 cx.out(Out::Se { se: 68 });
@@ -1770,11 +1808,11 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
 
 /// `SetupLaserShock` (0x0049f080): each of the twelve shocks (the body's
 /// `OBJ_ex31les00`-`55`) set on its leaf; `m_shockIdx` 0.
-fn setup_laser_shock(x: &mut Magus) {
-    for (k, s) in x.shocks.iter_mut().enumerate() {
+fn setup_laser_shock(l: &mut Laser) {
+    for (k, s) in l.shocks.iter_mut().enumerate() {
         *s = Shock { index: k as i32, transparency: ONE, draw: 0, act_count: 0 };
     }
-    x.shock_idx = 0;
+    l.shock_idx = 0;
 }
 
 /// `OnThinkRise` (0x004a3fd0): the leaves about to burst lift Magus to
@@ -1824,7 +1862,7 @@ fn on_rise(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
                 cx.out(Out::FlashFade { t_in: 60, t_out: 60, hold: None, colour: 0x80e0_ffff });
                 // The count's loop never steps its leaf: leaf 0, twelve
                 // times over.
-                if let Some(p) = ls.0.first() {
+                if let Some(p) = ls.parts.first() {
                     for _ in 0..LEAVES {
                         if p.b.base.exit == 0 && p.x.drop != 0 && p.x.explode == 0 {
                             x.explode_leaf_num += 1;
@@ -1839,8 +1877,8 @@ fn on_rise(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
             }
             if b.act_count == 5 {
                 b.act_count = 0;
-                for k in 0..ls.0.len() {
-                    let p = &ls.0[k];
+                for k in 0..ls.parts.len() {
+                    let p = &ls.parts[k];
                     if p.b.base.exit == 0 && p.x.drop != 0 && p.x.explode == 0 {
                         leaf::order(ls, k, 26, b, x, cx);
                         break;
@@ -1882,7 +1920,7 @@ fn on_fall(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
             cx.scene.chars[me].pos[2] = 0;
             cx.out(Out::Cinema(None));
             if ls.dropped() == LEAVES {
-                for p in &mut ls.0 {
+                for p in &mut ls.parts {
                     p.x.drop = 0;
                 }
                 x.regrow = 1;
@@ -1899,7 +1937,7 @@ pub(crate) fn on_exit_leaf(b: &mut BossBase, x: &mut Magus, ls: &Leaves, cx: &mu
     if b.act_num == act::RISE || b.act_num == act::FALL {
         return;
     }
-    if ls.0.iter().any(|p| p.x.drop == 0 || p.b.base.exit == 0) {
+    if ls.parts.iter().any(|p| p.x.drop == 0 || p.b.base.exit == 0) {
         return;
     }
     x.regrow = 1;
@@ -2020,7 +2058,7 @@ fn laser_eye(b: &BossBase, cx: &mut Cx, pos: V4) {
 /// `ccBoss03::Affect` (0x0049f6a0): the drain (13) to act 11 and the grow's
 /// sound off; 21's 4500 HP; a hit as the base's, then the laser reserved
 /// once its protect gauge is past half; the rest the base's.
-pub(super) fn affect(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
+fn affect(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     let me = cx.me;
     let (t, p0, person) = {
         let a = &cx.scene.chars[me].affect;

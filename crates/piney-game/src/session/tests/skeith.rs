@@ -1353,10 +1353,7 @@ pub(super) fn event_115_session() -> Option<Session> {
 
 /// Magus's Epitaph flag, when the boss is Magus.
 fn magus_epitaph(b: &piney_battle::boss::Boss) -> Option<i32> {
-    match &b.class {
-        piney_battle::boss::Class::Magus(x) => Some(x.epitaph),
-        _ => None,
-    }
+    b.systems.get::<piney_battle::boss::magus::Magus>().map(|x| x.epitaph)
 }
 
 /// Event 115 into Magus's arena: the boss is made with its twelve leaves,

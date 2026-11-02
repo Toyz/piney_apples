@@ -7,12 +7,13 @@
 use piney_data::field::ee;
 use piney_data::libm;
 
-use super::{Gen, Held, LEAF_ROW, Leaves, Magus, Pic, Place};
+use super::{Gen, Held, LEAF_ROW, LEAVES, Leaves, Magus, Pic, Place};
 use crate::boss::GenOp;
 use crate::boss::Part;
 use crate::boss::blur::Set;
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
-use crate::boss::{Anm, Boss, BossBase, Class, Cx, EffKind, Out};
+use crate::boss::systems::{BossSystem, Hook, Others, Systems};
+use crate::boss::{Anm, BossBase, Cx, EffKind, Out, Output};
 use crate::geom::{self, V4};
 use crate::param::cond;
 
@@ -152,15 +153,14 @@ pub(super) fn new(cx: &mut Cx, k: i32) -> usize {
     set_base_param(cx, me, LEAF_ROW);
     let mut b = plain_boss();
     b.cheat_hp = 0;
-    b.anm_tbl = cx.data.magus.leaf_anims.clone();
+    b.anm_tbl =
+        piney_data::tables::combat::of(cx.volume()).magus_leaf_anims.iter().map(|a| a.map(str::to_string)).collect();
     b.anm = Anm::new();
     b.change_action(cx, act::NEUTRAL, 3, true);
     b.anm_status = 0;
     // The marker (a ccAnimateObject) starts opaque.
     let x = Leaf { master: cx.me, slave_id: k, marker_alpha: ONE, ..Leaf::default() };
-    if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-        f.boss = Some(Box::new(Boss::of(&crate::boss::defs::LEAF, b, Class::MagusLeaf(Box::new(x)))));
-    }
+    Part::of(&crate::boss::defs::LEAF, b, x, me).put(cx);
     me
 }
 
@@ -168,21 +168,21 @@ pub(super) fn new(cx: &mut Cx, k: i32) -> usize {
 
 /// `ccBoss03Leaf::Main` (0x004a4f30), run from Magus's `Slave()`.
 pub(super) fn main(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
-    let me = ls.0[k].me;
+    let me = ls.parts[k].me;
     as_me(cx, me, |cx| {
-        if ls.0[k].b.base.exit != 0 {
+        if ls.parts[k].b.base.exit != 0 {
             return;
         }
-        ls.0[k].b.base.calc_real(cx);
-        ls.0[k].b.base.calc_target_info(cx);
-        let b = &mut ls.0[k].b;
+        ls.parts[k].b.base.calc_real(cx);
+        ls.parts[k].b.base.calc_target_info(cx);
+        let b = &mut ls.parts[k].b;
         b.base.tick_stop();
         think(ls, k, mb, mx, cx);
         // `ccBoss03Leaf::Move` (0x004a4e00): `ccBoss::Move`.
-        ls.0[k].b.base.move_(cx);
-        if ls.0[k].b.base.draw_sw != 0 {
-            pre_draw_anm(&mut ls.0[k], cx);
-            ls.0[k].b.base.draw(cx);
+        ls.parts[k].b.base.move_(cx);
+        if ls.parts[k].b.base.draw_sw != 0 {
+            pre_draw_anm(&mut ls.parts[k], cx);
+            ls.parts[k].b.base.draw(cx);
         }
     });
 }
@@ -211,34 +211,34 @@ fn pre_draw_anm(p: &mut Part<Leaf>, _cx: &mut Cx) {
 /// `ccBoss03Leaf::Think` (0x004a54b0).
 fn think(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
     let me = cx.me;
-    match ls.0[k].b.base.act_num {
+    match ls.parts[k].b.base.act_num {
         act::NEUTRAL => {
-            if ls.0[k].x.order_num == 0 {
+            if ls.parts[k].x.order_num == 0 {
                 return;
             }
-            let mp = cx.scene.chars[ls.0[k].x.master].pos;
+            let mp = cx.scene.chars[ls.parts[k].x.master].pos;
             cx.scene.chars[me].pos = mp;
-            let p = &mut ls.0[k];
+            let p = &mut ls.parts[k];
             p.b.base.dirc = mb.dirc;
             p.b.base.draw_sw = 1;
             p.x.act_cnt = 0;
             change_action(p, cx, act::DROP, 3, true);
         }
         7 => {
-            let c = ls.0[k].b.base.act_count;
-            ls.0[k].b.base.act_count += 1;
+            let c = ls.parts[k].b.base.act_count;
+            ls.parts[k].b.base.act_count += 1;
             if c >= 121 {
                 on_exit(ls, k, mb, mx, cx);
-                let p = &mut ls.0[k];
+                let p = &mut ls.parts[k];
                 p.b.base.draw_sw = 0;
                 change_action(p, cx, act::NEUTRAL, 3, true);
             }
         }
         act::DIE => on_die(ls, k, mb, mx, cx),
-        act::DROP => on_drop(&mut ls.0[k], cx),
+        act::DROP => on_drop(&mut ls.parts[k], cx),
         act::FIRE => on_fire(ls, k, mb, mx, cx),
         act::COUNT_DOWN => on_count_down(ls, k, mb, mx, cx),
-        act::DESTROY if ls.0[k].b.base.anm_status != 0 => on_exit(ls, k, mb, mx, cx),
+        act::DESTROY if ls.parts[k].b.base.anm_status != 0 => on_exit(ls, k, mb, mx, cx),
         _ => {}
     }
 }
@@ -287,10 +287,10 @@ fn count_start(x: &mut Leaf) {
 
 /// `Init` (0x004a5920): at the body's leaf `slaveID` on the ground, the
 /// body's heading, its fall clip, full HP, fallen.
-fn init(p: &mut Part<Leaf>, mb: &BossBase, mx: &Magus, cx: &mut Cx) {
+fn init(p: &mut Part<Leaf>, mb: &BossBase, hang: &[V4; LEAVES], cx: &mut Cx) {
     let me = p.me;
-    let k = usize::try_from(p.x.slave_id).unwrap_or(0).min(super::LEAVES - 1);
-    let mut pos = mx.leaf_pos[k];
+    let k = usize::try_from(p.x.slave_id).unwrap_or(0).min(LEAVES - 1);
+    let mut pos = hang[k];
     pos[2] = 0;
     cx.scene.chars[me].pos = pos;
     p.b.base.dirc = mb.dirc;
@@ -344,15 +344,16 @@ fn particles(cx: &mut Cx, which: Gen, at: Place, held: Option<Held>) {
 /// `Order(n)` (0x004a6780): 24 fall, 25 the countdown again, 26 burst, 27
 /// go, 28 fade off the body, 29 and 30 the grow's charge on and off.
 pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
-    let me = ls.0[k].me;
+    let me = ls.parts[k].me;
+    let hang = ls.pos;
     as_me(cx, me, |cx| {
-        let p = &mut ls.0[k];
+        let p = &mut ls.parts[k];
         p.x.order_num = n;
         match n {
             24 => {
                 p.x.act_cnt = 0;
                 change_action(p, cx, act::DROP, 3, true);
-                init(p, mb, mx, cx);
+                init(p, mb, &hang, cx);
                 let pos = cx.pos();
                 cx.out(Out::Se3dNote { se: 169, pos, note: 50 });
                 // ccLeafMark::InitAtOnce (0x004a7b20): its two smokes the
@@ -390,7 +391,7 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut BossBase, mx: &m
                 on_exit(ls, k, mb, mx, cx);
             }
             28 => {
-                init(p, mb, mx, cx);
+                init(p, mb, &hang, cx);
                 p.x.transparency = ONE;
                 p.x.trans_spd = ee::div(ONE, ee::from_int(p.b.base.anm.frames as i32));
                 change_action(p, cx, act::DESTROY, 3, true);
@@ -401,7 +402,7 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut BossBase, mx: &m
                 }
                 p.x.charge = true;
                 // At the leaf's place on the body (its `EXT_ex31leafNN`).
-                let at = Place::At(mx.leaf_pos[k]);
+                let at = Place::At(hang[k]);
                 particles(cx, Gen::Charge, at, Some(Held::Charge(p.me)));
             }
             30 if p.x.charge => {
@@ -416,13 +417,13 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut BossBase, mx: &m
 /// `OnExit` (0x004a65a0): exited; unless Magus is drained its
 /// `OnExitLeaf`; off the lists.
 fn on_exit(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
-    ls.0[k].b.base.exit = 1;
+    ls.parts[k].b.base.exit = 1;
     if mx.epitaph == 0 {
-        let mme = ls.0[k].x.master;
+        let mme = ls.parts[k].x.master;
         as_me(cx, mme, |cx| super::on_exit_leaf(mb, mx, ls, cx));
     }
-    crate::fellow::delete_cmnd(cx.scene, ls.0[k].me);
-    ls.0[k].x.prepare_explode = 0;
+    crate::fellow::delete_cmnd(cx.scene, ls.parts[k].me);
+    ls.parts[k].x.prepare_explode = 0;
 }
 
 /// `OnThinkDrop` (0x004a5ab0): once the fall's clip ends, the countdown
@@ -456,15 +457,15 @@ fn on_drop(p: &mut Part<Leaf>, cx: &mut Cx) {
 /// `OnThinkFire` (0x004a5db0): the burst over, the leaf goes; the last of
 /// the fallen to go brings Magus down (act 28) and its blur back.
 fn on_fire(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
-    if ls.0[k].b.base.anm_status == 0 {
+    if ls.parts[k].b.base.anm_status == 0 {
         return;
     }
     on_exit(ls, k, mb, mx, cx);
-    if ls.0.iter().any(|p| p.x.drop != 0 && p.b.base.exit == 0) {
+    if ls.parts.iter().any(|p| p.x.drop != 0 && p.b.base.exit == 0) {
         return;
     }
     mx.explosion = 0;
-    let mme = ls.0[k].x.master;
+    let mme = ls.parts[k].x.master;
     as_me(cx, mme, |cx| super::begin_fall(mb, mx, cx));
     cx.out(Out::Blur(Set::Abgr(super::BLUR)));
 }
@@ -480,8 +481,8 @@ fn on_count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, c
     count_down(ls, k, mb, mx, cx);
     // The seconds over the leaf (`ccCalcTagPos` 100 up,
     // `ccFont::MakeSignedNum(2, n)`), the marker at the leaf.
-    let me = ls.0[k].me;
-    let x = &mut ls.0[k].x;
+    let me = ls.parts[k].me;
+    let x = &mut ls.parts[k].x;
     let n = ee::to_int(ee::div(ee::from_int(x.exp_cntr + 29), 0x41f0_0000));
     cx.out(Out::Count { at: crate::boss::Spot::Char(me), n });
     x.marker_pos = cx.scene.chars[me].pos;
@@ -489,7 +490,7 @@ fn on_count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, c
 }
 
 fn count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
-    let p = &mut ls.0[k];
+    let p = &mut ls.parts[k];
     let x = &mut p.x;
     if x.prepare_explode != 0 {
         return;
@@ -547,14 +548,14 @@ fn count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: 
             mx.prepare_explode_all = 0;
         }
     }
-    crate::fellow::delete_cmnd(cx.scene, ls.0[k].me);
+    crate::fellow::delete_cmnd(cx.scene, ls.parts[k].me);
 }
 
 /// `OnThinkDie` (0x004a57a0): off the lists, its death's sound, smoke and
 /// ring; it fades in 30 frames and goes.
 fn on_die(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut Cx) {
-    let me = ls.0[k].me;
-    let p = &mut ls.0[k];
+    let me = ls.parts[k].me;
+    let p = &mut ls.parts[k];
     match p.b.base.act_proccess {
         0 => {
             p.x.exit_alpha = ONE;
@@ -595,24 +596,20 @@ fn dead_effect(mb: &mut BossBase, dirc: V4, cx: &mut Cx) {
 
 // --- Affect ------------------------------------------------------------------------------------
 
-impl crate::boss::BossClass for Leaf {
+impl BossSystem for Leaf {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, _o: &mut Others, cx: &mut Cx) {
+        if hook == Hook::Affect {
+            affect(b, cx);
+        }
+    }
+
     /// Its marker's place, which its generator follows, and its burst while
     /// it bursts (act 21, its `PreDrawAnm`).
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
+    fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut Output) {
         out.follow.push((crate::boss::Follow::Marker(cx.me), self.marker_pos));
         if b.act_num == act::FIRE {
             out.explodes.push(self.exp);
         }
-    }
-
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, cx);
     }
 }
 

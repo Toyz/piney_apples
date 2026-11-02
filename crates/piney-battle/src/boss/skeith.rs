@@ -7,7 +7,7 @@
 use piney_data::tables::combat;
 
 use super::systems::wave::Wave;
-use super::systems::{BossSystem, Hook, Others};
+use super::systems::{BossSystem, Hook, Others, Systems};
 use super::*;
 
 /// Skeith's act tables (`tables::combat`, alike on every volume):
@@ -87,7 +87,7 @@ impl BossSystem for Skeith {
 
     /// `ccBoss01::DrawCross` (0x0047c390): `m_lattice` (+0x2935c), a row a
     /// frame in the cross at the sword's two dummies, while he stands.
-    fn draw(&self, b: &BossBase, _cx: &mut Cx, out: &mut Output) {
+    fn draw(&self, b: &BossBase, _all: &Systems, _cx: &mut Cx, out: &mut Output) {
         out.trail = if b.act_num == act::CROSS && b.exit == 0 {
             Trail::Row { node: "OBJ_ex11swd", points: ["DMY_xdummy_w01", "DMY_xdummy_w02"] }
         } else {

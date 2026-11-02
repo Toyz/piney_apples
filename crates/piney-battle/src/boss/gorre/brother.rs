@@ -556,7 +556,8 @@ fn affect_alone(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
     let Some(mut gb) = taken else { return };
     let Boss { base: gbase, systems, .. } = &mut *gb;
     if let Some((own, mut o)) = systems.split::<Gorre>()
-        && let Some((br, kerse)) = o.pair_mut::<Brothers, Kerse>()
+        && let Some(br) = o.take::<Brothers>()
+        && let Some(kerse) = o.take::<Kerse>()
     {
         let k = usize::from(br.me[1] == me);
         let mine = Part::of(&crate::boss::defs::BROTHER, std::mem::take(b), std::mem::take(x), me);

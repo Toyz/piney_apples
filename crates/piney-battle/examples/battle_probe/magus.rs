@@ -9,8 +9,9 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::magus::leaf::Leaf;
-use piney_battle::boss::magus::{self, Gen, Held, Magus, Pic, Place};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, GenOp, LoopOp, Out};
+use piney_battle::boss::magus::{self, Gen, Held, Laser, Leaves, Magus, Pic, Place};
+use piney_battle::boss::systems::wave::Wave;
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, FxCall, GenOp, LoopOp, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -85,6 +86,58 @@ fn hits(miss: i64, f: usize) -> [bool; 12] {
     std::array::from_fn(|k| !(miss > 0 && (f as i64 + k as i64) % miss == 0))
 }
 
+/// The body as the case has it: where each leaf hangs, the laser clip's
+/// shocks at the case's places (each leaf's matrix the identity), and
+/// each shock's beam meeting the ground at its place on the frame's hits
+/// (`ccHitCheckLM`, asked shock by shock in order).
+struct Body {
+    leaf_pos: [V4; 12],
+    shock_pos: [V4; 12],
+    hit: [bool; 12],
+    asked: usize,
+}
+
+impl piney_battle::boss::Field for Body {
+    fn switch(&mut self, _: usize, hit: &mut piney_battle::world::CharHit, on: bool) {
+        hit.sw = on;
+    }
+
+    fn collide(&mut self, _: usize, hit: &mut piney_battle::world::CharHit) -> bool {
+        hit.offset = [0; 4];
+        false
+    }
+
+    fn sync(&mut self, _: usize, _: &piney_battle::world::CharHit) {}
+
+    fn node(&mut self, _who: usize, name: &str) -> Option<V4> {
+        magus::LEAF_OBJS.iter().position(|&n| n == name).map(|k| self.leaf_pos[k])
+    }
+
+    fn clip_entries(
+        &mut self,
+        _who: usize,
+        _clip: &str,
+        _time: [u32; 2],
+        names: &[&str],
+        out: &mut [Option<(V4, piney_battle::geom::M4)>],
+    ) -> bool {
+        let one = piney_battle::geom::unit_matrix();
+        for (o, name) in out.iter_mut().zip(names) {
+            *o = match magus::SHOCK_OBJS.iter().position(|n| n == name) {
+                Some(k) => Some((self.shock_pos[k], one)),
+                None => Some(([0, 0, 0, 0x3f80_0000], one)),
+            };
+        }
+        true
+    }
+
+    fn line(&mut self, sp: V4, _ep: V4, _mask: u32) -> Option<V4> {
+        let k = self.asked % 12;
+        self.asked += 1;
+        self.hit[k].then_some(sp)
+    }
+}
+
 fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
@@ -109,6 +162,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let push = (t.int() as usize, t.int() as usize);
     let leaf_pos: [V4; 12] = std::array::from_fn(|_| [t.u32(), t.u32(), t.u32(), 0x3f80_0000]);
     let shock_pos: [V4; 12] = std::array::from_fn(|_| [t.u32(), t.u32(), t.u32(), 0x3f80_0000]);
+    let mut body = Body { leaf_pos, shock_pos, hit: [true; 12], asked: 0 };
     let ns = t.int() as usize;
     let script: Vec<(usize, i32, usize, i16)> =
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16())).collect();
@@ -147,7 +201,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        field: &mut piney_battle::boss::NoField,
+        field: &mut body,
         game_over: false,
         boss_cam: false,
         cam: view,
@@ -162,10 +216,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let out = std::mem::take(&mut cx.out);
     drop(cx);
     HELD.with(|h| h.borrow_mut().clear());
-    if let Class::Magus(x) = &mut boss.class {
-        x.shock_pos = shock_pos;
-        LEAVES.with(|l| *l.borrow_mut() = x.leaves.clone());
-    }
+    let leaves = boss.systems.get::<Leaves>().expect("Magus's leaves").me.clone();
+    LEAVES.with(|l| *l.borrow_mut() = leaves);
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
     lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur));
@@ -179,16 +231,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             boss: Some(&benv),
             volume: crate::probe_volume(),
         };
-        if let Class::Magus(x) = &mut boss.class {
-            x.leaf_pos = leaf_pos;
-            x.shock_pos = shock_pos;
-            let hit = hits(miss, f);
-            x.shock_at = std::array::from_fn(|k| hit[k].then_some(shock_pos[k]));
-        }
-        let leaves = match &boss.class {
-            Class::Magus(x) => x.leaves.clone(),
-            _ => Vec::new(),
-        };
+        (body.hit, body.asked) = (hits(miss, f), 0);
+        let leaves = boss.systems.get::<Leaves>().expect("Magus's leaves").me.clone();
         LEAVES.with(|l| *l.borrow_mut() = leaves.clone());
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let mut out = Vec::new();
@@ -225,8 +269,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 // Forced, outside the game's reach: m_bDropping 0, the
                 // laser reserved (act 30's way).
                 7 => {
-                    if let Some(Class::Magus(x)) =
-                        scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+                    if let Some(x) = scene.chars[me]
+                        .foe_state_mut()
+                        .and_then(|f| f.boss.as_mut())
+                        .and_then(|b| b.systems.get_mut::<Magus>())
                     {
                         x.dropping = 0;
                         x.reserve_laser = 1;
@@ -256,7 +302,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut pushed,
-            field: &mut piney_battle::boss::NoField,
+            field: &mut body,
             game_over: false,
             boss_cam: false,
             cam: view,
@@ -337,7 +383,7 @@ fn mout(o: &Out) -> Option<String> {
     })
 }
 
-fn magus_json(b: &Boss, x: &Magus) -> String {
+fn magus_json(b: &Boss, x: &Magus, l: &Laser) -> String {
     let v: Vec<String> = vec![
         x.act_cnt.to_string(),
         x.is_neutral_anm.to_string(),
@@ -347,7 +393,7 @@ fn magus_json(b: &Boss, x: &Magus) -> String {
         x.grow_interval.to_string(),
         x.epitaph.to_string(),
         x.cam_id.to_string(),
-        x.shock_idx.to_string(),
+        l.shock_idx.to_string(),
         x.prepare_explode_all.to_string(),
         x.dropping.to_string(),
         x.reserve_laser.to_string(),
@@ -511,7 +557,9 @@ fn frame_json(
     cc: &Genrand,
     menu: &[i32; 6],
 ) -> String {
-    let Class::Magus(x) = &b.class else { return "{}".into() };
+    let Some(x) = b.systems.get::<Magus>() else { return "{}".into() };
+    let l = b.systems.get::<Laser>().expect("Magus's laser");
+    let wave = &b.systems.get::<Wave>().expect("Magus's wave").anm;
     let ch = &scene.chars[me];
     let f = scene.param(me).unwrap();
     let effs: Vec<String> = b
@@ -528,13 +576,16 @@ fn frame_json(
         .map(|&c| format!("[{},{},{}]", scene.chars[c].hp, scene.chars[c].cond[1], scene.chars[c].cond[0]))
         .collect();
     let shocks: Vec<String> =
-        x.shocks.iter().map(|s| format!("[{},{},{},{}]", s.index, s.transparency, s.draw, s.act_count)).collect();
-    let leaves: Vec<String> = x
-        .leaves
+        l.shocks.iter().map(|s| format!("[{},{},{},{}]", s.index, s.transparency, s.draw, s.act_count)).collect();
+    let leaves: Vec<String> = b
+        .systems
+        .get::<Leaves>()
+        .expect("Magus's leaves")
+        .me
         .iter()
         .map(|&l| {
             let lb = scene.chars[l].foe_state().and_then(|f| f.boss.as_ref()).unwrap();
-            let Class::MagusLeaf(lx) = &lb.class else { return "[]".into() };
+            let Some(lx) = lb.systems.get::<Leaf>() else { return "[]".into() };
             leaf_json(lb, lx, scene, l)
         })
         .collect();
@@ -577,10 +628,10 @@ fn frame_json(
         b.base.anm.clip.as_deref().unwrap_or(""),
         b.base.anm.frame(),
         b.base.anm.speed,
-        x.anm_w.clip.as_deref().unwrap_or(""),
-        x.anm_w.frame(),
-        x.anm_w.speed,
-        magus_json(b, x),
+        wave.clip.as_deref().unwrap_or(""),
+        wave.frame(),
+        wave.speed,
+        magus_json(b, x, l),
         shocks.join(","),
         leaves.join(","),
         effs.join(","),

@@ -51,14 +51,31 @@ fn fight() -> Option<Fight> {
     let me = scene.add(ch, 3);
     let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
     let mut f = Fight { t, data, scene, party, me, rand: Rand(11), cc: Genrand::seeded(4357), count: 0 };
-    let mut b = f.with_cx(|cx| new(cx, [0, 0, 0, ONE], VF0, VF0));
-    if let Class::Magus(x) = &mut b.class {
-        for (k, p) in x.leaf_pos.iter_mut().enumerate() {
-            *p = [(k as f32 * 40.0 - 200.0).to_bits(), (-500.0f32).to_bits(), 300.0f32.to_bits(), ONE];
-        }
-    }
+    let b = f.with_cx(|cx| new(cx, [0, 0, 0, ONE], VF0, VF0));
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
     Some(f)
+}
+
+/// The field as the tests have it: the body's leaves hung in a row 500
+/// behind and 300 up.
+struct Hangs;
+
+impl crate::boss::Field for Hangs {
+    fn switch(&mut self, _: usize, hit: &mut crate::world::CharHit, on: bool) {
+        hit.sw = on;
+    }
+
+    fn collide(&mut self, _: usize, hit: &mut crate::world::CharHit) -> bool {
+        hit.offset = [0; 4];
+        false
+    }
+
+    fn sync(&mut self, _: usize, _: &crate::world::CharHit) {}
+
+    fn node(&mut self, _who: usize, name: &str) -> Option<V4> {
+        let k = LEAF_OBJS.iter().position(|&n| n == name)?;
+        Some([(k as f32 * 40.0 - 200.0).to_bits(), (-500.0f32).to_bits(), 300.0f32.to_bits(), ONE])
+    }
 }
 
 impl Fight {
@@ -83,7 +100,7 @@ impl Fight {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
-            field: &mut crate::boss::NoField,
+            field: &mut Hangs,
             game_over: false,
             boss_cam: false,
             cam: CamView::default(),
@@ -130,18 +147,26 @@ impl Fight {
 
     fn magus(&mut self) -> &mut Magus {
         let b = self.scene.chars[self.me].foe_state_mut().unwrap().boss.as_mut().unwrap();
-        let Class::Magus(x) = &mut b.class else { panic!("not Magus") };
-        x
+        b.systems.get_mut::<Magus>().expect("Magus's own")
     }
 
     fn leaves(&mut self) -> Vec<usize> {
-        self.magus().leaves.clone()
+        self.scene.chars[self.me]
+            .foe_state()
+            .unwrap()
+            .boss
+            .as_ref()
+            .unwrap()
+            .systems
+            .get::<Leaves>()
+            .unwrap()
+            .me
+            .clone()
     }
 
     fn leaf(&self, l: usize) -> (&Boss, &Leaf) {
         let b = self.scene.chars[l].foe_state().unwrap().boss.as_ref().unwrap();
-        let Class::MagusLeaf(x) = &b.class else { panic!("not a leaf") };
-        (b, x)
+        (b, b.systems.get::<Leaf>().expect("a leaf's own"))
     }
 
     /// Frames until `done` holds (at most `n`).

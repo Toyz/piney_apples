@@ -162,6 +162,7 @@ macro_rules! part_system {
 
 part_system! {
     super::gorre::brother::Brother,
+    super::magus::leaf::Leaf,
 }
 
 /// `PartClass` for the parts' variants.
@@ -188,7 +189,6 @@ macro_rules! part_class {
 part_class! {
     super::kyvia::core::Core => KyviaCore,
     super::kyvia::gomora::Gomora => Gomora,
-    super::magus::leaf::Leaf => MagusLeaf,
     super::corbenik::seed::Seed => CorbenikSeed,
     super::corbenik::second::Root => CorbenikRoot,
     super::corbenik::eye::Eye => CorbenikEye,

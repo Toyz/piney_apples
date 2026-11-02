@@ -340,13 +340,27 @@ field's `leaf_counts` sends the countdown's font.
 
 `piney_battle::boss::magus` (the body) and `magus::leaf`; the tables
 (`magus_epitaph`, `magus_anims`, `magus_leaf_anims`, `magus_skills`,
-`magus_drop_skills`) are the build's combat group. Each leaf is a
-character with a `Boss` of `Class::MagusLeaf`, taken out for the body's
-frame. The body's leaf places (`OBJ_ex31leafNN`'s world matrix), the
-shocks' objects and where their beams meet the land
-(`Magus::leaf_pos`, `shock_pos`, `shock_at`) Magus reads at the start of
-its frame through `Cx::field` (`boss::Field::node`, `clip_entries`,
-`line`): the field answers from x31's body as last drawn ("The
+`magus_drop_skills`) are the build's combat group. `MAGUS`'s systems
+(worklog 547) are its wave, its leaves (`magus::Leaves`), its laser
+(`magus::Laser`), its needles' pass (`magus::Needles`) and its own:
+
+```text
+order:  Leaves.Early, Laser.Early, Leaves.Lend, Needles.Pass, Magus.Early,
+        Live[Prologue, TickStop, Magus.Think, LockParty, Magus.Move,
+        Magus.PreDraw, Laser.PreDraw, Draw, Leaves.Action, ClearHold],
+        Magus.Late, ClearHold, Leaves.Late, Leaves.Return
+affect: Magus.Affect
+draw:   ccBoss::Draw's body, Wave, Leaves (the parts, the dropped hidden),
+        Magus (its images hidden going to the centre)
+```
+
+Each leaf is a character with a `Boss` of `LEAF` (its own system,
+`magus::leaf::Leaf`), lent to `Leaves` for the body's frame. The body's
+leaf places (`OBJ_ex31leafNN`'s world matrix, `Leaves::pos`), the
+shocks' objects and where their beams meet the land (`Laser::shock_pos`,
+`shock_at`) are read at the start of its frame (`Early`) through
+`Cx::field` (`boss::Field::node`, `clip_entries`, `line`; the probe's and
+the tests' fields answer with the case's places): the field answers from x31's body as last drawn ("The
 pictures"), at the place the last frame left. That is `PreDrawAnm`'s own: the laser keeps Magus's
 place through `Move`, and `CalcCamera`, which puts it over Kite at the
 clip's frame 135, runs after `PreDrawAnm` (`ccBoss03::Main` is
