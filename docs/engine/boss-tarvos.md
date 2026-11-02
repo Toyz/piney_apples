@@ -140,11 +140,13 @@ first word.
 
 ## In the port
 
-- `piney_battle::boss::tarvos` holds the rules (`Class::Tarvos`), `eff`
+- `piney_battle::boss::tarvos` holds the rules (`TARVOS`'s systems: its
+  wave and its own, `tarvos::Tarvos`; its `PreDrawAnm` a step before
+  `ccBoss::Draw`, worklog 542), `eff`
   the spike rain and the phantom (`Fx`), which act on the boss as they
   draw (the hits, the ring). What they show is `Out::Tarvos(Pic)`; the
-  spell's noise `Out::Noise`. The tables come through `TarvosData`
-  (`piney-gen`'s `tarvos_*` entries).
+  spell's noise `Out::Noise`. The tables are views of the volume's
+  combat group (`piney-gen`'s `tarvos_*` entries).
 - `BossEnv::cc` gives a boss's `Affect` the fight's `ccRand` (Tarvos's
   blows' notes).
 - `piney_world::combat::boss` starts it for `entry 7 6` (`TARVOS`), its

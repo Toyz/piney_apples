@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-541 entries: audio 43, battle 145, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 57, ui 102, video 16, volumes 94, world 152. 131 entries still have open questions - [listed below](#still-open).
+542 entries: audio 43, battle 146, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 57, ui 102, video 16, volumes 94, world 152. 132 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -553,9 +553,11 @@ The [reference](docs/README.md) says what is true now.
 | 539 | [GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) | 2026-11-01 | tooling |
 | 540 | [Bosses as defs, step two: one runner over a def's steps, the systems as objects, Skeith made of them](worklog/0540-bosses-as-defs-step-two-one-runner-over-a-def-s-steps-the.md) | 2026-11-01 | battle |
 | 541 | [Bosses as defs: Fidchell made of systems, its wave and its own](worklog/0541-bosses-as-defs-fidchell-made-of-systems-its-wave-and-its-own.md) | 2026-11-01 | battle |
+| 542 | [Bosses as defs: Tarvos made of systems, its own PreDrawAnm before the body's Draw](worklog/0542-bosses-as-defs-tarvos-made-of-systems-its-own-predrawanm.md) | 2026-11-01 | battle |
 
 ## Still open
 
+- [542. Bosses as defs: Tarvos made of systems, its own PreDrawAnm before the body's Draw](worklog/0542-bosses-as-defs-tarvos-made-of-systems-its-own-predrawanm.md) - nothing this step opened; Macha, Gorre, Magus, Kyvia, Innis and Corbenik remain to convert, then Class, each_class! and...
 - [541. Bosses as defs: Fidchell made of systems, its wave and its own](worklog/0541-bosses-as-defs-fidchell-made-of-systems-its-wave-and-its-own.md) - nothing this step opened; Tarvos, Macha, Gorre, Magus, Kyvia, Innis and Corbenik remain to convert, then Class...
 - [540. Bosses as defs, step two: one runner over a def's steps, the systems as objects, Skeith made of them](worklog/0540-bosses-as-defs-step-two-one-runner-over-a-def-s-steps-the.md) - nothing this step opened; the item goes on with each boss's own systems (Fidchell next), then Class, each_class!...
 - [539. GameClass: the later volumes' vtables read at the vptr each constructor stores into](worklog/0539-gameclass-the-later-volumes-vtables-read-at-the-vptr-each.md) - nothing this step opened.

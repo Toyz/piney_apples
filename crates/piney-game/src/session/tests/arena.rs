@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use piney_battle::boss::Class;
+use piney_battle::boss::Boss;
 
 use super::survey::{StoryPilot, event_flag, fighters};
 use super::*;
@@ -93,7 +93,7 @@ pub(super) struct Played {
 pub(super) fn play(
     s: &mut Session,
     event: i32,
-    boss: fn(&Class) -> bool,
+    boss: fn(&Boss) -> bool,
     frames: u32,
     mut each: impl FnMut(&mut Session, &Frame, u32),
 ) -> Played {
@@ -119,7 +119,7 @@ pub(super) fn play(
         let c = a.world().combat();
         let Some(me) = c.boss_char() else { continue };
         let ch = &c.scene.chars[me];
-        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| boss(&b.class)) else {
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| boss(b)) else {
             continue;
         };
         p.acts.insert(b.base.act_num);
@@ -169,7 +169,7 @@ pub(super) fn play(
 /// start: the frames the music played, and a shot every ten seconds and at each act's first frame in
 /// `dir` (`name-FRAME-actN.png`); with `PINEY_SHOTS_AT=A-B` every frame
 /// from A to B too, its command target printed.
-pub(super) fn god_shots(s: &mut Session, event: i32, boss: fn(&Class) -> bool, dir: &str, name: &str) -> (Played, u32) {
+pub(super) fn god_shots(s: &mut Session, event: i32, boss: fn(&Boss) -> bool, dir: &str, name: &str) -> (Played, u32) {
     god_shots_for(s, event, boss, dir, name, 60_000)
 }
 
@@ -177,7 +177,7 @@ pub(super) fn god_shots(s: &mut Session, event: i32, boss: fn(&Class) -> bool, d
 pub(super) fn god_shots_for(
     s: &mut Session,
     event: i32,
-    boss: fn(&Class) -> bool,
+    boss: fn(&Boss) -> bool,
     dir: &str,
     name: &str,
     frames: u32,

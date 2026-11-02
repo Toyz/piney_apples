@@ -351,6 +351,8 @@ Where the code does by hand, per kind, what a system should do once:
       other classes run as one `Step::Class` until theirs land.)
       (worklog 541: Fidchell, its wave and its own; `Patterns::words`
       reads through the `Cx`, the volume's tables viewed.)
+      (worklog 542: Tarvos, its wave and its own, its `PreDrawAnm` a step
+      before `Step::Draw`.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

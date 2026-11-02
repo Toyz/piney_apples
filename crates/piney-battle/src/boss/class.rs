@@ -55,7 +55,6 @@ macro_rules! each_class {
             Class::Gorre($x) => $each,
             Class::GorreBrother($x) => $each,
             Class::Macha($x) => $each,
-            Class::Tarvos($x) => $each,
             Class::Corbenik($x) => $each,
             Class::CorbenikSeed($x) => $each,
             Class::CorbenikB($x) => $each,

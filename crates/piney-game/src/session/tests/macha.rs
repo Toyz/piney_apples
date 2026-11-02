@@ -3,13 +3,13 @@
 //! story autopilot with no aid, and its pictures and music under god.
 //! docs/engine/boss-macha.md.
 
-use piney_battle::boss::Class;
+use piney_battle::boss::{Boss, Class};
 
 use super::arena::{EVENT_307, arena_session, god_shots, play};
 use super::*;
 
-fn macha(c: &Class) -> bool {
-    matches!(c, Class::Macha(_))
+fn macha(b: &Boss) -> bool {
+    matches!(b.class, Class::Macha(_))
 }
 
 /// Macha fought to the end of event 307 with no aid: no god, the party

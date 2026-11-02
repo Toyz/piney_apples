@@ -2,14 +2,14 @@
 //! first two forms in one task, then the third once the save says so;
 //! under god from the arena with shots. docs/engine/boss-corbenik.md.
 
-use piney_battle::boss::Class;
 use piney_battle::boss::corbenik::seed;
+use piney_battle::boss::{Boss, Class};
 
 use super::arena::{EVENT_313, EVENT_313_THIRD, arena_session, god_shots_for};
 use super::*;
 
-fn corbenik(c: &Class) -> bool {
-    matches!(c, Class::Corbenik(_) | Class::CorbenikB(_) | Class::CorbenikC(_))
+fn corbenik(b: &Boss) -> bool {
+    matches!(b.class, Class::Corbenik(_) | Class::CorbenikB(_) | Class::CorbenikC(_))
 }
 
 /// Forms one and two under god from the arena to event 313's end (the

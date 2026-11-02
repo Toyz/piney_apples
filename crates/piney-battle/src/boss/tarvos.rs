@@ -12,12 +12,14 @@ mod tests;
 
 use piney_data::field::ee;
 use piney_data::libm;
-use piney_data::volume::Volume;
+use piney_data::tables::combat;
 
 use self::eff::Fx;
+use super::systems::wave::Wave;
+use super::systems::{BossSystem, Hook, Others};
 use super::{
-    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
-    base_exec_pattern_index, word,
+    BaseActs, Boss, BossBase, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0, base_exec_pattern_index,
+    word,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
@@ -83,49 +85,24 @@ pub mod act {
     pub const POISON: i16 = 26;
 }
 
-/// Tarvos's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct TarvosData {
-    /// `boss07NormalActTbl`, `boss07SuperActTbl`, `boss07EpitaphActTbl`
-    /// (`@1201`'s three), each through its closing -1.
-    pub normal: Vec<i32>,
-    pub super_: Vec<i32>,
-    pub epitaph: Vec<i32>,
-    /// `boss0xAnmTbl`: the clip by act.
-    pub anims: Vec<Option<String>>,
-    /// `@1178`: pattern 10's draw (dropped); `@1517`: the skill act's.
-    pub rand_skills: [i32; 3],
-    pub skills: [i32; 3],
-    /// `@1568`'s second word: the magic act's spell.
-    pub magic_skill: i32,
+/// Tarvos's tables, the volume's (`tables::combat`): `boss07NormalActTbl`,
+/// `boss07SuperActTbl`, `boss07EpitaphActTbl` (`@1201`'s three: mode 0
+/// normal, 1 super, 2 epitaph), each through its closing -1, as `patTbl`
+/// points at them.
+fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
+    let c = combat::of(cx.volume());
+    match t {
+        Tbl::None => &[],
+        Tbl::Normal => c.tarvos_normal,
+        Tbl::Super => c.tarvos_super,
+        Tbl::Epitaph => c.tarvos_epitaph,
+    }
 }
 
-impl TarvosData {
-    /// The volume's.
-    pub fn of(volume: Volume) -> TarvosData {
-        let t = piney_data::tables::combat::of(volume);
-        let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
-        let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
-        TarvosData {
-            normal: t.tarvos_normal.to_vec(),
-            super_: t.tarvos_super.to_vec(),
-            epitaph: t.tarvos_epitaph.to_vec(),
-            anims: s(t.tarvos_anims),
-            rand_skills: std::array::from_fn(|k| pick(t.tarvos_rand_skills, k)),
-            skills: std::array::from_fn(|k| pick(t.tarvos_skills, k)),
-            magic_skill: pick(t.tarvos_magic_skills, 1),
-        }
-    }
-
-    /// The table by [`Tbl`] (`@1201`: mode 0 normal, 1 super, 2 epitaph).
-    fn words(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::None => &[],
-            Tbl::Normal => &self.normal,
-            Tbl::Super => &self.super_,
-            Tbl::Epitaph => &self.epitaph,
-        }
-    }
+/// `@1517`: the skill act's skills; `@1568`'s second word: the magic
+/// act's spell. A word past a table's end is 0.
+fn pick(v: &[i32], k: usize) -> i32 {
+    v.get(k).copied().unwrap_or(0)
 }
 
 /// What Tarvos shows beside its body, and what its effects draw.
@@ -165,11 +142,10 @@ pub enum Pic {
     Shield { magic: i32 },
 }
 
-/// `ccBoss07`'s own members (+0x29350 on).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// `ccBoss07`'s own members (+0x29350 on) beside its wave (`anmw`), as
+/// its constructor starts them (no stage effect).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tarvos {
-    /// `anmw`.
-    pub anm_w: Anm,
     /// `m_effAura`, `m_effSpike`, `m_effPhantom`, `m_effDead`.
     pub eff_aura: Option<i32>,
     pub eff_spike: Option<i32>,
@@ -186,6 +162,45 @@ pub struct Tarvos {
     pub def_mode: i32,
     /// `m_blendRate`: the transfer's fog.
     pub blend_rate: F,
+}
+
+impl Default for Tarvos {
+    fn default() -> Tarvos {
+        Tarvos {
+            eff_aura: None,
+            eff_spike: None,
+            eff_phantom: None,
+            eff_dead: None,
+            eff_start: None,
+            skill_id: 0,
+            stage_eff: -1,
+            pattern_mode: 0,
+            def_mode: 0,
+            blend_rate: 0,
+        }
+    }
+}
+
+impl BossSystem for Tarvos {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        match hook {
+            Hook::Pass => manager_pass(b, cx),
+            Hook::Think => think(b, self, o, cx),
+            Hook::PreDraw => pre_draw(b, self, cx),
+            Hook::Late => {
+                if b.lock_player != 0 && b.epitaph == 0 {
+                    cx.pp_count_tick();
+                }
+            }
+            Hook::Affect => affect(b, self, cx),
+            _ => {}
+        }
+    }
+}
+
+/// Its wave, beside it.
+fn wave<'a>(o: &'a mut Others) -> &'a mut Wave {
+    o.get_mut::<Wave>().expect("Tarvos's def has a wave")
 }
 
 // --- small rules ------------------------------------------------------------------------
@@ -227,7 +242,7 @@ fn spell_camera(b: &BossBase, cx: &mut Cx) {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = cx.data.tarvos.anims.clone();
+    b.anm_tbl = combat::of(cx.volume()).tarvos_anims.iter().map(|a| a.map(str::to_string)).collect();
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -244,13 +259,15 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.use_stage_eff = true;
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = super::w2p(cx, b.center_pos);
-    let mut x = Box::new(Tarvos { anm_w: Anm::new(), stage_eff: -1, ..Tarvos::default() });
     // The blur on (m_exit 0) under ccBoss03BlurParamCB.
     cx.out(Out::Blur(super::blur::Set::Enable));
     cx.out(Out::Blur(super::blur::Set::Func(super::blur::BlurFunc::Boss03)));
-    set_pattern_mode(&mut b, &mut x, cx, 0);
-    set_def_mode(&mut x, cx, 0);
-    Boss::of(&crate::boss::defs::TARVOS, b, Class::Tarvos(x))
+    let mut boss = Boss::build(&crate::boss::defs::TARVOS, b);
+    let Boss { base: b, systems, .. } = &mut boss;
+    let (x, _) = systems.split::<Tarvos>().expect("Tarvos's def has it");
+    set_pattern_mode(b, x, cx, 0);
+    set_def_mode(x, cx, 0);
+    boss
 }
 
 /// `SetPatternMode(m)` (0x003a8e00): `@1201[m]` set and run from its start.
@@ -263,7 +280,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx, m: i32) {
     x.pattern_mode = m;
     b.pat_tbl = t;
     b.pat_index = 0;
-    let tbl = cx.data.tarvos.words(t);
+    let tbl = words(cx, t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
@@ -292,60 +309,19 @@ fn set_def_mode(x: &mut Tarvos, cx: &mut Cx, d: i32) {
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::BossClass for Tarvos {
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
-        out.wave = Some(self.anm_w.posed);
-    }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
-    }
-}
-
-/// `ccThBossEffect`'s pass and `ccBoss07::Main` (0x003a91e0).
-pub(super) fn main(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
-    manager_pass(b, cx);
-    frame(b, x, cx);
-    let me = cx.me;
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
-    if b.lock_player != 0 && b.epitaph == 0 {
-        cx.pp_count_tick();
-    }
-}
-
-/// `ccBoss::Main` (QUA gcmn, Outbreak's code) under Tarvos's `Think` and
-/// `PreDrawAnm` (0x003a96b0: the body not posed while the transfer's
-/// stream plays; the transfer's fog).
-fn frame(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
-    if b.exit != 0 {
+/// Tarvos's `PreDrawAnm` (0x003a96b0) while drawn: the body not posed
+/// while the transfer's stream plays; the transfer's fog.
+fn pre_draw(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
+    if b.draw_sw == 0 {
         return;
     }
-    let me = cx.me;
-    b.prologue(cx);
-    b.tick_stop();
-    think(b, x, cx);
-    b.lock_party(cx);
-    b.move_(cx);
-    if b.draw_sw != 0 {
-        let transfer = b.act_num == act::TRANSFER;
-        if !(transfer && b.act_proccess == 2) {
-            b.anm_status = i8::from(b.anm.forward());
-        }
-        if transfer && !ee::le(x.blend_rate, 0) {
-            cx.out(Out::Fog { who: cx.me, blend: crate::boss::Blend { rate: x.blend_rate, colour: BLEND_COLOR } });
-        }
-        b.draw(cx);
+    let transfer = b.act_num == act::TRANSFER;
+    if !(transfer && b.act_proccess == 2) {
+        b.anm_status = i8::from(b.anm.forward());
     }
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
+    if transfer && !ee::le(x.blend_rate, 0) {
+        cx.out(Out::Fog { who: cx.me, blend: crate::boss::Blend { rate: x.blend_rate, colour: BLEND_COLOR } });
+    }
 }
 
 /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
@@ -383,7 +359,7 @@ impl Patterns for Tarvos {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        cx.data.tarvos.words(b.pat_tbl)
+        words(cx, b.pat_tbl)
     }
 
     /// `ccBoss07::ExecPatternIndex(tbl, i)` (0x003a8700), falling back on
@@ -405,7 +381,7 @@ impl Patterns for Tarvos {
         }
         b.pat_num = pat;
         let me = cx.me;
-        let own = cx.data.tarvos.words(b.pat_tbl);
+        let own = words(cx, b.pat_tbl);
         match pat {
             19 => b.change_action(cx, act::MAGIC, 3, true),
             21 => b.change_action(cx, act::PHANTOM, 3, true),
@@ -490,17 +466,17 @@ impl Patterns for Tarvos {
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss07::Think` (0x003a9750).
-fn think(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Tarvos, o: &mut Others, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL | act::EPITAPH => on_neutral(b, x, cx),
         act::DAMAGE0 | act::DAMAGE1 => b.change_action(cx, act::NEUTRAL, 1, false),
         act::SPIKE_SHOT => on_spike_shot(b, x, cx),
-        act::WAVE => on_wave(b, x, cx),
+        act::WAVE => on_wave(b, x, wave(o), cx),
         act::SACRIFICE => on_sacrifice(b, x, cx),
         act::PHANTOM => on_phantom(b, x, cx),
         act::DASH_CENTER => on_dash_center(b, x, cx),
         act::DRAIN => on_drain(b, x, cx),
-        act::EPITAPH_WAVE => on_epitaph_wave(b, x, cx),
+        act::EPITAPH_WAVE => on_epitaph_wave(b, x, wave(o), cx),
         act::DEAD => on_dead(b, x, cx),
         act::ESCAPE => on_escape(b, x, cx),
         act::RETURN => on_return(b, cx),
@@ -641,11 +617,11 @@ fn on_sacrifice(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
 /// 224 at the body's frames 6 and 35; at 40 a WaveShock; boss skill 23
 /// fifteen frames on; the wave drawn and the camera shaken every frame
 /// from 40, the next pattern as the body's clip ends.
-fn on_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut Tarvos, w: &mut Wave, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
-            x.anm_w.set(super::ANM_WAVE, cx.clips);
-            x.anm_w.speed = 512;
+            w.anm.set(super::ANM_WAVE, cx.clips);
+            w.anm.speed = 512;
             b.act_proccess += 1;
         }
         1 => {
@@ -669,9 +645,9 @@ fn on_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
                 b.skill_damage(cx, None, Some(pos), 23);
             }
             cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
-            x.anm_w.forward();
+            w.anm.forward();
             let pos = cx.pos();
-            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: ONE });
+            cx.out(Out::Wave { who: cx.me, time: w.anm.posed, pos, dirc: b.dirc, scale: ONE });
             if b.anm_status != 0 {
                 x.change_next_pattern(b, cx);
             }
@@ -703,7 +679,7 @@ fn on_skill(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.erase_cmnd_target(cx);
             cx.cursor(true);
             b.lock_player(cx, true);
-            x.skill_id = cx.data.tarvos.skills[(cx.cc.rand() % 3).unsigned_abs() as usize];
+            x.skill_id = pick(combat::of(cx.volume()).tarvos_skills, (cx.cc.rand() % 3).unsigned_abs() as usize);
             cx.out(Out::CinemaSkill(x.skill_id));
             x.eff_start = None;
             b.act_count = 0;
@@ -820,7 +796,7 @@ fn on_magic(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
             cx.cursor(true);
-            x.skill_id = cx.data.tarvos.magic_skill;
+            x.skill_id = pick(combat::of(cx.volume()).tarvos_magic_skills, 1);
             cx.out(Out::CinemaSkill(x.skill_id));
             spell_camera(b, cx);
             b.act_proccess += 1;
@@ -1269,11 +1245,11 @@ fn on_return(b: &mut BossBase, cx: &mut Cx) {
 /// WaveShock and a flash, boss skill 23 at 45; the wave drawn through
 /// `DrawParts` and the camera shaken every frame from 29, the next pattern
 /// once both clips end.
-fn on_epitaph_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
+fn on_epitaph_wave(b: &mut BossBase, x: &mut Tarvos, w: &mut Wave, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
-            x.anm_w.set(super::ANM_WAVE, cx.clips);
-            x.anm_w.speed = 512;
+            w.anm.set(super::ANM_WAVE, cx.clips);
+            w.anm.speed = 512;
             b.act_proccess += 1;
         }
         1 => {
@@ -1297,9 +1273,9 @@ fn on_epitaph_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
                 b.skill_damage(cx, None, Some(pos), 23);
             }
             cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
-            let done = x.anm_w.forward();
+            let done = w.anm.forward();
             let pos = cx.pos();
-            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: ONE });
+            cx.out(Out::Wave { who: cx.me, time: w.anm.posed, pos, dirc: b.dirc, scale: ONE });
             if b.anm_status != 0 && done {
                 x.change_next_pattern(b, cx);
             }

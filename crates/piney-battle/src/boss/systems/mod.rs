@@ -23,6 +23,9 @@ pub enum Step {
     LockParty,
     Move,
     ForwardAndDraw,
+    /// `ccBoss::Draw` alone while `drawSW` holds, after a class's own
+    /// `PreDrawAnm`.
+    Draw,
     /// The hold condition let go (`cond[HOLD] = 0`).
     ClearHold,
     /// `ccBoss::Affect`.
@@ -151,6 +154,8 @@ systems! {
     Skeith(super::skeith::Skeith),
     /// Fidchell's own (`ccBoss04`).
     Fidchell(super::fidchell::Fidchell),
+    /// Tarvos's own (`ccBoss07`).
+    Tarvos(super::tarvos::Tarvos),
 }
 
 /// A boss's systems, in its def's order.
@@ -218,6 +223,11 @@ impl Boss {
                 }
                 Step::Move => b.move_(cx),
                 Step::ForwardAndDraw => b.forward_and_draw(cx),
+                Step::Draw => {
+                    if b.draw_sw != 0 {
+                        b.draw(cx);
+                    }
+                }
                 Step::ClearHold => cx.scene.chars[cx.me].cond[crate::param::cond::HOLD] = 0,
                 Step::BaseAffect => b.base_affect(cx),
                 Step::Live(inner) => {

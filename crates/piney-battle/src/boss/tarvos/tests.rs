@@ -12,6 +12,7 @@ use crate::param::{Base, SpcParam};
 use crate::rand::Rand;
 use crate::scene::Scene;
 use crate::tables::Tables;
+use piney_data::volume::Volume;
 
 struct Fight {
     t: Tables,
@@ -116,10 +117,7 @@ impl Fight {
     }
 
     fn tarvos(&mut self) -> Tarvos {
-        match &self.boss().class {
-            Class::Tarvos(x) => (**x).clone(),
-            _ => panic!("not Tarvos"),
-        }
+        self.boss().systems.get::<Tarvos>().expect("Tarvos's own").clone()
     }
 
     /// One of Tarvos's effects drawn until it ends (at most `n` frames):

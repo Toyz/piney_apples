@@ -651,13 +651,13 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   `m_patMode`, `m_actDirc`); his tables are views of `tables::combat`
   (alike on every volume). Fidchell is its wave and its own (its
   prediction, spells and camera; the volume's tables viewed the same
-  way, worklog 541). The other classes still run as one
+  way, worklog 541); Tarvos the same (worklog 542). The other classes
+  still run as one
   `Step::Class` through `Class::with_rules` to their `BossClass` impl:
   `Class::Innis` is Mutation's `ccBoss02` ([Innis](boss-innis.md)),
   `Class::Magus` ([Magus](boss-magus.md)), `Class::Kyvia`
   ([Kyvia](boss-kyvia.md)), `Class::Macha` Quarantine's `ccBoss06`
-  ([Macha](boss-macha.md)), `Class::Tarvos` its `ccBoss07`
-  ([Tarvos](boss-tarvos.md)).
+  ([Macha](boss-macha.md)).
 - Every boss class derives from `ccBoss` itself, none from `ccBoss01`
   (Infection's DWARF, which carries boss04-08 and Kyvia's classes too):
   Skeith's code is his alone (`boss::skeith`, his constructor
@@ -690,7 +690,8 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
 - `ccBoss::Main` is building blocks on `BossBase` (`systems::frame`:
   `prologue`, `tick_stop`, `lock_party`, `move_`, `forward_and_draw`),
   which a def's steps name in its class's order (`Step::Prologue`, ...,
-  `Step::Live` for what runs while `exit` is clear) and a class not yet
+  `Step::Live` for what runs while `exit` is clear; `Step::Draw` the body's
+  `Draw` alone after a class's own `PreDrawAnm`, Tarvos's) and a class not yet
   systems calls itself. The tables of the classes not yet systems come
   from the build through `BossData` (`tables::combat`).
 - `Foe.boss` carries the boss's state.

@@ -260,6 +260,28 @@ pub const TARVOS: BossDef = BossDef {
     body: BodyPick::Epitaph("ANM_ex7x"),
     cam: CamDef::Transfer(CAM_TRANSFER),
     make: |cx, s| tarvos::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    systems: &[Kind::Wave, Kind::Tarvos],
+    // ccThBossEffect's pass, then ccBoss07::Main (QUA gcmn 0x003a91e0):
+    // ccBoss::Main (Outbreak's code) around its Think, its own PreDrawAnm
+    // before the body's Draw; the hold let go again and the PP count.
+    order: &[
+        Step::Run(Kind::Tarvos, Hook::Pass),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Tarvos, Hook::Think),
+            Step::LockParty,
+            Step::Move,
+            Step::Run(Kind::Tarvos, Hook::PreDraw),
+            Step::Draw,
+            Step::ClearHold,
+        ]),
+        Step::ClearHold,
+        Step::Run(Kind::Tarvos, Hook::Late),
+    ],
+    affect: &[Step::Run(Kind::Tarvos, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
     ..BASE_BOSS
 };
 
