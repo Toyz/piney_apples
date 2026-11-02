@@ -89,3 +89,26 @@ fn boss_family_is_ccbosss_subtree() {
     assert_eq!(BossGameClass::CcBoss08C.class(), GameClass::CcBoss08C);
     assert_eq!(GameClass::from(BossGameClass::KyviaGomora).name(), "kyviaGomora");
 }
+
+/// What only later volumes add, read from their code (no symbol names
+/// it): `ROOTTOWN06` (Quarantine's `WORLD_MAN::GO(0)` sixth town, gcmn
+/// 0x004ec350, its vtable 0x002785e0; Mutation's and Outbreak's gcmn carry
+/// it unreached) and `ccSpcStart`'s rows 18-20 (`ccFellow18`-`20`,
+/// Quarantine's alone); and every fellow's constructor on every volume.
+#[test]
+fn later_volumes_classes_read_from_their_code() {
+    use piney_data::volume::Volume;
+    let t = GameClass::Roottown06;
+    assert_eq!(t.base(), Some(GameClass::Roottown));
+    assert_eq!(t.constructor(Volume::Qua), Some(0x004e_c350));
+    assert_eq!(t.vtable(Volume::Qua), Some(0x0027_85e0));
+    assert_eq!(t.constructor(Volume::Inf), None);
+    let fellows: Vec<GameClass> = GameClass::all().filter(|c| c.base() == Some(GameClass::CcFellow)).collect();
+    assert_eq!(fellows.len(), 20);
+    for f in &fellows {
+        assert!(f.constructor(Volume::Qua).is_some() && f.vtable(Volume::Qua).is_some(), "{}", f.name());
+    }
+    for f in [GameClass::CcFellow18, GameClass::CcFellow19, GameClass::CcFellow20] {
+        assert_eq!(Volume::ALL.map(|v| f.constructor(v).is_some()), [false, false, false, true], "{}", f.name());
+    }
+}

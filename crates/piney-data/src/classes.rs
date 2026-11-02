@@ -95,6 +95,8 @@ pub enum GameClass {
     Roottown04,
     #[doc(alias = "ROOTTOWN05")]
     Roottown05,
+    #[doc(alias = "ROOTTOWN06")]
+    Roottown06,
     #[doc(alias = "SNOW")]
     Snow,
     #[doc(alias = "STATICMODEL")]
@@ -425,6 +427,12 @@ pub enum GameClass {
     CcFellow16,
     #[doc(alias = "ccFellow17")]
     CcFellow17,
+    #[doc(alias = "ccFellow18")]
+    CcFellow18,
+    #[doc(alias = "ccFellow19")]
+    CcFellow19,
+    #[doc(alias = "ccFellow20")]
+    CcFellow20,
     #[doc(alias = "ccFireBallElement")]
     CcFireBallElement,
     #[doc(alias = "ccFireElement")]
@@ -644,7 +652,7 @@ pub struct ClassInfo {
 }
 
 /// How many classes there are.
-pub const COUNT: usize = 310;
+pub const COUNT: usize = 314;
 
 /// Every class's row, by its discriminant (one line a row).
 #[rustfmt::skip]
@@ -692,6 +700,7 @@ pub static CLASSES: [ClassInfo; COUNT] = [
     ClassInfo { class: GameClass::Roottown03, name: "ROOTTOWN03", base: Some(GameClass::Roottown), constructor: [Some(0x004274f0), Some(0x0043b980), Some(0x00437230), Some(0x00329b40)], vtable: [Some(0x00376020), Some(0x00388f60), None, None] },
     ClassInfo { class: GameClass::Roottown04, name: "ROOTTOWN04", base: Some(GameClass::Roottown), constructor: [Some(0x00429bc0), Some(0x0043e660), Some(0x00439c50), Some(0x0032c560)], vtable: [Some(0x00376050), Some(0x00388f90), None, None] },
     ClassInfo { class: GameClass::Roottown05, name: "ROOTTOWN05", base: Some(GameClass::Roottown), constructor: [Some(0x0042c050), Some(0x00441140), Some(0x0043c5e0), Some(0x0032eef0)], vtable: [Some(0x00376080), Some(0x00388fc0), None, None] },
+    ClassInfo { class: GameClass::Roottown06, name: "ROOTTOWN06", base: Some(GameClass::Roottown), constructor: [None, Some(0x005fbd90), Some(0x005f98f0), Some(0x004ec350)], vtable: [None, Some(0x0038a9a0), Some(0x00385ce0), Some(0x002785e0)] },
     ClassInfo { class: GameClass::Snow, name: "SNOW", base: None, constructor: [Some(0x00503650), Some(0x0051e5d0), Some(0x00519310), Some(0x0040bc20)], vtable: [None, None, None, None] },
     ClassInfo { class: GameClass::Staticmodel, name: "STATICMODEL", base: None, constructor: [Some(0x005cffd0), Some(0x005fa590), Some(0x005f80c0), Some(0x004eab20)], vtable: [None, None, None, None] },
     ClassInfo { class: GameClass::Staticobject, name: "STATICOBJECT", base: None, constructor: [Some(0x005cf9b0), Some(0x005f9f70), Some(0x005f7a70), Some(0x004ea4d0)], vtable: [None, None, None, None] },
@@ -840,23 +849,26 @@ pub static CLASSES: [ClassInfo; COUNT] = [
     ClassInfo { class: GameClass::CcFacePanel, name: "ccFacePanel", base: None, constructor: [Some(0x001bb830), Some(0x001d1100), Some(0x001c7940), Some(0x001cefc0)], vtable: [None, None, None, None] },
     ClassInfo { class: GameClass::CcFallElement, name: "ccFallElement", base: Some(GameClass::CcMoveElement), constructor: [Some(0x004e9610), Some(0x00504570), Some(0x00501120), Some(0x003f3a30)], vtable: [Some(0x003779c0), Some(0x0038a8f0), Some(0x00385c30), Some(0x00278530)] },
     ClassInfo { class: GameClass::CcFellow, name: "ccFellow", base: Some(GameClass::CcSpcChar), constructor: [None, None, None, None], vtable: [Some(0x00375c30), Some(0x00388b70), Some(0x00383eb0), Some(0x002767b0)] },
-    ClassInfo { class: GameClass::CcFellow01, name: "ccFellow01", base: Some(GameClass::CcFellow), constructor: [Some(0x0041ecc0), Some(0x00432870), None, None], vtable: [Some(0x00375c60), Some(0x00388ba0), None, None] },
-    ClassInfo { class: GameClass::CcFellow02, name: "ccFellow02", base: Some(GameClass::CcFellow), constructor: [Some(0x0041ef30), Some(0x00432b00), None, None], vtable: [Some(0x00375c90), Some(0x00388bd0), None, None] },
-    ClassInfo { class: GameClass::CcFellow03, name: "ccFellow03", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f1a0), Some(0x00432d90), None, None], vtable: [Some(0x00375cc0), Some(0x00388c00), None, None] },
-    ClassInfo { class: GameClass::CcFellow04, name: "ccFellow04", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f410), Some(0x00433020), None, None], vtable: [Some(0x00375cf0), Some(0x00388c30), None, None] },
-    ClassInfo { class: GameClass::CcFellow05, name: "ccFellow05", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f680), Some(0x004332b0), None, None], vtable: [Some(0x00375d20), Some(0x00388c60), None, None] },
-    ClassInfo { class: GameClass::CcFellow06, name: "ccFellow06", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f8f0), Some(0x00433540), None, None], vtable: [Some(0x00375d50), Some(0x00388c90), None, None] },
-    ClassInfo { class: GameClass::CcFellow07, name: "ccFellow07", base: Some(GameClass::CcFellow), constructor: [Some(0x0041fb60), Some(0x004337d0), None, None], vtable: [Some(0x00375d80), Some(0x00388cc0), None, None] },
-    ClassInfo { class: GameClass::CcFellow08, name: "ccFellow08", base: Some(GameClass::CcFellow), constructor: [Some(0x0041fdd0), Some(0x00433a60), None, None], vtable: [Some(0x00375db0), Some(0x00388cf0), None, None] },
-    ClassInfo { class: GameClass::CcFellow09, name: "ccFellow09", base: Some(GameClass::CcFellow), constructor: [Some(0x00420040), Some(0x00433cf0), None, None], vtable: [Some(0x00375de0), Some(0x00388d20), None, None] },
-    ClassInfo { class: GameClass::CcFellow10, name: "ccFellow10", base: Some(GameClass::CcFellow), constructor: [Some(0x004202b0), Some(0x00433f80), None, None], vtable: [Some(0x00375e10), Some(0x00388d50), None, None] },
-    ClassInfo { class: GameClass::CcFellow11, name: "ccFellow11", base: Some(GameClass::CcFellow), constructor: [Some(0x00420520), Some(0x00434210), None, None], vtable: [Some(0x00375e40), Some(0x00388d80), None, None] },
-    ClassInfo { class: GameClass::CcFellow12, name: "ccFellow12", base: Some(GameClass::CcFellow), constructor: [Some(0x00420790), Some(0x004344a0), None, None], vtable: [Some(0x00375e70), Some(0x00388db0), None, None] },
-    ClassInfo { class: GameClass::CcFellow13, name: "ccFellow13", base: Some(GameClass::CcFellow), constructor: [Some(0x00420a00), Some(0x00434730), None, None], vtable: [Some(0x00375ea0), Some(0x00388de0), None, None] },
-    ClassInfo { class: GameClass::CcFellow14, name: "ccFellow14", base: Some(GameClass::CcFellow), constructor: [Some(0x00420c70), Some(0x004349c0), None, None], vtable: [Some(0x00375ed0), Some(0x00388e10), None, None] },
-    ClassInfo { class: GameClass::CcFellow15, name: "ccFellow15", base: Some(GameClass::CcFellow), constructor: [Some(0x00420ee0), Some(0x00434c50), None, None], vtable: [Some(0x00375f00), Some(0x00388e40), None, None] },
-    ClassInfo { class: GameClass::CcFellow16, name: "ccFellow16", base: Some(GameClass::CcFellow), constructor: [Some(0x00421160), Some(0x00434ef0), None, None], vtable: [Some(0x00375f30), Some(0x00388e70), None, None] },
-    ClassInfo { class: GameClass::CcFellow17, name: "ccFellow17", base: Some(GameClass::CcFellow), constructor: [Some(0x004213d0), Some(0x00435180), None, None], vtable: [Some(0x00375f60), Some(0x00388ea0), None, None] },
+    ClassInfo { class: GameClass::CcFellow01, name: "ccFellow01", base: Some(GameClass::CcFellow), constructor: [Some(0x0041ecc0), Some(0x00432870), Some(0x0042e510), Some(0x00320e20)], vtable: [Some(0x00375c60), Some(0x00388ba0), Some(0x00383ee0), Some(0x002767e0)] },
+    ClassInfo { class: GameClass::CcFellow02, name: "ccFellow02", base: Some(GameClass::CcFellow), constructor: [Some(0x0041ef30), Some(0x00432b00), Some(0x0042e790), Some(0x003210a0)], vtable: [Some(0x00375c90), Some(0x00388bd0), Some(0x00383f10), Some(0x00276810)] },
+    ClassInfo { class: GameClass::CcFellow03, name: "ccFellow03", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f1a0), Some(0x00432d90), Some(0x0042ea10), Some(0x00321320)], vtable: [Some(0x00375cc0), Some(0x00388c00), Some(0x00383f40), Some(0x00276840)] },
+    ClassInfo { class: GameClass::CcFellow04, name: "ccFellow04", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f410), Some(0x00433020), Some(0x0042ec90), Some(0x003215a0)], vtable: [Some(0x00375cf0), Some(0x00388c30), Some(0x00383f70), Some(0x00276870)] },
+    ClassInfo { class: GameClass::CcFellow05, name: "ccFellow05", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f680), Some(0x004332b0), Some(0x0042ef10), Some(0x00321820)], vtable: [Some(0x00375d20), Some(0x00388c60), Some(0x00383fa0), Some(0x002768a0)] },
+    ClassInfo { class: GameClass::CcFellow06, name: "ccFellow06", base: Some(GameClass::CcFellow), constructor: [Some(0x0041f8f0), Some(0x00433540), Some(0x0042f190), Some(0x00321aa0)], vtable: [Some(0x00375d50), Some(0x00388c90), Some(0x00383fd0), Some(0x002768d0)] },
+    ClassInfo { class: GameClass::CcFellow07, name: "ccFellow07", base: Some(GameClass::CcFellow), constructor: [Some(0x0041fb60), Some(0x004337d0), Some(0x0042f410), Some(0x00321d20)], vtable: [Some(0x00375d80), Some(0x00388cc0), Some(0x00384000), Some(0x00276900)] },
+    ClassInfo { class: GameClass::CcFellow08, name: "ccFellow08", base: Some(GameClass::CcFellow), constructor: [Some(0x0041fdd0), Some(0x00433a60), Some(0x0042f690), Some(0x00321fa0)], vtable: [Some(0x00375db0), Some(0x00388cf0), Some(0x00384030), Some(0x00276930)] },
+    ClassInfo { class: GameClass::CcFellow09, name: "ccFellow09", base: Some(GameClass::CcFellow), constructor: [Some(0x00420040), Some(0x00433cf0), Some(0x0042f910), Some(0x00322220)], vtable: [Some(0x00375de0), Some(0x00388d20), Some(0x00384060), Some(0x00276960)] },
+    ClassInfo { class: GameClass::CcFellow10, name: "ccFellow10", base: Some(GameClass::CcFellow), constructor: [Some(0x004202b0), Some(0x00433f80), Some(0x0042fb90), Some(0x003224a0)], vtable: [Some(0x00375e10), Some(0x00388d50), Some(0x00384090), Some(0x00276990)] },
+    ClassInfo { class: GameClass::CcFellow11, name: "ccFellow11", base: Some(GameClass::CcFellow), constructor: [Some(0x00420520), Some(0x00434210), Some(0x0042fe10), Some(0x00322720)], vtable: [Some(0x00375e40), Some(0x00388d80), Some(0x003840c0), Some(0x002769c0)] },
+    ClassInfo { class: GameClass::CcFellow12, name: "ccFellow12", base: Some(GameClass::CcFellow), constructor: [Some(0x00420790), Some(0x004344a0), Some(0x00430090), Some(0x003229a0)], vtable: [Some(0x00375e70), Some(0x00388db0), Some(0x003840f0), Some(0x002769f0)] },
+    ClassInfo { class: GameClass::CcFellow13, name: "ccFellow13", base: Some(GameClass::CcFellow), constructor: [Some(0x00420a00), Some(0x00434730), Some(0x00430310), Some(0x00322c20)], vtable: [Some(0x00375ea0), Some(0x00388de0), Some(0x00384120), Some(0x00276a20)] },
+    ClassInfo { class: GameClass::CcFellow14, name: "ccFellow14", base: Some(GameClass::CcFellow), constructor: [Some(0x00420c70), Some(0x004349c0), Some(0x00430590), Some(0x00322ea0)], vtable: [Some(0x00375ed0), Some(0x00388e10), Some(0x00384150), Some(0x00276a50)] },
+    ClassInfo { class: GameClass::CcFellow15, name: "ccFellow15", base: Some(GameClass::CcFellow), constructor: [Some(0x00420ee0), Some(0x00434c50), Some(0x00430810), Some(0x00323120)], vtable: [Some(0x00375f00), Some(0x00388e40), Some(0x00384180), Some(0x00276a80)] },
+    ClassInfo { class: GameClass::CcFellow16, name: "ccFellow16", base: Some(GameClass::CcFellow), constructor: [Some(0x00421160), Some(0x00434ef0), Some(0x00430a90), Some(0x003233a0)], vtable: [Some(0x00375f30), Some(0x00388e70), Some(0x003841b0), Some(0x00276ab0)] },
+    ClassInfo { class: GameClass::CcFellow17, name: "ccFellow17", base: Some(GameClass::CcFellow), constructor: [Some(0x004213d0), Some(0x00435180), Some(0x00430d10), Some(0x00323620)], vtable: [Some(0x00375f60), Some(0x00388ea0), Some(0x003841e0), Some(0x00276ae0)] },
+    ClassInfo { class: GameClass::CcFellow18, name: "ccFellow18", base: Some(GameClass::CcFellow), constructor: [None, None, None, Some(0x004f0420)], vtable: [None, None, None, Some(0x00278650)] },
+    ClassInfo { class: GameClass::CcFellow19, name: "ccFellow19", base: Some(GameClass::CcFellow), constructor: [None, None, None, Some(0x004f06a0)], vtable: [None, None, None, Some(0x00278680)] },
+    ClassInfo { class: GameClass::CcFellow20, name: "ccFellow20", base: Some(GameClass::CcFellow), constructor: [None, None, None, Some(0x004f01a0)], vtable: [None, None, None, Some(0x00278620)] },
     ClassInfo { class: GameClass::CcFireBallElement, name: "ccFireBallElement", base: Some(GameClass::CcDrawElement), constructor: [Some(0x004fbfd0), Some(0x00516f50), Some(0x00512720), Some(0x00405030)], vtable: [Some(0x00377740), Some(0x0038a670), Some(0x003859b0), Some(0x002782b0)] },
     ClassInfo { class: GameClass::CcFireElement, name: "ccFireElement", base: Some(GameClass::CcDrawElement), constructor: [Some(0x004f96f0), Some(0x00514670), Some(0x00510540), Some(0x00402e50)], vtable: [Some(0x00377840), Some(0x0038a770), Some(0x00385ab0), Some(0x002783b0)] },
     ClassInfo { class: GameClass::CcFireSummonElement, name: "ccFireSummonElement", base: Some(GameClass::CcMoveElement), constructor: [Some(0x004f1570), Some(0x0050c4d0), Some(0x00508d80), Some(0x003fb690)], vtable: [Some(0x00377940), Some(0x0038a870), Some(0x00385bb0), Some(0x002784b0)] },
@@ -998,53 +1010,53 @@ impl GameClass {
 #[repr(u16)]
 pub enum BossGameClass {
     #[doc(alias = "ccBoss")]
-    CcBoss = 60,
+    CcBoss = 61,
     #[doc(alias = "ccBoss01")]
-    CcBoss01 = 61,
+    CcBoss01 = 62,
     #[doc(alias = "ccBoss02")]
-    CcBoss02 = 62,
+    CcBoss02 = 63,
     #[doc(alias = "ccBoss02Slave")]
-    CcBoss02Slave = 63,
+    CcBoss02Slave = 64,
     #[doc(alias = "ccBoss03")]
-    CcBoss03 = 64,
+    CcBoss03 = 65,
     #[doc(alias = "ccBoss03Leaf")]
-    CcBoss03Leaf = 66,
+    CcBoss03Leaf = 67,
     #[doc(alias = "ccBoss04")]
-    CcBoss04 = 68,
+    CcBoss04 = 69,
     #[doc(alias = "ccBoss05")]
-    CcBoss05 = 69,
+    CcBoss05 = 70,
     #[doc(alias = "ccBoss05Brother")]
-    CcBoss05Brother = 70,
+    CcBoss05Brother = 71,
     #[doc(alias = "ccBoss06")]
-    CcBoss06 = 71,
+    CcBoss06 = 72,
     #[doc(alias = "ccBoss07")]
-    CcBoss07 = 72,
+    CcBoss07 = 73,
     #[doc(alias = "ccBoss08")]
-    CcBoss08 = 73,
+    CcBoss08 = 74,
     #[doc(alias = "ccBoss08Eye")]
-    CcBoss08Eye = 74,
+    CcBoss08Eye = 75,
     #[doc(alias = "ccBoss08KillerEye")]
-    CcBoss08KillerEye = 75,
+    CcBoss08KillerEye = 76,
     #[doc(alias = "ccBoss08Root")]
-    CcBoss08Root = 76,
+    CcBoss08Root = 77,
     #[doc(alias = "ccBoss08Seed")]
-    CcBoss08Seed = 77,
+    CcBoss08Seed = 78,
     #[doc(alias = "ccBoss08_b")]
-    CcBoss08B = 78,
+    CcBoss08B = 79,
     #[doc(alias = "ccBoss08_c")]
-    CcBoss08C = 79,
+    CcBoss08C = 80,
     #[doc(alias = "ccBossKyvia01")]
-    CcBossKyvia01 = 122,
+    CcBossKyvia01 = 123,
     #[doc(alias = "ccBossKyvia02")]
-    CcBossKyvia02 = 123,
+    CcBossKyvia02 = 124,
     #[doc(alias = "ccBossKyvia03")]
-    CcBossKyvia03 = 124,
+    CcBossKyvia03 = 125,
     #[doc(alias = "ccBossKyvia04")]
-    CcBossKyvia04 = 125,
+    CcBossKyvia04 = 126,
     #[doc(alias = "kyviaCore")]
-    KyviaCore = 308,
+    KyviaCore = 312,
     #[doc(alias = "kyviaGomora")]
-    KyviaGomora = 309,
+    KyviaGomora = 313,
 }
 
 impl BossGameClass {

@@ -68,13 +68,17 @@ fn model_tables(p: &Program) -> Result<Vec<(String, u32, Vec<ModelRow>)>, String
 }
 
 /// A Root Town whose constructor no symbol names (Quarantine's
-/// `ROOTTOWN06`): its class, scene file and model table, read from the code.
-struct UnnamedTown {
-    class: String,
+/// `ROOTTOWN06`): its class, scene file and model table, its constructor
+/// (the function the file's `GetCCSAdrs` is in, from its frame's
+/// `addiu sp`) and where it reads the file, read from the code.
+pub(crate) struct UnnamedTown {
+    pub class: String,
     file: String,
     table: String,
     va: u32,
     rows: u32,
+    pub ctor: u32,
+    pub read_at: u32,
 }
 
 /// The `ROOTTOWN`s a later volume adds with no name to carry: each
@@ -82,7 +86,7 @@ struct UnnamedTown {
 /// `STATICMODEL` table its next `STATICMODEL::STATICMODEL` takes (the last
 /// address built before the call) and the loop's bound (the `sltiu` after
 /// it). Quarantine's town06 (gcmn 0x004ec350): `RT_MODELTABLE06`, 3 rows.
-fn unnamed_towns(p: &Program) -> Result<Vec<UnnamedTown>, String> {
+pub(crate) fn unnamed_towns(p: &Program) -> Result<Vec<UnnamedTown>, String> {
     let Some(ov) = &p.overlay else { return Ok(Vec::new()) };
     let ccs = p.symbol_named("GetCCSAdrs__8ccStreamFPCc").ok_or("no GetCCSAdrs")?.value;
     let Some(model) = p.symbol_named("__ct__11STATICMODELFP8ccStreamP17STATIC_MODEL_INFO").map(|s| s.value) else {
@@ -122,12 +126,16 @@ fn unnamed_towns(p: &Program) -> Result<Vec<UnnamedTown>, String> {
         let Some(rows) = (call..(call + 12).min(w.len())).find(|&j| w[j] >> 26 == 0x0B).map(|j| w[j] & 0xFFFF) else {
             continue;
         };
+        // addiu sp, sp, -n: the frame the constructor opens.
+        let Some(start) = (0..i).rev().find(|&j| w[j] >> 16 == 0x27BD && w[j] & 0x8000 != 0) else { continue };
         out.push(UnnamedTown {
             class: format!("ROOTTOWN{digits}"),
             file,
             table: format!("RT_MODELTABLE{digits}"),
             va,
             rows,
+            ctor: ov.text + 4 * start as u32,
+            read_at: at,
         });
     }
     Ok(out)

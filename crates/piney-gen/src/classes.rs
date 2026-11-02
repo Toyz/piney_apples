@@ -3,12 +3,16 @@
 //! by their carried vtables), each one's base from the DWARF, and its
 //! constructor (`__ct__<n><name>F..`, the lowest when overloaded) and
 //! vtable (`__vt__<n><name>`) on each volume, from the symbols
-//! (`source::symbols_text`). A class is listed when it has a vtable or a
-//! constructor on some volume, or is the base of one that does.
+//! (`source::symbols_text`); a class a later volume adds unnamed, and the
+//! addresses the carry missed, from the code that makes it ([`found`]:
+//! its constructor, its base, the vtable it stores). A class is listed
+//! when it has a vtable or a constructor on some volume, or is the base of
+//! one that does.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::dwarf::{TAG_CLASS, TAG_STRUCT, Ty};
+use crate::program::Program;
 use crate::volume::VOLUMES;
 
 /// DWARF 1's `TAG_inheritance`: a base class, its type the base.
@@ -22,7 +26,7 @@ struct Class {
 }
 
 /// `<len><name>` at the start of a mangled tail: the name and what follows.
-fn length_name(s: &str) -> Option<(&str, &str)> {
+pub(crate) fn length_name(s: &str) -> Option<(&str, &str)> {
     let digits = s.bytes().take_while(u8::is_ascii_digit).count();
     let n: usize = s[..digits].parse().ok()?;
     Some((s.get(digits..digits + n)?, s.get(digits + n..)?))
@@ -89,6 +93,35 @@ fn classes() -> Result<BTreeMap<String, Class>, String> {
             let slot = if ctor { &mut c.ctor[v.index()] } else { &mut c.vtable[v.index()] };
             *slot = Some(slot.map_or(va, |old| old.min(va)));
         }
+        // The classes a later volume adds that no symbol names, and the
+        // addresses the carry missed, read from the code: the Root Towns
+        // (Quarantine's `ROOTTOWN06`, which Mutation's and Outbreak's gcmn
+        // carry unreached) and `ccSpcStart`'s fellows (Quarantine's 18-20).
+        let p = crate::volume::open(v, Some("gcmn"))?.p;
+        for f in found(&p)? {
+            let c = out.entry(f.class.clone()).or_insert_with(|| Class {
+                base: bases.get(&f.class).cloned().flatten(),
+                ctor: [None; 4],
+                vtable: [None; 4],
+            });
+            c.base = c.base.take().or(f.base);
+            // Where the symbols name them too, the code must agree.
+            let k = v.index();
+            let agree = |named: Option<u32>, read: Option<u32>| named.is_none() || read.is_none() || named == read;
+            if !agree(c.ctor[k], Some(f.ctor)) || !agree(c.vtable[k], f.vtable) {
+                return Err(format!(
+                    "{} {}: the symbols' constructor {:x?} and vtable {:x?}, the code's {:#x} and {:x?}",
+                    v.tag(),
+                    f.class,
+                    c.ctor[k],
+                    c.vtable[k],
+                    f.ctor,
+                    f.vtable
+                ));
+            }
+            c.ctor[k] = c.ctor[k].or(Some(f.ctor));
+            c.vtable[k] = c.vtable[k].or(f.vtable);
+        }
     }
     // Each listed class's bases, to the root.
     let mut todo: Vec<String> = out.values().filter_map(|c| c.base.clone()).collect();
@@ -99,6 +132,96 @@ fn classes() -> Result<BTreeMap<String, Class>, String> {
         let base = bases.get(&b).cloned().flatten();
         todo.extend(base.clone());
         out.insert(b, Class { base, ctor: [None; 4], vtable: [None; 4] });
+    }
+    Ok(out)
+}
+
+/// A class read from the code: its name, its constructor, its base (whose
+/// vtable it stores before its own, that constructor inlined, else whose
+/// constructor it calls) and its own vtable (the last it stores).
+struct Found {
+    class: String,
+    ctor: u32,
+    base: Option<String>,
+    vtable: Option<u32>,
+}
+
+/// The code at `va` up to `end` as words.
+fn code_words(p: &Program, va: u32, end: u32) -> Result<Vec<u32>, String> {
+    let b = p.read(va, (end - va) as usize)?;
+    Ok(b.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect())
+}
+
+/// The end of the function at `va`: past its first `jr ra` and the delay
+/// slot (no more than 4 KiB on).
+fn function_end(p: &Program, va: u32) -> Result<u32, String> {
+    let w = code_words(p, va, va + 0x1000)?;
+    let k = w.iter().position(|&x| x == JR_RA).ok_or_else(|| format!("no jr ra after {va:#x}"))?;
+    Ok(va + 4 * (k as u32 + 2))
+}
+
+/// `jr ra`.
+const JR_RA: u32 = 0x03E0_0008;
+
+/// The target of the `jal` `x` at `at`.
+fn jal_target(x: u32, at: u32) -> Option<u32> {
+    (x >> 26 == 3).then_some((at & 0xF000_0000) | ((x & 0x03FF_FFFF) << 2))
+}
+
+/// What the constructor at `ctor` builds up to `end`: the vtables it
+/// stores (each a table whose third word is a function), in order, and
+/// the class whose constructor it calls.
+fn construction(p: &Program, class: String, ctor: u32, end: u32) -> Result<Found, String> {
+    let w = code_words(p, ctor, end)?;
+    let built = crate::xfer::addresses(&w, p.gp);
+    let text = |a: u32| {
+        p.function_at(a).is_some_and(|f| f.value == a)
+            || p.overlay.as_ref().is_some_and(|o| (o.text..o.text + o.text_size).contains(&a))
+    };
+    let word = |a: u32| p.read(a, 4).ok().map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+    let tables: Vec<u32> = (0..w.len())
+        .filter_map(|j| built.get(&j).copied())
+        .filter(|&a| !text(a) && word(a + 8).is_some_and(text))
+        .collect();
+    let class_of =
+        |name: &str, prefix: &str| name.strip_prefix(prefix).and_then(length_name).map(|(n, _)| n.to_string());
+    let called = (0..w.len())
+        .filter_map(|j| jal_target(w[j], ctor + 4 * j as u32))
+        .filter_map(|t| p.function_at(t).filter(|f| f.value == t))
+        .find_map(|f| class_of(&f.name, "__ct__"));
+    let stored = (tables.iter().rev().skip(1))
+        .find_map(|&a| p.symbols.iter().filter(|s| s.value == a).find_map(|s| class_of(&s.name, "__vt__")));
+    Ok(Found { class, ctor, base: stored.or(called), vtable: tables.last().copied() })
+}
+
+/// The Root Towns no symbol names (`placement::statics::unnamed_towns`),
+/// their vtables stored before they read their file; and `ccSpcStart`'s
+/// rows past Kite's (row 0), up to the first empty one: row `k`'s start
+/// (`ccFellow01Start` on Infection) makes `ccFellow<k>`, the call after
+/// its `operator new` the constructor.
+fn found(p: &Program) -> Result<Vec<Found>, String> {
+    let mut out = Vec::new();
+    for t in crate::placement::statics::unnamed_towns(p)? {
+        out.push(construction(p, t.class, t.ctor, t.read_at)?);
+    }
+    let Some(table) = p.symbol_named("ccSpcStart").map(|s| s.value) else { return Ok(out) };
+    let new = p.symbol_named("__nw__FUi").map(|s| s.value);
+    for k in 1.. {
+        let Some(start) = p.read(table + 4 * k, 4).ok().map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])) else {
+            break;
+        };
+        if start == 0 {
+            break;
+        }
+        let end = function_end(p, start)?;
+        let w = code_words(p, start, end)?;
+        // The object `operator new` made goes to the next call: the
+        // constructor.
+        let calls: Vec<u32> = (0..w.len()).filter_map(|j| jal_target(w[j], start + 4 * j as u32)).collect();
+        let Some(ctor) = calls.iter().position(|&t| Some(t) == new).and_then(|k| calls.get(k + 1).copied()) else {
+            continue;
+        };
+        out.push(construction(p, format!("ccFellow{k:02}"), ctor, function_end(p, ctor)?)?);
     }
     Ok(out)
 }

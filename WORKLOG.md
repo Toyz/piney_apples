@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-537 entries: audio 43, battle 143, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 152. 129 entries still have open questions - [listed below](#still-open).
+538 entries: audio 43, battle 143, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 56, ui 102, video 16, volumes 94, world 152. 129 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -549,11 +549,12 @@ The [reference](docs/README.md) says what is true now.
 | 535 | [GameClass: the game's classes generated, one table row a class, the ccBoss family a narrow enum; the first defs pass set aside](worklog/0535-gameclass-the-game-s-classes-generated-one-table-row-a.md) | 2026-10-30 | battle |
 | 536 | [An unknown pattern word lets the neutral go (forbid 1) in every class: Fidchell, Macha and Tarvos fall back on ccBoss::ExecPatternIndex, BaseActs.other_forbid gone](worklog/0536-an-unknown-pattern-word-lets-the-neutral-go-forbid-1-in.md) | 2026-10-30 | battle |
 | 537 | [Bosses as defs, step one: the request flow; one Output and generic Outs the field and the effects read the same for every boss, inputs through Cx::field, Corbenik's form change a hand-over](worklog/0537-bosses-as-defs-step-one-the-request-flow-one-output-and.md) | 2026-10-30 | battle |
+| 538 | [GameClass: the classes only later volumes have, read from their code: ROOTTOWN06 and Quarantine's ccFellow18-20](worklog/0538-gameclass-the-classes-only-later-volumes-have-read-from.md) | 2026-11-01 | tooling |
 
 ## Still open
 
+- [538. GameClass: the classes only later volumes have, read from their code: ROOTTOWN06 and Quarantine's ccFellow18-20](worklog/0538-gameclass-the-classes-only-later-volumes-have-read-from.md) - the later volumes' vtables of classes Infection names, where the carry named a constructor but no vtable (Quarantine's...
 - [537. Bosses as defs, step one: the request flow; one Output and generic Outs the field and the effects read the same for every boss, inputs through Cx::field, Corbenik's form change a hand-over](worklog/0537-bosses-as-defs-step-one-the-request-flow-one-output-and.md) - none this step opened; the boss item's next steps are the runner and the shared systems, then each boss's own systems.
-- [535. GameClass: the game's classes generated, one table row a class, the ccBoss family a narrow enum; the first defs pass set aside](worklog/0535-gameclass-the-game-s-classes-generated-one-table-row-a.md) - which classes Quarantine adds that Infection lacks (ROOTTOWN06 among them): the carry names none, so the generated list...
 - [533. AreaCore: one shape for every story map and town, the getters defaulted through core()](worklog/0533-areacore-one-shape-for-every-story-map-and-town-the-getters.md) - whether GO(0) reseeds fieldrand after ROOTTOWN05's constructor, which decides if Lia Fail's glows' draws in it should...
 - [521. piney-world by subsystem: town, story_map, field, dungeon, chara, camera, event, grunty and sky folders, and the story maps and towns as registries](worklog/0521-piney-world-by-subsystem-town-story-map-field-dungeon-chara.md) - test_town02_rs runs on Infection only (its ROOTTOWN02 layout and statics are Infection's); making it run on the later...
 - [518. Clean-up lift: the Table trait, one table cache indexed by generated IDs, and no accessors or LazyLock statics](worklog/0518-clean-up-lift-the-table-trait-one-table-cache-indexed-by.md) - whether the Outbreak failures of test_evcam_rs, test_evchar_rs and test_demo_rs (the same before this lift) are the...
