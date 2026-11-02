@@ -154,6 +154,8 @@ systems! {
     Skeith(super::skeith::Skeith),
     /// Fidchell's own (`ccBoss04`).
     Fidchell(super::fidchell::Fidchell),
+    /// Macha's own (`ccBoss06`).
+    Macha(super::macha::Macha),
     /// Tarvos's own (`ccBoss07`).
     Tarvos(super::tarvos::Tarvos),
 }

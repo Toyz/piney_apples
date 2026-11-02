@@ -122,14 +122,16 @@ comes.
 
 ## In the port
 
-- `piney_battle::boss::macha` holds the rules (`Class::Macha`), `eff` the
-  two effects (`Fx`), handed out as `Out::Macha(Pic)`. `blur::BlurFunc::Boss06`
-  is the transfer's callback. The tables come through `MachaData`
-  (`tables::combat`, `piney-gen`'s `macha_*` entries).
+- `piney_battle::boss::macha` holds the rules (`MACHA`'s systems: its
+  wave and its own, `macha::Macha`, worklog 545), `eff` the two effects
+  (`Fx`), handed out as `Out::Macha(Pic)`. `blur::BlurFunc::Boss06` is
+  the transfer's callback. The tables are views of the volume's combat
+  group (`piney-gen`'s `macha_*` entries).
 - `piney_world::combat::boss` starts it for `entry 7 5` (`defs::MACHA`),
   its body `CMP_trall1`, the drained `CMP_trall2`; Macha reads the eyes'
-  places from its body as last drawn at the start of each frame
-  (`Field::node`, `OBJ_dummy_r_eye`, `_l_eye`); the ball (`Out::Picture`)
+  places from its body as last drawn as the lasers leave
+  (`Field::node`, `OBJ_dummy_r_eye`, `_l_eye`; the probe's field answers
+  with the case's places); the ball (`Out::Picture`)
   and its light (`Out::Light`), the waves at their scale, and the laser's
   land hits through `Field::line`.
 - `piney_effect::macha` draws the bolts, blasts, bursts and dust.

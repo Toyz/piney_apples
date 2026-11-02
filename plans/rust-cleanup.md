@@ -353,6 +353,9 @@ Where the code does by hand, per kind, what a system should do once:
       reads through the `Cx`, the volume's tables viewed.)
       (worklog 542: Tarvos, its wave and its own, its `PreDrawAnm` a step
       before `Step::Draw`.)
+      (worklog 543: GameClass's carry mismatches settled by whose vtable
+      the constructor stores; 544: the defs statics, a def its address;
+      545: Macha, its wave and its own, its eyes through `Cx::field`.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

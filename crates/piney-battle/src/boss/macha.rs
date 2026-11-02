@@ -2,8 +2,9 @@
 //! row 5, `bossFunc` code 5, fought in event 307 (M407) in field 6. Ported
 //! from Quarantine's gcmn.prg (0x003a3460-0x003a81e0; names and layouts
 //! from Infection's DWARF, whose gcmn carries the class unused), with the
-//! `ccBoss` base Outbreak's and Quarantine's share ([`frame`]). Its light
-//! ball, charm, eye lasers, skill and magic. docs/engine/boss-macha.md.
+//! `ccBoss` base Outbreak's and Quarantine's share (`defs::MACHA`'s steps).
+//! Its light ball, charm, eye lasers, skill and magic.
+//! docs/engine/boss-macha.md.
 
 pub mod eff;
 #[cfg(test)]
@@ -11,13 +12,15 @@ mod tests;
 
 use piney_data::field::ee;
 use piney_data::libm;
-use piney_data::volume::Volume;
+use piney_data::tables::combat;
 
 use self::eff::Fx;
 use super::blur::{BlurFunc, Set};
+use super::systems::wave::Wave;
+use super::systems::{BossSystem, Hook, Others};
 use super::{
-    AfterImageParams, Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl,
-    VF0, base_exec_pattern_index, word,
+    AfterImageParams, Anm, BaseActs, Boss, BossBase, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
+    base_exec_pattern_index, word,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
@@ -81,48 +84,25 @@ pub mod act {
     pub const MAGIC: i16 = 24;
 }
 
-/// Macha's tables (`tables::combat`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct MachaData {
-    /// `boss06NormalActTbl`, `boss06ExpertActTbl`, `boss6EpitaphActTbl`,
-    /// each through its closing -1 (`@1143`'s rows 0, 2 and 3; row 1,
-    /// `boss06SuperActTbl`, is a lone -1 nothing selects).
-    pub normal: Vec<i32>,
-    pub expert: Vec<i32>,
-    pub epitaph: Vec<i32>,
-    /// `BOSS06AnmTbl`: the clip by act.
-    pub anims: Vec<Option<String>>,
-    /// `@1198`: pattern 10's draw (dropped).
-    pub rand_skills: [i32; 3],
-    /// `@1913`: `OnThinkMagic`'s spells.
-    pub magic_skills: [i32; 4],
+/// Macha's tables, the volume's (`tables::combat`): `boss06NormalActTbl`,
+/// `boss06ExpertActTbl`, `boss6EpitaphActTbl` (`@1143`'s rows 0, 2 and 3;
+/// row 1, `boss06SuperActTbl`, is a lone -1 nothing selects), each through
+/// its closing -1, as `patTbl` points at them: `Super` stands for the
+/// expert one.
+fn words(cx: &Cx, t: Tbl) -> &'static [i32] {
+    let c = combat::of(cx.volume());
+    match t {
+        Tbl::None => &[],
+        Tbl::Normal => c.macha_normal,
+        Tbl::Super => c.macha_expert,
+        Tbl::Epitaph => c.macha_epitaph,
+    }
 }
 
-impl MachaData {
-    /// The volume's.
-    pub fn of(volume: Volume) -> MachaData {
-        let t = piney_data::tables::combat::of(volume);
-        let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
-        let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
-        MachaData {
-            normal: t.macha_normal.to_vec(),
-            expert: t.macha_expert.to_vec(),
-            epitaph: t.macha_epitaph.to_vec(),
-            anims: s(t.macha_anims),
-            rand_skills: std::array::from_fn(|k| pick(t.macha_rand_skills, k)),
-            magic_skills: std::array::from_fn(|k| pick(t.macha_magic_skills, k)),
-        }
-    }
-
-    /// The table by [`Tbl`]: `Super` stands for Macha's expert one.
-    fn words(&self, t: Tbl) -> &[i32] {
-        match t {
-            Tbl::None => &[],
-            Tbl::Normal => &self.normal,
-            Tbl::Super => &self.expert,
-            Tbl::Epitaph => &self.epitaph,
-        }
-    }
+/// `@1913`: `OnThinkMagic`'s spells, by the frame count (a word past the
+/// table's end 0).
+fn magic_skill(cx: &Cx, k: usize) -> i32 {
+    combat::of(cx.volume()).macha_magic_skills.get(k).copied().unwrap_or(0)
 }
 
 /// What Macha shows beside its body, each frame it is drawn.
@@ -146,11 +126,12 @@ pub enum Pic {
     Burst { pos: V4, rock: F, size: F, kind: i32 },
 }
 
-/// `ccBoss06`'s own members (+0x29350 on).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// `ccBoss06`'s own members (+0x29350 on) beside its wave (`anmw`), as
+/// its constructor starts them (the transfer's place the arena's centre,
+/// set once the centre is).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Macha {
-    /// `anmw`, `anmBallCharge`, `anmBall`.
-    pub anm_w: Anm,
+    /// `anmBallCharge`, `anmBall`.
     pub anm_ball_charge: Anm,
     pub anm_ball: Anm,
     /// `m_effLaser`: the first eye's laser, whose `m_bEnabled` the lasers'
@@ -173,9 +154,49 @@ pub struct Macha {
     /// keeps to give back (`m_orgBlurParamFunc`).
     pub blur_func: Option<BlurFunc>,
     pub org_blur: Option<BlurFunc>,
-    /// The eyes' places (`OBJ_dummy_r_eye`, `_l_eye`) as the body was
-    /// last posed: the runtime's.
-    pub eyes: [V4; 2],
+}
+
+impl Default for Macha {
+    fn default() -> Macha {
+        Macha {
+            anm_ball_charge: Anm::new(),
+            anm_ball: Anm::new(),
+            eff_laser: None,
+            eff_dead: None,
+            skill_id: 0,
+            eff_start: None,
+            pat_mode: 0,
+            light: false,
+            light_rot: 0,
+            stage_eff: -1,
+            ball_pos: [0; 4],
+            transfer_pos: [0; 4],
+            ball_speed: 0,
+            blur_func: Some(BlurFunc::Boss03),
+            org_blur: None,
+        }
+    }
+}
+
+impl BossSystem for Macha {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+        match hook {
+            Hook::Pass => manager_pass(b, cx),
+            Hook::Think => think(b, self, o, cx),
+            Hook::Late => {
+                if (b.lock_player != 0 || b.erase_target != 0) && b.epitaph == 0 {
+                    cx.pp_count_tick();
+                }
+            }
+            Hook::Affect => affect(b, self, cx),
+            _ => {}
+        }
+    }
+}
+
+/// Its wave, beside it.
+fn wave<'a>(o: &'a mut Others) -> &'a mut Wave {
+    o.get_mut::<Wave>().expect("Macha's def has a wave")
 }
 
 // --- small rules ------------------------------------------------------------------------
@@ -213,7 +234,7 @@ pub const WHITE_IMAGE: AfterImageParams = AfterImageParams {
 pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let me = cx.me;
     let mut b = super::kyvia::plain_boss();
-    b.anm_tbl = cx.data.macha.anims.clone();
+    b.anm_tbl = combat::of(cx.volume()).macha_anims.iter().map(|a| a.map(str::to_string)).collect();
     // OffExit, OnDraw, OnBodyHit, OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
@@ -231,21 +252,16 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = super::w2p(cx, b.center_pos);
     b.use_stage_eff = true;
-    let mut x = Box::new(Macha {
-        anm_w: Anm::new(),
-        anm_ball_charge: Anm::new(),
-        anm_ball: Anm::new(),
-        stage_eff: -1,
-        transfer_pos: b.center_pos,
-        blur_func: Some(BlurFunc::Boss03),
-        ..Macha::default()
-    });
     // The blur on (m_exit 0) under ccBoss03BlurParamCB.
     cx.out(Out::Blur(Set::Enable));
     cx.out(Out::Blur(Set::Func(BlurFunc::Boss03)));
     // SetBlendTypeAfterImage(0): +0x292f8, which nothing reads.
-    set_pattern_mode(&mut b, &mut x, cx, 0);
-    Boss::of(&crate::boss::defs::MACHA, b, Class::Macha(x))
+    let mut boss = Boss::build(&crate::boss::defs::MACHA, b);
+    let Boss { base: b, systems, .. } = &mut boss;
+    let (x, _) = systems.split::<Macha>().expect("Macha's def has it");
+    x.transfer_pos = b.center_pos;
+    set_pattern_mode(b, x, cx, 0);
+    boss
 }
 
 /// `SetPatternMode(m)` (0x003a3b00): `@1143[m]` set and run from its start.
@@ -259,32 +275,12 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, m: i32) {
     b.pat_tbl = t;
     b.pat_index = 0;
     x.pat_mode = m;
-    let tbl = cx.data.macha.words(t);
+    let tbl = words(cx, t);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::BossClass for Macha {
-    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
-        out.body = crate::boss::BodyDraw {
-            pos: cx.scene.chars[cx.me].pos,
-            dirc: b.dirc,
-            shown: b.draw_sw != 0,
-            ..crate::boss::BodyDraw::default()
-        };
-        out.wave = Some(self.anm_w.posed);
-    }
-
-    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        main(b, self, cx);
-    }
-    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        affect(b, self, cx);
-    }
-}
-
-/// `ccThBossEffect`'s pass and `ccBoss06::Main` (0x003a4270).
 /// The light ball's light (`OnThinkLightBall` step 0): `ccLight(4, 1)` at
 /// `pos`, white (`ccSetColor(0x00ffffff, 1.0)`), intensity 1, full to 0
 /// and gone at 500 (`farDownEnd2` 250000).
@@ -300,38 +296,6 @@ fn ball_light(pos: V4) -> crate::prim::OmniLight {
         far_end: 0x43fa_0000,
         far_end2: 0x4874_2400,
     }
-}
-
-pub(super) fn main(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
-    // The eyes, where the lasers leave from: the body as last drawn
-    // (`GetSubstAdrsF`'s LW matrix).
-    for (k, name) in EYES.iter().enumerate() {
-        if let Some(p) = cx.field.node(cx.me, name) {
-            x.eyes[k] = p;
-        }
-    }
-    manager_pass(b, cx);
-    frame(b, x, cx);
-    let me = cx.me;
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
-    if (b.lock_player != 0 || b.erase_target != 0) && b.epitaph == 0 {
-        cx.pp_count_tick();
-    }
-}
-
-/// `ccBoss::Main` (QUA gcmn, Outbreak's code) under Macha's `Think`.
-fn frame(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
-    if b.exit != 0 {
-        return;
-    }
-    let me = cx.me;
-    b.prologue(cx);
-    b.tick_stop();
-    think(b, x, cx);
-    b.lock_party(cx);
-    b.move_(cx);
-    b.forward_and_draw(cx);
-    cx.scene.chars[me].cond[cond::HOLD] = 0;
 }
 
 /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
@@ -350,7 +314,7 @@ impl Patterns for Macha {
     const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, b: &BossBase, cx: &Cx<'d>) -> &'d [i32] {
-        cx.data.macha.words(b.pat_tbl)
+        words(cx, b.pat_tbl)
     }
 
     /// `ccBoss06::ExecPatternIndex(tbl, i)` (0x003a3bb0), falling back on
@@ -373,7 +337,7 @@ impl Patterns for Macha {
         }
         b.pat_num = pat;
         let me = cx.me;
-        let own = cx.data.macha.words(b.pat_tbl);
+        let own = words(cx, b.pat_tbl);
         match pat {
             18 => b.change_action(cx, act::MAGIC, 3, true),
             17 => b.change_action(cx, act::DATA_DRAIN_ATK, 3, true),
@@ -457,18 +421,18 @@ impl Patterns for Macha {
 // --- Think ----------------------------------------------------------------------------------
 
 /// `ccBoss06::Think` (0x003a4310).
-fn think(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
+fn think(b: &mut BossBase, x: &mut Macha, o: &mut Others, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx, false),
         act::DAMAGE0 | act::DAMAGE1 => on_damage(b, cx),
         act::LIGHT_BALL => on_light_ball(b, x, cx),
-        act::WAVE => on_wave(b, x, cx),
+        act::WAVE => on_wave(b, x, wave(o), cx),
         act::CHARM => on_charm(b, x, cx),
         act::EYE_LASER => on_eye_laser(b, x, cx),
         act::DASH_CENTER => on_dash_center(b, x, cx),
         act::DRAIN => on_drain(b, x, cx),
         act::EPITAPH => on_neutral(b, x, cx, true),
-        act::EPITAPH_WAVE => on_epitaph_wave(b, x, cx),
+        act::EPITAPH_WAVE => on_epitaph_wave(b, wave(o), cx),
         act::DEAD => on_dead(b, x, cx),
         act::ESCAPE => on_escape(b, x, cx),
         act::CHASE => on_chase(b, x, cx),
@@ -971,12 +935,12 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
 /// `OnThinkWave` (0x003a6ad0): the wave twice its size at 40 frames of the
 /// clip, a clear flash, boss skill 22 15 frames on with Macha's SP drain
 /// at 100.
-fn on_wave(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
+fn on_wave(b: &mut BossBase, x: &mut Macha, w: &mut Wave, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
-            x.anm_w.set(super::ANM_WAVE, cx.clips);
-            x.anm_w.speed = 512;
+            w.anm.set(super::ANM_WAVE, cx.clips);
+            w.anm.speed = 512;
             b.act_proccess += 1;
             let pos = cx.pos();
             cx.out(Out::Se3dNote { se: 242, pos, note: 62 });
@@ -997,10 +961,10 @@ fn on_wave(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
                     wave_damage(b, cx);
                 }
             }
-            let done = x.anm_w.forward();
+            let done = w.anm.forward();
             let mut pos = cx.pos();
             pos[2] = ee::add(pos[2], 0x4248_0000);
-            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: 0x4000_0000 });
+            cx.out(Out::Wave { who: cx.me, time: w.anm.posed, pos, dirc: b.dirc, scale: 0x4000_0000 });
             if done && b.anm_status != 0 {
                 x.change_next_pattern(b, cx);
             }
@@ -1026,11 +990,11 @@ fn wave_damage(b: &mut BossBase, cx: &mut Cx) {
 
 /// `OnThinkEpitaphWave` (0x003a7810): the Epitaph's wave, a flash at 35
 /// frames of the clip, boss skill 22 15 frames on.
-fn on_epitaph_wave(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
+fn on_epitaph_wave(b: &mut BossBase, w: &mut Wave, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
-            x.anm_w.set(super::ANM_WAVE, cx.clips);
-            x.anm_w.speed = 512;
+            w.anm.set(super::ANM_WAVE, cx.clips);
+            w.anm.speed = 512;
             b.act_proccess += 1;
         }
         1 => {
@@ -1056,9 +1020,9 @@ fn on_epitaph_wave(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             } else if b.act_count == 15 {
                 wave_damage(b, cx);
             }
-            let done = x.anm_w.forward();
+            let done = w.anm.forward();
             let pos = cx.pos();
-            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: ONE });
+            cx.out(Out::Wave { who: cx.me, time: w.anm.posed, pos, dirc: b.dirc, scale: ONE });
             if b.anm_status != 0 && done {
                 b.change_action(cx, act::EPITAPH, 3, true);
             }
@@ -1147,7 +1111,9 @@ fn on_eye_laser(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             let tp = b.target_pos;
-            let [r, l] = x.eyes;
+            // The eyes, where the lasers leave from: the body as last
+            // drawn (`GetSubstAdrsF`'s LW matrix).
+            let [r, l] = EYES.map(|name| cx.field.node(me, name).unwrap_or_default());
             let first = b.make_fx(cx, EffKind::LaserShot, Fx::Laser(eff::Laser::new(cx, r, tp, 0x42c8_0000)), r, VF0);
             b.make_fx(cx, EffKind::LaserShot, Fx::Laser(eff::Laser::new(cx, l, tp, 0x42c8_0000)), l, VF0);
             x.eff_laser = Some(first);
@@ -1258,7 +1224,7 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
             cx.cursor(true);
-            x.skill_id = cx.data.macha.magic_skills[(cx.env.count & 3) as usize];
+            x.skill_id = magic_skill(cx, (cx.env.count & 3) as usize);
             cx.out(Out::CinemaSkill(x.skill_id));
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
@@ -1307,7 +1273,7 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
 /// the rest. A hit lands whatever `actForbid` or the player's lock; under
 /// the cheat it takes a tenth, never below half. At half its gauge in the
 /// normal table, the expert table.
-pub(super) fn affect(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
+fn affect(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     let me = cx.me;
     let (t, p0, person) = {
         let a = &cx.scene.chars[me].affect;

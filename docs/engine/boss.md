@@ -651,13 +651,13 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   `m_patMode`, `m_actDirc`); his tables are views of `tables::combat`
   (alike on every volume). Fidchell is its wave and its own (its
   prediction, spells and camera; the volume's tables viewed the same
-  way, worklog 541); Tarvos the same (worklog 542). The other classes
-  still run as one
+  way, worklog 541); Tarvos the same (worklog 542), and Macha (its eyes
+  read through `Cx::field` as its laser leaves, worklog 545). The other
+  classes still run as one
   `Step::Class` through `Class::with_rules` to their `BossClass` impl:
   `Class::Innis` is Mutation's `ccBoss02` ([Innis](boss-innis.md)),
   `Class::Magus` ([Magus](boss-magus.md)), `Class::Kyvia`
-  ([Kyvia](boss-kyvia.md)), `Class::Macha` Quarantine's `ccBoss06`
-  ([Macha](boss-macha.md)).
+  ([Kyvia](boss-kyvia.md)).
 - Every boss class derives from `ccBoss` itself, none from `ccBoss01`
   (Infection's DWARF, which carries boss04-08 and Kyvia's classes too):
   Skeith's code is his alone (`boss::skeith`, his constructor

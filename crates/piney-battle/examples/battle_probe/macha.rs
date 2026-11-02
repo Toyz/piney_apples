@@ -11,7 +11,8 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::macha::{self, Macha, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out};
+use piney_battle::boss::systems::wave::Wave;
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -85,8 +86,11 @@ fn shake(m: i64, f: usize) -> bool {
     !(m > 0 && f as i64 % m == 0)
 }
 
-/// The land as the case has it: the plane z 0.
-struct Plane;
+/// The field as the case has it: the land the plane z 0, Macha's eyes
+/// where the case puts them (`OBJ_dummy_r_eye`, `_l_eye`).
+struct Plane {
+    eyes: [V4; 2],
+}
 
 impl piney_battle::boss::Field for Plane {
     fn switch(&mut self, _: usize, hit: &mut piney_battle::world::CharHit, on: bool) {
@@ -102,6 +106,10 @@ impl piney_battle::boss::Field for Plane {
 
     fn line(&mut self, _sp: V4, ep: V4, _mask: u32) -> Option<V4> {
         (f32::from_bits(ep[2]) <= 0.0).then_some(ep)
+    }
+
+    fn node(&mut self, _who: usize, name: &str) -> Option<V4> {
+        macha::EYES.iter().position(|&e| e == name).map(|k| self.eyes[k])
     }
 }
 
@@ -135,7 +143,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
-    let eyes = [v4(t), v4(t)];
+    let mut field = Plane { eyes: [v4(t), v4(t)] };
     let mut blur = crate::boss::ProbeBlur::read(t);
     let fade = crate::boss::read_fade(t);
     for m in members.iter().flatten() {
@@ -183,7 +191,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        field: &mut Plane,
+        field: &mut field,
         game_over: false,
         boss_cam: true,
         cam: view_at(0, true),
@@ -240,9 +248,6 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             }
         }
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
-        if let Class::Macha(x) = &mut boss.class {
-            x.eyes = eyes;
-        }
         let mut all = out;
         all.extend(boss.base.take_pending());
         // The affects' writes, then the manager's pass, then the boss's.
@@ -263,7 +268,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut pushed,
-            field: &mut Plane,
+            field: &mut field,
             game_over: false,
             boss_cam: true,
             cam: view_at(f, false),
@@ -390,7 +395,8 @@ fn frame_json(
     menu: &[i32; 6],
     max_range: u32,
 ) -> String {
-    let Class::Macha(x) = &b.class else { return "{}".into() };
+    let Some(x) = b.systems.get::<Macha>() else { return "{}".into() };
+    let wave = &b.systems.get::<Wave>().expect("its wave").anm;
     let ch = &scene.chars[me];
     let f = scene.param(me).unwrap();
     let effs: Vec<String> = b
@@ -446,9 +452,9 @@ fn frame_json(
         b.base.anm.clip.as_deref().unwrap_or(""),
         b.base.anm.frame(),
         b.base.anm.speed,
-        x.anm_w.clip.as_deref().unwrap_or(""),
-        x.anm_w.frame(),
-        x.anm_w.speed,
+        wave.clip.as_deref().unwrap_or(""),
+        wave.frame(),
+        wave.speed,
         macha_json(b, x),
         max_range,
         effs.join(","),

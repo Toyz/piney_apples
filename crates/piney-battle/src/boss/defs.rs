@@ -238,7 +238,10 @@ pub static GORRE: BossDef = BossDef {
 };
 
 /// Macha (`ccBoss06`, `x61`): the body, and the body its Epitaph's clips
-/// (`ANM_ex6x*`) move. `InitBossCamera(250, 1000)`.
+/// (`ANM_ex6x*`) move. `InitBossCamera(250, 1000)`. Its wave and its own;
+/// `ccThBossEffect`'s pass, then `ccBoss06::Main` (QUA gcmn 0x003a4270):
+/// `ccBoss::Main` (Outbreak's code) around its `Think`, the hold let go
+/// again and the PP count.
 pub static MACHA: BossDef = BossDef {
     code: Some(5),
     class: BossGameClass::CcBoss06,
@@ -248,6 +251,24 @@ pub static MACHA: BossDef = BossDef {
     body: BodyPick::Epitaph("ANM_ex6x"),
     cam: CamDef::Transfer([0, 0x447a_0000, 0x437a_0000, ONE]),
     make: |cx, s| macha::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    systems: &[Kind::Wave, Kind::Macha],
+    order: &[
+        Step::Run(Kind::Macha, Hook::Pass),
+        Step::Live(&[
+            Step::Prologue,
+            Step::TickStop,
+            Step::Run(Kind::Macha, Hook::Think),
+            Step::LockParty,
+            Step::Move,
+            Step::ForwardAndDraw,
+            Step::ClearHold,
+        ]),
+        Step::ClearHold,
+        Step::Run(Kind::Macha, Hook::Late),
+    ],
+    affect: &[Step::Run(Kind::Macha, Hook::Affect)],
+    pass: &[],
+    hand_over: &[],
     ..BASE_BOSS
 };
 

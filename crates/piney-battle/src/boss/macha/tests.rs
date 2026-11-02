@@ -12,6 +12,7 @@ use crate::param::{Base, SpcParam};
 use crate::rand::Rand;
 use crate::scene::Scene;
 use crate::tables::Tables;
+use piney_data::volume::Volume;
 
 struct Fight {
     t: Tables,

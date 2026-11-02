@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-544 entries: audio 43, battle 147, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 58, ui 102, video 16, volumes 94, world 152. 133 entries still have open questions - [listed below](#still-open).
+545 entries: audio 43, battle 148, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 58, ui 102, video 16, volumes 94, world 152. 134 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -556,9 +556,11 @@ The [reference](docs/README.md) says what is true now.
 | 542 | [Bosses as defs: Tarvos made of systems, its own PreDrawAnm before the body's Draw](worklog/0542-bosses-as-defs-tarvos-made-of-systems-its-own-predrawanm.md) | 2026-11-01 | battle |
 | 543 | [GameClass: the carry's mismatches settled by whose vtable the constructor stores, not by likeness](worklog/0543-gameclass-the-carry-s-mismatches-settled-by-whose-vtable.md) | 2026-11-01 | tooling |
 | 544 | [BossDef identity: the defs statics, one address each, no copies](worklog/0544-bossdef-identity-the-defs-statics-one-address-each-no-copies.md) | 2026-11-01 | battle |
+| 545 | [Bosses as defs: Macha made of systems, its wave and its own; its eyes read through the field](worklog/0545-bosses-as-defs-macha-made-of-systems-its-wave-and-its-own.md) | 2026-11-02 | battle |
 
 ## Still open
 
+- [545. Bosses as defs: Macha made of systems, its wave and its own; its eyes read through the field](worklog/0545-bosses-as-defs-macha-made-of-systems-its-wave-and-its-own.md) - nothing this step opened; Gorre, Magus, Kyvia, Innis and Corbenik remain to convert, then Class, each_class! and...
 - [544. BossDef identity: the defs statics, one address each, no copies](worklog/0544-bossdef-identity-the-defs-statics-one-address-each-no-copies.md) - nothing this step opened.
 - [542. Bosses as defs: Tarvos made of systems, its own PreDrawAnm before the body's Draw](worklog/0542-bosses-as-defs-tarvos-made-of-systems-its-own-predrawanm.md) - nothing this step opened; Macha, Gorre, Magus, Kyvia, Innis and Corbenik remain to convert, then Class, each_class! and...
 - [541. Bosses as defs: Fidchell made of systems, its wave and its own](worklog/0541-bosses-as-defs-fidchell-made-of-systems-its-wave-and-its-own.md) - nothing this step opened; Tarvos, Macha, Gorre, Magus, Kyvia, Innis and Corbenik remain to convert, then Class...

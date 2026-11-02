@@ -95,7 +95,6 @@ pub struct BossData {
     pub magus: magus::MagusData,
     pub kyvia: kyvia::KyviaData,
     pub gorre: gorre::GorreData,
-    pub macha: macha::MachaData,
     pub corbenik: corbenik::CorbenikData,
 }
 
@@ -107,7 +106,6 @@ impl BossData {
             magus: magus::MagusData::of(volume),
             kyvia: kyvia::KyviaData::of(volume),
             gorre: gorre::GorreData::of(volume),
-            macha: macha::MachaData::of(volume),
             corbenik: corbenik::CorbenikData::of(volume),
         }
     }
@@ -135,8 +133,6 @@ pub enum Class {
     Gorre(Box<gorre::Gorre>),
     /// `ccBoss05Brother`.
     GorreBrother(Box<gorre::brother::Brother>),
-    /// `ccBoss06`.
-    Macha(Box<macha::Macha>),
     /// `ccBoss08`, the first form: its seeds are bosses of their own
     /// characters.
     Corbenik(Box<corbenik::first::First>),
