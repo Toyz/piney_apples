@@ -11,6 +11,7 @@ use piney_data::{Error, Result};
 
 use crate::draw::{EFF_LAYER, OBJ_LAYER};
 use crate::ee::{F, ONE, V4};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::sky::cloud;
 use crate::systems::scrolls::ScrollsDef;
 use crate::systems::sky::{SkyClump, SkyDef};
@@ -67,6 +68,30 @@ static MODELS: ModelsDef = ModelsDef { table: "RT_MODELTABLE05", layer: OBJ_LAYE
 static SCROLLS: ScrollsDef = ScrollsDef { steps: &BG_STEP, slot: statics::TOWN05_BG };
 static SKY_CLUMPS: SkyDef = SkyDef { clumps: &[SkyClump::on(SKY, -100)] };
 
+/// `ROOTTOWN05::DrawMap`: its own layers (2.0 a step, OUT gcmn 0x0043c7ec),
+/// racers' marks `ccMask(6, 6)` (0x0043caec) 24 across and level, the
+/// arrow at (87, 92), a sign only within the map's 160 rows and dimmed
+/// within (8, 46) and (10, 45).
+static MINIMAP: MinimapDef = MinimapDef {
+    iconpos: "RT05ICONPOS",
+    tex: "TEX_sr5map1",
+    step: (0x4000_0000, 0x4000_0000),
+    race: true,
+    later_only: true,
+    offset: (0, 0),
+    racer_offset: (0, 0),
+    mark_mask: (6, 6),
+    mark_x: 0x41c0_0000,
+    mark_y: MarkY::Level,
+    arrow_base: (0x42ae_0000, 0x42b8_0000),
+    arrow: ArrowPlace::Base,
+    odd_sign: None,
+    sign_window: true,
+    balloons: Balloons::OutsideRace,
+    dim: Some([8, 46, 10, 45]),
+    hold_fade: false,
+};
+
 /// `ROOTTOWN05` (`town05`, whatever the crisis byte says): its `Draw` is
 /// `DrawBG`, `DrawObj2`, `DrawObj`, `DrawFloor`, `DrawMap`, the type-0
 /// rows, then the glows.
@@ -80,6 +105,7 @@ pub static LIA_FAIL: TownDef = TownDef {
     fog: FOG,
     clear: Some(BG_COLOR),
     start: Some(([0x4416_0000, 0xc573_c000, 0, ONE], [0, 0, crate::ee::PI, 0])),
+    minimap: Some(&MINIMAP),
     systems: &[
         SystemDef::Models(&MODELS),
         SystemDef::Scrolls(&SCROLLS),

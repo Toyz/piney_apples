@@ -13,6 +13,7 @@ use piney_data::statics::DrawPass;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::{self, F, ONE, V4};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::scrolls::{ScrollsDef, Wrap};
 use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
 use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
@@ -101,6 +102,28 @@ static WATER_DEF: WaterDef = WaterDef {
     copy: false,
 };
 
+/// `ROOTTOWN01::DrawMap` (gcmn 0x00422d00): the map on the map's view,
+/// the arrow on it at (68, 84), no racers, no dimming.
+static MINIMAP: MinimapDef = MinimapDef {
+    iconpos: "RT01ICONPOS",
+    tex: "TEX_sr1map1",
+    step: (0x3fc6_6666, 0x3fcc_cccd),
+    race: false,
+    later_only: false,
+    offset: (0, 0),
+    racer_offset: (0, 0),
+    mark_mask: (128, 32),
+    mark_x: 0x4140_0000,
+    mark_y: MarkY::Up,
+    arrow_base: (0x4288_0000, 0x42a0_0000),
+    arrow: ArrowPlace::Map,
+    odd_sign: None,
+    sign_window: false,
+    balloons: Balloons::Never,
+    dim: None,
+    hold_fade: false,
+};
+
 /// `ROOTTOWN01` (`town01`, `town01d` in crisis): `ROOTTOWN01::Draw` is the
 /// clip, the ships, `DrawBG`, `DrawObj2` and `DrawObj` by the clip, the
 /// water (`ccAnm::SetUV`, `waterUVModifi2`, 2, 1 and 0), `DrawFloor` by
@@ -115,6 +138,7 @@ pub static MAC_ANU: TownDef = TownDef {
     lights: &LIGHTS,
     fog: FOG,
     start: Some((crate::START_POS, crate::START_DIRC)),
+    minimap: Some(&MINIMAP),
     systems: &[
         SystemDef::Models(&MODELS),
         SystemDef::Objects(&OBJECTS),

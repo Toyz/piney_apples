@@ -413,7 +413,10 @@ builds the room again with its doors shut, as they were.
 - `sprite.rs`: `Spr` (a `ccSprite` / `ccMask` as the map drives it) and
   `Packet` (its fields at each `MakePacketStr`, floats as bits); `corners`
   is `MakePacketStr`'s TF and TRF geometry, `prims` the GS primitives.
-- `town.rs` (`TownMap`, Mac Anu's or Dun Loireag's by `TownMap::open`),
+- `town.rs` (`TownMap`, opened from a town's `TownDef::minimap`: its
+  `MinimapDef` holds what each class's `DrawMap` does its own way, its
+  icons, texture, steps, layers, offsets, racers' marks, arrow, signs and
+  dimming),
   `field.rs` (`FieldMap`, with `paint_heights`),
   `dungeon.rs` (`DungeonMap`, `floors_of`, `show_map_step`): the three
   draws, each returning what it sent (`Out`: sends and texts) in order.

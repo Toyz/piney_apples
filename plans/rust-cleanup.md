@@ -250,9 +250,14 @@ Where the code does by hand, per kind, what a system should do once:
       (worklog 560: water, sky with the crisis sky, clouds, lens flare,
       static objects and models and scrolls are systems in
       `piney_world::systems`, every town on them; area 13 and the sky maps
-      hold `AreaCore` and the statics systems. Left: the minimap, the
-      story maps' and fields' clouds, flares and scrolls as these systems,
-      fireflies, lights, the fields' ambient, the dungeons'.)
+      hold `AreaCore` and the statics systems. Worklog 561: the town
+      minimap's per-town numbers are each town's `MinimapDef`, named by its
+      def; `TownMap` branches on no town. Left: the story maps' own
+      `StaticModel` / `StaticObject` (holy ground, giant, abyss, boss
+      arena, disc) on the statics systems, the story maps' and fields'
+      clouds, flares and scrolls as these systems (one sprite request
+      for `TownSprite` and `StorySprite` first), fireflies, lights, the
+      fields' ambient, the dungeons'.)
 - [ ] **Scene transitions.** The session's `change`, `leave`, `enter_world`
       and the modes' `change_area` / `scene_change` / `leave` repeat the
       same request handling (worklog 503 had the console's `town` skip it);

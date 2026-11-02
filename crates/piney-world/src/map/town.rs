@@ -69,12 +69,78 @@ pub struct Input {
     pub race: Option<[Option<Racer>; 3]>,
 }
 
+/// Where a town's arrow draws: Mac Anu's at (68, 84) on the map's view;
+/// Dun Loireag's, off its own layers (Infection's), in screen pixels; the
+/// others' at their base, 14 up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArrowPlace {
+    Map,
+    ScreenOffOwnLayers,
+    Base,
+}
+
+/// Where a racer's mark draws beside its place on the map: 12 up (Dun
+/// Loireag, Carmina Gade), 12 down (Fort Ouph), level (Lia Fail).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarkY {
+    Up,
+    Down,
+    Level,
+}
+
+/// Whether the balloon sprite centres on (-27, -29) and its sign turns:
+/// always (Carmina Gade), outside the flag race (Fort Ouph, Lia Fail), or
+/// never.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Balloons {
+    Always,
+    OutsideRace,
+    Never,
+}
+
+/// What a town's `DrawMap` and its constructor's map part are made of
+/// (`crate::town::TownDef::minimap`): each class's own numbers.
+#[derive(Clone, Copy, Debug)]
+pub struct MinimapDef {
+    /// `RT0NICONPOS` and the map's texture in the town's file.
+    pub iconpos: &'static str,
+    pub tex: &'static str,
+    /// stepw, steph: the constructor's (+0x88, +0x8c).
+    pub step: (F, F),
+    /// From Mutation on its own layers and the flag race's racers (all
+    /// but Mac Anu); `later_only`, a class the port takes from the later
+    /// volumes, on its own layers on any disc (2-4).
+    pub race: bool,
+    pub later_only: bool,
+    /// Where the map lies in its texture (texels), for the player and for
+    /// the racers.
+    pub offset: (i32, i32),
+    pub racer_offset: (i32, i32),
+    /// The racers' marks' `ccMask` and their place: x beside the map's,
+    /// and up or down.
+    pub mark_mask: (usize, usize),
+    pub mark_x: F,
+    pub mark_y: MarkY,
+    /// The arrow's base and where it draws.
+    pub arrow_base: (F, F),
+    pub arrow: ArrowPlace,
+    /// The sign drawn turned (Carmina Gade's 3), whether a sign shows only
+    /// within the map's 160 rows (Lia Fail), and the balloons.
+    pub odd_sign: Option<usize>,
+    pub sign_window: bool,
+    pub balloons: Balloons,
+    /// The box about a sign within which the arrow's point dims it: x
+    /// from, x to, y from, y to.
+    pub dim: Option<[i32; 4]>,
+    /// The signs hold their fade while the race runs (Fort Ouph).
+    pub hold_fade: bool,
+}
+
 /// A town's map as its `ROOTTOWN` class keeps it.
 #[derive(Clone, Debug)]
 pub struct TownMap {
-    /// `game.town`: 0 Mac Anu's `DrawMap`, 1 Dun Loireag's, 2 Carmina
-    /// Gade's, 3 Fort Ouph's, 4 Lia Fail's.
-    pub town: i32,
+    /// The class's `DrawMap`.
+    pub def: &'static MinimapDef,
     /// Mutation's and the later volumes' `DrawMap` (Infection's otherwise).
     pub later: bool,
     /// map[0] - map[3]; map[3] only from Mutation on, outside Mac Anu.
@@ -92,35 +158,24 @@ pub struct TownMap {
 }
 
 impl TownMap {
-    /// The constructor's map part for Mac Anu (`town01`, or `town01d` in
-    /// the crisis: `stem`), `RT01ICONPOS` as the volume holds it.
-    pub fn new(archive: &Arc<Archive>, volume: Volume, stem: &str) -> piney_data::Result<TownMap> {
-        TownMap::open(archive, volume, 0, stem)
-    }
-
-    /// The constructor's map part for town `town` (0 Mac Anu, 1 Dun
-    /// Loireag, from Mutation on 2-4 Carmina Gade, Fort Ouph, Lia Fail) of
-    /// the file `stem`.
-    pub fn open(archive: &Arc<Archive>, volume: Volume, town: i32, stem: &str) -> piney_data::Result<TownMap> {
+    /// The constructor's map part of `def` in the file `stem` (the crisis
+    /// one in crisis), its `RT0NICONPOS` as the volume holds it.
+    pub fn open(
+        archive: &Arc<Archive>,
+        volume: Volume,
+        def: &'static MinimapDef,
+        stem: &str,
+    ) -> piney_data::Result<TownMap> {
         let later = volume != Volume::Inf;
-        // stepw, steph: each constructor's (+0x88, +0x8c); Fort Ouph's 0.8
-        // (OUT gcmn 0x00439e54), Lia Fail's 2.0 (0x0043c7ec).
-        let (iconpos, tex_name, stepw, steph) = match town {
-            0 => ("RT01ICONPOS", "TEX_sr1map1", 0x3fc6_6666, 0x3fcc_cccd),
-            1 => ("RT02ICONPOS", "TEX_sr2map1", 0x3fa3_d70a, 0x3fa5_e354),
-            2 => ("RT03ICONPOS", "TEX_sr3map1", 0x3f82_8f5c, 0x3f81_a9fc),
-            3 => ("RT04ICONPOS", "TEX_sr4map1", 0x3f4c_cccd, 0x3f4c_cccd),
-            4 => ("RT05ICONPOS", "TEX_sr5map1", 0x4000_0000, 0x4000_0000),
-            n => return Err(piney_data::Error::NotFound(format!("town {n}'s map"))),
-        };
+        let (iconpos, tex_name, (stepw, steph)) = (def.iconpos, def.tex, def.step);
         // Infection's Dun Loireag puts its arrow on the font layer; a later
         // volume's puts its map and racers on layers of the class's own, as
         // do the towns the port takes from the later volumes (2-4) on any
         // disc.
-        let own = (later && town != 0) || town >= 2;
-        let (map_layer, arrow_layer) = match (own, town) {
+        let own = (later && def.race) || def.later_only;
+        let (map_layer, arrow_layer) = match (own, def.arrow) {
             (true, _) => (OWN_MAP_LAYER, MAP_LAYER),
-            (false, 1) => (MAP_LAYER, FONT_LAYER),
+            (false, ArrowPlace::ScreenOffOwnLayers) => (MAP_LAYER, FONT_LAYER),
             _ => (MAP_LAYER, MAP_LAYER),
         };
         let rows = piney_data::tables::world::of(volume)
@@ -158,14 +213,13 @@ impl TownMap {
             places.push(Place { layer: MARK_LAYER, view: LayerView::default_layer(), tex: map.tex, tex_h: map.tex_h });
         }
         Ok(TownMap {
-            town,
+            def,
             later,
             spr: [
                 Spr::mask(MAP, 128, 32),
                 Spr::mask(ICONS, 128, 32),
                 Spr::mask(ARROW, 6, 6),
-                // Lia Fail's ccMask(6, 6) (OUT gcmn 0x0043caec).
-                if town == 4 { Spr::mask(MARKS, 6, 6) } else { Spr::mask(MARKS, 128, 32) },
+                Spr::mask(MARKS, def.mark_mask.0, def.mark_mask.1),
             ],
             icons,
             r: 0,
@@ -197,22 +251,20 @@ impl TownMap {
         for s in &mut self.spr {
             s.transp = inp.alpha;
         }
-        let own = self.later && self.town != 0;
-        // Carmina Gade's map lies (16, 46) texels into its texture.
-        let (ox, oy) = if self.town == 2 { (16, 46) } else { (0, 0) };
+        let def = self.def;
+        let own = self.later && def.race;
+        // Carmina Gade's map lies (16, 46) texels into its texture, for the
+        // player and the racers; Fort Ouph's 16 down, for the player.
+        let (ox, oy) = def.racer_offset;
         let dirc = inp.dirc;
         let pos = inp.pos;
         let mut x = ee::mul(ee::div(pos[0], k(100.0)), self.stepw);
         let mut y = ee::mul(ee::div(ee::mul(k(-1.0), pos[1]), k(100.0)), self.steph);
-        // Carmina Gade's map lies (16, 46) texels into its texture, Fort
-        // Ouph's 16 down.
-        match self.town {
-            2 => {
-                x = ee::add(x, k(16.0));
-                y = ee::add(y, k(46.0));
-            }
-            3 => y = ee::add(y, k(16.0)),
-            _ => {}
+        if def.offset.0 != 0 {
+            x = ee::add(x, ee::from_int(def.offset.0));
+        }
+        if def.offset.1 != 0 {
+            y = ee::add(y, ee::from_int(def.offset.1));
         }
         if cy != 0 {
             addy = ee::to_int(y);
@@ -260,13 +312,12 @@ impl TownMap {
                 continue;
             }
             marks.cell(3712, (24 * i as i32 + 144) << 4, 24, 24, k(24.0), k(24.0));
-            // Dun Loireag and Carmina Gade 12 up, Fort Ouph 12 down; Lia
-            // Fail's 12 right of the others'.
-            let (mx, my) = match self.town {
-                3 => (k(12.0), ee::add(k(12.0), fy)),
-                4 => (k(24.0), fy),
-                _ => (k(12.0), ee::sub(fy, k(12.0))),
+            let my = match def.mark_y {
+                MarkY::Up => ee::sub(fy, k(12.0)),
+                MarkY::Down => ee::add(k(12.0), fy),
+                MarkY::Level => fy,
             };
+            let mx = def.mark_x;
             marks.dx = ee::add(mx, ee::sub(ee::add(k(420.0), ee::from_int(px)), k(24.0)));
             marks.dy = my;
             marks.set_alpha(ee::to_int(ee::mul(k(128.0), r.fade)));
@@ -285,18 +336,14 @@ impl TownMap {
         // The arrow: on the map's own view, except Infection's Dun
         // Loireag's in screen pixels; its point in screen pixels (Dun
         // Loireag's, Fort Ouph's and Lia Fail's dim a sign under it).
-        let (base_x, base_y) = match self.town {
-            2 | 3 => (k(70.0), k(80.0)),
-            4 => (k(87.0), k(92.0)),
-            _ => (k(68.0), k(80.0)),
-        };
+        let (base_x, base_y) = def.arrow_base;
         arrow.cell(0, 0, 16, 16, k(16.0), k(16.0));
-        match (self.town, own) {
-            (1, false) => {
+        match (def.arrow, own) {
+            (ArrowPlace::ScreenOffOwnLayers, false) => {
                 arrow.dx = ee::add(k(68.0), ee::add(k(340.0), x));
                 arrow.dy = ee::sub(ee::add(k(116.0), y), k(14.0));
             }
-            (0, _) => {
+            (ArrowPlace::Map, _) => {
                 arrow.dx = ee::add(k(68.0), x);
                 arrow.dy = ee::add(k(4.0), ee::add(k(80.0), y));
             }
@@ -318,12 +365,15 @@ impl TownMap {
         let half = self.mapw / 2;
         for (i, row) in self.icons.iter_mut().enumerate() {
             let right = half < row.x;
-            // Carmina Gade's sign 3.
-            let odd = self.town == 2 && i == 3;
-            // Lia Fail's sign shows only within the map's 160 rows.
-            if top < row.y && (self.town != 4 || row.y < top + 160) {
+            let odd = def.odd_sign == Some(i);
+            if top < row.y && (!def.sign_window || row.y < top + 160) {
                 icons.cell(2624, 0, 54, 59, k(54.0), k(59.0));
-                if self.town == 2 || (self.town > 2 && !race) {
+                let balloon = match def.balloons {
+                    Balloons::Always => true,
+                    Balloons::OutsideRace => !race,
+                    Balloons::Never => false,
+                };
+                if balloon {
                     map.cx = k(-27.0);
                     map.cy = k(-29.0);
                     if !race {
@@ -351,14 +401,11 @@ impl TownMap {
                         icons.ctrl |= MIRROR;
                     }
                 }
-                // Dun Loireag's: the arrow's point inside the balloon's box
-                // dims the sign.
+                // The arrow's point inside the balloon's box dims the sign.
                 let (bx, by) = (row.tmp[0], row.tmp[1]);
-                let under = match self.town {
-                    1 => ax >= bx && bx + 54 >= ax && ay >= by + 10 && by + 49 >= ay,
-                    3 | 4 => ax >= bx + 8 && bx + 46 >= ax && ay >= by + 10 && by + 45 >= ay,
-                    _ => false,
-                };
+                let under = def
+                    .dim
+                    .is_some_and(|[x0, x1, y0, y1]| ax >= bx + x0 && bx + x1 >= ax && ay >= by + y0 && by + y1 >= ay);
                 let alpha = if under { 64 } else { row.alpha };
                 if !race {
                     icons.set_alpha(alpha);
@@ -377,8 +424,7 @@ impl TownMap {
                     icons.set_alpha(alpha);
                     icons.make_packet(0, 1);
                 }
-                // Fort Ouph's signs hold their fade while the race runs.
-                if row.alpha != 128 && !(race && self.town == 3) {
+                if row.alpha != 128 && !(race && def.hold_fade) {
                     row.alpha = (row.alpha + 4).min(128);
                 }
             } else if row.alpha != 0 && row.tmp[0] != -1 {

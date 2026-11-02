@@ -8,6 +8,7 @@ use piney_data::classes::TownGameClass;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::{F, ONE};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::clouds::CloudsDef;
 use crate::systems::flare::FlareDef;
 use crate::systems::scrolls::ScrollsDef;
@@ -82,6 +83,30 @@ static SKY_CLUMPS: SkyDef = SkyDef {
 static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0 };
 static FLARE: FlareDef = FlareDef { sun: SUN_POINT };
 
+/// `ROOTTOWN04::DrawMap`: its own layers, the map 16 down for the player
+/// (0.8 a step, OUT gcmn 0x00439e54), racers 12 down, the arrow at (70,
+/// 80), a sign dimmed within (8, 46) and (10, 45), the signs' fade held
+/// while the race runs.
+static MINIMAP: MinimapDef = MinimapDef {
+    iconpos: "RT04ICONPOS",
+    tex: "TEX_sr4map1",
+    step: (0x3f4c_cccd, 0x3f4c_cccd),
+    race: true,
+    later_only: true,
+    offset: (0, 16),
+    racer_offset: (0, 0),
+    mark_mask: (128, 32),
+    mark_x: 0x4140_0000,
+    mark_y: MarkY::Down,
+    arrow_base: (0x428c_0000, 0x42a0_0000),
+    arrow: ArrowPlace::Base,
+    odd_sign: None,
+    sign_window: false,
+    balloons: Balloons::OutsideRace,
+    dim: Some([8, 46, 10, 45]),
+    hold_fade: true,
+};
+
 /// `ROOTTOWN04` (`town04`, `town04d` in crisis; `town_z`): its `Draw` makes
 /// the clouds on its first call, then `DrawBG`, `DrawObj2`, `DrawObj` and
 /// `DrawFloor` (each walking the 16 rows for its type, the first two then
@@ -98,6 +123,7 @@ pub static FORT_OUPH: TownDef = TownDef {
     fog: FOG,
     clear: Some(BG_COLOR),
     start: Some(([0, 0x45bb_8000, 0, ONE], crate::START_DIRC)),
+    minimap: Some(&MINIMAP),
     systems: &[
         SystemDef::Models(&MODELS),
         SystemDef::Objects(&OBJECTS),

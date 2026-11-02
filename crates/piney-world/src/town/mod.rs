@@ -48,6 +48,7 @@ use crate::area::AreaCore;
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
+use crate::map::town::MinimapDef;
 use crate::story_map::holy_ground::FlareCamera;
 use crate::systems::{BuildCx, DrawCx, Drawn, Request, Step, SystemDef, Systems};
 
@@ -640,6 +641,9 @@ pub struct TownDef {
     /// 0x001a1190); None where it has no case (`StartPos` keeps what the
     /// scene before left, QUA main 0x001b3ac0).
     pub start: Option<(V4, V4)>,
+    /// Its `DrawMap`'s minimap (`crate::map::town`), None where it draws
+    /// none (the sixth's returns at once).
+    pub minimap: Option<&'static MinimapDef>,
     pub systems: &'static [SystemDef],
     pub order: &'static [Step],
 }
@@ -668,6 +672,7 @@ pub static BASE_TOWN: TownDef = TownDef {
     fog: FogParams { near: 0.0, far: 0.0, near_rate: 0.0, far_rate: 0.0, colour: [0; 3] },
     clear: None,
     start: None,
+    minimap: None,
     systems: &[],
     order: &[],
 };

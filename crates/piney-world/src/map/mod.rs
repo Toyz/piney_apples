@@ -419,7 +419,8 @@ mod tests {
     #[test]
     fn the_hud_scale_shrinks_the_town_map() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut map = town::TownMap::new(&archive, piney_data::volume::Volume::Inf, "town01").unwrap();
+        let def = crate::town::mac_anu::MAC_ANU.minimap.unwrap();
+        let mut map = town::TownMap::open(&archive, piney_data::volume::Volume::Inf, def, "town01").unwrap();
         let mut draw = |k: f32| {
             let mut st = MapState::new(&SaveState::fresh());
             st.set_alpha(1.0);

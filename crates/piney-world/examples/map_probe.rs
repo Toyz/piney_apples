@@ -97,17 +97,9 @@ fn main() {
         let n = |i: usize| hex(w[i]);
         match cmd {
             "town" => {
-                // The town by its file: town01(d) Mac Anu, town02(d) Dun
-                // Loireag, town03(d) Carmina Gade, town04(d) Fort Ouph,
-                // town05 Lia Fail.
-                let no = match &w[1][..6] {
-                    "town02" => 1,
-                    "town03" => 2,
-                    "town04" => 3,
-                    "town05" => 4,
-                    _ => 0,
-                };
-                let t = town::TownMap::open(&archive, volume, no, w[1]).unwrap();
+                // The town by its file (town01 .. town05, or the crisis one).
+                let def = piney_world::town::TOWNS.iter().find(|d| d.file == &w[1][..6]).and_then(|d| d.minimap);
+                let t = town::TownMap::open(&archive, volume, def.unwrap(), w[1]).unwrap();
                 println!("{{\"icons\": {}}}", icons(&t));
                 tmap = Some(t);
             }

@@ -16,6 +16,7 @@ use piney_desktop::assets::SceneFile;
 use crate::chara::pose::Play;
 use crate::draw::{OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::scrolls::{ScrollsDef, Wrap};
 use crate::systems::sky::{Axes, MatScroll, SkyClump, SkyDef};
 use crate::systems::statics::ModelsDef;
@@ -101,6 +102,28 @@ static WATER_DEF: WaterDef = WaterDef {
     copy: true,
 };
 
+/// `ROOTTOWN03::DrawMap`: its own layers, the map (16, 46) texels into its
+/// texture, the arrow at (70, 80), sign 3 turned, the balloons centred.
+static MINIMAP: MinimapDef = MinimapDef {
+    iconpos: "RT03ICONPOS",
+    tex: "TEX_sr3map1",
+    step: (0x3f82_8f5c, 0x3f81_a9fc),
+    race: true,
+    later_only: true,
+    offset: (16, 46),
+    racer_offset: (16, 46),
+    mark_mask: (128, 32),
+    mark_x: 0x4140_0000,
+    mark_y: MarkY::Up,
+    arrow_base: (0x428c_0000, 0x42a0_0000),
+    arrow: ArrowPlace::Base,
+    odd_sign: Some(3),
+    sign_window: false,
+    balloons: Balloons::Always,
+    dim: None,
+    hold_fade: false,
+};
+
 /// `ROOTTOWN03` (`town03`, `town03d` in crisis): its `Draw` is water 0 and
 /// the copy, the airship's `Move` and draw, `DrawBG`, `DrawObj2` and
 /// `DrawObj` (the rows of type 3, 2), `DrawFloor` (rows 0-7), rows 29-33
@@ -117,6 +140,7 @@ pub static CARMINA_GADE: TownDef = TownDef {
     fog: FOG,
     clear: Some(BG_COLOR),
     start: Some(([0, 0x4416_0000, 0, ONE], crate::START_DIRC)),
+    minimap: Some(&MINIMAP),
     systems: &[
         SystemDef::Models(&MODELS),
         SystemDef::Scrolls(&SCROLLS),

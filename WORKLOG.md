@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-560 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 156. 143 entries still have open questions - [listed below](#still-open).
+561 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 157. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -572,6 +572,7 @@ The [reference](docs/README.md) says what is true now.
 | 558 | [Tartarga's skin: CompleteChunk gives a bone or skin model its clump's node list, SetAnm resolves it to the anm's objects](worklog/0558-tartarga-s-skin-completechunk-gives-a-bone-or-skin-model.md) | 2026-11-02 | render, format, decomp, volumes |
 | 559 | [Issue #81: the disc's loading time held twice too long; --cdrom and a disc_speed setting](worklog/0559-issue-81-the-disc-s-loading-time-held-twice-too-long-cdrom.md) | 2026-11-02 | engine, disc, ui |
 | 560 | [Towns as defs and systems: TownDef, the map's systems and one runner, every Root Town made of them](worklog/0560-towns-as-defs-and-systems-towndef-the-map-s-systems-and-one.md) | 2026-11-02 | world |
+| 561 | [The town minimap as each town's def: MinimapDef in place of TownMap's per-town arms](worklog/0561-the-town-minimap-as-each-town-s-def-minimapdef-in-place-of.md) | 2026-11-02 | world |
 
 ## Still open
 

@@ -209,10 +209,12 @@ impl WorldMode {
         let mut world =
             World::enter_after(&mut disc, archive.clone(), state, before).map_err(|e| format!("The World: {e}"))?;
         let t = &world.town();
-        let map = piney_world::map::town::TownMap::open(archive, world.volume(), t.def.no, &t.core.file.stem)
-            .map_err(|e| tracing::warn!("the town's map: {e}"))
-            .ok()
-            .map(Box::new);
+        let map = t.def.minimap.and_then(|m| {
+            piney_world::map::town::TownMap::open(archive, world.volume(), m, &t.core.file.stem)
+                .map_err(|e| tracing::warn!("the town's map: {e}"))
+                .ok()
+                .map(Box::new)
+        });
         let town_fx = Some(crate::town_fx::TownFx::new(archive, disc.volume().map_err(|e| e.to_string())?))
             .and_then(|f| f.map_err(|e| tracing::warn!("the town's effects: {e}")).ok())
             .map(Box::new);

@@ -12,6 +12,7 @@ use piney_data::statics::DrawPass;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::{F, ONE, V4};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::clouds::CloudsDef;
 use crate::systems::flare::FlareDef;
 use crate::systems::scrolls::{ScrollsDef, Wrap};
@@ -105,6 +106,30 @@ static WATER_DEF: WaterDef = WaterDef {
 static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0 };
 static FLARE: FlareDef = FlareDef { sun: SUN_POINT };
 
+/// `ROOTTOWN02::DrawMap` (gcmn 0x00425760): Infection's arrow in screen
+/// pixels on the font layer; from Mutation on its own layers and the flag
+/// race's racers, 12 up; the arrow's point dims a sign within (0, 54) and
+/// (10, 49) of it.
+static MINIMAP: MinimapDef = MinimapDef {
+    iconpos: "RT02ICONPOS",
+    tex: "TEX_sr2map1",
+    step: (0x3fa3_d70a, 0x3fa5_e354),
+    race: true,
+    later_only: false,
+    offset: (0, 0),
+    racer_offset: (0, 0),
+    mark_mask: (128, 32),
+    mark_x: 0x4140_0000,
+    mark_y: MarkY::Up,
+    arrow_base: (0x4288_0000, 0x42a0_0000),
+    arrow: ArrowPlace::ScreenOffOwnLayers,
+    odd_sign: None,
+    sign_window: false,
+    balloons: Balloons::Never,
+    dim: Some([0, 54, 10, 49]),
+    hold_fade: false,
+};
+
 /// `ROOTTOWN02` (`town02`, `town02d` in crisis; `town_z` for the lens
 /// flare's and the clouds' sprites): its `Draw` makes the clouds on its
 /// first call, then the water and its copy, `DrawBG`, `DrawObj2`,
@@ -123,6 +148,7 @@ pub static DUN_LOIREAG: TownDef = TownDef {
     fog: FOG,
     clear: Some(BG_COLOR),
     start: Some(([0, 0x455a_c000, 0, ONE], crate::START_DIRC)),
+    minimap: Some(&MINIMAP),
     systems: &[
         SystemDef::Models(&MODELS),
         SystemDef::Objects(&OBJECTS),
