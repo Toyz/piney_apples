@@ -33,7 +33,6 @@ pub const KANJI: u8 = 4;
 pub const ALPHA_RATE: F = 0x3f33_3333;
 /// No room (`UpRoom`, `DownRoom`, a room index).
 pub const NO_ROOM: usize = 15;
-pub const FLOORS: usize = 10;
 /// `smallmap`'s used side.
 pub const SIDE: usize = 200;
 
@@ -194,9 +193,11 @@ impl DungeonMap {
             Place { layer: MAP_LAYER, view, tex: TexRef::Upload(0), tex_h: 256 },
             Place { layer: MAP_LAYER, view, tex: arrow.tex, tex_h: arrow.tex_h },
         ];
-        // levelstr: "B 1" .. "B 10".
+        // levelstr: "B 1" .. "B 10", to "B 15" from Mutation on; the
+        // per-floor smallmap is the dungeon's floor count long.
         let level_str = piney_data::tables::world::of(volume).level_str;
-        let labels = (0..FLOORS)
+        let count = floors.len();
+        let labels = (0..count)
             .map(|i| piney_data::tables::sjis::encode(level_str.get(i).copied().flatten().unwrap_or_default()))
             .collect();
         Ok(DungeonMap {
@@ -204,7 +205,7 @@ impl DungeonMap {
             r: 0,
             dtype,
             floors,
-            small: vec![0; FLOORS * SIDE * SIDE],
+            small: vec![0; count * SIDE * SIDE],
             map_hide: 0,
             pixels,
             clut,

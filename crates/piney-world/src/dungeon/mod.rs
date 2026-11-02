@@ -42,8 +42,6 @@ const THROUGH: F = 0x448c_a000;
 /// pi / 2 as the code writes it (0x3fc90fdb), and -pi / 2.
 const HALF_PI: F = 0x3fc9_0fdb;
 const MINUS_HALF_PI: F = 0xbfc9_0fdb;
-/// The floors `DUNGEON` holds (`room[10][15]`).
-pub const FLOORS: usize = 10;
 /// `realmap[x][y]` is 80 x 80.
 const MAP: i32 = dungeon::MAP as i32;
 /// The name `MakeRoom` finds the player's arrival spot by
@@ -289,6 +287,10 @@ pub struct DungeonArea {
     /// `DUNGEON.isEventArea`: the story area whose `EditDungeon` table laid
     /// the dungeon out, or 0 for a random one.
     pub event: i32,
+    /// `DUNGEON+0x430`, the floors a story dungeon has (Infection's
+    /// constant 10; from Mutation on 15 for event area 125, QUA gcmn
+    /// 0x004d4400): `Generate` and `MakeFloor` go over that many.
+    pub floor_count: usize,
     pub floors: Vec<FloorLayout>,
     /// `DUNGEON.level`: the floor the party is on.
     pub level: usize,
@@ -624,6 +626,9 @@ impl DungeonArea {
             event = 0;
         }
         let edit = if event != 0 { tables.edit(event, code as i32) } else { None };
+        // The count is set from GetEventAreaNumber before field type 4's
+        // dungeon 0 clears isEventArea.
+        let floor_count = tables.edit_floor_count(event_area) as usize;
         let types = tables.types.types(world_man.field_type, event_area, world_man.hack as i32, false);
         let dtype = types[code.min(1)];
         let server = scene.server.max(0) as u32;
@@ -639,7 +644,7 @@ impl DungeonArea {
         // of type 25-35 MakeFloor reaches (floor by floor, not the lake
         // types) leaves its file in spccs.
         let spccs_name = edit.filter(|_| dtype < 8).and_then(|e| {
-            (0..FLOORS)
+            (0..floor_count)
                 .flat_map(|f| e.rooms.iter().filter(move |r| r.floor == f as i32))
                 .filter_map(|r| special::event_room(r.room_type, event_area))
                 .next_back()
@@ -716,6 +721,7 @@ impl DungeonArea {
             dtype,
             file,
             event: if edit.is_some() { event } else { 0 },
+            floor_count,
             floors: Vec::new(),
             level: 0,
             room_at: None,
@@ -863,11 +869,11 @@ impl DungeonArea {
 
     /// The story dungeon's floors: `MakeFloor`'s story path (0x005c0148)
     /// and `MakeRoom(ROOMDATA *, ROOM_INFO *, int)` (0x005bcbb0) over the
-    /// `EditDungeon` rows of each of the ten floors.
+    /// `EditDungeon` rows of each of its [`DungeonArea::floor_count`] floors.
     fn story_floors(&self, edit: &'static dungeon::EditDungeon) -> Vec<FloorLayout> {
         let tables = self.tables;
         let mut out = Vec::new();
-        for level in 0..FLOORS {
+        for level in 0..self.floor_count {
             let real = dungeon::real_map(edit, level);
             // MakeFloor: UpRoom 0, DownRoom the row with the down stairs.
             let mut layout = FloorLayout {
@@ -884,8 +890,9 @@ impl DungeonArea {
                 out.push(layout);
                 continue;
             }
-            // The last floor has no down stairs to look for.
-            if level != FLOORS - 1 {
+            // The last floor has no down stairs to look for (count - 1,
+            // QUA gcmn 0x004dc778).
+            if level != self.floor_count - 1 {
                 for rd in edit.rooms.iter().filter(|r| r.floor == level as i32) {
                     if rd.exits.has(DOWN) {
                         layout.down = rd.index as usize;
@@ -2042,7 +2049,7 @@ impl DungeonArea {
     /// `GIMMICKDATA` row or an event is; else a box on `fieldrand(100) >=
     /// 20`, a portal always, a special object on `>= 31`.
     fn story_rolls(&mut self, edit: &'static dungeon::EditDungeon) {
-        let levels = if dungeon::is_lake(self.dtype) { 1 } else { FLOORS };
+        let levels = if dungeon::is_lake(self.dtype) { 1 } else { self.floor_count };
         for f in 0..levels.min(self.floors.len()) {
             self.rng.below(5);
             for i in self.floors[f].order.clone() {
@@ -2255,6 +2262,32 @@ mod tests {
         assert_eq!(d.start().0.map(ee::f), [15000.0, 21750.0, 0.0, 1.0]);
         assert_eq!(d.floors[0].down, 4);
         assert_eq!(d.hits.models.len(), 43);
+    }
+
+    /// Issue #78: from Mutation on, event area 125 (Hidden Darkside Holy
+    /// Ground) has fifteen floors (`DUNGEON+0x430`, QUA gcmn 0x004d4400).
+    /// B10 keeps its down stairs (`MakeFloor` looks on every floor but
+    /// count - 1) and B11 to B15 are built; with Infection's ten, B10 had
+    /// none and its stairs led nowhere.
+    #[test]
+    fn area_125_has_fifteen_floors_from_mutation_on() {
+        let Some(archive) = crate::town::tests::archive_of("quarantine") else { return };
+        let wm = WorldMan { event: 125, field_type: 10, level_max: 4, room_max: 9, ..WorldMan::default() };
+        let mut scene = Scene::init();
+        (scene.area, scene.field, scene.dungeon, scene.floor, scene.block, scene.server) = (2, 125, 0, 0, 0, 0);
+        let volume = piney_data::volume::Volume::Qua;
+        let d = DungeonArea::new_banned(&archive, volume, &wm, &scene, NO_BANS).unwrap();
+        assert_eq!((d.event, d.floor_count, d.floors.len()), (125, 15, 15));
+        assert_ne!(d.floors[9].down, NO_ROOM as usize, "B10's down stairs");
+        assert_eq!(d.floors[14].down, NO_ROOM as usize, "B15 is the last");
+        assert!(d.floors[10..].iter().all(|f| f.rooms.iter().any(|r| r.made)), "B11 to B15 built");
+        // The map: a label and a smallmap for each floor (`levelstr` runs
+        // to "B 15" from Mutation on).
+        let edit = d.tables.edit(d.event, 0);
+        let floors = crate::map::dungeon::floors_of(&d, edit);
+        let map = crate::map::dungeon::DungeonMap::new(&archive, volume, &d.file, i32::from(d.dtype), floors).unwrap();
+        assert_eq!(map.labels.len(), 15);
+        assert_eq!(map.labels[14], b"B 15");
     }
 
     /// A field type 4 area has no field. Its first dungeon's stairs down

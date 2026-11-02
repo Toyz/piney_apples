@@ -4080,7 +4080,13 @@ fn world() -> Group {
                 GCMN,
                 "`fieldminimap`: the field map's texture by field type.",
             ),
-            e("level_str", 0x0069_5550, array(opt(cstr()), 10), GCMN, "`levelstr`: the dungeon map's floors."),
+            e(
+                "level_str",
+                0x0069_5550,
+                array_by(opt(cstr()), later(10, 15)),
+                GCMN,
+                "`levelstr`: the dungeon map's floors, \"B 1\" to \"B 10\" (\"B 15\" from Mutation on, for area 125's fifteen).",
+            ),
         ],
     )
 }

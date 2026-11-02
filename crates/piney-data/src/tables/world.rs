@@ -95,7 +95,7 @@ pub struct World {
     pub fp_dungeon: Fieldmapicon,
     /// `fieldminimap`: the field map's texture by field type. Alike on every volume.
     pub field_minimap: &'static [Option<&'static str>],
-    /// `levelstr`: the dungeon map's floors. Alike on every volume.
+    /// `levelstr`: the dungeon map's floors, "B 1" to "B 10" ("B 15" from Mutation on, for area 125's fifteen).
     pub level_str: &'static [Option<&'static str>],
 }
 
