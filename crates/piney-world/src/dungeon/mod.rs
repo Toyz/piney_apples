@@ -1507,13 +1507,15 @@ impl DungeonArea {
     /// leaf sinks 6.4 a frame, and at `CloseStart` 1 the doors are made again.
     /// Returns the doors' sounds (0 opening, 1 closing, at the door;
     /// [`DungeonArea::door_se`]).
-    pub fn move_door(&mut self, here: usize, clear_all: bool, clear_here: bool) -> Vec<(u8, V4)> {
+    pub fn move_door(&mut self, here: Option<usize>, clear_all: bool, clear_here: bool) -> Vec<(u8, V4)> {
         let mut sounds = Vec::new();
         self.door.door_anm = clear_all;
         let level = self.level;
-        if self.room_at != Some((level, here)) || self.room.is_none() {
+        if !self.room_slot_taken(here) {
             return sounds;
         }
+        // The cell's byte: 15 for no room, a slot no floor has.
+        let here = here.unwrap_or(NO_ROOM as usize);
         let keeps = matches!(self.dtype, 3 | 7 | 8 | 9);
         let file = self.file.clone();
         for k in 0..self.doors.len() {
@@ -1908,8 +1910,29 @@ impl DungeonArea {
     /// out runs meanwhile). Returns (here, the room drawn, doors drawn).
     pub fn shown(&self, player: V4) -> (Option<usize>, bool, usize) {
         let here = self.here(player);
-        let built = here.is_some_and(|h| self.room_at == Some((self.level, h))) && self.room.is_some();
-        (here, built, if built { self.doors.len() } else { 0 })
+        let taken = self.room_slot_taken(here);
+        (here, taken && here.is_some(), if taken { self.doors.len() } else { 0 })
+    }
+
+    /// Whether `room[level][here]` is non-null, as `MoveDoor` and `Draw` test
+    /// it (QUA gcmn 0x004e8258, 0x004e9a94). A cell of no room has `here`
+    /// 15, one past the floor's row: `room[level + 1][0]`, never built,
+    /// except past the array's last row (Infection's tenth, the later
+    /// volumes' fifteenth: B15 of area 125 alone). There Infection reads
+    /// `rotate[0][0]` (+0x2f488) and the later volumes the animIdx pointer
+    /// (+0x7bc), never null, so the doors move and are drawn (worklog 557).
+    fn room_slot_taken(&self, here: Option<usize>) -> bool {
+        // `room[10][15]` at +0x2f230 on Infection, `room[15][15]` at +0x438
+        // from Mutation on.
+        let rows = if self.tables.volume == 1 { 10 } else { 15 };
+        match here {
+            Some(h) => self.room_at == Some((self.level, h)) && self.room.is_some(),
+            None if self.level + 1 < rows => false,
+            None if self.tables.volume == 1 => {
+                self.floors.first().and_then(|f| f.rooms.first()).is_some_and(|r| r.rotate != 0)
+            }
+            None => true,
+        }
     }
 
     /// `DUNGEON.fog` as the frame's clear colour (`ccSys+0x18`), RGB.
@@ -1938,14 +1961,17 @@ impl DungeonArea {
         self.draw_fireflies(player, step, &mut ops);
         let fog = self.room_depth_fog();
         self.draw_leaves(layers, to_screen, fog, step);
-        if !self.shown(player).1 {
+        let (_, built, doors) = self.shown(player);
+        // Past the array's last row the game hands `ccAnm::Draw` the word
+        // after it (a ROOM_INFO row read as a `ccAnime`): no room is drawn.
+        if !built && doors == 0 {
             return ops;
         }
         // VU1 fogs each vertex by its depth: `SetFog(near, far, 0, max,
         // colour)` of the room's row.
         let depth = self.room_depth_fog();
         let rows = HashMap::new();
-        let anms: Vec<&Anm> = self.doors.iter().chain(self.room.as_ref()).collect();
+        let anms: Vec<&Anm> = self.doors.iter().chain(self.room.as_ref().filter(|_| built)).collect();
         for anm in anms {
             let (file, obj_models, _) = self.src(anm.special);
             for o in &anm.objects {
@@ -2290,6 +2316,39 @@ mod tests {
         assert_eq!(map.labels[14], b"B 15");
     }
 
+    /// Issue #78's harness case: a cell of no room (`here` 15) reads
+    /// `room[level][15]`, one past the floor's row. On B15 of area 125 that
+    /// is past the array's last row, the animIdx pointer, so `MoveDoor` and
+    /// `Draw` take it for a room and the built room's doors are drawn; on B10
+    /// the slot is B11's first, never built while the party is on B10.
+    #[test]
+    fn past_the_last_row_a_roomless_cell_still_draws_the_doors() {
+        let Some(archive) = crate::town::tests::archive_of("quarantine") else { return };
+        let wm = WorldMan { event: 125, field_type: 10, level_max: 4, room_max: 9, ..WorldMan::default() };
+        let mut scene = Scene::init();
+        (scene.area, scene.field, scene.dungeon, scene.floor, scene.block, scene.server) = (2, 125, 0, 0, 0, 0);
+        let volume = piney_data::volume::Volume::Qua;
+        let mut d = DungeonArea::new_banned(&archive, volume, &wm, &scene, NO_BANS).unwrap();
+        // A room with doors on floor `f`, and a cell of no room there.
+        let on = |d: &mut DungeonArea, f: usize| {
+            d.level = f;
+            let rooms: Vec<usize> = (0..d.floors[f].rooms.len()).filter(|&i| d.floors[f].rooms[i].made).collect();
+            let i = rooms.into_iter().find(|&i| {
+                d.set_room(f, i);
+                !d.doors.is_empty()
+            })?;
+            let (x, y) = (0..80)
+                .flat_map(|x| (0..80).map(move |y| (x, y)))
+                .find(|&(x, y)| cell(&d.floors[f].map, x, y).here == NO_ROOM)?;
+            let at = |c: i32| (c as f32 * 750.0 + 375.0).to_bits();
+            Some((i, [at(x), at(y), 0, ONE]))
+        };
+        let (_, p) = on(&mut d, 14).expect("a room with doors on B15");
+        assert_eq!(d.shown(p), (None, false, d.doors.len()), "B15: the doors past the row");
+        let (_, p) = on(&mut d, 9).expect("a room with doors on B10");
+        assert_eq!(d.shown(p), (None, false, 0), "B10: B11's slot, empty");
+    }
+
     /// A field type 4 area has no field. Its first dungeon's stairs down
     /// lead into the second (`WORLD_MAN::Enter` 0x0019e238), keeping the
     /// room they were taken from (`lastRoom`); the second's floor-0 stairs
@@ -2490,7 +2549,7 @@ mod tests {
         println!("open {:?} time {}", leaf(&d), d.doors[0].play.time);
         d.close_door2();
         for k in 0..40 {
-            d.move_door(3, false, false);
+            d.move_door(Some(3), false, false);
             if k % 5 == 0 {
                 println!("close {k} start {} {:?}", d.door.close_start, leaf(&d));
             }

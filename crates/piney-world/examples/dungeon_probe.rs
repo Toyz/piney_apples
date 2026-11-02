@@ -386,7 +386,8 @@ fn main() {
             "movedoor" => {
                 let a = d.as_mut().unwrap();
                 a.level = n(1) as usize;
-                let sounds = a.move_door(n(2) as usize, n(3) != 0, n(4) != 0);
+                let here = Some(n(2) as usize).filter(|&h| h != usize::from(piney_data::dungeon::NO_ROOM));
+                let sounds = a.move_door(here, n(3) != 0, n(4) != 0);
                 let sounds: Vec<String> =
                     sounds.iter().map(|(k, p)| format!("[{k}, {}, {}, {}]", p[0], p[1], p[2])).collect();
                 println!("{{\"sounds\": [{}], {}}}", sounds.join(", "), doors(a));

@@ -137,7 +137,10 @@ As `eemu.Machine`: `Machine(program)`, `mem` (a 32 MB `bytearray`),
   `BufferError`, where eemu would silently resize its RAM. That includes the
   HLE functions: a `memcpy` / `memset` / `strcpy` running past the end of
   RAM raises `BufferError` in eemu_rs; in eemu it grows the bytearray.
-  `m.mem = x` takes only another 32 MB bytearray.
+  `m.mem = x` takes only another bytearray of 32 MB or more. `m.grow(size)` makes RAM
+  `size` bytes for a harness whose heap outgrows 32 MB, as eemu's does, but
+  as a new bytearray (eemu extends its own), so a `mem` taken before it is
+  not the machine's after.
 - The register files are fixed-width live views, not lists. `list(m.r)`
   copies; a reference kept across `call` (which in eemu makes a new list)
   sees the new values. Values are masked when stored: GPRs and HI / LO to

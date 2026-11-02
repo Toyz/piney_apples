@@ -136,12 +136,12 @@ impl Mem<'_> {
     /// `load(addr, n)` for n <= 16, little-endian: RAM, else the bus.
     #[inline]
     pub fn load(&mut self, addr: u32, n: u32) -> Result<u128, Fault> {
-        if fits(addr, n) { load(self.ram, addr, n) } else { self.bus_read(addr, n) }
+        if fits(self.ram, addr, n) { load(self.ram, addr, n) } else { self.bus_read(addr, n) }
     }
 
     #[inline]
     fn load32(&mut self, addr: u32) -> Result<u32, Fault> {
-        if fits(addr, 4) { load32(self.ram, addr) } else { self.bus_read(addr, 4).map(|v| v as u32) }
+        if fits(self.ram, addr, 4) { load32(self.ram, addr) } else { self.bus_read(addr, 4).map(|v| v as u32) }
     }
 
     #[cold]
@@ -316,9 +316,11 @@ pub struct Cpu {
     pub sa: u32,
 }
 
+/// Whether `n` bytes at `addr` lie in RAM: [`RAM`] bytes, or more where a
+/// harness grew it (`grow`).
 #[inline]
-fn fits(addr: u32, n: u32) -> bool {
-    u64::from(addr) + u64::from(n) <= RAM as u64
+fn fits(ram: &[u8], addr: u32, n: u32) -> bool {
+    u64::from(addr) + u64::from(n) <= ram.len() as u64
 }
 
 /// What answers an access outside RAM when a whole system runs
@@ -333,7 +335,7 @@ pub trait Bus {
 /// ([`Mem::load`] asks the bus outside it).
 #[inline]
 pub fn load(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
-    if !fits(addr, n) {
+    if !fits(ram, addr, n) {
         return Err(Fault::Read { addr, n });
     }
     let a = addr as usize;
@@ -349,7 +351,7 @@ pub fn load(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
 
 #[inline]
 fn load32(ram: &[u8], addr: u32) -> Result<u32, Fault> {
-    if !fits(addr, 4) {
+    if !fits(ram, addr, 4) {
         return Err(Fault::Read { addr, n: 4 });
     }
     let a = addr as usize;
@@ -507,7 +509,7 @@ impl Cpu {
     /// `store(addr, n, v)` for n <= 16: RAM, else the bus.
     #[inline]
     pub fn store(&mut self, m: &mut Mem, addr: u32, n: u32, v: u128) -> Result<(), Fault> {
-        if !fits(addr, n) {
+        if !fits(m.ram, addr, n) {
             return m.bus_write(addr, n, v);
         }
         let a = addr as usize;

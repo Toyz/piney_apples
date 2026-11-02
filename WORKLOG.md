@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-556 entries: audio 44, battle 157, build 29, content 3, decomp 28, disc 5, engine 26, format 17, iop 3, render 130, save 16, script 62, test 240, tooling 58, ui 104, video 17, volumes 95, world 154. 145 entries still have open questions - [listed below](#still-open).
+557 entries: audio 44, battle 157, build 29, content 3, decomp 28, disc 5, engine 26, format 17, iop 3, render 130, save 16, script 62, test 241, tooling 59, ui 104, video 17, volumes 96, world 155. 144 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -568,6 +568,7 @@ The [reference](docs/README.md) says what is true now.
 | 554 | [Bosses as defs: Innis made of systems, its wave, its missiles' pass, its images and its own; the images' Main written out](worklog/0554-bosses-as-defs-innis-made-of-systems-its-wave-its-missiles.md) | 2026-11-02 | battle |
 | 555 | [Bosses as defs: Corbenik made of systems, each form its own with its parts lent, the first's hand-over its system's; seeds, roots, eyes and killer eyes each a system](worklog/0555-bosses-as-defs-corbenik-made-of-systems-each-form-its-own.md) | 2026-11-02 | battle |
 | 556 | [Bosses as defs: the class machinery and BossData out; a bare ccBoss its own def's steps, Patterns::words by the volume, actAnmTbl a static slice](worklog/0556-bosses-as-defs-the-class-machinery-and-bossdata-out-a-bare.md) | 2026-11-02 | battle |
+| 557 | [Area 125 in the dungeon harness: a heap past 32 MiB, and the doors past the room array's last row](worklog/0557-area-125-in-the-dungeon-harness-a-heap-past-32-mib-and-the.md) | 2026-11-02 | world, test, tooling, volumes |
 
 ## Still open
 
@@ -577,7 +578,6 @@ The [reference](docs/README.md) says what is true now.
 - [553. Bosses as defs: Kyvia made of systems, its core and gomoras lent, its disc and the fourth's places; the baselines taken anew at 9aaea16](worklog/0553-bosses-as-defs-kyvia-made-of-systems-its-core-and-gomoras.md) - nothing this step opened; Innis and Corbenik remain to convert, then Class, each_class! and BossData out.
 - [552. Mac Anu's frame drops: a redraw that catches up draws only the frames it shows (#77)](worklog/0552-mac-anu-s-frame-drops-a-redraw-that-catches-up-draws-only.md) - whether the reporter's machine passes a refresh at the bridge only through catch-up, or also on its first frame there.
 - [551. The cures' only sound is the skill start's: Antidote and Restorative play 104 as the game does](worklog/0551-the-cures-only-sound-is-the-skill-start-s-antidote-and.md) - what the reporter heard as silence: the port asks for and plays the game's one sound for these items (104); whether...
-- [550. Area 125's fifteen floors: the dungeon runtime keeps the disc's floor count, so B10 has its stairs down](worklog/0550-area-125-s-fifteen-floors-the-dungeon-runtime-keeps-the.md) - the dungeon runtime harness (tools/test_dungeon_rt.py) cannot run area 125 as it stands: the game's Generate over...
 - [549. Cubia's white flashes were its gomoras' after-images drawn as the whole body; Tartarga posed through his skin's own clump](worklog/0549-cubia-s-white-flashes-were-its-gomoras-after-images-drawn.md) - the game's code path that gives a model outside the made clump its own clump's node table: ccAnm::SetAnm (QUA main...
 - [548. Tarvos's drain plays its own movie: a boss's Affect runs inside EntryAffect](worklog/0548-tarvos-s-drain-plays-its-own-movie-a-boss-s-affect-runs.md) - the movie's pictures (stream 100's Tarvos) are not compared with the game's frame by frame
 - [547. Bosses as defs: Magus made of systems, its wave, leaves, laser, needles and its own; the body read through the field](worklog/0547-bosses-as-defs-magus-made-of-systems-its-wave-leaves-laser.md) - nothing this step opened; Kyvia, Innis and Corbenik remain to convert, then Class, each_class! and BossData out.

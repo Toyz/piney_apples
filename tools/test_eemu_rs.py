@@ -1236,6 +1236,20 @@ class EemuRs(unittest.TestCase):
             _, eb = outcome(lambda: fn(b))
             self.assertIsInstance(eb, eemu.Stop)
             self.assertEqual(str(ea), str(eb))
+        # grow: RAM past 32 MiB, for the program's stores and the harness's.
+        for m in (a, b):
+            m.grow(0x02100000)
+            m.store(0x02000000, 8, 0x1122334455667788)
+            m.set32(4, 0x020FFFF8)
+            m.set32(5, 0xCAFEF00D)
+            m.exec(0x00100000, 0xAC850004)                     # sw $a1, 4($a0)
+            m.mem[0x02000010:0x02000012] = b"hi"
+        self.assertEqual(a.mem, b.mem)
+        self.assertEqual(a.load(0x020FFFFC, 4), b.load(0x020FFFFC, 4))
+        self.assertEqual(b.load(0x020FFFFC, 4), 0xCAFEF00D)
+        _, ea = outcome(lambda: a.load(0x020FFFFE, 4))
+        _, eb = outcome(lambda: b.load(0x020FFFFE, 4))
+        self.assertEqual(str(ea), str(eb))
         # hooks: a dict's behaviour, the native HLE seen as eemu's function.
         strlen = p.symbol_named("strlen").value
         self.assertIs(b.hooks[strlen], eemu._strlen)

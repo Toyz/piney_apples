@@ -1,7 +1,7 @@
 //! The `eemu_rs` Python module: [`Cpu`] behind an API that mirrors
 //! `tools/eemu.py`'s `Machine` closely enough for a harness to switch with its
 //! import line (`README.md` lists what differs). `mem` is a real 32 MB
-//! `bytearray` the machine holds a buffer export on for its life, read and
+//! `bytearray` (more after `grow`) the machine holds a buffer export on, read and
 //! written directly only while no Python code can run; `r`, `f`, `vf`, `vacc`
 //! and `vi` are live views; `hooks` keeps the hooked-address bitmap in step; a
 //! Python subclass may override `exec`, `cop2` or `mmi`; stops raise
@@ -586,7 +586,7 @@ impl PyMachine {
         signed: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let addr = low32(addr)?;
-        if i128::from(addr) + i128::from(n) > RAM as i128 {
+        if i128::from(addr) + i128::from(n) > self.ram.bytes().len() as i128 {
             return Err(stop(py, format!("read of {n} bytes at 0x{addr:08x} is outside RAM")));
         }
         if !(0..=16).contains(&n) {
@@ -609,7 +609,7 @@ impl PyMachine {
 
     fn store(&mut self, py: Python<'_>, addr: &Bound<'_, PyAny>, n: i64, value: &Bound<'_, PyAny>) -> PyResult<()> {
         let addr = low32(addr)?;
-        if i128::from(addr) + i128::from(n) > RAM as i128 {
+        if i128::from(addr) + i128::from(n) > self.ram.bytes().len() as i128 {
             return Err(stop(py, format!("write of {n} bytes at 0x{addr:08x} is outside RAM")));
         }
         if n < 0 {
@@ -632,6 +632,22 @@ impl PyMachine {
         if let Some(w) = &mut self.cpu.writes {
             w.push((addr, n as u32));
         }
+        Ok(())
+    }
+
+    /// `grow(size)`: RAM to `size` bytes, room past the PS2's 32 MiB for
+    /// a harness whose heap outgrows it. `mem` becomes a new bytearray with
+    /// the old one's bytes first (eemu.py extends its own in place).
+    fn grow(&mut self, py: Python<'_>, size: usize) -> PyResult<()> {
+        let old = self.ram.bytes();
+        if size <= old.len() {
+            return Ok(());
+        }
+        let mem = PyByteArray::new_with(py, size, |b| {
+            b[..old.len()].copy_from_slice(old);
+            Ok(())
+        })?;
+        self.ram = Buffer::adopt(mem.as_any(), size, "mem")?;
         Ok(())
     }
 
@@ -846,9 +862,11 @@ impl PyMachine {
         self.ram.obj.bind(py).clone()
     }
 
+    /// Another bytearray of 32 MB, or more (as `grow` leaves it).
     #[setter(mem)]
     fn set_mem(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.ram = Buffer::adopt(v, RAM, "mem")?;
+        let len = v.cast::<PyByteArray>().map_or(RAM, |b| b.len().max(RAM));
+        self.ram = Buffer::adopt(v, len, "mem")?;
         Ok(())
     }
 

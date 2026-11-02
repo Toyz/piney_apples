@@ -2570,12 +2570,15 @@ impl FieldWorld {
                     }
                 }
                 Place::Dungeon(d) => {
-                    // DUNGEON::Draw's MoveDoor for the room under the player,
-                    // its doors' sounds (ccSeOn3D) played with the weather's.
-                    if awake && let Some(here) = d.here(player) {
+                    // DUNGEON::Draw's MoveDoor for the cell under the player
+                    // (15 for none), its doors' sounds (ccSeOn3D) played with
+                    // the weather's.
+                    if awake {
+                        let here = d.here(player);
                         let c = &self.combat;
                         let clear_all = no_active(c);
-                        let clear_here = room_clear(c, d.level as i32, here as i32);
+                        let block = here.map_or(i32::from(piney_data::dungeon::NO_ROOM), |h| h as i32);
+                        let clear_here = room_clear(c, d.level as i32, block);
                         // MoveDoor's SetDoor reads the save's area bans.
                         d.bans = crate::dungeon::bans_of(&self.save.save);
                         let sounds = d.move_door(here, clear_all, clear_here);

@@ -97,6 +97,11 @@ STUB = 0x00D43800
 # The heap starts past test_world_rs's fixed areas (0x01000000-0x010fffff),
 # which the frames below share the machine with.
 DG, GIMPOS, HEAP0, HEAP_END = 0x00E00000, 0x00EE0000, 0x01100000, 0x01F00000
+# The heap goes on past the console's 32 MiB once that runs out: area 125's
+# fifteen floors make about 12.4 MiB, past the 8 MiB left below the stack
+# (the frees are not run, so a deleted block is never handed out again;
+# handing them out again changes what the game reads of a deleted one).
+HIGH, HIGH_END = 0x02000000, 0x04000000
 DG_SIZE = 0xD3910
 # From Mutation on DUNGEON is 0xce0 bytes (docs/engine/dungeon.md, "Other
 # volumes"): the per-floor arrays are new[] blocks it points at, sized by its
@@ -184,9 +189,10 @@ class Game:
         from test_stream_rs import machine_class
         self.prog = Program(ELF, "gcmn")
         self.m = machine_class()(self.prog)
+        self.m.grow(HIGH_END)
         self.sym = lambda n: self.prog.symbol_named(n).value      # noqa: E731
         m = self.m
-        self.heap = HEAP_START
+        self.heap, self.went_high = HEAP_START, False
         for name in ("ccMalloc__FUi", "__nw__FUi", "ccMemalign__FUiUi", "__nwa__FUi"):
             m.hooks[self.sym(name)] = self.malloc
         m.hooks[self.sym("ccMemalignB__FUiUi")] = lambda mm, al, n, *a: self.malloc(mm, n)
@@ -231,9 +237,11 @@ class Game:
             or 0)
 
     def malloc(self, m, n, *_):
+        if self.heap < HIGH and self.heap + n > HEAP_END:
+            self.heap, self.went_high = HIGH, True
         a = self.heap
         self.heap = (self.heap + n + 15) & ~15
-        if self.heap > HEAP_END:
+        if self.heap > HIGH_END:
             raise RuntimeError("heap exhausted")
         m.mem[a:a + n] = bytes(n)
         return a
@@ -334,6 +342,11 @@ class Game:
 
     # --- DUNGEON as its constructor and GO(2) leave it -----------------------
     def make(self, info, seeds, field_type, weather, level_max, room_max, event, code, server, hack=0):
+        if self.went_high:
+            # The last case ran past 32 MiB (area 125): the game's globals
+            # keep blocks up there that the next case, its heap reset to its
+            # base, never makes again. A machine of its own.
+            self.__init__()
         m = self.m
         self.load(info["file"], info.get("spccs", ""))
         self.heap = self.base
@@ -931,8 +944,9 @@ def go_back_span():
 def cases():
     """(seeds, field type, weather, levelMax, roomMax, hack, field, dungeon,
     server): story area 14 as the port's --mode dungeon:14 enters it, other
-    story areas (four of them with flag 3, the "E" types 4-7), and random
-    dungeons of the four plain types."""
+    story areas (four of them with flag 3, the "E" types 4-7), random
+    dungeons of the four plain types, and from Mutation on area 125's
+    fifteen floors."""
     rng = random.Random(4)
     out = [((154874216, 3996388677, 1814669918), 10, 0, 4, 9, 2, 14, 0, 0)]
     for ev, ft, hack in ((17, 0, 2), (22, 7, 2), (29, 1, 2), (58, 2, 2), (83, 3, 2), (30, 0, 3), (31, 1, 3),
@@ -942,6 +956,9 @@ def cases():
         for server in (0, 2):
             out.append(((rng.getrandbits(32), rng.getrandbits(32), rng.getrandbits(32)), ft, 0,
                         rng.choice((2, 3, 4)), rng.choice((5, 7, 9)), 2, 0, rng.choice((0, 1)), server))
+    # Area 125's fifteen floors from Mutation on (DUNGEON+0x430, issue #78).
+    if LATER:
+        out.append(((rng.getrandbits(32), rng.getrandbits(32), rng.getrandbits(32)), 0, 0, 3, 7, 2, 125, 0, 0))
     return out
 
 

@@ -189,6 +189,7 @@ class Machine:
     def __init__(self, program):
         self.p = program
         self.mem = bytearray(RAM)
+        self.ram = RAM
         elf = program.elf
         for seg in elf.segments:
             if seg.type == 1 and seg.filesz:
@@ -215,15 +216,23 @@ class Machine:
     # memory -----------------------------------------------------------------
     def load(self, addr, n, signed=False):
         addr &= 0xFFFFFFFF
-        if addr + n > RAM:
+        if addr + n > self.ram:
             raise Stop(f"read of {n} bytes at 0x{addr:08x} is outside RAM")
         return int.from_bytes(self.mem[addr:addr + n], "little", signed=signed)
 
     def store(self, addr, n, value):
         addr &= 0xFFFFFFFF
-        if addr + n > RAM:
+        if addr + n > self.ram:
             raise Stop(f"write of {n} bytes at 0x{addr:08x} is outside RAM")
         self.mem[addr:addr + n] = (value & ((1 << (8 * n)) - 1)).to_bytes(n, "little")
+
+    def grow(self, size):
+        """Memory to `size` bytes: room past the PS2's 32 MiB for a harness
+        whose heap outgrows what the console leaves it. The game's code and
+        data stay where they load."""
+        if size > self.ram:
+            self.mem.extend(bytes(size - self.ram))
+            self.ram = size
 
     # registers --------------------------------------------------------------
     def get(self, i):
