@@ -462,7 +462,8 @@ fn detour(d: &DungeonArea, p: [f32; 4], q: [f32; 2]) -> (Vec<[f32; 2]>, bool) {
             }
         }
     }
-    let Some(mut c) = back.keys().copied().min_by_key(far) else { return (Vec::new(), false) };
+    // Ties broken by the cell, not by the map's order (random per run).
+    let Some(mut c) = back.keys().copied().min_by_key(|c| (far(c), *c)) else { return (Vec::new(), false) };
     let reached = far(&c) < 1500;
     let mut way = Vec::new();
     while c != (0, 0) {
@@ -498,7 +499,8 @@ fn route(map: &piney_battle::navi::PathMap, from: [f32; 2], to: [f32; 2]) -> Vec
         }
     }
     let dist = |c: &(i32, i32)| (c.0 - goal.0).pow(2) + (c.1 - goal.1).pow(2);
-    let Some(mut c) = back.keys().copied().min_by_key(dist) else { return Vec::new() };
+    // Ties broken by the cell, not by the map's order (random per run).
+    let Some(mut c) = back.keys().copied().min_by_key(|c| (dist(c), *c)) else { return Vec::new() };
     let mut way = Vec::new();
     while c != start {
         way.push([150.0 + 300.0 * c.0 as f32, 150.0 + 300.0 * c.1 as f32]);
