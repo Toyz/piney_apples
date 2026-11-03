@@ -91,29 +91,39 @@ impl MatScroll {
     }
 }
 
-/// A map's scrolls: each lane's step a frame, how it wraps, where it
-/// starts and lives, when the materials take it, and the materials.
+/// A static with a first-use guard: the first step sets the lanes to
+/// `value` and the flag, a static of its own at `flag`.
+#[derive(Clone, Copy, Debug)]
+pub struct First {
+    pub value: F,
+    pub flag: usize,
+}
+
+/// A map's scrolls: each lane's step a frame, how it wraps, when the
+/// materials take it, where it lives and what its first use sets, and the
+/// materials.
 #[derive(Clone, Copy, Debug)]
 pub struct ScrollsDef {
     pub steps: &'static [F],
     pub wrap: Wrap,
-    /// What a lane holds before anything carried is taken (the disc's 1).
-    pub from: F,
     pub shown: Shown,
     pub carry: Option<Carry>,
+    pub first: Option<First>,
     pub mats: &'static [MatScroll],
 }
 
 impl ScrollsDef {
     /// A town's `DrawBG`: its statics from `slot`, each above 1 back to 0.
     pub const fn statics(steps: &'static [F], slot: usize, mats: &'static [MatScroll]) -> ScrollsDef {
-        ScrollsDef { steps, wrap: Wrap::Past, from: 0, shown: Shown::After, carry: Some(Carry::Statics(slot)), mats }
+        let carry = Some(Carry::Statics(slot));
+        ScrollsDef { steps, wrap: Wrap::Past, shown: Shown::After, carry, first: None, mats }
     }
 
     /// A story map's `EA_moveTex` table, gcmn's rows from `row`: each
     /// `MOVETEX`'s (u_step, v_step) in `steps`.
     pub const fn move_tex(steps: &'static [F], row: usize, mats: &'static [MatScroll]) -> ScrollsDef {
-        ScrollsDef { steps, wrap: Wrap::Past, from: 0, shown: Shown::After, carry: Some(Carry::MoveTex(row)), mats }
+        let carry = Some(Carry::MoveTex(row));
+        ScrollsDef { steps, wrap: Wrap::Past, shown: Shown::After, carry, first: None, mats }
     }
 }
 
@@ -124,15 +134,17 @@ pub struct Scrolls {
     pub v: Vec<F>,
     /// What the materials took last.
     pub shown: Vec<F>,
+    /// Its first use made (the def's `first` flag).
+    pub used: bool,
     /// The materials' names as the file has them.
     mats: Vec<String>,
 }
 
 impl Scrolls {
     pub fn new(def: &'static ScrollsDef, cx: &mut BuildCx) -> Result<Scrolls> {
-        let v = vec![def.from; def.steps.len()];
+        let v = vec![0; def.steps.len()];
         let mats = def.mats.iter().map(|m| cx.name(m.mat).into_owned()).collect();
-        Ok(Scrolls { def, shown: v.clone(), v, mats })
+        Ok(Scrolls { def, shown: v.clone(), v, used: false, mats })
     }
 
     /// `vftoi12` of lane `k` as the materials last took it.
@@ -145,6 +157,10 @@ impl MapSystem for Scrolls {
     fn step(&mut self, hook: Hook, _: &mut StepCx, _: &mut Others) {
         if hook != Hook::Draw {
             return;
+        }
+        if let Some(f) = self.def.first.filter(|_| !self.used) {
+            self.v.fill(f.value);
+            self.used = true;
         }
         if self.def.shown == Shown::Before {
             self.shown.clone_from(&self.v);
@@ -170,6 +186,9 @@ impl MapSystem for Scrolls {
             }
             _ => return,
         }
+        if let Some(f) = self.def.first {
+            self.used = c.statics[f.flag] != 0;
+        }
         self.shown.clone_from(&self.v);
     }
 
@@ -182,6 +201,9 @@ impl MapSystem for Scrolls {
                 }
             }
             _ => {}
+        }
+        if let Some(f) = self.def.first {
+            c.statics[f.flag] = u32::from(self.used);
         }
     }
 

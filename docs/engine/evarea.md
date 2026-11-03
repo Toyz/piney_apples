@@ -755,8 +755,11 @@ field  animation       camera          dummy          discCnt
 
 **Draw** (0x0041ed30):
 
-1. `DrawBG` (fields 9-11): `MAT_se1_6clo1`'s v from a static that falls
-   0.003 a frame from 1.0, back to 1.0 below 0; the four clumps.
+1. `DrawBG` (fields 9-11): `MAT_se1_6clo1`'s v from a static of the
+   executable (MUT gp 0x0038ba78) that its first call sets to 1.0 (its
+   flag at 0x0038ba7c) and that falls 0.003 a frame, back to 1.0 below
+   0; the four clumps. It carries from one disc field to the next and
+   across visits, as the scroll statics do ([root-towns.md](root-towns.md#the-scroll-statics)).
 2. effLayer: `DrawObj`, the disc.
 3. Fields 9 and 10: each rock's `DrawRock` (0x0041f130): fading in over
    40 frames and out over its last 40, turning and rising, drawn when

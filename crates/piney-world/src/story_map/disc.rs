@@ -23,13 +23,14 @@ use crate::hit::HitModel;
 use crate::sky::cloud;
 use crate::story_map::{BASE_BLOCK, BASE_STORY_MAP, BlockDef, LightsDef, Spread, Start, StoryMapDef, layer};
 use crate::systems::clouds::{CloudsDef, Made};
-use crate::systems::scrolls::{MatScroll, ScrollsDef, Shown, Wrap};
+use crate::systems::scrolls::{Carry, First, MatScroll, ScrollsDef, Shown, Wrap};
 use crate::systems::sky::{SkyClump, SkyDef};
 use crate::systems::statics::{ModelsDef, ObjectsDef, PassLayers, StaticObjects};
 use crate::systems::{
     BuildCx, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, PlaceCx, Report, Request, Signal, Step, StepCx,
     SystemDef,
 };
+use crate::town::scroll_statics as statics;
 use crate::town::{FogParams, clump_models};
 
 /// The scene file (+0x1a4) and field 12's (+0x1d4, `bodyccs`).
@@ -53,14 +54,15 @@ static SKY: SkyDef = SkyDef {
     ],
 };
 
-/// `DrawBG`'s scroll: its static starts at 1.0 and falls by 0.003
-/// (0x3b449ba6) a frame, back to 1.0 below 0; the cloud layer's V.
+/// `DrawBG`'s scroll (MUT 0x0041e420), a static of the executable: its
+/// first use sets it to 1.0, then it falls by 0.003 (0x3b449ba6) a frame,
+/// back to 1.0 below 0; the cloud layer's V. It carries across visits.
 static SCROLLS: ScrollsDef = ScrollsDef {
     steps: &[0x3b44_9ba6],
     wrap: Wrap::Under,
-    from: ONE,
     shown: Shown::After,
-    carry: None,
+    carry: Some(Carry::Statics(statics::DISC_BG)),
+    first: Some(First { value: ONE, flag: statics::DISC_BG_FIRST }),
     mats: &[MatScroll::v("MAT_se1_6clo1", 0)],
 };
 
@@ -773,6 +775,28 @@ mod tests {
         let cells: std::collections::BTreeSet<(u32, u32)> = r.rocks.iter().map(|r| (r.x, r.y)).collect();
         assert_eq!(cells.len(), FLOAT_ROCKS);
         assert!(r.rocks.iter().all(|x| r.grid[x.x as usize][x.y as usize] == 1));
+    }
+
+    /// `DrawBG`'s scroll is the executable's: 1.0 at its first use, then on
+    /// from where the last disc field left it.
+    #[test]
+    fn the_discs_scroll_is_the_executables() {
+        use crate::systems::Carried;
+        use crate::systems::scrolls::Scrolls;
+        let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
+        let v = TownView::default();
+        let mut s = [0; piney_desktop::SCROLL_STATICS];
+        let mut a = made(&archive, Volume::Mut, &DISC_9, 0, 0);
+        a.take(&Carried { statics: &s, move_tex: None });
+        a.step(&v, true, None);
+        let first = a.systems().get::<Scrolls>().unwrap().v[0];
+        assert_eq!(first, ee::sub(ONE, 0x3b44_9ba6));
+        a.put(&mut s, &mut [[0; 2]; piney_desktop::MOVE_TEX_ROWS]);
+        assert_eq!((s[statics::DISC_BG], s[statics::DISC_BG_FIRST]), (first, 1));
+        let mut b = made(&archive, Volume::Mut, &DISC_10, 0, 0);
+        b.take(&Carried { statics: &s, move_tex: None });
+        b.step(&v, true, None);
+        assert_eq!(b.systems().get::<Scrolls>().unwrap().v[0], ee::sub(first, 0x3b44_9ba6));
     }
 
     /// Fields 10 and 11 stop at their stages until Kyvia's `Move`.

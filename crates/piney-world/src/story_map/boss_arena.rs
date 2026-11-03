@@ -106,9 +106,9 @@ static SKY: SkyDef = SkyDef {
 static SCROLLS: ScrollsDef = ScrollsDef {
     steps: &[0x3ac4_9ba6],
     wrap: Wrap::Less,
-    from: 0,
     shown: Shown::Before,
     carry: Some(crate::systems::scrolls::Carry::Statics(crate::town::scroll_statics::ARENA_BG)),
+    first: None,
     mats: &[MatScroll::v("MAT_se1_5clo1", 0)],
 };
 

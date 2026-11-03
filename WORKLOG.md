@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-566 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 162. 143 entries still have open questions - [listed below](#still-open).
+567 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 241, tooling 59, ui 105, video 17, volumes 97, world 163. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -578,6 +578,7 @@ The [reference](docs/README.md) says what is true now.
 | 564 | [One sprite request: EffSprite and one ccEff cache for towns, story maps, fields, dungeons and breaths](worklog/0564-one-sprite-request-effsprite-and-one-cceff-cache-for-towns.md) | 2026-11-02 | world |
 | 565 | [The story maps' statics on systems::statics: one loader, each class's rules in its defs](worklog/0565-the-story-maps-statics-on-systems-statics-one-loader-each.md) | 2026-11-02 | world |
 | 566 | [Story maps as defs: StoryMapDef, blocks and one StoryArea, every EVENTAREA made of systems](worklog/0566-story-maps-as-defs-storymapdef-blocks-and-one-storyarea.md) | 2026-11-02 | world |
+| 567 | [The disc's DrawBG scroll is the executable's: it carries across visits from its first-use 1.0](worklog/0567-the-disc-s-drawbg-scroll-is-the-executable-s-it-carries.md) | 2026-11-02 | world |
 
 ## Still open
 

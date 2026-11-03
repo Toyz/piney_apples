@@ -92,9 +92,10 @@ pub struct SaveState {
     /// GCMN.PRG (all 0) to the next ([`MOVE_TEX_ROWS`]).
     pub move_tex: [[u32; 2]; MOVE_TEX_ROWS],
     /// The draws' scroll statics in the executable's own small data (the
-    /// Root Towns' `DrawBG` and `Draw`, `EVENTAREAB0::DrawBG`, `DUNGEON`'s
-    /// and `WORLD`'s): 0 at power-on and never set again, so each carries
-    /// on across visits, log ins and soft resets ([`SCROLL_STATICS`]).
+    /// Root Towns' `DrawBG` and `Draw`, `EVENTAREAB0::DrawBG` and
+    /// `EVENTAREAB8::DrawBG`, `DUNGEON`'s and `WORLD`'s): 0 at power-on and
+    /// never set again, so each carries on across visits, log ins and soft
+    /// resets ([`SCROLL_STATICS`]).
     pub scroll_statics: [u32; SCROLL_STATICS],
     /// `WORLD`'s ambient drawing's function statics (rain, thunder, steam,
     /// the balloon's cloth) as the last field left them: None until a field
@@ -105,7 +106,7 @@ pub struct SaveState {
 
 /// The scroll statics the port keeps (piney-world's `town::statics` names
 /// them).
-pub const SCROLL_STATICS: usize = 26;
+pub const SCROLL_STATICS: usize = 28;
 
 /// The words of a field's ambient statics ([`SaveState::field_ambient`]).
 pub const FIELD_AMBIENT: usize = 17;

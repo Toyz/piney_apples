@@ -194,14 +194,16 @@ load sets them again: GCMN.PRG's load at log in brings code and its
 own data, not main's, and the soft reset boots nothing. So each scroll
 goes on from its town's last visit, across log ins and resets, until
 power-off. The same holds for `EVENTAREAB0::DrawBG`'s `v$1597`,
-`DUNGEON::DrawWater`'s `u$8862`, the lakes' `DrawBG` `v$8917` and
-`WORLD::DrawBG`'s sky `v$4519`.
+`EVENTAREAB8::DrawBG`'s `v` (MUT gp 0x0038ba78, set to 1.0 at its
+first use, its flag at 0x0038ba7c), `DUNGEON::DrawWater`'s `u$8862`,
+the lakes' `DrawBG` `v$8917` and `WORLD::DrawBG`'s sky `v$4519`.
 
 The port keeps them in `SaveState::scroll_statics`
 (`town::scroll_statics` names the slots). Each town, arena, dungeon and
 field takes them as it is made and hands them back as it is left (a
-town through each system's `take` and `put`: its `Scrolls` and `Water`
-each from its def's slot);
+town or story map through each system's `take` and `put`: its `Scrolls`
+and `Water` each from its def's slot, a first-use flag with it where
+the code keeps one, `ScrollsDef::first`);
 `SaveState::carry_memory` keeps them through the soft reset (worklog
 474).
 

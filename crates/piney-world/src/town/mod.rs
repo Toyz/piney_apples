@@ -569,6 +569,10 @@ pub mod scroll_statics {
     pub const WORLD_LAKE: usize = 22;
     /// `WORLD::DrawBG`'s turns, `rot2$4526.z` and `rot3$4527.z`.
     pub const WORLD_BG_TURN: usize = 24;
+    /// `EVENTAREAB8::DrawBG`'s `v` (MUT gp 0x0038ba78) and its first-use
+    /// flag (0x0038ba7c): the first call sets it to 1.0.
+    pub const DISC_BG: usize = 26;
+    pub const DISC_BG_FIRST: usize = 27;
 
     /// The statics from `at` into `dst`.
     pub fn take(dst: &mut [u32], src: &[u32; SCROLL_STATICS], at: usize) {
