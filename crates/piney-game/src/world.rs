@@ -1303,11 +1303,9 @@ impl Mode for WorldMode {
         }
         let mut pc_starts = Vec::new();
         self.race_events(&mut pc_starts);
-        // ccThMenu breathes until party slot 0 is filled: from the tasks'
-        // first frame on.
-        if let Phase::Play(f) = self.world.phase()
-            && f >= 2
-            && self.setup != Setup::Left
+        // What the characters' tasks started this frame, in it: their
+        // effects, sounds and chat lines (the effects are the frame's
+        // ccThEffect's, as a field's are).
         {
             // The walking PCs' chat lines this frame (ccRtownPC's OpenChat)
             // and their effTransfers.
@@ -1406,15 +1404,19 @@ impl Mode for WorldMode {
             for (id, text) in self.world.take_party_chats() {
                 self.ui.open_chat(handle(Kind::Spc, id), &text, &names);
             }
-            // ccThFieldDisp's ROOTTOWN01::Draw -> DrawMap, after ccThMenu has
-            // set this frame's alpha.
-            if let Some(map) = self.map.as_mut().filter(|_| !self.hack_screen) {
-                let p = self.world.player();
-                let (pos, dirc) = (p.body.pos, p.body.dirc);
-                self.map_st.hud_scale = self.ui.hud_scale;
-                let racers = self.world.map_racers();
-                piney_world::map::town_frame(map, &mut self.map_st, pos, dirc, racers, !self.world.asleep(), &mut ctx);
-            }
+        }
+        // ccThFieldDisp's ROOTTOWN01::Draw -> DrawMap from the tasks' second
+        // frame, after ccThMenu has set this frame's alpha.
+        if let Phase::Play(f) = self.world.phase()
+            && f >= 2
+            && self.setup != Setup::Left
+            && let Some(map) = self.map.as_mut().filter(|_| !self.hack_screen)
+        {
+            let p = self.world.player();
+            let (pos, dirc) = (p.body.pos, p.body.dirc);
+            self.map_st.hud_scale = self.ui.hud_scale;
+            let racers = self.world.map_racers();
+            piney_world::map::town_frame(map, &mut self.map_st, pos, dirc, racers, !self.world.asleep(), &mut ctx);
         }
         // ccThEffect (80) and ccThParticle (98): Kite's, the members' and
         // the walking PCs' transfers started, the effects stepped (not
@@ -1974,6 +1976,34 @@ mod tests {
         assert!([4, 5].iter().all(|&m| s.mail(m) >= 4), "mails 4 and 5 read");
         assert_eq!(vm.operate(), 0, "event 1 released the operations");
         assert_eq!(vm.phase(), -1, "Log in disabled the task");
+    }
+
+    /// Event 2 in Mac Anu, the town's characters' events taken in the frame
+    /// their tasks made them (worklog 576): none waits for a later frame.
+    #[test]
+    fn event_2_s_characters_events_are_taken_in_their_frame() {
+        let iso = crate::check_image("infection");
+        if !iso.exists() {
+            return;
+        }
+        let mut disc = Iso::open(&iso).unwrap();
+        let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+        let (state, vm) = new_game_events(&mut disc).unwrap();
+        let mut mode = WorldMode::enter(&iso, &archive, state, Some(vm)).unwrap();
+        let mut pad = Pad::default();
+        let mut f = 0u64;
+        while mode.scene_change().is_none() && f < 20_000 {
+            f += 1;
+            pad.read(&Raw { buttons: player(&mode, f), ..Raw::default() });
+            mode.step(&pad);
+            mode.take_events();
+            let at = mode.world().phase();
+            let w = mode.world_mut();
+            assert!(w.take_pc_events().is_empty(), "frame {f} ({at:?}): the walking PCs' events wait");
+            assert!(w.take_dog_events().is_empty(), "frame {f} ({at:?}): the dogs' events wait");
+            assert!(w.take_grunty_events().is_empty(), "frame {f} ({at:?}): the Grunties' events wait");
+            assert!(w.take_party_chats().is_empty(), "frame {f} ({at:?}): the party's lines wait");
+        }
     }
 
     /// Event 2 plays in Mac Anu from the arrival to its `scene`: every call the

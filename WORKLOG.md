@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-575 entries: audio 45, battle 157, build 31, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 64, test 242, tooling 59, ui 105, video 18, volumes 97, world 170. 143 entries still have open questions - [listed below](#still-open).
+576 entries: audio 45, battle 157, build 31, content 3, decomp 29, disc 6, engine 28, format 18, iop 3, render 131, save 16, script 64, test 242, tooling 59, ui 105, video 18, volumes 97, world 171. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -587,6 +587,7 @@ The [reference](docs/README.md) says what is true now.
 | 573 | [EvHost: one event host for every area, what differs by world its HostWorld](worklog/0573-evhost-one-event-host-for-every-area-what-differs-by-world.md) | 2026-11-03 | script, build |
 | 574 | [A town's tasks run on while a script's stream plays, as ccEventStream breathes](worklog/0574-a-town-s-tasks-run-on-while-a-script-s-stream-plays-as.md) | 2026-11-03 | script, video, world |
 | 575 | [A town's set-up goes by CheckSceneReplace for its sound, as every area's](worklog/0575-a-town-s-set-up-goes-by-checkscenereplace-for-its-sound-as.md) | 2026-11-03 | audio, world |
+| 576 | [A town's characters' effects and sounds are taken in their frame, as a field's](worklog/0576-a-town-s-characters-effects-and-sounds-are-taken-in-their.md) | 2026-11-03 | world, engine |
 
 ## Still open
 

@@ -146,3 +146,27 @@ fn a_town_set_up_again_keeps_its_sound() {
     assert!(other.iter().any(|e| matches!(e, Event::SqLoad(_))), "and loads its bank: {other:?}");
     assert!(!other.contains(&Event::VoiceStop), "not ccEvVoiceStop: {other:?}");
 }
+
+/// What the town's characters started in a frame is the frame's: their
+/// tasks call `effTransfer` and `ccSeOn3D` as they run (`ccRtownPC::
+/// normalMode`, INF gcmn 0x005085ec; `ccMerchan::sysopeAct` 0x005062f0),
+/// from the tasks' first frame, and that frame's `ccThEffect` starts them.
+/// After every frame of a town's set-up and play none is left waiting.
+#[test]
+fn a_towns_characters_effects_and_sounds_are_taken_in_their_frame() {
+    for town in 0..5 {
+        let Some(mut s) = in_town(town) else { return };
+        let pad = Pad::default();
+        for _ in 0..400 {
+            s.step(&pad);
+            s.take_events();
+            let Stage::World(w) = &mut s.stage else { panic!("left town {town}") };
+            let f = w.world().phase();
+            let w = w.world_mut();
+            assert!(w.take_pc_events().is_empty(), "town {town} at {f:?}: the walking PCs' events wait");
+            assert!(w.take_dog_events().is_empty(), "town {town} at {f:?}: the dogs' events wait");
+            assert!(w.take_grunty_events().is_empty(), "town {town} at {f:?}: the Grunties' events wait");
+            assert!(w.take_town_events().is_empty(), "town {town} at {f:?}: the town's own events wait");
+        }
+    }
+}
