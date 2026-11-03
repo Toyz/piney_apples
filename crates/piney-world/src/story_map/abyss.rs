@@ -166,7 +166,7 @@ mod tests {
         // Draw: both pass-0 models go out on objLayer.
         let mut layers = piney_desktop::layers::Layers::default();
         let mut cc = piney_battle::rand::Genrand::default();
-        a.draw(&mut layers, glam::Mat4::IDENTITY, &crate::town::TownView::default(), true, &mut cc);
+        a.draw(&mut layers, glam::Mat4::IDENTITY, &crate::systems::MapView::default(), true, &mut cc);
         assert!(!layers.flatten().is_empty(), "nothing drawn");
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 + 4;
         save.set_i32(at, MARK_BIT as i32);

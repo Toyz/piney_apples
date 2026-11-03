@@ -45,11 +45,12 @@ use crate::draw::Fogging;
 use crate::ee::{F, ONE, V4};
 use crate::hit::{HitModel, Hits};
 use crate::sprite::EffSprite;
+use crate::systems::MapView;
 use crate::systems::{
     BuildCx, Carried, CarriedMut, DrawCx, Drawn, MapCx, PlaceCx, Report, Request, Signal, Step, SystemDef, Systems,
     paint, shorten,
 };
-use crate::town::{FogParams, TownLights, TownView};
+use crate::town::{FogParams, TownLights};
 
 /// `WORLD_MAN::GO(1)`'s bounds for a story map: -48000..48000 both ways.
 pub const BOUNDS: [F; 4] = [0xc73b_8000, 0xc73b_8000, 0x473b_8000, 0x473b_8000];
@@ -416,13 +417,13 @@ pub fn build(env: &mut MapEnv<'_>, model: i32) -> Result<Option<Box<StoryArea>>>
             _ => None,
         };
         if let Some(mut a) = kept {
-            a.take(&Carried { statics: &statics, move_tex: None });
+            a.take(&Carried { statics: &statics, move_tex: None, field: None });
             return Ok(Some(a));
         }
     }
     let mut a = StoryArea::new(def, env)?;
     let move_tex = env.move_tex;
-    a.take(&Carried { statics: &statics, move_tex: Some(&move_tex) });
+    a.take(&Carried { statics: &statics, move_tex: Some(&move_tex), field: None });
     Ok(Some(Box::new(a)))
 }
 
@@ -485,6 +486,8 @@ impl StoryArea {
             rng: env.field_rand,
             map: Some(map),
             cc: shorten(Some(&mut *env.cc)),
+            field: None,
+            made: Vec::new(),
         };
         let systems = Systems::build(def.systems, &mut cx)?;
         let mut rng = cx.rng;
@@ -526,6 +529,8 @@ impl StoryArea {
             rng: *rng,
             map: Some(map),
             cc: shorten(cc),
+            field: None,
+            made: Vec::new(),
         };
         let made = self.systems.build_block(block.systems, &mut cx);
         *rng = cx.rng;
@@ -654,7 +659,7 @@ impl StoryArea {
 
     /// The systems' scroll statics and gcmn's scrolls written back.
     pub fn put(&self, statics: &mut [u32; SCROLL_STATICS], move_tex: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
-        self.systems.put(&mut CarriedMut { statics, move_tex: Some(move_tex) });
+        self.systems.put(&mut CarriedMut { statics, move_tex: Some(move_tex), field: None });
     }
 
     /// The battle's call on `WORLD_MAN.eventmap`.
@@ -678,7 +683,7 @@ impl StoryArea {
     /// The block's `Draw` for this frame: its steps in order, into the
     /// frame; asleep, its sleeping steps, everything they moved put back
     /// after the frame is drawn ([`StoryArea::draw`]).
-    pub fn step(&mut self, v: &TownView, awake: bool, cc: Option<&mut dyn piney_battle::rand::Rng>) {
+    pub fn step(&mut self, v: &MapView, awake: bool, cc: Option<&mut dyn piney_battle::rand::Rng>) {
         let block = self.block_def();
         let steps = if awake { block.order } else { block.asleep.unwrap_or(block.order) };
         self.frame.clear();
@@ -709,7 +714,7 @@ impl StoryArea {
         &mut self,
         layers: &mut Layers,
         to_screen: Mat4,
-        v: &TownView,
+        v: &MapView,
         awake: bool,
         cc: &mut dyn piney_battle::rand::Rng,
     ) -> Vec<EffSprite> {

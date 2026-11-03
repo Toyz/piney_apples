@@ -18,8 +18,9 @@ use piney_world::systems::sky::Sky;
 use piney_world::systems::statics::StaticModels;
 use piney_world::systems::water::Water;
 use piney_world::systems::{Drawn, Kind, Piece};
+use piney_world::systems::{MapEvent, MapView};
+use piney_world::town::Town;
 use piney_world::town::carmina_gadelica::Airship;
-use piney_world::town::{Town, TownEvent, TownView};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -103,7 +104,7 @@ fn main() {
             }
             Some("draw") => {
                 let t = town.as_mut().unwrap();
-                t.step(&TownView { eye: [n(1), n(2), n(3), ee::ONE], ..TownView::default() });
+                t.step(&MapView { eye: [n(1), n(2), n(3), ee::ONE], ..MapView::default() });
                 let events = t.take_events();
                 let s = t.systems();
                 let (sky, water, d) = (s.get::<Sky>().unwrap(), s.get::<Water>().unwrap(), s.get::<Airship>().unwrap());
@@ -128,14 +129,15 @@ fn main() {
                     })
                 }));
                 let events = list(events.iter().map(|e| match *e {
-                    TownEvent::SmokeN { pos, v, scale, life, kind, fade } => format!(
+                    MapEvent::SmokeN { pos, v, scale, life, kind, fade } => format!(
                         "[\"smoke\", {}, {}, {scale}, {life}, {kind}, {}, {}]",
                         list(&pos[..3]),
                         list(&v[..3]),
                         fade.0,
                         fade.1
                     ),
-                    TownEvent::Se3d { n, pos } => format!("[\"se\", {n}, {}]", list(&pos[..3])),
+                    MapEvent::Se3d { n, pos } => format!("[\"se\", {n}, {}]", list(&pos[..3])),
+                    e => panic!("Carmina Gade starts no {e:?}"),
                 }));
                 // DrawBG writes the crisis materials' offset only in crisis.
                 let bg = if sky.made(4) { scrolls.uv(1) } else { 0 };

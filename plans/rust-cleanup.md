@@ -270,11 +270,18 @@ Where the code does by hand, per kind, what a system should do once:
       `FIREFLY2`s (`Firefly2`), `revAnm` (`Anim`), the giant's `Bob` and
       each class's own (`Flicker`, `FlyOver`, `Panels`, `Reflection`,
       `Bobbing`, `LastStage`, `Disc`, `Rocks`, `Bodies`) systems; the
-      battle's calls `Signal`s, what it reads a `Report`. Left: the
-      fields' clouds, flare (`field_flare`'s wrap around the torus) and
-      `DrawBG` scroll wrap as `FlareDraw` / `ScrollsDef` variants with
-      `FieldDef`, the fields' fireflies (`FIREFLY`), lights, the fields'
-      ambient, the dungeons'.)
+      battle's calls `Signal`s, what it reads a `Report`. Worklog 568:
+      golden shots of every field type and row, plain and hacked, and of
+      every dungeon type, on every volume. Worklog 569: the fields are
+      defs: `FieldDef` by field type (`BASE_FIELD`), its systems by who
+      makes them (`Init`, `DrawBG` plain or hacked, `Generate`) and
+      `WORLD::Draw`'s order; `DrawBG`'s clumps and scroll with its turns
+      on `Sky` (`ClumpName::Row`, `At::Centre`) and `ScrollsDef::turns`,
+      the flare `FlareDraw::Field` with a row's `Sun`, `FIREFLY`
+      (`Fireflies`) beside `Firefly2` (`Roam`), the field's light its
+      `AreaCore`'s, the ambient (`Snow`, `Smoke`, `Steam`, `Haze`, `Lake`,
+      `Rain`, `Thunder`, `Fires`, `Tobj`, `Bird`) systems; no world or game
+      code names a field type. Left: the dungeons'.)
 - [ ] **Scene transitions.** The session's `change`, `leave`, `enter_world`
       and the modes' `change_area` / `scene_change` / `leave` repeat the
       same request handling (worklog 503 had the console's `town` skip it);

@@ -23,13 +23,13 @@ use piney_world::sky::lensflare::FlareCamera;
 use piney_world::story_map::boss_arena::FIREFLIES;
 use piney_world::story_map::holy_ground::{self, HOLY_GROUND};
 use piney_world::story_map::{Enter, MapEnv, StoryArea, StoryMapDef};
+use piney_world::systems::MapView;
 use piney_world::systems::anim::Anim;
 use piney_world::systems::fireflies::Fireflies2;
 use piney_world::systems::scrolls::Scrolls;
 use piney_world::systems::sky::Sky;
 use piney_world::systems::statics::{StaticModels, StaticObjects};
 use piney_world::systems::{Drawn, Kind, Piece, Request};
-use piney_world::town::TownView;
 use piney_world::{Rand, tasks};
 
 fn hex(s: &str) -> u32 {
@@ -176,6 +176,7 @@ fn pieces(a: &StoryArea) -> Vec<(Kind, Piece, Option<i16>, bool)> {
             Some(Request::Models { layer, fog, .. }) => (Some(layer), !matches!(fog, Fogging::None)),
             Some(Request::Anim { layer, fog, .. }) => (Some(layer), !matches!(fog, Fogging::None)),
             Some(Request::Sprite(s)) => (Some(s.layer), s.state.fog),
+            Some(Request::Posed { layer, .. } | Request::Masks { layer, .. }) => (Some(layer), false),
             None => (None, false),
         };
         out.push((kind, piece, layer, fog));
@@ -232,7 +233,7 @@ fn main() {
             }
             Some("arenadraw") => {
                 let a = arena.as_mut().unwrap();
-                let v = TownView { player: [n(1), n(2), n(3), ee::ONE], ..TownView::default() };
+                let v = MapView { player: [n(1), n(2), n(3), ee::ONE], ..MapView::default() };
                 a.step(&v, true, None);
                 let mut last = false;
                 let mut out = Vec::new();
@@ -257,7 +258,7 @@ fn main() {
                 }
                 let models = a.systems().get::<StaticModels>();
                 let bob = list(models.into_iter().flat_map(|m| m.iter()).skip(6).take(3).map(|m| list(m.pos)));
-                let v = a.systems().get::<Scrolls>().unwrap().uv(0);
+                let v = ee::vftoi12(a.systems().get::<Scrolls>().unwrap().before[0]);
                 println!(
                     "{{\"pieces\": {}, \"bob\": {bob}, \"v\": {v}, \"seed\": {}}}",
                     list(out),
@@ -282,7 +283,7 @@ fn main() {
                 let eye = v4(1);
                 let player = [n(5), n(6), n(7), ee::ONE];
                 let flare = FlareCamera { eye, view: v4(9), rot: v4(13) };
-                let v = TownView { eye, player, flare, puppet_show: n(8) != 0, ..TownView::default() };
+                let v = MapView { eye, player, flare, puppet_show: n(8) != 0, ..MapView::default() };
                 a.step(&v, true, None);
                 let sky = a.systems().get::<Sky>();
                 let objects = a.systems().get::<StaticObjects>();

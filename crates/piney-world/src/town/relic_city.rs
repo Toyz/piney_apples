@@ -77,11 +77,12 @@ pub static RELIC_CITY: TownDef = TownDef {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::systems::MapView;
     use crate::systems::scrolls::Scrolls;
     use crate::systems::sky::Sky;
     use crate::systems::statics::StaticModels;
     use crate::systems::{Drawn, Piece};
-    use crate::town::{Town, TownView};
+    use crate::town::Town;
 
     fn town() -> Option<Town> {
         let archive = crate::town::tests::archive_of("quarantine")?;
@@ -106,7 +107,7 @@ mod tests {
     #[test]
     fn a_frame() {
         let Some(mut t) = town() else { return };
-        t.step(&TownView::default());
+        t.step(&MapView::default());
         let clump = |k: usize| Drawn::Piece(Kind::Sky, Piece::Clump(k));
         let model = |row: usize| Drawn::Piece(Kind::Models, Piece::Model(row));
         assert_eq!(t.frame(), [clump(0), clump(1), clump(2), clump(3), clump(4), model(2), model(1), model(0)]);

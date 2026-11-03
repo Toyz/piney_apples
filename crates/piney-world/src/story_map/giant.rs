@@ -78,7 +78,7 @@ static SCROLLS: ScrollsDef = ScrollsDef::move_tex(
 /// `CLOUD`s of type 1, made by `ChangeBlock(0)` about the origin.
 static CLOUDS: CloudsDef = CloudsDef { count: 25, kind: 1, made: Made::Build };
 /// `LENSFLARE::Draw(se1_7_1, DMY_se1_7lig1point, 0)`.
-static FLARE: FlareDef = FlareDef { sun: "DMY_se1_7lig1point", draw: FlareDraw::LensFlare };
+static FLARE: FlareDef = FlareDef::at("DMY_se1_7lig1point", FlareDraw::LensFlare);
 
 /// Block 0's `Draw` (gcmn 0x00406b80): `DrawBG` (the bob, the scrolls, the
 /// clumps), on objLayer `DrawObj2`, `DrawObj`, `DrawFloor` (each its rows,
@@ -159,10 +159,10 @@ mod tests {
     use crate::ee;
     use crate::story_map::tests::made;
     use crate::story_map::{Enter, StoryArea};
+    use crate::systems::MapView;
     use crate::systems::bob::Bob;
     use crate::systems::clouds::Clouds;
     use crate::systems::statics::{StaticModels, StaticObjects};
-    use crate::town::TownView;
 
     fn counts(g: &StoryArea) -> (usize, usize, usize) {
         let s = g.systems();
@@ -206,7 +206,7 @@ mod tests {
     fn the_background_bobs() {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut g = made(&archive, Volume::Inf, &GIANT, 0, 7);
-        let v = TownView::default();
+        let v = MapView::default();
         let bob = |g: &StoryArea| g.systems().get::<Bob>().map(|b| (b.z, b.rising)).unwrap();
         let (mut top, mut turns, mut last) = (0.0f32, 0, bob(&g).1);
         for _ in 0..600 {

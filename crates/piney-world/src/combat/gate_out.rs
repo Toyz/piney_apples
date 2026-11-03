@@ -82,9 +82,9 @@ pub fn keeps_gt_hack(area: i32, area_prev: i32, dungeon_type: i32) -> bool {
 
 /// Where the hacked arrival's checks look (`ccPlayer::ccPlayer`,
 /// `ccAddRequestFileListSpc`, `ccFellow::Initialize`): `game.area` 1, or
-/// `WORLD_MAN`'s field type 4 with `game.dungeon` (+0x28) 0.
-fn arrival_place(area: i32, field_type: i32, dungeon: i32) -> bool {
-    area == 1 || (field_type == 4 && dungeon == 0)
+/// with no field (`WORLD_MAN`'s field type 4) `game.dungeon` (+0x28) 0.
+fn arrival_place(area: i32, no_field: bool, dungeon: i32) -> bool {
+    area == 1 || (no_field && dungeon == 0)
 }
 
 /// `ccAddRequestFileListSpc` (gcmn 0x005a10e0)'s gate-hack part: from a
@@ -96,20 +96,20 @@ pub fn hack_out_id(
     volume: Volume,
     area: i32,
     area_prev: i32,
-    field_type: i32,
+    no_field: bool,
     dungeon: i32,
     field: i32,
     gt_hack: bool,
 ) -> Option<i32> {
-    (arrival_place(area, field_type, dungeon) && area_prev == 0 && gt_hack).then(|| gate_hacking_out_id(volume, field))
+    (arrival_place(area, no_field, dungeon) && area_prev == 0 && gt_hack).then(|| gate_hacking_out_id(volume, field))
 }
 
 /// `ccAI::ccAI`'s `arrivalChatCnt` (+0x80, gcmn 0x0057c8f4): 150 in a
-/// town, and in a field (or a dungeon of a field of type 4 with
+/// town, and in a field (or with no field, field type 4, a dungeon with
 /// `game.dungeon` 0) entered from a town unless the gate was hacked; else
 /// -1.
-pub fn arrival_chat(area: i32, area_prev: i32, field_type: i32, dungeon: i32, gt_hack: bool) -> i16 {
-    let place = area == 1 || (area == 2 && field_type == 4 && dungeon == 0);
+pub fn arrival_chat(area: i32, area_prev: i32, no_field: bool, dungeon: i32, gt_hack: bool) -> i16 {
+    let place = area == 1 || (area == 2 && no_field && dungeon == 0);
     match area {
         0 => 150,
         _ if place && area_prev == 0 && !gt_hack => 150,

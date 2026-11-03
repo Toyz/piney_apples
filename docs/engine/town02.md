@@ -462,7 +462,7 @@ Clouds.Start, Water, Scrolls, Sky, PASSES (Models and Objects of
 Obj2 and Obj, Models of Floor), Map, Models(Other), LensFlare, Clouds
 ```
 
-`Town::step` runs them with a `TownView` (the eye, the player, the
+`Town::step` runs them with a `MapView` (the eye, the player, the
 active camera, the flare's camera, `puppetShow`, `world_screen`); each
 system puts its pieces in the frame, and `Town::requests` hands them back
 as generic draws (models, a `ccAnm`, a `ccEff` as `EffSprite`) which the

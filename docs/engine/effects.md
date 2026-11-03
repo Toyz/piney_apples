@@ -2484,7 +2484,8 @@ every draw in order, every event and `rand()`'s state:
   `ccRtownPC::eventMode`'s -3 is ported: `effAfterDrain`,
   `effVirusCrystal` and `effRemoveTrap`
   ([field-game](field-game.md)). Every other caller of `effSmoke` in Infection is ported
-  (`WORLD::DrawSteam` and `DrawEffect` in `field_ambient`, `ccGimSymbol`,
+  (`WORLD::DrawSteam` and `DrawEffect`, the field's steam and fires
+  systems, `ccGimSymbol`,
   `ccDog`, `ccPGuso`, `ccPucciguso`, the enemies' dust and broken parts).
 - `effResistantShield` with no `affectPerson` reads the heading's target
   through a null pointer: whatever the machine holds at 0x50 (the

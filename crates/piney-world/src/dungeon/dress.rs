@@ -17,7 +17,6 @@ use super::{Anm, DungeonArea, Instance, Slot, invers};
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::Op;
 use crate::field::area::REF_LAYER;
 use crate::hit::{HitModel, UNIT};
 use crate::sprite::{Clut, EffSprite, EffState};
@@ -612,17 +611,16 @@ impl DungeonArea {
     /// transparency times its pattern's (over 4096) and both patterns on
     /// by one (the second's first). All on `EFF_LAYER` (3). The lakes'
     /// fireflies, tree and leaves are not ported.
-    pub fn draw_eff(&mut self, step: bool) -> Vec<Op> {
+    pub fn draw_eff(&mut self, step: bool) -> Vec<EffSprite> {
         let mut out = Vec::new();
         let clut = self.spark_clut();
         let file = self.file_name;
-        let sprite = |name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, state: EffState| {
-            Op::Sprite(EffSprite {
+        let sprite =
+            |name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, state: EffState| EffSprite {
                 scale: [scale; 2],
                 transparency,
                 ..EffSprite::new(file, name, pos, pattern, crate::draw::EFF_LAYER, state)
-            })
-        };
+            };
         for s in &mut self.dress.sparks {
             if step {
                 s.step(&mut self.rng);
@@ -787,7 +785,7 @@ impl DungeonArea {
         to_screen: Mat4,
         world_screen: &[V4; 4],
         step: bool,
-    ) -> Vec<Op> {
+    ) -> Vec<EffSprite> {
         self.draw_water(layers, to_screen, world_screen, step);
         let out = self.draw_eff(step);
         if step {

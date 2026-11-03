@@ -1353,10 +1353,10 @@ impl Mode for WorldMode {
             // Carmina Gade's airship: its chimneys' effSmokeN and ccSeOn3D.
             for e in self.world.take_town_events() {
                 match e {
-                    piney_world::town::TownEvent::SmokeN { pos, v, scale, life, kind, fade } => {
+                    piney_world::systems::MapEvent::SmokeN { pos, v, scale, life, kind, fade } => {
                         pc_starts.push(crate::town_fx::Start::PuffN { pos, v, scale, life, kind, fade });
                     }
-                    piney_world::town::TownEvent::Se3d { n, pos } => {
+                    piney_world::systems::MapEvent::Se3d { n, pos } => {
                         if let Ok(n) = usize::try_from(n) {
                             let cam = self.world.camera().active();
                             let ear =
@@ -1364,6 +1364,8 @@ impl Mode for WorldMode {
                             self.events.push(Event::Se3d { n, pos, note: None, ear });
                         }
                     }
+                    // A town's systems start none of a field's.
+                    _ => {}
                 }
             }
             // ccSoundMain's scene sounds: the canals of the town type it

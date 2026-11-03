@@ -15,8 +15,9 @@ use piney_desktop::layers::Layers;
 use super::{DungeonArea, Slot};
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Env, Op, get_time};
+use crate::field::ambient::{Env, Ground, get_time};
 use crate::field::firefly::FieldFirefly;
+use crate::sprite::EffSprite;
 
 /// `WORLD_MAN` +0x494 .. +0x4a4: the layers `DrawBG` draws on.
 const LAYERS: [i16; 5] = [-100, -90, -80, -70, -60];
@@ -159,32 +160,20 @@ impl DungeonArea {
     /// `DrawEff`'s fireflies: by night or hacked, each one's `Move` (with
     /// `step`) and `Draw`, about the player, their sprites `field_eff`'s
     /// (`DUNGEON` +0x34c).
-    pub fn draw_fireflies(&mut self, player: V4, step: bool, out: &mut Vec<Op>) {
+    pub fn draw_fireflies(&mut self, player: V4, step: bool, out: &mut Vec<EffSprite>) {
         let volume = self.hits.volume;
         let Some(lake) = self.lake.as_mut() else { return };
         if !lake.night {
             return;
         }
-        let flat = |_: F, _: F| 0;
-        let env = Env {
-            volume,
-            player,
-            centre: player,
-            ofs: [player[0], player[1]],
-            height: &flat,
-            eye: player,
-            eye1: player,
-            rot: [0; 4],
-            rot2: [0; 4],
-            eye_view: false,
-            odd: false,
-            bounds: super::BOUNDS,
-        };
+        let env = Env { bounds: super::BOUNDS, ..Env::at(volume, player, Ground::Flat) };
         // FIREFLY::Move's sparks: EFF_sfzfir1 in field type 9.
-        let spark = if lake.field_type == 9 { "EFF_sfzfir1" } else { "EFF_sfpfir_1" };
+        let def = crate::field::def::FieldDef::of(lake.field_type);
+        let spark = def.map_or("EFF_sfpfir_1", |d| d.spark);
+        let field = def.is_some_and(|d| d.field);
         for f in &mut lake.fireflies {
             if step {
-                f.step(&env, lake.field_type, &mut self.rng);
+                f.step(&env, field, &mut self.rng);
             }
             f.draw(&env, spark, &mut self.rng, out);
         }

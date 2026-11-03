@@ -2452,7 +2452,7 @@ impl StoryPilot {
         rush: bool,
     ) -> Option<Raw> {
         let hits = match w.place() {
-            Place::Field(fa) => &fa.hits,
+            Place::Field(fa) => &fa.core.hits,
             Place::Story(m) => m.hits(),
             Place::Dungeon(_) => return None,
         };
@@ -2527,12 +2527,12 @@ impl StoryPilot {
         if f.is_multiple_of(60) {
             let stopped = self.mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0);
             if far <= 2500.0 && (stopped || self.path.is_empty()) {
-                self.path = entrance_path(&fa.hits, [p[0], p[1], p[2]], [mid[0], mid[1]]);
+                self.path = entrance_path(&fa.core.hits, [p[0], p[1], p[2]], [mid[0], mid[1]]);
             } else if far > 2500.0 && stopped {
                 // Far and held by a wall: the same search on a grid wide
                 // enough to hold him (81 cells, the step the distance asks).
                 let step = (far * 2.2 / 81.0).max(100.0);
-                self.path = path_to(&fa.hits, [p[0], p[1], p[2]], [mid[0], mid[1]], 81, step, |_, door| door);
+                self.path = path_to(&fa.core.hits, [p[0], p[1], p[2]], [mid[0], mid[1]], 81, step, |_, door| door);
                 if self.path.is_empty() {
                     let side = if self.sidestep.1 > 0.0 { -1.0 } else { 1.0 };
                     self.sidestep = (f + 90, side);

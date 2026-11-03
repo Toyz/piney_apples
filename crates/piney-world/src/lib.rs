@@ -1268,8 +1268,8 @@ impl World {
     }
 
     /// The effects and sounds the town's draws started since the last
-    /// call ([`town::TownEvent`]).
-    pub fn take_town_events(&mut self) -> Vec<town::TownEvent> {
+    /// call ([`crate::systems::MapEvent`]).
+    pub fn take_town_events(&mut self) -> Vec<crate::systems::MapEvent> {
         self.town.take_events()
     }
 
@@ -1819,13 +1819,14 @@ impl World {
             // clouds and lens flare the player, the active camera and
             // puppetShow.
             let a = self.camera.active();
-            let v = town::TownView {
+            let v = crate::systems::MapView {
                 eye: a.pos,
                 player: self.player.body.pos,
                 cam: a.clone(),
                 flare: crate::sky::lensflare::FlareCamera::of(&self.camera),
                 puppet_show: self.camera.puppet_show,
                 world_screen: self.camera.world_screen,
+                ..crate::systems::MapView::default()
             };
             self.town.step(&v);
             self.town_sprites.clear();

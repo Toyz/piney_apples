@@ -15,6 +15,7 @@ use piney_data::statics::DrawPass;
 use piney_world::camera::Cam;
 use piney_world::ee::{self, V4};
 use piney_world::sky::lensflare::FlareCamera;
+use piney_world::systems::MapView;
 use piney_world::systems::clouds::Clouds;
 use piney_world::systems::flare::LensFlare;
 use piney_world::systems::scrolls::Scrolls;
@@ -23,7 +24,7 @@ use piney_world::systems::statics::{StaticModels, StaticObjects};
 use piney_world::systems::water::Water;
 use piney_world::systems::{Drawn, Kind, Piece};
 use piney_world::town::dun_loireag::{CLOUD_SKY, SUN};
-use piney_world::town::{Town, TownView, water_st};
+use piney_world::town::{Town, water_st};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -119,7 +120,7 @@ fn main() {
                 let (view, rot, rot2, kind) = (v4(8), v4(12), v4(16), n(20) as i32);
                 let cam = Cam { pos: eye, view, rot, rot3: rot2, kind, ..Cam::default() };
                 let flare = FlareCamera { eye, view, rot: if kind == 1 { rot2 } else { rot } };
-                let v = TownView { eye, player, cam, flare, puppet_show: puppet, world_screen: [[0; 4]; 4] };
+                let v = MapView { eye, player, cam, flare, puppet_show: puppet, ..MapView::default() };
                 t.step(&v);
                 let s = t.systems();
                 let (sky, water, clouds) =

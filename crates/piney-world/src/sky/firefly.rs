@@ -10,6 +10,7 @@
 use piney_data::dungeon::Rng;
 
 use crate::ee::{self, F, ONE, V4};
+use crate::field::ambient::Ground;
 use crate::field::area::{ground_dist, p2w, w2p};
 
 /// 1000.0: how far across from the player a firefly moves and is drawn.
@@ -43,14 +44,18 @@ pub struct Fly<'a> {
     pub eye: V4,
     pub rot: V4,
     /// `WORLD_MAN::GetHeight`.
-    pub height: &'a dyn Fn(F, F) -> F,
+    pub ground: Ground<'a>,
 }
 
 impl Fly<'_> {
     /// The arena's: its bounds, and no camera or ground (type 0 reads
     /// neither).
     fn arena(volume: piney_data::volume::Volume, player: V4) -> Fly<'static> {
-        Fly { volume, player, bounds: crate::story_map::BOUNDS, eye: [0; 4], rot: [0; 4], height: &|_, _| 0 }
+        Fly { volume, player, bounds: crate::story_map::BOUNDS, eye: [0; 4], rot: [0; 4], ground: Ground::Flat }
+    }
+
+    fn height(&self, x: F, y: F) -> F {
+        self.ground.height(x, y)
     }
 }
 
@@ -183,7 +188,7 @@ impl Firefly {
         self.pos = ee::vadd(self.pos, self.base);
         self.pos[2] = from_rand(rng.below(100));
         if self.kind == 1 {
-            let h = (fly.height)(self.pos[0], self.pos[1]);
+            let h = fly.height(self.pos[0], self.pos[1]);
             self.pos[2] = ee::add(h, from_rand(rng.below(300)));
         }
         self.pos[3] = ONE;
@@ -204,7 +209,7 @@ impl Firefly {
             rot[1] = 0;
             let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
             self.pos = ee::apply(&m, self.pos);
-            self.pos[2] = (fly.height)(self.pos[0], self.pos[1]);
+            self.pos[2] = fly.height(self.pos[0], self.pos[1]);
         }
         self.pos = ee::vadd(self.pos, self.base);
         self.pos[3] = ONE;

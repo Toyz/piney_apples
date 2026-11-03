@@ -260,7 +260,7 @@ pub fn setup_area(
     match place {
         Place::Field(f) => {
             if f.map.is_none() {
-                f.map = Some(Box::new(field::FieldMap::new(archive, volume, &f.field, &f.file)?));
+                f.map = Some(Box::new(field::FieldMap::new(archive, volume, &f.field, &f.core.file)?));
             }
         }
         Place::Dungeon(d) => {

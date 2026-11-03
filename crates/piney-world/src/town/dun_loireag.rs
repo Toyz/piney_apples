@@ -16,7 +16,7 @@ use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::clouds::{CloudsDef, Made};
 use crate::systems::flare::{FlareDef, FlareDraw};
 use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
-use crate::systems::sky::{At, SkyClump, SkyDef, SkyLayer};
+use crate::systems::sky::{At, ClumpName, SkyClump, SkyDef, SkyLayer};
 use crate::systems::statics::{ModelsDef, ObjectsDef};
 use crate::systems::water::{WaterDef, WaterFile, WaterSpec};
 use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
@@ -82,9 +82,27 @@ static SCROLLS: ScrollsDef = ScrollsDef::statics(&BG_STEP, statics::TOWN02_BG, &
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[
         SkyClump::on(SKY, BG0),
-        SkyClump { name: SUN, layer: SkyLayer::On(BG1), at: At::Dummy(SUN_POINT), crisis: false, fog: false },
-        SkyClump { name: CLOUD_SKY[0], layer: SkyLayer::CloudSky, at: At::Origin, crisis: false, fog: false },
-        SkyClump { name: CLOUD_SKY[1], layer: SkyLayer::CloudSky, at: At::Origin, crisis: false, fog: false },
+        SkyClump {
+            name: ClumpName::Named(SUN),
+            layer: SkyLayer::On(BG1),
+            at: At::Dummy(SUN_POINT),
+            crisis: false,
+            fog: false,
+        },
+        SkyClump {
+            name: ClumpName::Named(CLOUD_SKY[0]),
+            layer: SkyLayer::CloudSky,
+            at: At::Origin,
+            crisis: false,
+            fog: false,
+        },
+        SkyClump {
+            name: ClumpName::Named(CLOUD_SKY[1]),
+            layer: SkyLayer::CloudSky,
+            at: At::Origin,
+            crisis: false,
+            fog: false,
+        },
         SkyClump::crisis("CMP_sr2dat1_1", -80),
         SkyClump::crisis("CMP_sr2dat1_2", -70),
         SkyClump::crisis("CMP_sr2dat1_3", -60),
@@ -105,7 +123,7 @@ static WATER_DEF: WaterDef = WaterDef {
     copy: true,
 };
 static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0, made: Made::FirstDraw };
-static FLARE: FlareDef = FlareDef { sun: SUN_POINT, draw: FlareDraw::LensFlare };
+static FLARE: FlareDef = FlareDef::at(SUN_POINT, FlareDraw::LensFlare);
 
 /// `ROOTTOWN02::DrawMap` (gcmn 0x00425760): Infection's arrow in screen
 /// pixels on the font layer; from Mutation on its own layers and the flag
@@ -176,12 +194,13 @@ pub static DUN_LOIREAG: TownDef = TownDef {
 mod tests {
     use super::*;
     use crate::ee;
+    use crate::systems::MapView;
     use crate::systems::clouds::Clouds;
     use crate::systems::sky::Sky;
     use crate::systems::statics::{StaticModels, StaticObjects};
     use crate::systems::water::Water;
     use crate::systems::{Drawn, Piece};
-    use crate::town::{Town, TownView};
+    use crate::town::Town;
     use piney_data::volume::Volume;
 
     /// The constructor's pieces: 20 model rows (the table's all present),
@@ -213,7 +232,7 @@ mod tests {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut t = Town::open(&archive, Volume::Inf, 1, false).unwrap();
         let player = [0, ee::k(3500.0), 0, ONE];
-        t.step(&TownView { eye: [0, ee::k(2600.0), ee::k(400.0), ONE], player, ..TownView::default() });
+        t.step(&MapView { eye: [0, ee::k(2600.0), ee::k(400.0), ONE], player, ..MapView::default() });
         let (w, sky) = (Kind::Water, Kind::Sky);
         let p = |k: Kind, piece: Piece| Drawn::Piece(k, piece);
         assert_eq!(

@@ -895,8 +895,9 @@ piney_world::area      Scene (ccGame's scene, ChangeScene, ChangeArea, go),
                        WorldMan (SimGenerateCode's fields; set_generate_code)
 field_area             FieldArea: GO(1)'s field, its objects, the hit list,
                        the object passes, WORLD::Draw into the layers,
-                       SetCenter / AddCenter, the wrap; the weather's frame
-                       and models (field_ambient, field_firefly)
+                       SetCenter / AddCenter, the wrap; its field type's
+                       systems (field::def's FieldDef, field::ambient,
+                       field_firefly)
 field_world            FieldWorld: ccSetupGameCtrl for areas 1 and 2, the
                        frame, Enter, Gate Out, the dungeon's doors; the
                        battle's tasks in their order (combat), the
@@ -920,8 +921,7 @@ piney-game area.rs     AreaMode: the field's mode 6 with the field's menus,
 piney-game area_host.rs  the event scripts' host outside the towns
 piney-game fx.rs       AreaFx: piney-effect over the battle (the starters,
                        ccThEffect, ccThParticle, the portals' draw, the
-                       numbers); fx/ambient.rs the weather's sprites and
-                       smoke
+                       numbers); fx/ambient.rs the areas' smoke puffs
 piney-game gameover.rs  GameOverTask: ccThGameCtrl's second step and
                        ccThGameOver (the waits, the noise, the tear-down,
                        GAME OVER, the reset); squeeze, the view frame

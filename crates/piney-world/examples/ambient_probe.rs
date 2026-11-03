@@ -1,21 +1,39 @@
-//! Answers `tools/test_field_ambient_rs.py`: a field's weather and ambient
-//! pictures (`piney_world::field::ambient`) as `WORLD::Init`, `Generate` and
-//! `Draw` make and draw them, one request a line, one JSON line an answer.
-//! Numbers are hex, floats their bit patterns. Requests: `field` (`Init` and
-//! `Generate`'s ambient parts, with `fieldrand`'s counts), `fires` (type 7's
-//! fire places) and `frame` (one `WORLD::Draw`: the pictures in order and the
-//! counts of `fieldrand` and `ccRand`); the fields are the harness's, on the
-//! volume its one argument names (`volumeNum`).
+//! Answers `tools/test_field_ambient_rs.py`: a field's weather, ambient
+//! pictures and background (`piney_world::field::def`'s systems) as
+//! `WORLD::Init`, `Generate` and `Draw` make and draw them, one request a
+//! line, one JSON line an answer. Numbers are hex, floats their bit
+//! patterns. Requests: `field` (the field made: `Init`'s and `Generate`'s
+//! systems, `fieldrand`'s counts, and what the port found for the game's
+//! side: the lens flare's sun, type 7's fires, the lake) and `frame` (one
+//! `WORLD::Draw`: the pictures in order, the calls in order, Ω's runners'
+//! places, the counts of `fieldrand` and `ccRand`). Arguments: the disc's
+//! image, then `volumeNum`.
 
 use std::io::BufRead;
+use std::sync::Arc;
 
 use piney_battle::rand::Genrand;
+use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
 use piney_data::field;
+use piney_data::iso::Iso;
 use piney_data::volume::Volume;
-use piney_world::ee::{F, ONE, V4};
-use piney_world::field::ambient::{Ambient, Cloth, Env, Frame, Model, Op, Statics, Weather};
+use piney_world::ee::{ONE, V4};
+use piney_world::field::area::{FieldArea, active_layer};
 use piney_world::sky::lensflare::FlareCamera;
+use piney_world::systems::bird::Bird;
+use piney_world::systems::fireflies::{Fireflies, Fireflies2};
+use piney_world::systems::fires::Fires;
+use piney_world::systems::flare::LensFlare;
+use piney_world::systems::haze::Haze;
+use piney_world::systems::lake::Lake;
+use piney_world::systems::rain::{Rain, Thunder};
+use piney_world::systems::scrolls::Scrolls;
+use piney_world::systems::sky::{ClumpName, Sky, SkyLayer};
+use piney_world::systems::smoke::Smoke2d;
+use piney_world::systems::snow::Snow;
+use piney_world::systems::tobj::Tobj;
+use piney_world::systems::{BuildCx, Drawn, FieldCx, Kind, MapEvent, MapView, Piece, Request, Systems};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -29,69 +47,21 @@ fn list(v: &[u32]) -> String {
     format!("[{}]", v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(","))
 }
 
-fn op_json(op: &Op) -> String {
-    match op {
-        Op::Sprite(s) => format!(
-            "[\"eff\",{},\"{}\",{},{},{},{},{},{},{}]",
-            piney_world::field::area::active_layer(s.layer),
-            s.eff,
-            list(&s.pos),
-            s.pattern,
-            s.scale[0],
-            s.scale[1],
-            s.rotate,
-            s.transparency,
-            u8::from(s.state.fog)
-        ),
-        Op::Smoke { pos, v, s, life, t, fade_in, fade_out } => {
-            format!("[\"smoke\",{},{},{},{},{},{},{}]", list(pos), list(v), s, life, t, fade_in, fade_out)
-        }
-        Op::Mask { layer, alpha, x, y } => {
-            format!("[\"mask\",{layer},{alpha},0,0,{x},{y},{},{},128,128]", 0x4400_0000u32, 0x4400_0000u32)
-        }
-        Op::Model { layer, what, matrix, alpha, shadow } => {
-            let m: Vec<u32> = matrix.iter().flatten().copied().collect();
-            let shadow = match shadow {
-                Some((z, a)) => format!("[{z},{a}]"),
-                None => "null".into(),
-            };
-            let what = match what {
-                Model::Bird => "bird".to_string(),
-                Model::Tobj => "tobj".to_string(),
-                Model::TobjRunner(k) => format!("runner{k}"),
-                Model::Haze => "haze".to_string(),
-                Model::Lake(k) => format!("lake{k}"),
-            };
-            format!("[\"model\",{layer},\"{what}\",{},{alpha},{shadow}]", list(&m))
-        }
-        Op::Se(n) => format!("[\"se\",{n}]"),
-        Op::Se3d(n, p) => format!("[\"se3d\",{n},{}]", list(p)),
-        Op::SeLoopStart => "[\"seloopstart\"]".to_string(),
-        Op::SeLoop(p, r) => format!("[\"seloop\",{},{r}]", list(&p[..3])),
-        Op::Flash { frames, colour, rect } => format!("[\"flash\",{frames},{colour},{}]", list(rect)),
-        Op::LakeUv { u, v } => format!("[\"lakeuv\",{u},{v}]"),
-        Op::BgV(v) => format!("[\"bgv\",{v}]"),
-        Op::BgU(u) => format!("[\"bgu\",{u}]"),
-        Op::Bg { slot, layer, matrix } => {
-            let m: Vec<u32> = matrix.iter().flatten().copied().collect();
-            format!("[\"bg\",{},{layer},{}]", *slot as u8, list(&m))
-        }
-    }
+fn bits(m: glam::Mat4) -> Vec<u32> {
+    m.to_cols_array().iter().map(|f| f.to_bits()).collect()
 }
 
-struct State {
-    field: field::Field,
-    ambient: Ambient,
-    rng: Rng,
-    statics: Statics,
-    cloth: Cloth,
-    cc: Genrand,
-    cc_count: u32,
+fn flat(m: &[V4; 4]) -> Vec<u32> {
+    m.iter().flatten().copied().collect()
 }
 
-fn state_json(a: &Ambient, init: u32, made: u32) -> String {
-    let snow: Vec<String> = a
-        .snow
+/// The field's systems' state as `Init` and `Generate` left it, with the
+/// counts of `fieldrand` after each.
+fn state_json(f: &FieldArea, init: u32, made: u32, hum: bool) -> String {
+    let s = f.systems();
+    let snow: Vec<String> = s
+        .get::<Snow>()
+        .map_or(&[][..], |x| &x.flakes)
         .iter()
         .map(|s| {
             format!(
@@ -105,15 +75,21 @@ fn state_json(a: &Ambient, init: u32, made: u32) -> String {
             )
         })
         .collect();
-    let smoke = match &a.smoke {
+    let smoke = match s.get::<Smoke2d>() {
         Some(s) => {
             let p: Vec<String> = s.puffs.iter().map(|p| format!("[{},{},{},{}]", p[0], p[1], p[2], p[3])).collect();
             format!("{{\"sleep\":{},\"puffs\":[{}]}}", s.sleep, p.join(","))
         }
         None => "null".into(),
     };
-    let drops: Vec<String> = a.drops.iter().map(|d| format!("[\"{}\",{}]", d.drop.name, d.pattern)).collect();
-    let tobj = match &a.tobj {
+    let drops: Vec<String> = s
+        .get::<Rain>()
+        .map_or(&[][..], |r| &r.drops)
+        .iter()
+        .map(|d| format!("[\"{}\",{}]", d.drop.name, d.pattern))
+        .collect();
+    let thunder = s.get::<Thunder>().is_some_and(|t| t.effs.is_some());
+    let tobj = match s.get::<Tobj>().and_then(|t| t.tobj.as_ref()) {
         Some(t) => format!(
             "[{},{},{},{},{},{}]",
             t.server,
@@ -121,12 +97,13 @@ fn state_json(a: &Ambient, init: u32, made: u32) -> String {
             list(&t.pos[..2]),
             t.angle,
             list(&t.rot[..3]),
-            u8::from(a.tobj_se_start)
+            u8::from(hum)
         ),
         None => "null".into(),
     };
-    let flies: Vec<String> = a
-        .fireflies
+    let flies: Vec<String> = s
+        .get::<Fireflies>()
+        .map_or(&[][..], |x| &x.fireflies)
         .iter()
         .map(|f| {
             let keys: Vec<String> = f
@@ -140,29 +117,165 @@ fn state_json(a: &Ambient, init: u32, made: u32) -> String {
             format!("[{},{},[{}]]", f.pattern, list(&f.base[..3]), keys.join(","))
         })
         .collect();
-    let roamers: Vec<String> = a
-        .roamers
+    let roamers: Vec<String> = s
+        .get::<Fireflies2>()
+        .map_or(&[][..], |x| &x.fireflies)
         .iter()
         .map(|r| format!("[{},{},{},{},{}]", list(&r.pos), list(&r.vel[..3]), r.life, r.timer, r.pattern))
         .collect();
-    let bird = match &a.bird {
+    let bird = match s.get::<Bird>().and_then(|b| b.hawk.as_ref()) {
         Some(b) => list(&b.home[..3]),
         None => "null".into(),
     };
+    let sun = s.get::<LensFlare>().filter(|l| l.lit).map_or("null".into(), |l| list(&l.sun));
+    let fires: Vec<String> = s.get::<Fires>().map_or(&[][..], |x| &x.places).iter().map(|p| list(&p[..3])).collect();
+    let lake = s.get::<Lake>().and_then(Lake::at).map_or("null".into(), |p| list(&p[..3]));
     format!(
-        "{{\"init\":{init},\"gen\":{made},\"snow\":[{}],\"smoke\":{smoke},\"drops\":[{}],\"thunder\":{},\"tobj\":{tobj},\"fireflies\":[{}],\"roamers\":[{}],\"bird\":{bird}}}",
+        "{{\"init\":{init},\"gen\":{made},\"snow\":[{}],\"smoke\":{smoke},\"drops\":[{}],\"thunder\":{},\"tobj\":{tobj},\
+         \"fireflies\":[{}],\"roamers\":[{}],\"bird\":{bird},\"sun\":{sun},\"fires\":[{}],\"lake\":{lake}}}",
         snow.join(","),
         drops.join(","),
-        u8::from(a.thunder.is_some()),
+        u8::from(thunder),
         flies.join(","),
-        roamers.join(",")
+        roamers.join(","),
+        fires.join(",")
     )
 }
 
+/// A sprite as the harness records `ccEff::Draw`.
+fn eff_json(s: &piney_world::sprite::EffSprite) -> String {
+    format!(
+        "[\"eff\",{},\"{}\",{},{},{},{},{},{},{}]",
+        active_layer(s.layer),
+        s.eff,
+        list(&s.pos),
+        s.pattern,
+        s.scale[0],
+        s.scale[1],
+        s.rotate,
+        s.transparency,
+        u8::from(s.state.fog)
+    )
+}
+
+fn model_json(layer: u8, what: &str, m: &[u32], alpha: u32, shadow: Option<(u32, u8)>) -> String {
+    let shadow = shadow.map_or("null".into(), |(z, a)| format!("[{z},{a}]"));
+    format!("[\"model\",{layer},\"{what}\",{},{alpha},{shadow}]", list(m))
+}
+
+/// The frame's pictures in the game's order: each piece as the harness
+/// records the call that draws it, with the writes of the scrolls before
+/// the lake and the background where the game makes them.
+fn draws_json(f: &FieldArea) -> Vec<String> {
+    let s = f.systems();
+    let rows = f.rows();
+    let mut requests = f.requests(&rows).into_iter();
+    let mut out = Vec::new();
+    let (mut lake_uv, mut bg_v) = (false, false);
+    for d in f.frame() {
+        let Drawn::Piece(kind, piece) = *d else { continue };
+        let request = requests.next();
+        match (kind, piece) {
+            (Kind::Sky, Piece::Clump(k)) => {
+                let (sky, scrolls) = (s.get::<Sky>().unwrap(), s.get::<Scrolls>().unwrap());
+                if !std::mem::replace(&mut bg_v, true) {
+                    out.push(format!("[\"bgv\",{}]", piney_world::ee::vftoi12(scrolls.before[0])));
+                }
+                let c = sky.clump(k);
+                let slot = match c.name {
+                    ClumpName::Row(r) => r,
+                    ClumpName::Aurora => {
+                        out.push(format!("[\"bgu\",{}]", scrolls.uv(0)));
+                        5
+                    }
+                    ClumpName::Named(_) => 9,
+                };
+                let SkyLayer::On(layer) = c.layer else { continue };
+                out.push(format!("[\"bg\",{slot},{layer},{}]", list(&bits(sky.world(k).unwrap()))));
+            }
+            (Kind::Lake, Piece::Anim(k)) => {
+                let l = s.get::<Lake>().unwrap();
+                if !std::mem::replace(&mut lake_uv, true) {
+                    out.push(format!("[\"lakeuv\",{},{}]", l.shown[0], l.shown[1]));
+                }
+                out.push(model_json(if k == 1 { 6 } else { 1 }, &format!("lake{k}"), &flat(&l.matrix), ONE, None));
+            }
+            (Kind::Haze, _) => {
+                out.push(model_json(6, "haze", &flat(&s.get::<Haze>().unwrap().matrix), 0x3f33_3333, None));
+            }
+            (Kind::Tobj, Piece::Anim(k)) => {
+                let d = s.get::<Tobj>().unwrap().drawn[k];
+                let what = if d.play == 0 { "tobj".into() } else { format!("runner{}", d.play - 1) };
+                out.push(model_json(5, &what, &flat(&d.matrix), d.alpha, Some(d.shadow)));
+            }
+            (Kind::Bird, _) => out.push(model_json(5, "bird", &flat(&s.get::<Bird>().unwrap().matrix), ONE, None)),
+            (Kind::Smoke, _) => {
+                for &[alpha, x, y] in &s.get::<Smoke2d>().unwrap().masks {
+                    let size = 0x4400_0000u32;
+                    out.push(format!("[\"mask\",3,{alpha},0,0,{x},{y},{size},{size},128,128]"));
+                }
+            }
+            _ => match request {
+                Some(Request::Sprite(e)) => out.push(eff_json(&e)),
+                _ => out.push(format!("[\"{kind:?} {piece:?}\"]")),
+            },
+        }
+    }
+    out
+}
+
+/// A call as the harness records it.
+fn call_json(e: &MapEvent) -> String {
+    match *e {
+        MapEvent::Smoke(s) => format!(
+            "[\"smoke\",{},{},{},{},{},{},{}]",
+            list(&s.pos),
+            list(&s.v),
+            s.s,
+            s.life,
+            s.t,
+            s.fade_in,
+            s.fade_out
+        ),
+        MapEvent::Se(n) => format!("[\"se\",{n}]"),
+        MapEvent::Se3d { n, pos } => format!("[\"se3d\",{n},{}]", list(&pos)),
+        MapEvent::SeLoop(p, r) => format!("[\"seloop\",{},{r}]", list(&p[..3])),
+        MapEvent::Flash { frames, colour, rect } => format!("[\"flash\",{frames},{colour},{}]", list(&rect)),
+        MapEvent::SeLoopStart => "[\"seloopstart\"]".into(),
+        MapEvent::SmokeN { .. } => "[\"smoken\"]".into(),
+    }
+}
+
+/// `fieldrand`'s count after `Init`'s systems alone, made again from the
+/// seed over the field as made.
+fn init_count(archive: &Arc<Archive>, volume: Volume, f: &FieldArea, seed: u32, hack: u32, centre: V4) -> u32 {
+    let weather =
+        piney_world::field::ambient::Weather { field_type: f.def.ty, b: f.field.params.weather, hack: hack as i32 };
+    let fcx = FieldCx { def: f.def, weather, server: 0, field: Some(f), centre };
+    let mut cx = BuildCx {
+        archive,
+        tables: volume,
+        volume,
+        file: &f.bg,
+        stem: "",
+        crisis: false,
+        rng: Rng::new(seed),
+        map: None,
+        cc: None,
+        field: Some(fcx),
+        made: Vec::new(),
+    };
+    Systems::build(f.def.init, &mut cx).expect("Init's systems");
+    cx.rng.count
+}
+
 fn main() {
-    let volume = std::env::args().nth(1).and_then(|n| Volume::from_number(n.parse().ok()?)).expect("volumeNum 1-4");
-    let tables = field::tables_of(volume);
-    let mut st: Option<State> = None;
+    let iso_path = std::env::args().nth(1).expect("the disc's image");
+    let mut iso = Iso::open(&iso_path).unwrap();
+    let volume = iso.volume().unwrap();
+    assert_eq!(Some(volume), std::env::args().nth(2).and_then(|n| Volume::from_number(n.parse().ok()?)));
+    let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let mut st: Option<(FieldArea, Genrand, u32)> = None;
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
         let w: Vec<&str> = line.split_whitespace().collect();
@@ -180,96 +293,53 @@ fn main() {
                     protect: n(7) != 0,
                     skip_init: false,
                 };
-                let weather = Weather { field_type: n(2), b: n(3), hack: n(8) as i32 };
-                let server = n(9) as i32;
+                let (hack, server) = (n(8), n(9) as i32);
                 let centre = [n(10), n(11), 0, ONE];
-                let mut statics = Statics::new();
-                let mut rng = Rng::new(params.seed);
-                let blank = |x: F, y: F| field::blank_height(x, y);
-                let env = Env {
-                    volume,
-                    player: centre,
-                    centre,
-                    ofs: [centre[0], centre[1]],
-                    height: &blank,
-                    eye: centre,
-                    eye1: centre,
-                    rot: [0; 4],
-                    rot2: [0; 4],
-                    eye_view: false,
-                    odd: false,
-                    bounds: piney_world::field::area::BOUNDS,
-                };
-                let mut ambient = Ambient::init(weather, &env, &mut statics, &mut rng);
-                let init = rng.count;
-                let fl = field::generate(tables, &params).unwrap();
-                let mut rng = fl.rng;
-                let heights = |x: F, y: F| fl.get_height(x, y);
-                let start = [fl.start_pos[0], fl.start_pos[1], fl.start_pos[2], ONE];
-                let entrance = fl.dungeon_pos.map_or([0; 4], |p| [p[0], p[1], p[2], ONE]);
-                let env = Env { height: &heights, ..env };
-                ambient.generate(server, start, entrance, &env, &mut rng);
-                let answer = state_json(&ambient, init, rng.count);
-                st = Some(State {
-                    field: fl,
-                    ambient,
-                    rng,
-                    statics,
-                    cloth: Cloth::default(),
-                    cc: Genrand::default(),
-                    cc_count: 0,
-                });
+                let mut f = FieldArea::with_world(&archive, volume, params, hack, server, Some(centre)).unwrap();
+                f.take(&[0; piney_desktop::SCROLL_STATICS], None);
+                let init = init_count(&archive, volume, &f, params.seed, hack, centre);
+                let hum = f.take_made().contains(&MapEvent::SeLoopStart);
+                let made = f.core.field_rand.map_or(0, |r| r.count);
+                let answer = state_json(&f, init, made, hum);
+                st = Some((f, Genrand::default(), 0));
                 answer
             }
-            "fires" => {
-                let s = st.as_mut().unwrap();
-                let k = hex(w[1]) as usize;
-                s.ambient.fires =
-                    (0..k).map(|i| [hex(w[2 + 3 * i]), hex(w[3 + 3 * i]), hex(w[4 + 3 * i]), 0]).collect();
-                "{}".into()
-            }
-            "bg" => {
-                let s = st.as_mut().unwrap();
-                s.ambient.bg = Some(piney_world::field::ambient::DrawBg {
-                    hacked: w[1] == "1",
-                    aurora: w[2] == "1",
-                    ..Default::default()
-                });
-                "{}".into()
-            }
-            "lake" => {
-                let s = st.as_mut().unwrap();
-                s.ambient.lake = Some([hex(w[1]), hex(w[2]), hex(w[3]), ONE]);
-                "{}".into()
-            }
             "frame" => {
-                let s = st.as_mut().unwrap();
+                let (f, cc, cc_count) = st.as_mut().unwrap();
                 let p = |i: usize| v4(&w[1 + 4 * i..5 + 4 * i]);
                 let (player, eye, eye1, rot, rot2, view) = (p(0), p(1), p(2), p(3), p(4), p(5));
                 let r = |i: usize| hex(w[i]);
                 let eye_view = r(25) != 0;
                 let odd = r(26) != 0;
-                let ofs = [r(27), r(28)];
-                let centre = [r(29), r(30), 0, ONE];
-                let sun = v4(&w[31..35]);
-                let runners = [v4(&w[35..39]), v4(&w[39..43])];
-                let fl = &s.field;
-                let heights = |x: F, y: F| fl.get_height(x, y);
-                let bounds = piney_world::field::area::BOUNDS;
-                let env =
-                    Env { volume, player, centre, ofs, height: &heights, eye, eye1, rot, rot2, eye_view, odd, bounds };
-                let flare_cam = FlareCamera { eye, view, rot: if eye_view { rot2 } else { rot } };
-                let at = move |_: &[V4; 4]| runners;
-                let frame = Frame { env, flare_cam, sun: Some(sun), runners: &at };
-                let cc = &mut s.cc;
-                let count = &mut s.cc_count;
-                let mut next = || {
-                    *count += 1;
-                    cc.next_u32()
+                f.core.hits.center = [r(27), r(28)];
+                let kind = if eye_view { piney_world::camera::kind::EYE } else { 0 };
+                let cam = piney_world::camera::Cam { pos: eye, view, kind, ..Default::default() };
+                let flare = FlareCamera { eye, view, rot: if eye_view { rot2 } else { rot } };
+                let v = MapView { eye, player, cam, flare, eye1, rot, rot2, odd, ..MapView::default() };
+                let mut count = 0u32;
+                let mut counted = || {
+                    count += 1;
+                    piney_battle::rand::Rng::rand(cc)
                 };
-                let ops = s.ambient.draw(&frame, &mut s.statics, &mut s.cloth, &mut s.rng, &mut next);
-                let ops: Vec<String> = ops.iter().map(op_json).collect();
-                format!("{{\"ops\":[{}],\"rand\":{},\"cc\":{}}}", ops.join(","), s.rng.count, s.cc_count)
+                let events = f.step(&v, true, Some(&mut counted));
+                *cc_count += count;
+                let draws = draws_json(f);
+                let calls: Vec<String> = events.iter().map(call_json).collect();
+                let runners: Vec<String> = f
+                    .systems()
+                    .get::<Tobj>()
+                    .map_or(&[][..], |t| &t.drawn)
+                    .iter()
+                    .filter(|d| d.play > 0)
+                    .map(|d| list(&d.matrix[3]))
+                    .collect();
+                format!(
+                    "{{\"draws\":[{}],\"calls\":[{}],\"runners\":[{}],\"rand\":{},\"cc\":{cc_count}}}",
+                    draws.join(","),
+                    calls.join(","),
+                    runners.join(","),
+                    f.core.field_rand.map_or(0, |r| r.count)
+                )
             }
             _ => format!("{{\"error\":\"{cmd}\"}}"),
         };

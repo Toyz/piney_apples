@@ -978,26 +978,27 @@ impl AreaMode {
         for bs in self.world.fx_mut().take_noises() {
             self.ui.noise_bs(bs);
         }
-        // A field's weather: the thunder's sound and flash, the steam's.
+        // An area's calls: a field's thunder's sound and flash, its steam's,
+        // TOBJ's hum, a dungeon's doors.
         for call in self.world.take_ambient_calls() {
-            use piney_world::field::ambient::Op;
+            use piney_world::systems::MapEvent;
             match call {
-                Op::Se(n) => out.push(Event::Se(n)),
-                Op::SeLoopStart => out.push(Event::TobjSeLoopStart),
-                Op::SeLoop(pos, rate) => {
+                MapEvent::Se(n) => out.push(Event::Se(n)),
+                MapEvent::SeLoopStart => out.push(Event::TobjSeLoopStart),
+                MapEvent::SeLoop(pos, rate) => {
                     if let Some(ear) = ear {
                         out.push(Event::TobjSeLoop { pos, rate, ear });
                     }
                 }
-                Op::Se3d(n, pos) => {
+                MapEvent::Se3d { n, pos } => {
                     if let Ok(n) = usize::try_from(n) {
                         out.push(Event::Se3d { n, pos, note: None, ear });
                     }
                 }
-                Op::Flash { frames, colour, .. } => {
+                MapEvent::Flash { frames, colour, .. } => {
                     self.st.fade_def.flash(frames as i16, colour);
                 }
-                _ => {}
+                MapEvent::Smoke(_) | MapEvent::SmokeN { .. } => {}
             }
         }
         self.events.extend(out);

@@ -23,7 +23,7 @@ use piney_world::chara::foe::{self, Camera, CharDraw, Circle, EnemyLook, Files, 
 use piney_world::chara::pose::Play;
 use piney_world::draw;
 use piney_world::ee::{self, F, ONE, V4};
-use piney_world::field::area::{self, DEF_SE, FieldArea};
+use piney_world::field::area::{self, FieldArea};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -230,8 +230,8 @@ fn shot(d: &Disc, s: &Shot) -> Result<(), Box<dyn std::error::Error>> {
         protect: false,
         skip_init: false,
     };
-    let mut area = FieldArea::new(&d.archive, params, DEF_SE[10])?;
-    let heights = area.hits.heights.clone().ok_or("no heights")?;
+    let mut area = FieldArea::new(&d.archive, params)?;
+    let heights = area.core.hits.heights.clone().ok_or("no heights")?;
     let ground = |x: f32, y: f32| ee::f(heights.height(x.to_bits(), y.to_bits()));
     // The portal somewhere on dry ground near the middle, the enemies round
     // it.
@@ -265,9 +265,9 @@ fn shot(d: &Disc, s: &Shot) -> Result<(), Box<dyn std::error::Error>> {
     let mut layers = Layers::default();
     let player = at(cx, cy + 600.0, ground(cx, cy + 600.0));
     area.set_center(player[0], player[1]);
-    area.hits.center = [player[0], player[1]];
+    area.core.hits.center = [player[0], player[1]];
     area.draw(&mut layers, to_screen, player, eye, true);
-    let lights = area.lights.clone();
+    let lights = area.core.lights.clone();
     let cam = Camera {
         player,
         cam: eye,

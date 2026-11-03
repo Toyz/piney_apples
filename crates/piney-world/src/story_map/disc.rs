@@ -23,7 +23,7 @@ use crate::hit::HitModel;
 use crate::sky::cloud;
 use crate::story_map::{BASE_BLOCK, BASE_STORY_MAP, BlockDef, LightsDef, Spread, Start, StoryMapDef, layer};
 use crate::systems::clouds::{CloudsDef, Made};
-use crate::systems::scrolls::{Carry, First, MatScroll, ScrollsDef, Shown, Wrap};
+use crate::systems::scrolls::{Carry, First, MatScroll, ScrollsDef, Wrap};
 use crate::systems::sky::{SkyClump, SkyDef};
 use crate::systems::statics::{ModelsDef, ObjectsDef, PassLayers, StaticObjects};
 use crate::systems::{
@@ -60,10 +60,10 @@ static SKY: SkyDef = SkyDef {
 static SCROLLS: ScrollsDef = ScrollsDef {
     steps: &[0x3b44_9ba6],
     wrap: Wrap::Under,
-    shown: Shown::After,
     carry: Some(Carry::Statics(statics::DISC_BG)),
     first: Some(First { value: ONE, flag: statics::DISC_BG_FIRST }),
     mats: &[MatScroll::v("MAT_se1_6clo1", 0)],
+    turns: None,
 };
 
 /// `rockname` (MUT 0x00600af0): a rock's clump, one by `fieldrand(6)`.
@@ -692,9 +692,9 @@ mod tests {
     use crate::story_map::StoryArea;
     use crate::story_map::tests::made;
     use crate::systems::Drawn;
+    use crate::systems::MapView;
     use crate::systems::clouds::Clouds;
     use crate::systems::statics::StaticModels;
-    use crate::town::TownView;
     use piney_battle::rand::Genrand;
     use piney_data::volume::Volume;
 
@@ -749,7 +749,7 @@ mod tests {
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
         let mut cc = Genrand::default();
         let mut a = made(&archive, Volume::Mut, &DISC_9, 0, 0);
-        let v = TownView::default();
+        let v = MapView::default();
         let first = a.trans_center().unwrap();
         let mut prev = disc(&a).disc_prev;
         let mut frames = 0;
@@ -784,17 +784,17 @@ mod tests {
         use crate::systems::Carried;
         use crate::systems::scrolls::Scrolls;
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
-        let v = TownView::default();
+        let v = MapView::default();
         let mut s = [0; piney_desktop::SCROLL_STATICS];
         let mut a = made(&archive, Volume::Mut, &DISC_9, 0, 0);
-        a.take(&Carried { statics: &s, move_tex: None });
+        a.take(&Carried { statics: &s, move_tex: None, field: None });
         a.step(&v, true, None);
         let first = a.systems().get::<Scrolls>().unwrap().v[0];
         assert_eq!(first, ee::sub(ONE, 0x3b44_9ba6));
         a.put(&mut s, &mut [[0; 2]; piney_desktop::MOVE_TEX_ROWS]);
         assert_eq!((s[statics::DISC_BG], s[statics::DISC_BG_FIRST]), (first, 1));
         let mut b = made(&archive, Volume::Mut, &DISC_10, 0, 0);
-        b.take(&Carried { statics: &s, move_tex: None });
+        b.take(&Carried { statics: &s, move_tex: None, field: None });
         b.step(&v, true, None);
         assert_eq!(b.systems().get::<Scrolls>().unwrap().v[0], ee::sub(first, 0x3b44_9ba6));
     }
@@ -805,7 +805,7 @@ mod tests {
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
         let mut cc = Genrand::default();
         let mut a = made(&archive, Volume::Mut, &DISC_10, 0, 0);
-        let v = TownView::default();
+        let v = MapView::default();
         let mut n = 0;
         while disc(&a).moving && n < 2000 {
             a.step(&v, true, Some(&mut cc));

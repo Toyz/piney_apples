@@ -19,10 +19,14 @@ checks' (tools/test_field.py, tools/test_field_rt.py); they are not drawn
 here.
 
 The ambient_probe example builds the port's field with the same arguments
-and answers the same frames. Compared: fieldrand's count after Init and
-after Generate, what Init and Generate made (every SNOW, the smoke, the
-rain drops, the fireflies, TOBJ and BIRD), then each frame's pictures in
-order and the counts of fieldrand and ccRand.
+(its field type's systems, piney_world::field::def) and answers the same
+frames. Compared: fieldrand's count after Init and after Generate, what
+Init and Generate made (every SNOW, the smoke, the rain drops, the
+fireflies, TOBJ and BIRD) and the lake's place, then each frame's pictures
+in order, its calls (the sounds, the flash, effSmoke) in order, and the
+counts of fieldrand and ccRand. The lens flare's sun, type 7's fires and
+Ω's runners are the port's, from the field's files, handed to the game's
+side (which has stand-ins for them).
 
 Skipped when the disc is not extracted or cargo is missing.
 """
@@ -514,7 +518,8 @@ class Probe:
         env = dict(os.environ)
         subprocess.run(["cargo", "build", "--release", "-q", "-p", "piney-world", "--example", "ambient_probe"],
                        cwd=ROOT, check=True, env=env)
-        self.p = subprocess.Popen([EXAMPLE, str(volume.number())], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.p = subprocess.Popen([EXAMPLE, volume.ISO, str(volume.number())], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, text=True)
 
     def ask(self, line):
         self.p.stdin.write(line + "\n")
@@ -600,25 +605,33 @@ def note(ops):
         SEEN[k] = SEEN.get(k, 0) + 1
 
 
-def run_case(g, pr, c, n, rnd, fires=()):
+CALLS = ("se", "se3d", "seloop", "flash", "smoke")
+
+
+def run_case(g, pr, c, n, rnd):
     init, gen = g.make(c)
     game = g.state(init, gen, c)
     port = pr.ask(case_line(c))
+    sun, fires, lake = port.pop("sun"), port.pop("fires"), port.pop("lake")
     d = first_diff(game, port)
     if d:
         return f"state {d}"
+    if g.lake() != lake:
+        return f"lake {g.lake()} != {lake}"
     if fires:
-        g.set_fires(list(fires))
-        pr.ask("fires " + hx(len(fires), *[v for p in fires for v in p]))
-    lake = g.lake()
-    if lake:
-        pr.ask("lake " + hx(*lake))
-    pr.ask("bg %d %d" % (int(c["hack"] != 2), int(c["type"] == 6)))
+        g.set_fires(fires)
     fr = frames(rnd, n, [fb(24000.0), fb(24000.0)])
     for i, f in enumerate(fr):
-        a = g.frame(f)
+        if sun:
+            f["sun"] = sun + [0x3F800000]
         b = pr.ask(frame_line(f))
-        note(a["ops"])
+        for k, p in enumerate(b.pop("runners")):
+            f["runners"][k] = p
+        a = g.frame(f)
+        ops = a.pop("ops")
+        note(ops)
+        a["draws"] = [o for o in ops if o[0] not in CALLS]
+        a["calls"] = [o for o in ops if o[0] in CALLS]
         d = first_diff(a, b)
         if d:
             return f"frame {i}: {d}"
@@ -637,11 +650,6 @@ def random_case(rnd, ty, b, hack):
             "centre": [fb(rnd.uniform(0, 48000)), fb(rnd.uniform(0, 48000))]}
 
 
-def fire_places(rnd):
-    return [[fb(rnd.uniform(0, 48000)), fb(rnd.uniform(0, 48000)), fb(rnd.uniform(0, 500))]
-            for _ in range(rnd.randrange(1, 6))]
-
-
 def sweep(n_frames, seed, only=None):
     g = Game()
     pr = Probe()
@@ -653,8 +661,7 @@ def sweep(n_frames, seed, only=None):
         for b in range(rows):
             for hack in (2, 3) if b < BG_ROWS[ty] else ():
                 c = random_case(rnd, ty, b, hack)
-                fires = fire_places(rnd) if ty == 7 else ()
-                d = run_case(g, pr, c, n_frames, rnd, fires)
+                d = run_case(g, pr, c, n_frames, rnd)
                 print(f"type {ty} b {b} hack {hack} server {c['server']}: {d or 'ok'}"[:400], flush=True)
                 bad += d is not None
     pr.close()

@@ -5,6 +5,7 @@
 pub mod ambient;
 #[doc(alias = "WORLD")]
 pub mod area;
+pub mod def;
 #[doc(alias = "FIREFLY")]
 pub mod firefly;
 pub mod npcs;

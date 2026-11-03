@@ -341,7 +341,8 @@ fn main() {
             }
             Some("ghoid") => {
                 use piney_world::combat::gate_out::{arrival_chat, ccs_name, hack_out_id};
-                let (a, p, ft, d, f, g) = (n(1) as i32, n(2) as i32, n(3) as i32, n(4) as i32, n(5) as i32, n(6) != 0);
+                let (a, p, ft, d, f, g) = (n(1) as i32, n(2) as i32, n(3), n(4) as i32, n(5) as i32, n(6) != 0);
+                let ft = piney_world::field::def::FieldDef::of(ft).is_some_and(|d| !d.field);
                 let id = hack_out_id(volume, a, p, ft, d, f, g);
                 let file = id.and_then(|i| ccs_name(volume, i)).map_or("null".to_string(), |s| format!("\"{s}\""));
                 let id = id.map_or("null".to_string(), |i| i.to_string());
@@ -403,7 +404,7 @@ fn props_command(
     match cmd {
         "town" => {
             let t = town(props, archive, volume, n(1));
-            t.step(&piney_world::town::TownView::at([n(2), n(3), n(4), ee::ONE]));
+            t.step(&piney_world::systems::MapView::at([n(2), n(3), n(4), ee::ONE]));
             let s = t.systems();
             let (sky, water) = (s.get::<Sky>().unwrap(), s.get::<Water>().unwrap());
             let (models, objects) = (s.get::<StaticModels>().unwrap(), s.get::<StaticObjects>().unwrap());

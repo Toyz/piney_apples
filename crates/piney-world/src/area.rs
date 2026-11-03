@@ -489,6 +489,17 @@ impl WorldMan {
         }
     }
 
+    /// `WORLD_MAN::GetFieldType()`'s def, None past the table.
+    pub fn field(&self) -> Option<&'static crate::field::def::FieldDef> {
+        crate::field::def::FieldDef::of(self.field_type)
+    }
+
+    /// The area has no field (field type 4): its first dungeon, a lake's,
+    /// stands for the field.
+    pub fn no_field(&self) -> bool {
+        self.field().is_some_and(|d| !d.field)
+    }
+
     /// `WORLD_MAN.timeSym` (+0x134, `SimGenerateCode`): the first word is
     /// "Chronicling" (131), whose dungeon ends at the Zeit statue.
     pub fn time_sym(&self) -> bool {

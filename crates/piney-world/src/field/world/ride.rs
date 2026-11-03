@@ -125,7 +125,7 @@ impl FieldWorld {
         self.voices_off = false;
         self.camera.type_lock = true;
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -211,7 +211,7 @@ impl FieldWorld {
     /// dungeon entered: the scene goes with it).
     pub fn ride_end(&mut self) {
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };

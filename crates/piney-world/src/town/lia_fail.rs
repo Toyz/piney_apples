@@ -214,8 +214,9 @@ impl MapSystem for Glows {
 mod tests {
     use super::*;
     use crate::systems::Drawn;
+    use crate::systems::MapView;
     use crate::systems::statics::StaticModels;
-    use crate::town::{Town, TownView};
+    use crate::town::Town;
     use piney_data::volume::Volume;
 
     fn town() -> Option<Town> {
@@ -247,7 +248,7 @@ mod tests {
     fn a_frame() {
         let Some(mut t) = town() else { return };
         let before = t.systems().get::<Glows>().unwrap().glows;
-        t.step(&TownView::default());
+        t.step(&MapView::default());
         assert_eq!(t.frame()[0], Drawn::Piece(Kind::Sky, Piece::Clump(0)));
         assert!(t.frame().contains(&Drawn::Map));
         let glows = t.frame().iter().filter(|d| matches!(d, Drawn::Piece(Kind::Glows, _))).count();

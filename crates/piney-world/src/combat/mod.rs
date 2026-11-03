@@ -520,9 +520,11 @@ impl Entrance {
     /// (+0x168; the dungeons' warps are not ported, so never), without the
     /// lag; otherwise standing (act 2), the body on the collision list:
     /// into a dungeon, from room to room, back to a field.
-    pub fn member_transfer(area: i32, area_prev: i32, field_type: i32, dungeon: i32, warp_flag: bool) -> bool {
+    /// With no field (field type 4) the first dungeon goes by a field's
+    /// rule.
+    pub fn member_transfer(area: i32, area_prev: i32, no_field: bool, dungeon: i32, warp_flag: bool) -> bool {
         let field_rule = area_prev == 0;
-        if field_type == 4 && dungeon == 0 {
+        if no_field && dungeon == 0 {
             return field_rule;
         }
         match area {

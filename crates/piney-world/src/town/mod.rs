@@ -49,8 +49,8 @@ use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
 use crate::map::town::MinimapDef;
-use crate::sky::lensflare::FlareCamera;
 use crate::systems::{BuildCx, Carried, CarriedMut, DrawCx, Drawn, Request, Step, SystemDef, Systems};
+use crate::systems::{MapEvent, MapView};
 
 /// `vftoi12`'s 4096.
 const K4096: F = 0x4580_0000;
@@ -349,43 +349,6 @@ pub(crate) fn read_lights(file: &SceneFile, anim: usize, table: &[(i32, &str)]) 
         }
     }
     Ok(TownLights { ambient: ambient.unwrap_or(Vec3::ZERO), lights: out, fog: None })
-}
-
-/// What a town's `Draw` starts besides its drawing, for the host: effects
-/// and sounds, in order.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum TownEvent {
-    /// `effSmokeN(pos, v, scale, life, kind, fade in, fade out)`: a puff of
-    /// smoke not faded by distance (the particle's `distSW` cleared).
-    SmokeN { pos: V4, v: V4, scale: F, life: i32, kind: i32, fade: (i16, i16) },
-    /// `ccSeOn3D(n, pos)`.
-    Se3d { n: i32, pos: V4 },
-}
-
-/// What a town's `Draw` reads of the rest of the field.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct TownView {
-    /// `cameraGetPos(camID)`.
-    pub eye: V4,
-    /// The player's `pos` (`plw`): the clouds gather about it and
-    /// `ccCheckCameraDeg` and `W2P` measure from it.
-    pub player: V4,
-    /// `activeCamPtr`, which `ccCheckCameraDeg` reads.
-    pub cam: crate::camera::Cam,
-    /// What `LENSFLARE::Draw` reads of the camera.
-    pub flare: FlareCamera,
-    /// `eventMng.puppetShow` (+0x78c).
-    pub puppet_show: bool,
-    /// The field view's `world_screen` as the camera left it, which
-    /// `waterUVModifi2` projects the water through (sysLayer's view +0xd0).
-    pub world_screen: [V4; 4],
-}
-
-impl TownView {
-    /// A view with only the camera eye (all Mac Anu's `Draw` reads).
-    pub fn at(eye: V4) -> TownView {
-        TownView { eye, ..TownView::default() }
-    }
 }
 
 /// A clump's models as `ccClump::Draw` draws them: each node's own
@@ -695,7 +658,7 @@ pub struct Town {
     /// the host last took them.
     frame: Vec<Drawn>,
     rows: HashMap<u32, [u8; 2]>,
-    events: Vec<TownEvent>,
+    events: Vec<MapEvent>,
 }
 
 impl Town {
@@ -732,6 +695,8 @@ impl Town {
             rng: env.rng,
             map: None,
             cc: None,
+            field: None,
+            made: Vec::new(),
         };
         let systems = Systems::build(def.systems, &mut cx)?;
         core.field_rand = def.systems.iter().any(SystemDef::field_rand).then_some(env.rng);
@@ -759,16 +724,16 @@ impl Town {
 
     /// The scroll statics as the game holds them, into each system.
     pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        self.systems.take(&Carried { statics: s, move_tex: None });
+        self.systems.take(&Carried { statics: s, move_tex: None, field: None });
     }
 
     /// Each system's scroll statics written back.
     pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        self.systems.put(&mut CarriedMut { statics: s, move_tex: None });
+        self.systems.put(&mut CarriedMut { statics: s, move_tex: None, field: None });
     }
 
     /// The town's `Draw` for this frame: its def's steps in order.
-    pub fn step(&mut self, v: &TownView) {
+    pub fn step(&mut self, v: &MapView) {
         self.frame.clear();
         self.systems.run(self.def.order, &mut self.core, v, &mut self.frame, &mut self.events);
         self.rows = self.systems.rows(&self.core.file);
@@ -786,7 +751,7 @@ impl Town {
     }
 
     /// What the draws started since the last call: effects and sounds.
-    pub fn take_events(&mut self) -> Vec<TownEvent> {
+    pub fn take_events(&mut self) -> Vec<MapEvent> {
         std::mem::take(&mut self.events)
     }
 

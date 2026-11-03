@@ -10,8 +10,8 @@
 use piney_data::dungeon::Rng;
 
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Env, Op};
-use crate::sky::firefly::{Firefly, Fly};
+use crate::field::ambient::{Env, Ground};
+use crate::sky::firefly::Firefly;
 use crate::sprite::{EffSprite, EffState};
 
 /// One key of an `NSPLINE` (28 bytes): its value, the cubic's
@@ -171,11 +171,11 @@ fn trail_scales(first: F, step: F) -> [F; 16] {
 impl FieldFirefly {
     /// `new FIREFLY` at a random place of the field, its base set and
     /// `Init` for `hacked` or not (`WORLD::Generate`).
-    pub fn new(hacked: bool, bounds: [F; 2], height: &dyn Fn(F, F) -> F, rng: &mut Rng) -> FieldFirefly {
+    pub fn new(hacked: bool, bounds: [F; 2], ground: Ground, rng: &mut Rng) -> FieldFirefly {
         let pattern = rng.below(100);
         let x = ee::from_int(rng.below(ee::to_int(bounds[0]) as u32) as i32);
         let y = ee::from_int(rng.below(ee::to_int(bounds[1]) as u32) as i32);
-        let z = height(x, y);
+        let z = ground.height(x, y);
         FieldFirefly::init(hacked, pattern, [x, y, z, 0], rng)
     }
 
@@ -230,8 +230,9 @@ impl FieldFirefly {
         }
     }
 
-    /// `FIREFLY::Move` (0x005b30a0). `type9` names the sparks' sprite.
-    pub fn step(&mut self, env: &Env, field_type: u32, rng: &mut Rng) {
+    /// `FIREFLY::Move` (0x005b30a0). Without a field (`WORLD_MAN`'s field
+    /// type 4) a new base stands at height 0.
+    pub fn step(&mut self, env: &Env, field: bool, rng: &mut Rng) {
         if ee::lt(self.transparency, ONE) {
             self.transparency = ee::add(self.transparency, 0x3dcc_cccd);
         }
@@ -264,7 +265,7 @@ impl FieldFirefly {
             self.base[0] = ee::sub(ee::from_int(rng.below(5000) as i32), 0x451c_4000);
             self.base[1] = ee::sub(ee::from_int(rng.below(5000) as i32), 0x451c_4000);
             self.base = env.p2w(self.base);
-            self.base[2] = if field_type == 4 { 0 } else { env.height(self.base[0], self.base[1]) };
+            self.base[2] = if field { env.height(self.base[0], self.base[1]) } else { 0 };
         }
         if self.hacked {
             return;
@@ -292,7 +293,7 @@ impl FieldFirefly {
                 self.sparks[k] = Some(Box::new(s));
             }
         }
-        let fly = fly(env);
+        let fly = env.fly();
         for k in 0..3 {
             let Some(s) = self.sparks[k].as_mut() else { continue };
             s.step_in(&fly, rng);
@@ -308,7 +309,7 @@ impl FieldFirefly {
 
     /// `FIREFLY::Draw` (0x005b3a60), on layer 3; the hacked trail's
     /// patterns draw from `fieldrand`.
-    pub fn draw(&mut self, env: &Env, spark_name: &'static str, rng: &mut Rng, out: &mut Vec<Op>) {
+    pub fn draw(&mut self, env: &Env, spark_name: &'static str, rng: &mut Rng, out: &mut Vec<EffSprite>) {
         if self.base[2] == 0xc3fa_0000 {
             return;
         }
@@ -321,7 +322,7 @@ impl FieldFirefly {
             out.push(sprite(self.looks.trail, self.trail[i], pattern, self.looks.trail_scale[i], ONE, false));
         }
         if self.count != 0 {
-            let fly = fly(env);
+            let fly = env.fly();
             for s in self.sparks.iter_mut().flatten() {
                 let mut draws = Vec::new();
                 s.draw_in(&fly, &mut draws);
@@ -352,22 +353,11 @@ fn spark(mut s: Firefly, rng: &mut Rng, pos: V4, v: V4, life: Option<i32>, scale
     s
 }
 
-fn fly<'a>(env: &'a Env<'a>) -> Fly<'a> {
-    Fly {
-        volume: env.volume,
-        player: env.player,
-        bounds: env.bounds,
-        eye: env.eye,
-        rot: env.cam_rot(),
-        height: env.height,
-    }
-}
-
-fn sprite(name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, fog: bool) -> Op {
+fn sprite(name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, fog: bool) -> EffSprite {
     let file = crate::field::ambient::EFF_FILE;
-    Op::Sprite(EffSprite {
+    EffSprite {
         scale: [scale; 2],
         transparency,
         ..EffSprite::new(file, name, pos, pattern, crate::draw::EFF_LAYER, EffState::fogged(fog))
-    })
+    }
 }

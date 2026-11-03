@@ -327,12 +327,7 @@ fn main() {
                     }
                     let sprites: Vec<String> = ops
                         .iter()
-                        .filter_map(|o| match o {
-                            piney_world::field::ambient::Op::Sprite(s) => {
-                                Some(format!("[\"{}\", {}, {}, {}]", s.eff, list(&s.pos), s.pattern, s.transparency))
-                            }
-                            _ => None,
-                        })
+                        .map(|s| format!("[\"{}\", {}, {}, {}]", s.eff, list(&s.pos), s.pattern, s.transparency))
                         .collect();
                     let lights: Vec<u32> =
                         a.dress.lights.iter().map(|r| a.lights.lights[r.light].intensity.to_bits()).collect();

@@ -5,7 +5,8 @@
 //! chips, the 12 x 12 chips round the centre drawn each frame. An object's
 //! hit models join the collision list as it is drawn, at the copy of its
 //! place nearest the player; between them the height map is the ground
-//! (docs/engine/field-walk.md).
+//! (docs/engine/field-walk.md). The weather, the ambient pictures and the
+//! background are the field type's systems ([`crate::field::def::FieldDef`]).
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -20,11 +21,18 @@ use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 use piney_draw::VertexEdits;
 
+use crate::area::AreaCore;
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, FLOOR_LAYER, OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Ambient, BgSlot, Env, Frame, Model, Op, Statics, Weather};
+use crate::field::ambient::{BOOT_STATICS, Weather};
+use crate::field::def::FieldDef;
 use crate::hit::{HitModel, Hits};
+use crate::sprite::EffSprite;
+use crate::systems::{
+    BuildCx, Carried, CarriedMut, DrawCx, Drawn, FieldCx, FieldStatics, MapEvent, MapView, Request, Statics, Systems,
+    paint,
+};
 use crate::town::{Light, TownLights};
 use piney_data::dungeon::Rng;
 
@@ -42,11 +50,6 @@ const OBJ2_FAR: F = 0x4616_0000;
 const OBJ2_FADE: F = 0x447a_0000;
 /// The chips drawn round the centre's: -6..5 each way.
 const WINDOW: i32 = 6;
-
-/// `defSE` (WORLD_MAN +0x15c) by field type, `GO`'s jump table at main
-/// 0x00355760: the ground-type bits `ccLandHitCheck` gives the height map.
-pub const DEF_SE: [u32; 11] =
-    [0x20f0, 0x20f0, 0x0090_b0c0, 0x0090_b0c0, 0xc000, 0x00e0_e0e0, 0x00d0_d0d0, 0x0040_5060, 0x6040, 0x6040, 0xc000];
 
 /// `FOBJECT2.type` values `WORLD::Draw` and `DrawObject` sort on.
 fn obj2_type(kind: Kind) -> u32 {
@@ -85,10 +88,17 @@ pub struct FieldObject {
 
 /// A field as `WORLD` holds it.
 pub struct FieldArea {
+    /// The field type's def.
+    pub def: &'static FieldDef,
+    /// The field's CCS file (`fieldccs[type]`), its collision (the height
+    /// map and the objects' hits), the light the ground and objects were
+    /// lit by (as Kite's draw takes it), `fieldrand` as `Generate` left it,
+    /// which the drawing goes on drawing from, and the start.
+    pub core: AreaCore,
     pub field: Rc<Field>,
     pub tables: &'static Tables,
-    /// The field's CCS file (`fieldccs[type]`), its background and effects.
-    pub file: Rc<SceneFile>,
+    /// The background (`DrawBG`'s clumps and the lens flare's sun) and the
+    /// effects' file (`field_eff`).
     pub bg: Rc<SceneFile>,
     pub eff: Option<Rc<SceneFile>>,
     pub scene: field::Scene,
@@ -101,13 +111,10 @@ pub struct FieldArea {
     /// `WORLD.ofs_x`, `ofs_y`: the centre the chips are drawn round.
     pub ofs: [F; 2],
     /// Every object's own `ccModelHit`s (one per model of it with a Hit
-    /// chunk), each at its object's place as its draw last set it; the
-    /// list (`ccModelHitTop`..) as indices into them, in order; and the
-    /// collision world the player and camera query, the list's models in
-    /// its order.
+    /// chunk), each at its object's place as its draw last set it; and the
+    /// list (`ccModelHitTop`..) as indices into them, in order.
     pub model_hits: Vec<HitModel>,
     pub list: Vec<usize>,
-    pub hits: Hits,
     /// The lit colours `WORLD::Init` wrote into the objects' models, by
     /// model; and the ground tiles' and covers' rewritten vertices.
     lit: HashMap<u32, Arc<VertexEdits>>,
@@ -116,67 +123,54 @@ pub struct FieldArea {
     /// The ground tile model and the covers' models (MDL_ objects).
     ground_model: Option<u32>,
     cover_models: Vec<Option<u32>>,
-    /// `DrawBG`'s clumps' models by slot.
-    bg_models: BgModels,
-    /// The materials `DrawBG` scrolls: `BgMatName`'s (or `BgMatName2`'s)
-    /// in V, the aurora's first object's in U.
-    bg_mat: Option<u32>,
-    aurora_mats: Vec<u32>,
-    /// What the last [`Op::BgV`] and [`Op::BgU`] wrote.
-    bg_uv: [u16; 2],
-    /// The lake's water (`SetLake`), whose place and scroll the ambient
-    /// drawing keeps ([`crate::field::ambient::lake`]).
-    lake: Option<Lake>,
-    /// The light the ground and objects were lit by, as Kite's draw takes
-    /// it.
-    pub lights: TownLights,
     /// The objects the last pass drew, with their layers.
     drawn: Vec<(usize, i16)>,
     /// `WORLD`'s minimap (`crate::map::field`), made by the runtime.
     pub map: Option<Box<crate::map::field::FieldMap>>,
-    /// The weather and ambient pictures ([`crate::field::ambient`]), the
-    /// drawing's function statics (the game's for as long as it runs; put
-    /// back when the field goes), and `fieldrand` as `Generate` left it,
-    /// which the drawing goes on drawing from.
-    pub ambient: Ambient,
-    pub statics: Statics,
-    pub cloth: crate::field::ambient::Cloth,
-    pub rng: Rng,
-    /// The last frame's pictures, drawn again while the tasks sleep.
-    last_ops: Vec<Op>,
-    /// The lens flare's sun: the background's `DMY_<x>lig_<n>point`.
-    sun: Option<V4>,
-    /// The heat haze's file, animation and model (types 0-3): its
-    /// `OBJ_sfzair00` samples the picture under it (`waterUVModifi`).
-    haze: Option<(Rc<SceneFile>, Play, crate::town::WaterZero)>,
-    /// TOBJ's file (`tobjCCS[server]`) and animations: its own and Ω's
-    /// runners.
-    tobj: Option<(Rc<SceneFile>, Vec<Play>)>,
-    /// BIRD's clump's models (`CMP_sfp8how1` of `field_eff`).
-    bird: Vec<u32>,
-    /// The 2D smoke's texture (`TEX_sfsmo1` of `field_eff`).
-    smoke_tex: Option<piney_desktop::message::WindowTexture>,
+    /// The field type's systems, what the last frame drew, what their
+    /// constructors started (for the host once the field is up), and the
+    /// drawing's statics as the field took them (a system the field lacks
+    /// leaves its own as they were).
+    systems: Systems,
+    frame: Vec<Drawn>,
+    made: Vec<MapEvent>,
+    statics: FieldStatics,
 }
 
 impl FieldArea {
-    /// `WORLD::DrawBG`'s sky scroll `v$4519`: a static of the executable's
-    /// data, which goes on from field to field
-    /// ([`crate::town::scroll_statics`]).
-    pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        if let Some(bg) = &mut self.ambient.bg {
-            bg.v = s[crate::town::scroll_statics::WORLD_BG];
-            crate::town::scroll_statics::take(&mut bg.turn, s, crate::town::scroll_statics::WORLD_BG_TURN);
-        }
-        crate::town::scroll_statics::take(&mut self.ambient.lake_uv, s, crate::town::scroll_statics::WORLD_LAKE);
+    /// What outlives the field, into its systems: the executable's
+    /// statics, and the drawing's (the executable's own before any field).
+    pub fn take(&mut self, statics: &Statics, field: Option<&FieldStatics>) {
+        self.statics = field.copied().unwrap_or(BOOT_STATICS);
+        let carried = Carried { statics, move_tex: None, field: Some(&self.statics) };
+        self.systems.take(&carried);
     }
 
-    /// The static written back.
-    pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        if let Some(bg) = &self.ambient.bg {
-            s[crate::town::scroll_statics::WORLD_BG] = bg.v;
-            crate::town::scroll_statics::put(&bg.turn, s, crate::town::scroll_statics::WORLD_BG_TURN);
-        }
-        crate::town::scroll_statics::put(&self.ambient.lake_uv, s, crate::town::scroll_statics::WORLD_LAKE);
+    /// The systems' statics written back, and the drawing's for the next
+    /// field.
+    pub fn put(&self, statics: &mut Statics) -> FieldStatics {
+        let mut field = self.statics;
+        self.systems.put(&mut CarriedMut { statics, move_tex: None, field: Some(&mut field) });
+        field
+    }
+
+    /// The systems, for tests and probes to read by kind.
+    pub fn systems(&self) -> &Systems {
+        &self.systems
+    }
+
+    pub fn systems_mut(&mut self) -> &mut Systems {
+        &mut self.systems
+    }
+
+    /// What the last [`FieldArea::step`] put in the frame, in its order.
+    pub fn frame(&self) -> &[Drawn] {
+        &self.frame
+    }
+
+    /// What the systems' constructors started (TOBJ's hum), once.
+    pub fn take_made(&mut self) -> Vec<MapEvent> {
+        std::mem::take(&mut self.made)
     }
 }
 
@@ -248,68 +242,37 @@ fn fade(d: F, near: F, far: F, len: F) -> F {
 }
 
 impl FieldArea {
-    /// [`FieldArea::with_world`] on server 0, not hacked, the ambient
-    /// statics as the executable starts them.
-    pub fn new(archive: &Archive, params: field::Params, def_se: u32) -> Result<FieldArea> {
-        FieldArea::with_world(archive, Volume::Inf, params, def_se, 2, 0, None)
-    }
-
-    /// The ambient drawing's function statics, which outlive `WORLD`: kept
-    /// in `SaveState::field_ambient` for the next field.
-    pub fn ambient_words(&self) -> [u32; piney_desktop::FIELD_AMBIENT] {
-        crate::field::ambient::kept_words(&self.statics, &self.cloth)
+    /// [`FieldArea::with_world`] on server 0, not hacked.
+    pub fn new(archive: &Arc<Archive>, params: field::Params) -> Result<FieldArea> {
+        FieldArea::with_world(archive, Volume::Inf, params, 2, 0, None)
     }
 
     /// `WORLD::WORLD`, `Init` and `Generate` for `params` (a story area's
-    /// `event` and `protect` set), reading the field's files. `hack` is
-    /// `WORLD_MAN` +0xf0 (`SetHackFlag`), `server` `ccGame.server`, `kept`
-    /// the last field's ambient statics (`SaveState::field_ambient`).
+    /// `event` and `protect` set), reading the field's files and making the
+    /// field type's systems. `hack` is `WORLD_MAN` +0xf0 (`SetHackFlag`),
+    /// `server` `ccGame.server`; `centre` is `WORLD_MAN`'s centre as `Init`
+    /// finds it (the last area's), the start when None: the flakes are
+    /// wrapped about the player on the first frame either way.
     pub fn with_world(
-        archive: &Archive,
+        archive: &Arc<Archive>,
         volume: Volume,
         params: field::Params,
-        def_se: u32,
         hack: u32,
         server: i32,
-        kept: Option<&[u32; piney_desktop::FIELD_AMBIENT]>,
+        centre: Option<V4>,
     ) -> Result<FieldArea> {
+        let ft = params.field_type;
+        let def = FieldDef::of(ft)
+            .filter(|d| d.field)
+            .ok_or_else(|| Error::NotFound(format!("field type {ft} has no field")))?;
         let tables = field::tables_of(volume);
         let generated = field::generate(tables, &params).map_err(|e| Error::Format(e.to_string()))?;
         let field = Rc::new(generated);
-        // WORLD::Init's weather (its draws before the layout's), then
-        // Generate's after the start position. Init's WORLD_MAN centre is
-        // the last area's, taken as the start: the flakes are wrapped
-        // about the player on the first frame either way.
-        let weather = Weather { field_type: params.field_type, b: params.weather, hack: hack as i32 };
-        let (mut statics, cloth) = crate::field::ambient::kept_statics(kept);
-        let start = [field.start_pos[0], field.start_pos[1], field.start_pos[2], ONE];
-        let blank = |x: F, y: F| field::blank_height(x, y);
-        let env = Env {
-            volume,
-            player: start,
-            centre: start,
-            ofs: [start[0], start[1]],
-            height: &blank,
-            eye: start,
-            eye1: start,
-            rot: [0; 4],
-            rot2: [0; 4],
-            eye_view: false,
-            odd: false,
-            bounds: BOUNDS,
-        };
-        let mut rng = Rng::new(params.seed);
-        let mut ambient = Ambient::init(weather, &env, &mut statics, &mut rng);
-        let mut rng = field.rng;
-        let heights = |x: F, y: F| field.get_height(x, y);
-        let entrance = field.dungeon_pos.map_or([0; 4], |p| [p[0], p[1], p[2], ONE]);
-        ambient.generate(server, start, entrance, &Env { height: &heights, ..env }, &mut rng);
-        let ft = params.field_type as usize;
-        let stem = tables.ccs[ft].ok_or_else(|| Error::NotFound(format!("field type {ft} has no field")))?;
+        let stem = tables.ccs[ft as usize].ok_or_else(|| Error::NotFound(format!("field type {ft} has no field")))?;
         let file = Rc::new(SceneFile::read(archive, stem)?);
         // isHacked other than 2: BGTBL2's background, light and fog.
-        let hacked = hack != 2 && tables.backgrounds.has_hacked(params.field_type);
-        let bg_name = tables.backgrounds.file_name(params.field_type, params.weather, hacked);
+        let hacked = hack != 2 && tables.backgrounds.has_hacked(ft);
+        let bg_name = tables.backgrounds.file_name(ft, params.weather, hacked);
         let bg = Rc::new(SceneFile::read(archive, &bg_name)?);
         let eff = SceneFile::read(archive, tables.effect_ccs).ok().map(Rc::new);
         let scene = field.scene_of(tables, &file.ccs, &bg.ccs, hacked)?;
@@ -431,56 +394,6 @@ impl FieldArea {
         let ground_model = file.ccs.find_object(scene.ground_model);
         let cover_models = scene.covers.iter().map(|c| file.ccs.find_object(c.mesh)).collect();
 
-        // DrawBG: the sky, two cloud layers and the mountains (and field
-        // type 6's aurora) on the background layers.
-        let clump_models = |name: &str| -> Vec<u32> {
-            let Some(nodes) = bg.ccs.find_object(name).and_then(|o| clump_nodes(&bg.scene, o)) else {
-                return Vec::new();
-            };
-            let mut m: Vec<u32> =
-                bg.scene.model_owner.iter().filter(|(_, o)| nodes.contains(o)).map(|(m, _)| *m).collect();
-            m.retain(|m| bg.models.get(m).is_some_and(|i| i.mtype & 0x600 != 0x600));
-            m.sort_unstable();
-            m
-        };
-        let back = &scene.background;
-        let slot = |k: usize| back.clumps.get(k).map_or_else(Vec::new, |c| clump_models(c));
-        let bg_models: BgModels =
-            [slot(0), slot(1), slot(2), slot(3), slot(4), back.aurora.map_or_else(Vec::new, clump_models)];
-        ambient.bg = Some(crate::field::ambient::DrawBg {
-            hacked: back.hacked,
-            aurora: back.aurora.is_some(),
-            ..Default::default()
-        });
-        let bg_mat = back.sky_material.and_then(|n| bg.ccs.find_object(n));
-        // SetUV of the aurora's first object's model: its materials' U.
-        let aurora_mats: Vec<u32> = back
-            .aurora
-            .and_then(|a| bg.ccs.find_object(a))
-            .and_then(|o| clump_nodes(&bg.scene, o))
-            .and_then(|nodes| nodes.first().copied())
-            .map(|first| {
-                let mut mats: Vec<u32> = (bg.scene.model_owner.iter())
-                    .filter(|(_, o)| **o == first)
-                    .filter_map(|(m, _)| bg.models.get(m))
-                    .flat_map(|i| i.mmats.iter().filter_map(|m| m.material))
-                    .collect();
-                mats.sort_unstable();
-                mats.dedup();
-                mats
-            })
-            .unwrap_or_default();
-
-        let lake = match (&eff, scene.water) {
-            (Some(e), Some(w)) => Lake::new(e, w.anime),
-            _ => None,
-        };
-        if lake.is_some()
-            && let Some(w) = scene.water
-        {
-            ambient.lake = Some([w.pos[0].to_bits(), w.pos[1].to_bits(), w.pos[2].to_bits(), ONE]);
-        }
-
         let l = &scene.light;
         let amb = l.ambient_rgb().map(f32::from_bits);
         let col = l.colour_rgb().map(f32::from_bits);
@@ -507,70 +420,17 @@ impl FieldArea {
             area: 1,
             bounds: Some(BOUNDS),
             heights: Some(heights),
-            def_se,
+            def_se: def.def_se,
             event_area: false,
             ..Hits::default()
         };
-        // The lens flare's sun, the heat haze, TOBJ and BIRD.
-        let sun = crate::field::ambient::flare_dummy(params.field_type, params.weather)
-            .and_then(|n| bg.ccs.find_object(&n))
-            .and_then(|o| bg.scene.dummies.get(&o))
-            .map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE]);
-        let haze = if ambient.haze {
-            SceneFile::read(archive, crate::field::ambient::HAZE_FILE).ok().and_then(|f| {
-                let f = Rc::new(f);
-                let play = Play::new(&f, crate::field::ambient::HAZE_ANIM)?;
-                // The object's model (through its ExtObj target), which
-                // waterUVModifi writes as waterUVModifi2 does, with no
-                // reach.
-                let o = f.ccs.find_object(crate::field::ambient::HAZE_MODEL)?;
-                let target = f.scene.ext.get(&o).copied().unwrap_or(o);
-                let id = f.obj_model.get(&target).copied()?;
-                let model = piney_data::model::models(&f.ccs).ok()?.into_iter().find(|m| m.object == id)?;
-                let water = crate::town::WaterZero { model, st: None, reach: 0x7f7f_ffff };
-                Some((f, play, water))
-            })
-        } else {
-            None
-        };
-        let tobj = match &ambient.tobj {
-            Some(t) => {
-                let (stem, anim) = crate::field::ambient::TOBJ[t.server as usize];
-                SceneFile::read(archive, stem).ok().map(|f| {
-                    let f = Rc::new(f);
-                    let mut plays: Vec<Play> = Play::new(&f, anim).into_iter().collect();
-                    if t.server == 4 {
-                        for _ in 0..2 {
-                            plays.extend(Play::new(&f, crate::field::ambient::TOBJ_RUNNER));
-                        }
-                    }
-                    (f, plays)
-                })
-            }
-            None => None,
-        };
-        let bird = match (&eff, &ambient.bird) {
-            (Some(e), Some(_)) => {
-                let nodes = e
-                    .ccs
-                    .find_object(crate::field::ambient::BIRD_CLUMP)
-                    .and_then(|o| clump_nodes(&e.scene, o))
-                    .map(<[u32]>::to_vec)
-                    .unwrap_or_default();
-                let mut m: Vec<u32> = nodes.iter().filter_map(|n| e.obj_model.get(n).copied()).collect();
-                m.sort_unstable();
-                m.dedup();
-                m
-            }
-            _ => Vec::new(),
-        };
-        let smoke_tex = ambient.smoke.as_ref().and_then(|_| {
-            piney_desktop::message::WindowTexture::read_named(archive, crate::field::ambient::EFF_FILE, SMOKE_TEX, None)
-        });
+        let start = [field.start_pos[0], field.start_pos[1], field.start_pos[2], ONE];
+        let core = AreaCore { file, hits, lights, field_rand: None, start };
         let mut area = FieldArea {
+            def,
+            core,
             field,
             tables,
-            file,
             bg,
             eff,
             scene,
@@ -580,34 +440,47 @@ impl FieldArea {
             ofs: [0, 0],
             model_hits,
             list: Vec::new(),
-            hits,
             lit,
             tile_edits,
             cover_edits,
             ground_model,
             cover_models,
-            bg_models,
-            bg_mat,
-            aurora_mats,
-            bg_uv: [0, 0],
-            lake,
-            lights,
             drawn: Vec::new(),
             map: None,
-            ambient,
-            statics,
-            cloth,
-            rng,
-            last_ops: Vec::new(),
-            sun,
-            haze,
-            tobj,
-            bird,
-            smoke_tex,
+            systems: Systems::default(),
+            frame: Vec::new(),
+            made: Vec::new(),
+            statics: BOOT_STATICS,
         };
-        if params.field_type == 7 {
-            area.ambient.fires = area.fire_places();
-        }
+        // WORLD::Init's systems from the seed's fieldrand (before the
+        // layout's draws), DrawBG's, then Generate's after SetStartPos from
+        // the layout's.
+        let weather = Weather { field_type: ft, b: params.weather, hack: hack as i32 };
+        let bg_systems = if area.scene.background.hacked { def.hacked } else { def.plain };
+        let (systems, made, rng) = {
+            let fcx = FieldCx { def, weather, server, field: Some(&area), centre: centre.unwrap_or(start) };
+            let mut cx = BuildCx {
+                archive,
+                tables: volume,
+                volume,
+                file: &area.bg,
+                stem: "",
+                crisis: false,
+                rng: Rng::new(params.seed),
+                map: None,
+                cc: None,
+                field: Some(fcx),
+                made: Vec::new(),
+            };
+            let mut systems = Systems::build(def.init, &mut cx)?;
+            systems.extend(bg_systems, &mut cx)?;
+            cx.rng = area.field.rng;
+            systems.extend(def.generate, &mut cx)?;
+            (systems, cx.made, cx.rng)
+        };
+        area.systems = systems;
+        area.made = made;
+        area.core.field_rand = Some(rng);
         // SetDungeonEnter: FOBJECT2::HitEnable at the entrance's own place.
         if let Some(k) = area.objects.iter().position(|o| o.kind == Kind::Entrance) {
             let wp = area.objects[k].wp;
@@ -660,7 +533,7 @@ impl FieldArea {
 
     /// The collision world's model list as the `ccModelHit` list stands.
     fn rebuild_hits(&mut self) {
-        self.hits.models = self.list.iter().map(|&h| self.model_hits[h].clone()).collect();
+        self.core.hits.models = self.list.iter().map(|&h| self.model_hits[h].clone()).collect();
     }
 
     /// `WORLD::SetCenter(x, y)` (gcmn 0x005aa2b0), from `ccPlayer::ccPlayer`:
@@ -715,8 +588,8 @@ impl FieldArea {
     fn fobject_step(&mut self, k: usize, player: V4) {
         let d = w2p(self.objects[k].wp, player, BOUNDS);
         let pos = p2w(d, player, BOUNDS);
-        let dist = ground_dist(self.hits.volume, d);
-        let file = self.file.clone();
+        let dist = ground_dist(self.core.hits.volume, d);
+        let file = self.core.file.clone();
         let o = &mut self.objects[k];
         o.pos = pos;
         o.dist = dist;
@@ -735,7 +608,7 @@ impl FieldArea {
     fn fobject2_step(&mut self, k: usize, player: V4) {
         let d = w2p(self.objects[k].wp, player, BOUNDS);
         let pos = p2w(d, player, BOUNDS);
-        let dist = ground_dist(self.hits.volume, d);
+        let dist = ground_dist(self.core.hits.volume, d);
         let o = &mut self.objects[k];
         o.dist = dist;
         o.disp = true;
@@ -748,7 +621,7 @@ impl FieldArea {
             return;
         }
         o.pos = [pos[0], pos[1], pos[2], ONE];
-        let file = self.file.clone();
+        let file = self.core.file.clone();
         if let Some(p) = &mut o.play {
             p.forward(&file);
         }
@@ -829,7 +702,7 @@ impl FieldArea {
             self.drawn = self.step_objects(player);
         }
         let drawn = self.drawn.clone();
-        let file = self.file.clone();
+        let file = self.core.file.clone();
         let rows = HashMap::new();
         for (k, layer) in drawn {
             let o = &self.objects[k];
@@ -846,7 +719,7 @@ impl FieldArea {
                     for inst in p.instances(&file, root) {
                         let Some((model, _)) = file.drawn_model(inst.object) else { continue };
                         let world = inst.world;
-                        let node_mats = skin_nodes(&file, p, root, inst.object, model);
+                        let node_mats = crate::systems::skin_nodes(&file, p, root, inst.object, model);
                         let m = crate::town::object_morph(&file, &morph, inst.entry);
                         let d = Draw {
                             file: &file,
@@ -948,238 +821,52 @@ impl FieldArea {
         }
     }
 
-    /// `ccClump::Draw` of `DrawBG`'s clump `slot` on `layer` (the game's
-    /// priority) at `matrix`, the scroll's offsets on the materials it
-    /// wrote (a file's materials are one set for all its models).
-    fn bg_draw(&self, layers: &mut Layers, to_screen: Mat4, slot: BgSlot, layer: i16, matrix: &[V4; 4]) {
-        let bg = &self.bg;
-        let mut rows: HashMap<u32, [u8; 2]> = HashMap::new();
-        for (&mat, m) in &bg.scene.materials {
-            let mut row = [0u8; 2];
-            if Some(mat) == self.bg_mat {
-                row[1] = (self.bg_uv[0].wrapping_sub(m.crop_v) >> 4) as u8;
-            }
-            if self.aurora_mats.contains(&mat) {
-                row[0] = (self.bg_uv[1].wrapping_sub(m.crop_u) >> 4) as u8;
-            }
-            if row != [0, 0] {
-                rows.insert(mat, row);
-            }
+    /// `WORLD::Draw`'s and `DrawEffect`'s weather, ambient pictures and
+    /// background for the frame (after the objects, the ground and the
+    /// water), in the def's order: awake, its steps; asleep, the last
+    /// frame's pieces again ([`FieldDef::asleep`]).
+    pub fn step(&mut self, v: &MapView, awake: bool, cc: Option<&mut dyn piney_battle::rand::Rng>) -> Vec<MapEvent> {
+        let mut events = Vec::new();
+        if awake {
+            self.frame.clear();
+            self.systems.run_rand(self.def.order, &mut self.core, v, &mut self.frame, &mut events, cc);
+        } else {
+            let mut kept = Vec::new();
+            self.systems.run(self.def.asleep, &mut self.core, v, &mut kept, &mut events);
         }
-        let world = draw::mat(matrix);
-        for &model in &self.bg_models[slot as usize] {
-            let d = Draw {
-                file: bg,
-                model,
-                world,
-                alpha: 1.0,
-                rows: &rows,
-                lights: None,
-                nodes: &[],
-                morph: Vec::new(),
-                clut_swaps: Vec::new(),
-            };
-            draw::model(layers, layer, to_screen, &d);
-        }
+        events
     }
 
-    /// `WORLD::Draw`'s and `DrawEffect`'s weather and ambient pictures
-    /// for the frame (after the objects, the ground and the water): with
-    /// `step` false (the tasks asleep) the last frame's again, and false
-    /// with them (nothing to start again). `odd` is the frame counter's low
-    /// bit, `cc` the game's `ccRand`.
-    pub fn ambient_frame(
-        &mut self,
-        cam: &crate::camera::Camera,
-        player: V4,
-        odd: bool,
-        cc: &mut dyn FnMut() -> u32,
-        step: bool,
-    ) -> (Vec<Op>, bool) {
-        if !step {
-            return (self.last_ops.clone(), false);
-        }
-        let volume = self.hits.volume;
-        let FieldArea { ambient, statics, cloth, rng, field, tobj, sun, ofs, .. } = self;
-        let field = field.clone();
-        let heights = move |x: F, y: F| field.get_height(x, y);
-        let a = cam.active();
-        let env = Env {
-            volume,
-            player,
-            centre: [ofs[0], ofs[1], 0, ONE],
-            ofs: *ofs,
-            height: &heights,
-            eye: a.pos,
-            eye1: cam.tcam.pos,
-            rot: cam.tcam.rot,
-            rot2: cam.tcam.rot3,
-            eye_view: a.kind == crate::camera::kind::EYE,
-            odd,
-            bounds: BOUNDS,
-        };
-        let tobj = &*tobj;
-        let runners = |m: &[V4; 4]| runner_places(tobj.as_ref(), m);
-        let frame = Frame { env, flare_cam: crate::sky::lensflare::FlareCamera::of(cam), sun: *sun, runners: &runners };
-        let ops = ambient.draw(&frame, statics, cloth, rng, cc);
-        self.last_ops = ops.clone();
-        (ops, true)
+    /// The scrolled background materials' offsets as the last step left
+    /// them.
+    pub fn rows(&self) -> HashMap<u32, [u8; 2]> {
+        self.systems.rows(&self.bg)
     }
 
-    /// The ambient pictures' models (the heat haze, TOBJ, BIRD) and the 2D
-    /// smoke, drawn into the field's layers with the camera's
-    /// `world_screen`; the models' animations stepped with `step` (TOBJ's
-    /// while it is awake, as `TOBJ::Draw` steps them, the haze's as
-    /// `WORLD::Draw` draws it). The sprites and the smoke puffs are the
-    /// effects' ([`crate::field::world::FieldFx::field_ambient`]).
-    pub fn ambient_models(
-        &mut self,
-        ops: &[Op],
-        layers: &mut Layers,
-        to_screen: Mat4,
-        world_screen: &[V4; 4],
-        step: bool,
-    ) {
-        let volume = self.hits.volume;
-        self.smoke_masks(ops, layers);
-        let awake = self.ambient.tobj.as_ref().is_some_and(|t| t.sleep == 0);
-        if let Some((file, plays)) = &mut self.tobj
-            && step
-            && awake
-        {
-            for play in plays.iter_mut() {
-                play.forward(file);
-            }
-        }
-        for op in ops {
-            match op {
-                Op::LakeUv { u, v } => {
-                    if let Some(lake) = self.lake.as_mut() {
-                        lake.uv = [*u, *v];
-                    }
-                }
-                Op::BgV(v) => self.bg_uv[0] = *v,
-                Op::BgU(u) => self.bg_uv[1] = *u,
-                Op::Bg { slot, layer, matrix } => self.bg_draw(layers, to_screen, *slot, *layer, matrix),
-                _ => {}
-            }
-            let Op::Model { layer, what, matrix, alpha, shadow } = op else { continue };
-            let layer = ambient_layer(*layer);
-            let root = draw::mat(matrix);
-            match what {
-                Model::Haze => {
-                    let Some((file, play, water)) = &mut self.haze else { continue };
-                    if step {
-                        play.forward(file);
-                    }
-                    // The posed object whose model is the haze's.
-                    let worlds = play.worlds(file, root, &[]);
-                    let lw = worlds.iter().find(|(o, _)| {
-                        let target = file.scene.ext.get(o).copied().unwrap_or(**o);
-                        file.obj_model.get(&target) == Some(&water.model.object)
-                    });
-                    if let Some((_, lw)) = lw {
-                        let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
-                        water.modify(volume, &lw, lw[3], lw[3], world_screen);
-                    }
-                    let edits = water.st.is_some().then(|| (water.model.object, water.edits()));
-                    let rows = play.uv_rows(file);
-                    anim_edited(layers, layer, to_screen, (file, play, &rows), root, ee::f(*alpha), edits.as_ref());
-                }
-                Model::Lake(k) => {
-                    let (Some(eff), Some(lake)) = (self.eff.clone(), self.lake.as_mut()) else { continue };
-                    // Each animation steps once before its draw; the three
-                    // are in step, so the one clip steps with the first.
-                    if step && *k == 0 {
-                        lake.play.forward(&eff);
-                    }
-                    let rows = lake.rows(&eff);
-                    let edits = (*k == 1).then(|| {
-                        let worlds = lake.play.worlds(&eff, root, &[]);
-                        let lw = worlds.iter().find(|(o, _)| {
-                            let target = eff.scene.ext.get(o).copied().unwrap_or(**o);
-                            eff.obj_model.get(&target) == Some(&lake.mirror.model.object)
-                        });
-                        if let Some((_, lw)) = lw {
-                            let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
-                            lake.mirror.modify(volume, &lw, lw[3], lw[3], world_screen);
-                        }
-                        (lake.mirror.model.object, lake.mirror.edits())
-                    });
-                    let edits = edits.filter(|_| lake.mirror.st.is_some());
-                    anim_edited(
-                        layers,
-                        layer,
-                        to_screen,
-                        (&eff, &lake.play, &rows),
-                        root,
-                        ee::f(*alpha),
-                        edits.as_ref(),
-                    );
-                }
-                Model::Tobj | Model::TobjRunner(_) => {
-                    let Some((file, plays)) = &self.tobj else { continue };
-                    let k = match what {
-                        Model::TobjRunner(k) => 1 + *k as usize,
-                        _ => 0,
-                    };
-                    let Some(play) = plays.get(k) else { continue };
-                    // Θ's balloon: its cloths' V as Move left them.
-                    let mut rows = play.uv_rows(file);
-                    if self.ambient.tobj.as_ref().is_some_and(|t| t.server == 1) {
-                        for (name, set) in crate::field::ambient::CLOTHS.into_iter().zip(self.cloth.shown) {
-                            let Some(mat) = file.ccs.find_object(name) else { continue };
-                            let Some(m) = file.scene.materials.get(&mat) else { continue };
-                            let v = ((set as u16).wrapping_sub(m.crop_v) >> 4) as u8;
-                            rows.entry(mat).or_insert([0, 0])[1] = v;
-                        }
-                    }
-                    anim_edited(layers, layer, to_screen, (file, play, &rows), root, ee::f(*alpha), None);
-                    // TOBJ::Draw's shadow: WORLD_MAN +0x414's packet (128 x
-                    // 128) for its ccAnm::Draw, its length and alpha, then
-                    // +0x410's back.
-                    if let Some((length, shadow_alpha)) = *shadow {
-                        let back = layers.shadows.active;
-                        layers.shadows.active = back.map(|_| piney_desktop::shadow::TOBJ_PACKET);
-                        layers.shadows.length = ee::f(length);
-                        layers.shadows.alpha = shadow_alpha;
-                        let objects = play.instances(file, root).into_iter().map(|i| (i.object, i.world));
-                        draw::cast_shadows(layers, file, objects);
-                        layers.shadows.active = back;
-                    }
-                }
-                Model::Bird => {
-                    let Some(eff) = self.eff.clone() else { continue };
-                    let rows = HashMap::new();
-                    for &model in &self.bird {
-                        let d = Draw {
-                            file: &eff,
-                            model,
-                            world: root,
-                            alpha: 1.0,
-                            rows: &rows,
-                            lights: None,
-                            nodes: &[],
-                            morph: Vec::new(),
-                            clut_swaps: Vec::new(),
-                        };
-                        draw::model(layers, layer, to_screen, &d);
-                    }
-                }
-            }
-        }
+    /// The last frame's pieces as generic draws, with `rows`.
+    pub fn requests<'a>(&'a self, rows: &'a HashMap<u32, [u8; 2]>) -> Vec<Request<'a>> {
+        let cx = DrawCx { core: &self.core, fog: draw::Fogging::None, rows };
+        self.systems.requests(&self.frame, &cx)
     }
 
-    /// Type 7's fires (`WORLD` +0x358, +0x360) as `SetSpecialObj` (gcmn
-    /// 0x005aae90, from `WORLD_MAN::EntryGimmick`) finds them: for each
-    /// chip's `FOBJECT` (`fobj[x][y]`, y the outer loop) with an animation,
-    /// its `OBJ_roc1fire` node, then its `OBJ_roc3fire`, each node's place
-    /// in the animation (its own and its parents' matrices,
-    /// `_SetLWMatrix`) plus the object's `wp` (+0x30), w 1. The game's
-    /// `EntryGimmick` is not ported in a field; the runtime finds them here
-    /// as the field is made, with the animations at their first frame.
-    fn fire_places(&self) -> Vec<V4> {
-        let file = &self.file;
+    /// The last frame's pieces into the field's layers (the models, the 2D
+    /// smoke, the background), its sprites for the effects.
+    pub fn paint(&self, layers: &mut Layers, to_screen: Mat4) -> Vec<EffSprite> {
+        let rows = self.rows();
+        let mut sprites = Vec::new();
+        for r in self.requests(&rows) {
+            paint(layers, to_screen, &r, &mut sprites);
+        }
+        sprites
+    }
+
+    /// The places of the nodes `names` (in order) of each chip's animated
+    /// `FOBJECT` (`fobj[x][y]`, y the outer loop), each node's place in the
+    /// animation (its own and its parents' matrices, `_SetLWMatrix`) plus
+    /// the object's `wp` (+0x30), w 1 (`WORLD::SetSpecialObj`, gcmn
+    /// 0x005aae90), the animations at their first frame.
+    pub fn object_nodes(&self, names: &[&str]) -> Vec<V4> {
+        let file = &self.core.file;
         let mut out = Vec::new();
         for y in 0..40 {
             for x in 0..40 {
@@ -1188,7 +875,7 @@ impl FieldArea {
                 let Some(play) = &o.play else { continue };
                 let worlds = play.worlds(file, Mat4::IDENTITY, &[]);
                 // GetSubstAdrs: the animation's object of that name.
-                for name in ["OBJ_roc1fire", "OBJ_roc3fire"] {
+                for &name in names {
                     let w = worlds.iter().find(|(o, _)| file.ccs.object_name(**o) == Some(name));
                     if let Some((_, w)) = w {
                         let t = w.w_axis;
@@ -1210,7 +897,7 @@ impl FieldArea {
     /// `water` the lake's index among the `FOBJECT2`s.
     pub fn field_gims(&self, event_area: i32) -> piney_battle::entry::FieldGims {
         use piney_battle::entry::{FieldGims, FieldObj};
-        let file = &self.file;
+        let file = &self.core.file;
         let name = |o: u32| file.ccs.object_name(o).unwrap_or("");
         let obj = |k: usize| -> FieldObj {
             let o = &self.objects[k];
@@ -1257,39 +944,6 @@ impl FieldArea {
         FieldGims { fobj2, fobj, water, in_point, event_area, field_type: self.field.params.field_type as i32 }
     }
 
-    /// `DrawEffect`'s 2D smoke: each puff the `ccMask`'s
-    /// `MakePacket(0, 1)` (a 512 x 512 sprite of the 128 x 128 texture,
-    /// its colour's alpha 0x60 times the transparency), then one
-    /// `SendPacketS`.
-    fn smoke_masks(&self, ops: &[Op], layers: &mut Layers) {
-        let Some(tex) = &self.smoke_tex else { return };
-        let mut sprite = None;
-        for op in ops {
-            let Op::Mask { layer, alpha, x, y } = *op else { continue };
-            let sp = sprite.get_or_insert_with(|| {
-                let mut sp = piney_desktop::sprite::Sprite::mask(ambient_layer(layer), tex.tex.clone(), tex.tex_h, 64);
-                sp.colour = [0x80, 0x80, 0x80, 0x60];
-                sp
-            });
-            sp.transp = ee::f(alpha);
-            sp.cx = 0.0;
-            sp.cy = 0.0;
-            sp.dx = ee::f(x);
-            sp.dy = ee::f(y);
-            sp.sx = 512.0;
-            sp.sy = 512.0;
-            sp.su = 128;
-            sp.sv = 128;
-            sp.wu = 0;
-            sp.wv = 0;
-            sp.wi = 1;
-            sp.make_packet(0, &piney_desktop::view::LayerView::default_layer());
-        }
-        if let Some(mut sp) = sprite {
-            sp.send(layers);
-        }
-    }
-
     /// The dungeon entrance's centre (`WORLD_MAN.dungeonPos[0]`).
     pub fn dungeon_pos(&self) -> Option<V4> {
         self.field.dungeon_pos.map(|p| [p[0], p[1], p[2], ONE])
@@ -1325,134 +979,9 @@ pub fn active_layer(layer: i16) -> u8 {
     (0..=6).find(|&k| ambient_layer(k) == layer).unwrap_or(0)
 }
 
-/// `SetLake`'s three animations of `ANM_sfwat1_1a` (`field_eff`), in step
-/// (each set up alike and stepped once a frame before its draw): their
-/// clip, the second's `OBJ_water00` as `waterUVModifi` leaves it, and the
-/// materials the scroll writes (`MAT_sfzwat1_1`'s U; the V of every
-/// material `OBJ_water00`'s model uses). A file's materials are one set
-/// for all its models, so each animation draws with both.
-struct Lake {
-    play: Play,
-    mirror: crate::town::WaterZero,
-    u_mat: Option<u32>,
-    v_mats: Vec<u32>,
-    /// What the last frame's [`Op::LakeUv`] wrote.
-    uv: [u16; 2],
-}
-
-impl Lake {
-    /// The lake's pieces of `field_eff`.
-    fn new(eff: &SceneFile, anime: &str) -> Option<Lake> {
-        let play = Play::new(eff, anime)?;
-        let o = eff.ccs.find_object(LAKE_MODEL)?;
-        let target = eff.scene.ext.get(&o).copied().unwrap_or(o);
-        let id = eff.obj_model.get(&target).copied()?;
-        let model = piney_data::model::models(&eff.ccs).ok()?.into_iter().find(|m| m.object == id)?;
-        let mut v_mats: Vec<u32> = model.mmats.iter().filter_map(|m| m.material).collect();
-        v_mats.sort_unstable();
-        v_mats.dedup();
-        let u_mat = eff.ccs.find_object(LAKE_MATERIAL);
-        let mirror = crate::town::WaterZero { model, st: None, reach: 0x7f7f_ffff };
-        Some(Lake { play, mirror, u_mat, v_mats, uv: [0, 0] })
-    }
-
-    /// The materials' offsets the scroll wrote, less each one's own, over
-    /// the clip's own (`_AnimateForward` comes after the scroll's writes).
-    fn rows(&self, eff: &SceneFile) -> HashMap<u32, [u8; 2]> {
-        let mut rows: HashMap<u32, [u8; 2]> = HashMap::new();
-        let [u, v] = self.uv;
-        for (&mat, m) in &eff.scene.materials {
-            let mut row = [0u8; 2];
-            if Some(mat) == self.u_mat {
-                row[0] = (u.wrapping_sub(m.crop_u) >> 4) as u8;
-            }
-            if self.v_mats.contains(&mat) {
-                row[1] = (v.wrapping_sub(m.crop_v) >> 4) as u8;
-            }
-            if row != [0, 0] {
-                rows.insert(mat, row);
-            }
-        }
-        rows.extend(self.play.uv_rows(eff));
-        rows
-    }
-}
-
-/// The lake's model whose texture is the picture under it, and the
-/// material whose U the scroll writes.
-const LAKE_MODEL: &str = "OBJ_water00";
-const LAKE_MATERIAL: &str = "MAT_sfzwat1_1";
-
-/// The models of each of `DrawBG`'s clumps, by [`BgSlot`]: the sky, the
-/// layers, the mountains (hacked), the aurora.
-type BgModels = [Vec<u32>; 6];
-
 /// `refLayer` (`WORLD_MAN` +0x4d0, priority 30), where the heat haze and
 /// the frame buffer's copy it samples go.
 pub const REF_LAYER: i16 = 30;
-
-/// The 2D smoke's texture in `field_eff`.
-const SMOKE_TEX: &str = "TEX_sfsmo1";
-
-/// Where TOBJ's animation puts Ω's runners (`OBJ_dummy_rei0`, `rei1`)
-/// under its matrix `m`.
-fn runner_places(tobj: Option<&(Rc<SceneFile>, Vec<Play>)>, m: &[V4; 4]) -> [V4; 2] {
-    let mut out = [[0, 0, 0, ONE]; 2];
-    let Some((file, plays)) = tobj else { return out };
-    let Some(play) = plays.first() else { return out };
-    let worlds = play.worlds(file, draw::mat(m), &[]);
-    for (k, name) in ["OBJ_dummy_rei0", "OBJ_dummy_rei1"].into_iter().enumerate() {
-        let Some(o) = file.ccs.find_object(name) else { continue };
-        if let Some(w) = worlds.get(&o) {
-            let t = w.w_axis;
-            out[k] = [t.x.to_bits(), t.y.to_bits(), t.z.to_bits(), ONE];
-        }
-    }
-    out
-}
-
-/// A bone or skin model's node matrices: the nodes of its object's clump
-/// as `play` poses them under `root`, for `SetAnm` builds an anm-made
-/// model's node table from the anm's own objects (main 0x00151950); none
-/// for any other model.
-fn skin_nodes(file: &SceneFile, play: &Play, root: Mat4, obj: u32, model: u32) -> Vec<Mat4> {
-    let skinned = file.models.get(&model).is_some_and(|i| i.mtype & 6 != 0);
-    let Some(nodes) = file.scene.clump_of(obj).filter(|_| skinned) else { return Vec::new() };
-    let nodes: Vec<u32> = nodes.iter().map(|n| file.scene.ext.get(n).copied().unwrap_or(*n)).collect();
-    let worlds = play.worlds(file, root, &nodes);
-    nodes.iter().map(|n| worlds.get(n).copied().unwrap_or(root)).collect()
-}
-
-/// An animation's objects ([`Play::instances`]) drawn at `root` with
-/// `alpha` and the materials' scrolls `rows`, one model with `edits`.
-#[allow(clippy::too_many_arguments)]
-fn anim_edited(
-    layers: &mut Layers,
-    layer: i16,
-    to_screen: Mat4,
-    (file, play, rows): (&SceneFile, &Play, &HashMap<u32, [u8; 2]>),
-    root: Mat4,
-    alpha: f32,
-    edits: Option<&(u32, Arc<VertexEdits>)>,
-) {
-    for inst in play.instances(file, root) {
-        let Some((model, _)) = file.drawn_model(inst.object) else { continue };
-        let e = edits.filter(|(m, _)| *m == model).map(|(_, e)| e);
-        let node_mats = skin_nodes(file, play, root, inst.object, model);
-        let d = Draw {
-            file,
-            model,
-            world: inst.world,
-            alpha,
-            rows,
-            lights: None,
-            nodes: &node_mats,
-            morph: Vec::new(),
-            clut_swaps: Vec::new(),
-        };
-        draw::model_edited(layers, layer, to_screen, &d, e, draw::Fogging::None);
-    }
-}
 
 /// `ccDrawEnv::SetFog(near, far, 0, percent, colour)` as VU1 fogs each
 /// vertex by its depth.
@@ -1515,10 +1044,14 @@ impl crate::camera::Camera {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::systems::bird::Bird;
+    use crate::systems::lake::Lake;
+    use crate::systems::sky::Sky;
+    use crate::systems::tobj::Tobj;
 
     /// Story area 14's field (fieldSeed 1420855, type 10, weather 0,
     /// ground 1, object 1), as `WORLD_MAN::GO(1)` makes it.
-    pub(crate) fn area14(archive: &Archive) -> FieldArea {
+    pub(crate) fn area14(archive: &Arc<Archive>) -> FieldArea {
         let params = field::Params {
             seed: 1_420_855,
             field_type: 10,
@@ -1529,7 +1062,7 @@ mod tests {
             protect: false,
             skip_init: false,
         };
-        FieldArea::new(archive, params, DEF_SE[10]).unwrap()
+        FieldArea::new(archive, params).unwrap()
     }
 
     /// Issue #38: each field object owns its `ccModelHit`s (`ccObj::Init`
@@ -1549,60 +1082,22 @@ mod tests {
         f.place(a);
         f.place(b);
         let model = parent(&f, a);
-        let at: Vec<V4> = f.hits.models.iter().filter(|h| Some(h.parent) == model).map(|h| h.rm[3]).collect();
+        let at: Vec<V4> = f.core.hits.models.iter().filter(|h| Some(h.parent) == model).map(|h| h.rm[3]).collect();
         assert_eq!(at, [f.objects[a].wp, f.objects[b].wp]);
     }
 
-    /// Issue #37: Cursed Despaired Paradise's dungeon mouth (field type 8,
-    /// `ANM_sfk1sto1a`) has two hands, bone and skin models over the
-    /// clump's finger nodes. Drawn with no node matrices they fell to the
-    /// mouth's origin as a pink block; they take their clump's nodes as
-    /// the anm poses them, out at the mouth's sides.
-    #[test]
-    fn the_mouths_hands_take_their_bones() {
-        let Some(archive) = crate::town::tests::archive() else { return };
-        let file = SceneFile::read(&archive, crate::field::ambient::field_file(Volume::Inf, 8)).unwrap();
-        let mut play = Play::new(&file, "ANM_sfk1sto1a").unwrap();
-        play.forward(&file);
-        let obj = |n: &str| file.ccs.find_object(n).unwrap();
-        // The objects by their models (an animation's ExtObj copies share
-        // the names).
-        let owner = |m: &str| (file.scene.model_owner[&obj(m)], obj(m));
-        let (hand, model) = owner("MDL_sfk1sto1_a");
-        let bones = skin_nodes(&file, &play, Mat4::IDENTITY, hand, model);
-        assert_eq!(bones.len(), 49, "CMP_sfk1sto1's nodes");
-        let nodes = file.scene.clump_of(hand).unwrap();
-        let finger = nodes.iter().position(|&n| file.ccs.object_name(n) == Some("OBJ_l index finger 01")).unwrap();
-        assert!(bones[finger].w_axis.x > 500.0, "the left hand out at the side: {:?}", bones[finger].w_axis);
-        let (head, model) = owner("MDL_sfk1sto1");
-        assert!(skin_nodes(&file, &play, Mat4::IDENTITY, head, model).is_empty(), "rigid");
-    }
-
+    /// Area 14's systems as type 10's def makes them: `DrawBG`'s four
+    /// clumps each with models, its lake (`SetLake` at height 0), and BIRD
+    /// by day.
     #[test]
     fn area14_pieces() {
         let Some(archive) = crate::town::tests::archive() else { return };
         let f = area14(&archive);
-        let sizes: Vec<usize> = f.bg_models[..4].iter().map(Vec::len).collect();
-        eprintln!(
-            "bg {sizes:?} lake {} objects {} hits {:?}",
-            f.lake.is_some(),
-            f.objects.len(),
-            f.objects.iter().map(|o| o.hits.len()).collect::<Vec<_>>()
-        );
-        assert!(sizes.iter().all(|&n| n > 0));
-    }
-
-    /// Area 14's lake as `SetLake` makes it: `OBJ_water00`'s model and its
-    /// materials, `MAT_sfzwat1_1`, and the place `Draw` starts from.
-    #[test]
-    fn area14_has_its_lake() {
-        let Some(archive) = crate::town::tests::archive() else { return };
-        let f = area14(&archive);
-        let lake = f.lake.as_ref().expect("area 14's lake");
-        assert!(lake.u_mat.is_some(), "MAT_sfzwat1_1");
-        assert!(!lake.v_mats.is_empty(), "OBJ_water00's materials");
-        let at = f.ambient.lake.expect("the lake's place");
+        let sky = f.systems().get::<Sky>().expect("DrawBG's clumps");
+        assert!((0..4).all(|k| sky.made(k) && !sky.name(k).is_empty()), "the sky, two layers, the mountains");
+        let at = f.systems().get::<Lake>().and_then(Lake::at).expect("area 14's lake");
         assert_eq!(at[2], 0, "the lake stands at height 0");
+        assert!(f.systems().get::<Bird>().is_some_and(|b| b.hawk.is_some()), "BIRD by day");
     }
 
     /// Δ's airship hums: `TOBJ::Init` asks once for the loop
@@ -1623,28 +1118,20 @@ mod tests {
             protect: false,
             skip_init: false,
         };
-        let mut f = FieldArea::with_world(&archive, Volume::Inf, params, DEF_SE[10], 2, 0, None).unwrap();
-        assert_eq!(f.ambient.tobj.as_ref().map(|t| t.server), Some(0));
-        assert!(f.ambient.tobj_se_start);
+        let mut f = FieldArea::with_world(&archive, Volume::Inf, params, 2, 0, None).unwrap();
+        assert_eq!(f.systems().get::<Tobj>().and_then(|t| t.tobj.as_ref()).map(|t| t.server), Some(0));
+        assert_eq!(f.take_made(), [MapEvent::SeLoopStart]);
+        f.take(&[0; piney_desktop::SCROLL_STATICS], None);
         let player = [24000f32.to_bits(), 24000f32.to_bits(), 0, 1f32.to_bits()];
-        let cam = crate::camera::Camera::new(
-            piney_data::volume::Volume::Inf,
-            player,
-            [0; 4],
-            3,
-            crate::camera::Scheme::new(0),
-        );
-        let mut n = 1u32;
-        let mut cc = || {
-            n = n.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-            n >> 16
-        };
+        f.core.hits.center = [player[0], player[1]];
+        let mut cc = piney_battle::rand::Genrand::default();
         let mut rates = Vec::new();
         for i in 0..120 {
-            let (ops, _) = f.ambient_frame(&cam, player, i & 1 != 0, &mut cc, true);
+            let v = MapView { player, eye: player, odd: i & 1 != 0, ..MapView::default() };
+            let events = f.step(&v, true, Some(&mut cc));
             let hums: Vec<F> =
-                ops.iter().filter_map(|o| if let Op::SeLoop(_, r) = o { Some(*r) } else { None }).collect();
-            assert_eq!(hums.len(), 1, "frame {i}: {ops:?}");
+                events.iter().filter_map(|e| if let MapEvent::SeLoop(_, r) = e { Some(*r) } else { None }).collect();
+            assert_eq!(hums.len(), 1, "frame {i}: {events:?}");
             rates.push(f32::from_bits(hums[0]));
         }
         assert!((rates[0] - 0.01).abs() < 1e-4, "{rates:?}");

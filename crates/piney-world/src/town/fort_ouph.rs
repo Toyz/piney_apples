@@ -12,7 +12,7 @@ use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
 use crate::systems::clouds::{CloudsDef, Made};
 use crate::systems::flare::{FlareDef, FlareDraw};
 use crate::systems::scrolls::{MatScroll, ScrollsDef};
-use crate::systems::sky::{At, SkyClump, SkyDef, SkyLayer};
+use crate::systems::sky::{At, ClumpName, SkyClump, SkyDef, SkyLayer};
 use crate::systems::statics::{ModelsDef, ObjectsDef};
 use crate::systems::{DRAW_BG, Hook, Kind, PASSES, Step, SystemDef};
 use crate::town::scroll_statics as statics;
@@ -64,7 +64,7 @@ const MATS: [MatScroll; 4] = [
 ];
 
 const fn cloud_sky(name: &'static str) -> SkyClump {
-    SkyClump { name, layer: SkyLayer::On(BG5), at: At::Origin, crisis: false, fog: false }
+    SkyClump { name: ClumpName::Named(name), layer: SkyLayer::On(BG5), at: At::Origin, crisis: false, fog: false }
 }
 
 static MODELS: ModelsDef = ModelsDef::on("RT_MODELTABLE04", OBJ_LAYER);
@@ -73,7 +73,13 @@ static SCROLLS: ScrollsDef = ScrollsDef::statics(&BG_STEP, statics::TOWN04_BG, &
 static SKY_CLUMPS: SkyDef = SkyDef {
     clumps: &[
         SkyClump::on(SKY, BG0),
-        SkyClump { name: SUN, layer: SkyLayer::On(BG1), at: At::Dummy(SUN_POINT), crisis: false, fog: false },
+        SkyClump {
+            name: ClumpName::Named(SUN),
+            layer: SkyLayer::On(BG1),
+            at: At::Dummy(SUN_POINT),
+            crisis: false,
+            fog: false,
+        },
         SkyClump::crisis("CMP_sr4dat1_1", -80),
         SkyClump::crisis("CMP_sr4dat1_2", -70),
         SkyClump::crisis("CMP_sr4dat1_3", -60),
@@ -83,7 +89,7 @@ static SKY_CLUMPS: SkyDef = SkyDef {
     ],
 };
 static CLOUDS_DEF: CloudsDef = CloudsDef { count: CLOUDS, kind: 0, made: Made::FirstDraw };
-static FLARE: FlareDef = FlareDef { sun: SUN_POINT, draw: FlareDraw::LensFlare };
+static FLARE: FlareDef = FlareDef::at(SUN_POINT, FlareDraw::LensFlare);
 
 /// `ROOTTOWN04::DrawMap`: its own layers, the map 16 down for the player
 /// (0.8 a step, OUT gcmn 0x00439e54), racers 12 down, the arrow at (70,
@@ -149,12 +155,13 @@ pub static FORT_OUPH: TownDef = TownDef {
 mod tests {
     use super::*;
     use crate::ee;
+    use crate::systems::MapView;
     use crate::systems::clouds::Clouds;
     use crate::systems::scrolls::Scrolls;
     use crate::systems::sky::Sky;
     use crate::systems::statics::{StaticModels, StaticObjects};
     use crate::systems::{Drawn, Piece};
-    use crate::town::{Town, TownView};
+    use crate::town::Town;
     use piney_data::volume::Volume;
 
     /// The constructor's pieces: 16 model rows (the table's all present),
@@ -187,7 +194,7 @@ mod tests {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut t = Town::open(&archive, Volume::Out, 3, false).unwrap();
         let player = [0, ee::k(6000.0), 0, ONE];
-        t.step(&TownView { eye: [0, ee::k(5000.0), ee::k(400.0), ONE], player, ..TownView::default() });
+        t.step(&MapView { eye: [0, ee::k(5000.0), ee::k(400.0), ONE], player, ..MapView::default() });
         let clump = |k: usize| Drawn::Piece(Kind::Sky, Piece::Clump(k));
         assert_eq!(&t.frame()[..5], &[clump(0), clump(1), clump(5), clump(6), clump(7)]);
         assert!(t.frame().contains(&Drawn::Map));

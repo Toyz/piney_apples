@@ -224,8 +224,8 @@ clamped to 0-127 and not capped by the row, times `rate`, and it sends
 `initBeforeLoad` (so every `ccSndSQLoad`) and by the desktop's
 `ccSndChangeData`; nothing ends the note but the load's sound off. The
 port: `se3d::tobj_se_loop_start`, `se3d::tobj_se_loop`, sent by the field
-as `Op::SeLoopStart` (once, after the area's `ccSndSQLoad`) and
-`Op::SeLoop`.
+as `MapEvent::SeLoopStart` (once, after the area's `ccSndSQLoad`) and
+`MapEvent::SeLoop` (the TOBJ system's).
 
 What the synthesizer does with these ("Controllers and messages" below):
 an override is one-shot, spent by the channel's next note on that starts a

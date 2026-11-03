@@ -619,10 +619,11 @@ impl DungeonArea {
         let tables = dungeon::tables_of(volume);
         let code = scene.dungeon.clamp(0, 2) as usize;
         // eventAreaNumber is game.field, as GO(1) set it; DUNGEON::DUNGEON
-        // takes it as isEventArea but for dungeon 0 of field type 4.
+        // takes it as isEventArea but for dungeon 0 of an area with no
+        // field (field type 4).
         let event_area = scene.field.max(0);
         let mut event = event_area;
-        if world_man.field_type == 4 && code == 0 {
+        if world_man.no_field() && code == 0 {
             event = 0;
         }
         let edit = if event != 0 { tables.edit(event, code as i32) } else { None };
@@ -783,6 +784,12 @@ impl DungeonArea {
         area.set_room(0, 0);
         area.position = area.floors[0].start[0];
         Ok(area)
+    }
+
+    /// The area has no field (`WORLD_MAN`'s field type 4): the first
+    /// dungeon, a lake's, stands for it.
+    pub fn no_field(&self) -> bool {
+        crate::field::def::FieldDef::of(self.field_type).is_some_and(|d| !d.field)
     }
 
     /// `GO(2)` again for a room or floor of the same dungeon: nothing is
@@ -968,7 +975,7 @@ impl DungeonArea {
                 continue;
             }
             if k == 0 && dungeon::is_lake(self.dtype) {
-                let first = self.field_type == 4 && self.dungeon == 0 && at == (0, 0);
+                let first = self.no_field() && self.dungeon == 0 && at == (0, 0);
                 let w = if first { facing(slot.rotate, ONE) } else { ONE };
                 layout.start[0] = [slot.pos[0], slot.pos[1], 0, w];
                 continue;
@@ -1818,7 +1825,7 @@ impl DungeonArea {
                         block: down,
                     });
                 }
-                if self.field_type != 4 {
+                if !self.no_field() {
                     return Some(Exit::Area { area: 1, n: self.event_area.max(0) });
                 }
                 // No field: up to the first dungeon's room left for this one
@@ -1831,7 +1838,7 @@ impl DungeonArea {
                 // No field: the first dungeon's stairs down lead into the
                 // second, and lastRoom keeps the room (0x0019e238); the
                 // first's entryFlag cleared (0x0019e240).
-                if self.field_type == 4 && scene.dungeon == 0 {
+                if self.no_field() && scene.dungeon == 0 {
                     self.gimmicks_placed = false;
                     *last_room = scene.block;
                     return Some(Exit::Scene { area: 2, town: keep, field: keep, dungeon: 1, floor: 0, block: 0 });
@@ -1953,7 +1960,7 @@ impl DungeonArea {
         world_screen: &[V4; 4],
         player: V4,
         step: bool,
-    ) -> Vec<crate::field::ambient::Op> {
+    ) -> Vec<crate::sprite::EffSprite> {
         // DrawBG (the lakes' sky), then DrawWater and DrawEff with the
         // lakes' fireflies after the glows, then the pieces.
         self.draw_bg(layers, to_screen, self.here(player), step);

@@ -16,7 +16,7 @@ use piney_data::store::Table;
 use piney_world::area::{Scene, WorldMan};
 use piney_world::dungeon::DungeonArea;
 use piney_world::ee::ONE;
-use piney_world::field::area::{DEF_SE, FieldArea};
+use piney_world::field::area::FieldArea;
 use piney_world::map::sprite::{Out, Place, corners};
 use piney_world::map::{self, dungeon, field, town};
 
@@ -135,8 +135,8 @@ fn main() {
                     protect: false,
                     skip_init: false,
                 };
-                let a = FieldArea::new(&archive, params, DEF_SE[params.field_type as usize]).unwrap();
-                let m = field::FieldMap::new(&archive, volume, &a.field, &a.file).unwrap();
+                let a = FieldArea::new(&archive, params).unwrap();
+                let m = field::FieldMap::new(&archive, volume, &a.field, &a.core.file).unwrap();
                 let two = list(
                     m.fobj2.iter().map(|o| list([o.kind, o.idx as u32, o.mx as u32, o.my as u32, o.wp[0], o.wp[1]])),
                 );

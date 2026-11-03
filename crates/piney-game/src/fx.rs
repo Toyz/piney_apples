@@ -42,7 +42,7 @@ pub struct AreaFx {
     /// the weather's, a dungeon's, a breath's), and the weather's smoke
     /// puffs waiting for the next effect task ([`ambient`]).
     sprites: sprites::EffSprites,
-    ambient_smoke: Vec<piney_world::field::ambient::Op>,
+    ambient_smoke: Vec<piney_world::systems::Smoke>,
     archive: Arc<Archive>,
     /// Each character's condition effect (`ccChar` +0x2c), by scene index.
     conditions: std::collections::HashMap<usize, piney_effect::particle::ConditionEffect>,
@@ -528,14 +528,8 @@ impl FieldFx for AreaFx {
         self.sprites.draw(&mut self.fx.assets, &self.archive, sprites, &cam, &mut ctx.layers);
     }
 
-    fn field_ambient(
-        &mut self,
-        ops: &[piney_world::field::ambient::Op],
-        fresh: bool,
-        camera: &piney_world::camera::Camera,
-        ctx: &mut Ctx,
-    ) {
-        ambient::draw(self, ops, fresh, camera, ctx);
+    fn smoke(&mut self, smoke: &[piney_world::systems::Smoke]) {
+        self.ambient_smoke.extend_from_slice(smoke);
     }
 }
 

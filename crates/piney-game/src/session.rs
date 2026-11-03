@@ -415,9 +415,9 @@ impl Session {
     /// plays instead of any card.
     fn put_up_load_disp(&mut self) {
         use crate::loaddisp::{LoadDisp, kind};
-        let field_type = self.world_man.map_or(0, |w| w.field_type as i32);
+        let no_field = self.world_man.is_some_and(|w| w.no_field());
         (self.at_load, self.load_started) = (false, false);
-        self.load_disp = kind(&self.scene, field_type, self.setup_mode).map(|k| {
+        self.load_disp = kind(&self.scene, no_field, self.setup_mode).map(|k| {
             let mut disc = crate::open_disc(&self.iso).ok();
             let v = disc.as_mut().and_then(|d| d.volume().ok()).unwrap_or(piney_data::volume::Volume::Inf);
             let tables = piney_data::area::AreaTables::of(v);
@@ -5181,8 +5181,8 @@ mod tests {
                 println!(
                     "{n}: kite {:?} hits {} att {:#x} act {} listed {}",
                     w.player().body.pos.map(f32::from_bits),
-                    fa.hits.num,
-                    fa.hits.nearest.att,
+                    fa.core.hits.num,
+                    fa.core.hits.nearest.att,
                     c.scene.chars[k].spc_char.act_num,
                     c.scene.listed(k)
                 );

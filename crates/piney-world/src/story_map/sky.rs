@@ -38,7 +38,7 @@ const SE3_5_LIGHTS: LightsDef = LightsDef { anim: "ANM_se3_5_1a", table: &["LGT_
 static CLOUDS: CloudsDef = CloudsDef { count: 25, kind: 0, made: Made::FirstDraw };
 static WHALE_CLOUDS: CloudsDef = CloudsDef { count: 25, kind: 3, made: Made::FirstDraw };
 /// `LENSFLARE::Draw(ccs, "DMY_dummy5", 0)` (04 and 05).
-static FLARE: FlareDef = FlareDef { sun: "DMY_dummy5", draw: FlareDraw::LensFlare };
+static FLARE: FlareDef = FlareDef::at("DMY_dummy5", FlareDraw::LensFlare);
 
 /// `bg[k]` on `bgLayer[k]` (`EA_BGNAME`), its fog switched on or not.
 const fn bg(name: &'static str, k: i16, fog: bool) -> SkyClump {
@@ -214,9 +214,9 @@ mod tests {
     use super::*;
     use crate::ee;
     use crate::story_map::tests::made;
+    use crate::systems::MapView;
     use crate::systems::clouds::Clouds;
     use crate::systems::statics::{StaticModels, StaticObjects};
-    use crate::town::TownView;
     use piney_data::volume::Volume;
 
     /// Each class on each volume: every row of its tables in the file, one
@@ -242,7 +242,7 @@ mod tests {
                 assert!(m.core.hits.models.iter().all(|h| own.contains(&h.parent)), "{:?}", def.class);
                 assert_eq!(m.rows().len(), 1, "{:?}", def.class);
                 let mut layers = piney_desktop::layers::Layers::default();
-                let v = TownView { player: m.core.start, ..TownView::default() };
+                let v = MapView { player: m.core.start, ..MapView::default() };
                 let mut cc = piney_battle::rand::Genrand::default();
                 // A draw while the tasks sleep, before any step, puts the
                 // clouds back as they were (none yet).

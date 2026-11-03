@@ -283,7 +283,8 @@ pub fn clip_of(eye: V4) -> [i32; 3] {
 mod tests {
     use super::*;
     use crate::systems::Drawn;
-    use crate::town::{Town, TownView};
+    use crate::systems::MapView;
+    use crate::town::Town;
 
     #[test]
     fn clip_rules() {
@@ -302,7 +303,7 @@ mod tests {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut t = Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
         let eye = [0, 5600f32.to_bits(), 880f32.to_bits(), ONE];
-        t.step(&TownView::at(eye));
+        t.step(&MapView::at(eye));
         let (m, o, w) = (Kind::Models, Kind::Objects, Kind::Water);
         let p = |k: Kind, piece: Piece| Drawn::Piece(k, piece);
         use Piece::{Anim, Clump, Model, Object};

@@ -52,15 +52,15 @@ pub enum Kind {
 }
 
 /// `ccLoadDispInit`'s choice for the scene being entered (`scene`, whose
-/// `area_prev` is the one left): `field_type` is `WORLD_MAN::GetFieldType()`
+/// `area_prev` is the one left): `no_field` is `WORLD_MAN::GetFieldType()` 4
 /// and `stream` whether a stream plays (`strPtr`, the gate hack's).
-pub fn kind(scene: &Scene, field_type: i32, stream: bool) -> Option<Kind> {
+pub fn kind(scene: &Scene, no_field: bool, stream: bool) -> Option<Kind> {
     match scene.area {
         0 => Some(Kind::Town),
         1 if scene.area_prev != 0 => (scene.area_prev == 2).then_some(Kind::Plain),
         1 if stream || scene.field == 8 => None,
         1 => Some(Kind::Field),
-        2 if scene.area_prev == 0 && field_type == 4 && scene.dungeon == 0 && !stream => Some(Kind::Field),
+        2 if scene.area_prev == 0 && no_field && scene.dungeon == 0 && !stream => Some(Kind::Field),
         2 => Some(Kind::Plain),
         _ => None,
     }
@@ -283,16 +283,16 @@ mod tests {
     /// `ccLoadDispInit`'s cases.
     #[test]
     fn which_card() {
-        assert_eq!(kind(&scene(0, 1), 0, false), Some(Kind::Town));
-        assert_eq!(kind(&scene(1, 0), 0, false), Some(Kind::Field));
-        assert_eq!(kind(&scene(1, 0), 0, true), None, "the gate hack's stream");
-        assert_eq!(kind(&scene(1, 2), 0, false), Some(Kind::Plain));
-        assert_eq!(kind(&scene(2, 1), 0, false), Some(Kind::Plain));
+        assert_eq!(kind(&scene(0, 1), false, false), Some(Kind::Town));
+        assert_eq!(kind(&scene(1, 0), false, false), Some(Kind::Field));
+        assert_eq!(kind(&scene(1, 0), false, true), None, "the gate hack's stream");
+        assert_eq!(kind(&scene(1, 2), false, false), Some(Kind::Plain));
+        assert_eq!(kind(&scene(2, 1), false, false), Some(Kind::Plain));
         let mut d = scene(2, 0);
         d.dungeon = 0;
-        assert_eq!(kind(&d, 4, false), Some(Kind::Field));
+        assert_eq!(kind(&d, true, false), Some(Kind::Field));
         let mut f8 = scene(1, 0);
         f8.field = 8;
-        assert_eq!(kind(&f8, 0, false), None);
+        assert_eq!(kind(&f8, false, false), None);
     }
 }

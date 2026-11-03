@@ -31,10 +31,11 @@ use crate::dungeon::{DungeonArea, Exit};
 use crate::ee::{self, F, ONE, V4};
 use crate::event::talk;
 use crate::field::area::FieldArea;
+use crate::field::def::FieldDef;
 use crate::hit::Hits;
 use crate::sprite::{EffSprite, EffState};
 use crate::story_map::{Kept, StoryArea};
-use crate::systems::Signal;
+use crate::systems::{MapEvent, MapView, Signal, Smoke};
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
 use piney_data::store::Table;
 
@@ -89,7 +90,7 @@ impl Place {
 impl Place {
     fn hits(&mut self) -> &mut Hits {
         match self {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         }
@@ -98,7 +99,7 @@ impl Place {
     /// The light group the place draws with.
     pub fn lights(&self) -> &crate::town::TownLights {
         match self {
-            Place::Field(f) => &f.lights,
+            Place::Field(f) => &f.core.lights,
             Place::Dungeon(d) => &d.lights,
             Place::Story(m) => m.lights(),
         }
@@ -108,19 +109,15 @@ impl Place {
 /// `WORLD_MAN::SetCharPosition` (main 0x001a1190) for a field made from
 /// words, the party's leader: from a town (`game.areaPrev` not 2) the
 /// field's start (`fieldStartPos`, facing 0); back from its dungeon beside
-/// the entrance (`dungeonPos[0]`) by field type - type 10 (900, 0, 500) on
-/// facing 1.5675, type 6 (0, 900, 500) facing pi, else (0, -900, 500)
-/// facing 0. The position also becomes `WORLD_MAN.position` (+0x20).
-pub fn field_start(area_prev: i32, field_type: u32, start: V4, dungeon: Option<V4>) -> (V4, F) {
+/// the entrance (`dungeonPos[0]`) as the field type's def says
+/// ([`crate::field::def::Back`]), 500 up. The position also becomes
+/// `WORLD_MAN.position` (+0x20).
+pub fn field_start(area_prev: i32, back: &crate::field::def::Back, start: V4, dungeon: Option<V4>) -> (V4, F) {
     if area_prev == kind::DUNGEON
         && let Some(d) = dungeon
     {
-        let at = |dx: F, dy: F| [ee::add(dx, d[0]), ee::add(dy, d[1]), ee::add(0x43fa_0000, d[2]), ONE];
-        return match field_type {
-            10 => (at(0x4461_0000, 0), 0x3fc8_f5c3),
-            6 => ([d[0], ee::add(0x4461_0000, d[1]), ee::add(0x43fa_0000, d[2]), ONE], ee::PI),
-            _ => ([d[0], ee::sub(d[1], 0x4461_0000), ee::add(0x43fa_0000, d[2]), ONE], 0),
-        };
+        let off = |o: Option<F>, v: F| o.map_or(v, |o| ee::add(o, v));
+        return ([off(back.x, d[0]), off(back.y, d[1]), ee::add(0x43fa_0000, d[2]), ONE], back.facing);
     }
     ([start[0], start[1], start[2], ONE], 0)
 }
@@ -215,7 +212,7 @@ pub struct FieldWorld {
     fx: Box<dyn FieldFx>,
     /// The sounds and flashes a field's weather asked for since the
     /// runtime last took them ([`FieldWorld::take_ambient_calls`]).
-    ambient_calls: Vec<crate::field::ambient::Op>,
+    ambient_calls: Vec<MapEvent>,
     /// `spcConditionEffectFlag` (main 0x00378ce4): the condition tints
     /// pulse. `ccThSpc`'s start turns it on (`ccSpcConditionEffectON`);
     /// `menu_ban`, the spring's hold and the events' `condition_fx_off`
@@ -350,7 +347,8 @@ impl FieldWorld {
             ),
             _ => world_man,
         };
-        let def_se = crate::field::area::DEF_SE.get(world_man.field_type as usize).copied().unwrap_or(0xc000);
+        // WORLD_MAN::GO's defSE by the field type (a story map's too).
+        let def_se = FieldDef::of(world_man.field_type).map_or(0xc000, |d| d.def_se);
         let (kept_map, kept) = match kept {
             Some(Kept::Story(e)) => (Some(Kept::Story(e)), None),
             k => (None, k),
@@ -391,20 +389,9 @@ impl FieldWorld {
                 // WORLD_MAN::GO(1): the story area is game.field.
                 let mut params = world_man.field_params();
                 params.event = scene.field.max(0);
-                let ft = params.field_type as usize;
-                let def_se = crate::field::area::DEF_SE.get(ft).copied().unwrap_or(0xc000);
-                let mut field = FieldArea::with_world(
-                    &archive,
-                    volume,
-                    params,
-                    def_se,
-                    world_man.hack,
-                    scene.server,
-                    save.field_ambient.as_ref(),
-                )?;
-                field.take_statics(&save.scroll_statics);
-                let (pos, rot) =
-                    field_start(scene.area_prev, params.field_type, field.start_pos(), field.dungeon_pos());
+                let mut field = FieldArea::with_world(&archive, volume, params, world_man.hack, scene.server, None)?;
+                field.take(&save.scroll_statics, save.field_ambient.as_ref());
+                let (pos, rot) = field_start(scene.area_prev, &field.def.back, field.start_pos(), field.dungeon_pos());
                 (Place::Field(Box::new(field)), pos, rot)
             }
             kind::DUNGEON => {
@@ -425,7 +412,7 @@ impl FieldWorld {
                         // from the game's stream.
                         d.rng = piney_data::dungeon::Rng { seed: save.field_rand.seed, count: 0 };
                         // Back up from a field type 4 area's second dungeon.
-                        if world_man.field_type == 4
+                        if world_man.no_field()
                             && scene.dungeon_prev == 1
                             && scene.dungeon == 0
                             && scene.block == dungeons.last_room
@@ -636,10 +623,10 @@ impl FieldWorld {
     fn entrance(&mut self) -> combat::Entrance {
         use crate::combat::gate_out;
         let s = &self.scene;
-        let ft = self.world_man.field_type as i32;
-        let chat = gate_out::arrival_chat(s.area, s.area_prev, ft, s.dungeon, self.gt_hack);
-        let id =
-            gate_out::hack_out_id(self.volume, s.area, s.area_prev, ft, s.dungeon, s.field, self.gt_hack).unwrap_or(-1);
+        let no_field = self.world_man.no_field();
+        let chat = gate_out::arrival_chat(s.area, s.area_prev, no_field, s.dungeon, self.gt_hack);
+        let id = gate_out::hack_out_id(self.volume, s.area, s.area_prev, no_field, s.dungeon, s.field, self.gt_hack)
+            .unwrap_or(-1);
         // ccPlayer::ccPlayer sets ghoFlag for an ID (Infection also asks
         // volumeNum < 4, which its 1 always is; MUT gcmn 0x005c2f94 does not).
         let mut hacked = false;
@@ -649,7 +636,7 @@ impl FieldWorld {
             a.file = SceneFile::read(&self.archive, &format!("x{name}")).ok().map(Rc::new);
             hacked = true;
         }
-        let member_transfer = combat::Entrance::member_transfer(s.area, s.area_prev, ft, s.dungeon, false);
+        let member_transfer = combat::Entrance::member_transfer(s.area, s.area_prev, no_field, s.dungeon, false);
         combat::Entrance { chat, hacked, member_transfer }
     }
 
@@ -678,7 +665,7 @@ impl FieldWorld {
         // ccPlayer::ccPlayer (gcmn 0x00597d84): a lake area's first dungeon
         // (field type 4, which has no field) is its field, so Kite arrives
         // there from a town as on a field (act 13, the gate-in).
-        let lake_entry = self.scene.area == kind::DUNGEON && self.world_man.field_type == 4 && self.scene.dungeon == 0;
+        let lake_entry = self.scene.area == kind::DUNGEON && self.world_man.no_field() && self.scene.dungeon == 0;
         let arriving = if lake_entry {
             self.scene.area_prev == kind::TOWN
         } else {
@@ -700,7 +687,7 @@ impl FieldWorld {
         let bracelet = self.save.save.u8(offset::PLCOL) != 0;
         let swaps = self.kite.swaps(bracelet);
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -731,7 +718,7 @@ impl FieldWorld {
                         b.equip_weapon(&self.archive, &w, job);
                     }
                     let hits = match &mut self.place {
-                        Place::Field(f) => &mut f.hits,
+                        Place::Field(f) => &mut f.core.hits,
                         Place::Dungeon(d) => &mut d.hits,
                         Place::Story(m) => m.hits_mut(),
                     };
@@ -766,7 +753,7 @@ impl FieldWorld {
                         b.equip_weapon(&self.archive, &w, job);
                     }
                     let hits = match &mut self.place {
-                        Place::Field(f) => &mut f.hits,
+                        Place::Field(f) => &mut f.core.hits,
                         Place::Dungeon(d) => &mut d.hits,
                         Place::Story(m) => m.hits_mut(),
                     };
@@ -900,11 +887,28 @@ impl FieldWorld {
         &*self.fx
     }
 
-    /// The field's weather's calls since the last take, in order:
-    /// `ccSeOn` (the thunder), `ccSeOn3D` (the steam) and the storm's
-    /// `scFadeDef->EntryFlash` ([`crate::field::ambient::Op`]'s `Se`,
-    /// `Se3d` and `Flash`).
-    pub fn take_ambient_calls(&mut self) -> Vec<crate::field::ambient::Op> {
+    /// What a map's `Draw` reads of the camera, the player and the frame.
+    fn map_view(&self) -> MapView {
+        let c = &self.camera;
+        MapView {
+            eye: c.active().pos,
+            player: self.player.body.pos,
+            cam: c.active().clone(),
+            flare: crate::sky::lensflare::FlareCamera::of(c),
+            puppet_show: c.puppet_show,
+            world_screen: c.world_screen,
+            eye1: c.tcam.pos,
+            rot: c.tcam.rot,
+            rot2: c.tcam.rot3,
+            odd: self.count & 1 != 0,
+        }
+    }
+
+    /// The area's calls since the last take, in order: `ccSeOn` (the
+    /// thunder), `ccSeOn3D` (the steam, a dungeon's doors), TOBJ's hum and
+    /// the storm's `scFadeDef->EntryFlash` ([`MapEvent`]'s `Se`, `Se3d`,
+    /// `SeLoopStart`, `SeLoop` and `Flash`).
+    pub fn take_ambient_calls(&mut self) -> Vec<MapEvent> {
         std::mem::take(&mut self.ambient_calls)
     }
 
@@ -1139,10 +1143,7 @@ impl FieldWorld {
         match &self.place {
             Place::Story(m) => m.put(&mut out.scroll_statics, &mut out.move_tex),
             Place::Dungeon(d) => d.put_statics(&mut out.scroll_statics),
-            Place::Field(f) => {
-                f.put_statics(&mut out.scroll_statics);
-                out.field_ambient = Some(f.ambient_words());
-            }
+            Place::Field(f) => out.field_ambient = Some(f.put(&mut out.scroll_statics)),
         }
         out
     }
@@ -1151,7 +1152,7 @@ impl FieldWorld {
     /// does not draw from it, which leaves the stream as it came).
     pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
         match &self.place {
-            Place::Field(f) => Some(f.rng),
+            Place::Field(f) => f.core.field_rand,
             Place::Dungeon(d) => Some(d.rng),
             Place::Story(m) => m.field_rand().copied(),
         }
@@ -1161,7 +1162,7 @@ impl FieldWorld {
     /// draws go on from `seed`, `randcnt` moved on by its 13.
     pub fn set_field_seed(&mut self, seed: u32) {
         let r = match &mut self.place {
-            Place::Field(f) => Some(&mut f.rng),
+            Place::Field(f) => f.core.field_rand.as_mut(),
             Place::Dungeon(d) => Some(&mut d.rng),
             Place::Story(m) => m.field_rand_mut(),
         };
@@ -1290,7 +1291,7 @@ impl FieldWorld {
         if !matches!(self.place, Place::Dungeon(_)) {
             return false;
         }
-        if self.world_man.field_type == 4 {
+        if self.world_man.no_field() {
             if self.scene.dungeon != 1 {
                 return false;
             }
@@ -1656,7 +1657,7 @@ impl FieldWorld {
         };
         let mut game = self.combat.battle;
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -1747,7 +1748,7 @@ impl FieldWorld {
     /// The place's collision.
     pub fn place_hits(&self) -> &Hits {
         match &self.place {
-            Place::Field(f) => &f.hits,
+            Place::Field(f) => &f.core.hits,
             Place::Dungeon(d) => &d.hits,
             Place::Story(m) => m.hits(),
         }
@@ -1808,7 +1809,7 @@ impl FieldWorld {
     pub fn entry_affect(&mut self, on: usize, by: Option<usize>, kind: i16, p: [i16; 3]) {
         let area = self.scene.area;
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -1913,7 +1914,7 @@ impl FieldWorld {
                 let Some(on) = who(on) else { return true };
                 let area = self.scene.area;
                 let hits = match &mut self.place {
-                    Place::Field(f) => &mut f.hits,
+                    Place::Field(f) => &mut f.core.hits,
                     Place::Dungeon(d) => &mut d.hits,
                     Place::Story(m) => m.hits_mut(),
                 };
@@ -1979,7 +1980,7 @@ impl FieldWorld {
         let scene = self.scene;
         let in_battle = self.combat.battle.in_battle;
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -2051,7 +2052,7 @@ impl FieldWorld {
     pub fn manual_mode_ai(&mut self, member: usize, ev: i32) {
         let annihilated = self.combat.annihilated();
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -2061,7 +2062,7 @@ impl FieldWorld {
     /// `ccAI::SetRemoteCmd(member->ai, cmd)` (gcmn 0x005832e0).
     pub fn remote_cmd(&mut self, member: usize, cmd: i32) {
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -2081,7 +2082,7 @@ impl FieldWorld {
     pub fn hud_geometry(&self, who: usize) -> Option<HudGeometry> {
         let c = self.combat.scene.chars.get(who)?;
         let hits = match &self.place {
-            Place::Field(f) => &f.hits,
+            Place::Field(f) => &f.core.hits,
             Place::Dungeon(d) => &d.hits,
             Place::Story(m) => m.hits(),
         };
@@ -2170,7 +2171,7 @@ impl FieldWorld {
     pub fn chat_point(&self, who: usize) -> Option<(bool, Option<(i32, i32)>)> {
         let c = self.combat.scene.chars.get(who)?;
         let hits = match &self.place {
-            Place::Field(f) => &f.hits,
+            Place::Field(f) => &f.core.hits,
             Place::Dungeon(d) => &d.hits,
             Place::Story(m) => m.hits(),
         };
@@ -2189,7 +2190,7 @@ impl FieldWorld {
     pub fn ride_chat_point(&self) -> Option<(bool, Option<(i32, i32)>)> {
         let o = self.combat.ride.obj.as_deref()?;
         let hits = match &self.place {
-            Place::Field(f) => &f.hits,
+            Place::Field(f) => &f.core.hits,
             Place::Dungeon(d) => &d.hits,
             Place::Story(m) => m.hits(),
         };
@@ -2432,7 +2433,7 @@ impl FieldWorld {
         let area = self.scene.area;
         let positions = self.event_entries.2.clone();
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -2452,7 +2453,7 @@ impl FieldWorld {
     fn ev_hold_task(&mut self) {
         let area = self.scene.area;
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -2509,7 +2510,7 @@ impl FieldWorld {
         {
             let area = self.scene.area;
             let hits = match &mut self.place {
-                Place::Field(f) => &mut f.hits,
+                Place::Field(f) => &mut f.core.hits,
                 Place::Dungeon(d) => &mut d.hits,
                 Place::Story(m) => m.hits_mut(),
             };
@@ -2526,33 +2527,32 @@ impl FieldWorld {
             let eye = self.camera.active().pos;
             let player = self.player.body.pos;
             let mut story_out = Vec::new();
+            let v = self.map_view();
             match &mut self.place {
                 Place::Field(field) => {
-                    field.ofs = field.hits.center;
+                    field.ofs = field.core.hits.center;
                     field.draw(&mut ctx.layers, to_screen, player, eye, awake);
-                    // The weather and the ambient pictures (the rest of
-                    // WORLD::Draw and DrawEffect): drawn again unchanged
-                    // while the tasks sleep.
-                    use crate::field::ambient::Op;
-                    let odd = self.count & 1 != 0;
-                    let cc = &mut self.combat.cc;
-                    let mut next = || cc.next_u32();
-                    let (mut ops, fresh) = field.ambient_frame(&self.camera, player, odd, &mut next, awake);
-                    field.ambient_models(&ops, &mut ctx.layers, to_screen, &self.camera.world_screen, awake);
+                    // The weather, the ambient pictures and the background
+                    // (the rest of WORLD::Draw and DrawEffect): drawn again
+                    // unchanged while the tasks sleep. TOBJ::Init's
+                    // tobjSeLoopStart, after the field's ccSndSQLoad as in
+                    // ccSetupGameCtrl.
+                    self.ambient_calls.extend(field.take_made());
+                    let events = field.step(&v, awake, Some(&mut self.combat.cc));
+                    let mut sprites = field.paint(&mut ctx.layers, to_screen);
                     // The enemies' breaths' flames and bursts.
-                    ops.extend(self.combat.breath_ops());
-                    self.fx.field_ambient(&ops, fresh, &self.camera, ctx);
-                    // TOBJ::Init's tobjSeLoopStart, after the field's
-                    // ccSndSQLoad as in ccSetupGameCtrl.
-                    if std::mem::take(&mut field.ambient.tobj_se_start) {
-                        self.ambient_calls.push(Op::SeLoopStart);
-                    }
-                    if fresh {
-                        let calls = ops
+                    let (flames, mut smoke) = self.combat.breath_draws();
+                    sprites.extend(flames);
+                    self.fx.sprites(&sprites, &self.camera, ctx);
+                    if awake {
+                        let mut puffs: Vec<Smoke> = events
                             .iter()
-                            .filter(|o| matches!(o, Op::Se(_) | Op::Se3d(..) | Op::SeLoop(..) | Op::Flash { .. }));
-                        self.ambient_calls.extend(calls.cloned());
+                            .filter_map(|e| if let MapEvent::Smoke(s) = e { Some(*s) } else { None })
+                            .collect();
+                        puffs.append(&mut smoke);
+                        self.fx.smoke(&puffs);
                     }
+                    self.ambient_calls.extend(events.into_iter().filter(|e| !matches!(e, MapEvent::Smoke(_))));
                 }
                 Place::Dungeon(d) => {
                     // DUNGEON::Draw's MoveDoor for the cell under the player
@@ -2568,27 +2568,30 @@ impl FieldWorld {
                         d.bans = crate::dungeon::bans_of(&self.save.save);
                         let sounds = d.move_door(here, clear_all, clear_here);
                         if let Some(se) = d.door_se() {
-                            let ops = sounds.into_iter().map(|(_, pos)| crate::field::ambient::Op::Se3d(se, pos));
-                            self.ambient_calls.extend(ops);
+                            self.ambient_calls.extend(sounds.into_iter().map(|(_, pos)| MapEvent::Se3d { n: se, pos }));
                         }
                     }
                     // The dressing's sparks and glows (DrawEff) go to the
                     // effects as the field's ambient sprites do.
-                    let mut ops = d.draw(&mut ctx.layers, to_screen, &self.camera.world_screen, player, awake);
+                    let mut sprites = d.draw(&mut ctx.layers, to_screen, &self.camera.world_screen, player, awake);
                     // The symbols' fires (ccSymFire::main's ccEff::Draw on
                     // layer 3): EFF_x008 of XGSYMBOL.CCS, Init(chunk, 0).
-                    ops.extend(self.combat.symbol_fires.iter().map(|&(pos, pattern, scale, colour)| {
+                    sprites.extend(self.combat.symbol_fires.iter().map(|&(pos, pattern, scale, colour)| {
                         let fire = piney_battle::gimmick::SYMBOL_FIRE;
-                        crate::field::ambient::Op::Sprite(EffSprite {
+                        EffSprite {
                             scale,
                             colour: Some(colour),
                             ..EffSprite::new("xgsymbol", fire, pos, pattern, crate::draw::EFF_LAYER, EffState::NO_FOG)
-                        })
+                        }
                     }));
                     // The enemies' breaths' flames and bursts.
-                    ops.extend(self.combat.breath_ops());
-                    if !ops.is_empty() {
-                        self.fx.field_ambient(&ops, awake, &self.camera, ctx);
+                    let (flames, smoke) = self.combat.breath_draws();
+                    sprites.extend(flames);
+                    if !sprites.is_empty() {
+                        self.fx.sprites(&sprites, &self.camera, ctx);
+                    }
+                    if awake && !smoke.is_empty() {
+                        self.fx.smoke(&smoke);
                     }
                     // SetPathFindingMap once the room under the player is
                     // built after a room change (roomEnterFlag), after its
@@ -2612,14 +2615,6 @@ impl FieldWorld {
                         m.scene(&mut x);
                         story_out = x.out;
                     }
-                    let v = crate::town::TownView {
-                        eye,
-                        player,
-                        cam: self.camera.active().clone(),
-                        flare: crate::sky::lensflare::FlareCamera::of(&self.camera),
-                        puppet_show: self.camera.puppet_show,
-                        world_screen: self.camera.world_screen,
-                    };
                     let sprites = m.draw(&mut ctx.layers, to_screen, &v, awake, &mut self.combat.cc);
                     self.fx.sprites(&sprites, &self.camera, ctx);
                 }
@@ -2732,7 +2727,7 @@ impl FieldWorld {
                 Place::Field(f) => Some(combat::FieldEntries {
                     gims: f.field_gims(self.scene.field),
                     map: f.field.clone(),
-                    rng: f.rng,
+                    rng: f.core.field_rand.expect("a field's fieldrand"),
                     circle_ofs: self.world_man.circle_ofs,
                     event_area: self.scene.field,
                     start: f.start_pos(),
@@ -2744,7 +2739,7 @@ impl FieldWorld {
             let rng = self.combat.start_entries(&mut x, rank, ty, &mc, &en, &pos, dungeon, field);
             drop(x);
             if let (Some(rng), Place::Field(f)) = (rng, &mut self.place) {
-                f.rng = rng;
+                f.core.field_rand = Some(rng);
             }
             self.build_npcs();
             // An `entry 7 code`: ccEntryEventMng's ccBossEntryStart(code),
@@ -2806,7 +2801,7 @@ impl FieldWorld {
         };
         let mut rand = crate::Rand(self.combat.rand.0);
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -2860,7 +2855,7 @@ impl FieldWorld {
     /// move this frame while he rides one (worklog 328).
     pub fn player_distance(&self, pos: V4) -> F {
         let hits = match &self.place {
-            Place::Field(f) => &f.hits,
+            Place::Field(f) => &f.core.hits,
             Place::Dungeon(d) => &d.hits,
             Place::Story(m) => m.hits(),
         };
@@ -3500,7 +3495,7 @@ impl FieldWorld {
         let td = |w: usize| c.cast.get(w).is_none_or(|a| a.trans_dist);
         let mut chars = combat::spc::BattleChars::read(&c.scene, &c.crew, &c.members, c.kite, &td);
         let hits = match &mut self.place {
-            Place::Field(f) => &mut f.hits,
+            Place::Field(f) => &mut f.core.hits,
             Place::Dungeon(d) => &mut d.hits,
             Place::Story(m) => m.hits_mut(),
         };
@@ -3928,7 +3923,7 @@ fn tasks<'a>(
         _ => [0; 4],
     };
     let (hits, map2d, map2d_info) = match place {
-        Place::Field(f) => (&mut f.hits, Vec::new(), [0; 3]),
+        Place::Field(f) => (&mut f.core.hits, Vec::new(), [0; 3]),
         Place::Story(m) => (m.hits_mut(), Vec::new(), [0; 3]),
         Place::Dungeon(d) => {
             let (m, n) = (d.map_2d(), d.map_2d_info(i.scene.block));
@@ -4198,15 +4193,14 @@ pub trait FieldFx {
     fn take_ending_asks(&mut self) -> Vec<EndingAsk> {
         Vec::new()
     }
-    /// The `ccEff` sprites a story map's draw asked for (area 15's lens
-    /// flare, an arena's fireflies), after its draw.
+    /// The `ccEff` sprites a map's draw asked for (area 15's lens flare,
+    /// an arena's fireflies, a field's weather, a dungeon's glows), after
+    /// its draw.
     fn sprites(&mut self, _sprites: &[EffSprite], _camera: &Camera, _ctx: &mut Ctx) {}
-    /// A field's weather and ambient pictures of the frame, after its
-    /// draw ([`crate::field::ambient`]): the `ccEff` sprites on their
-    /// layers, and with `fresh` (a frame the tasks ran, not one drawn again
-    /// while they sleep) the smoke puffs to start (`effSmoke`). The models,
-    /// the 2D smoke, the sounds and the flashes are the world's.
-    fn field_ambient(&mut self, _ops: &[crate::field::ambient::Op], _fresh: bool, _camera: &Camera, _ctx: &mut Ctx) {}
+    /// The smoke puffs a frame the tasks ran started (`effSmoke`: a
+    /// field's steam and fires, the enemies' breaths), for the next
+    /// effect task.
+    fn smoke(&mut self, _smoke: &[Smoke]) {}
     /// The lights the effects have put in the light group (the boss's
     /// `ccBossEffLight`), which the characters are lit by with the map's.
     fn lights(&self) -> Vec<crate::town::Light> {

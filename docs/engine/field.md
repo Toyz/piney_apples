@@ -3,7 +3,7 @@ title: Field generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x005a6da0 WORLD::Generate, 0x005a4cd0 WORLD::Init, 0x005adc60 FIELD::MakeField, 0x005a6b00 WORLD::MakeHill, 0x005b4070 FRACTAL2::Generate, 0x005abd20 SetDungeonEnter, 0x005ac7e0 SetLake, 0x005ac120 SetKeyObject, 0x005aba50 SetCover, 0x005a8570 WORLD::DrawMesh, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x005ae940 FIELD::CalcWorldMeshPosition, 0x005b1890 FCOVER::SetPosition, 0x005b19d0 FCOVER::Draw, 0x005a9070 WORLD::DrawEffect, 0x005a97b0 WORLD::Draw (its weather, the lake), 0x005a7ef0 WORLD::DrawBG, 0x005a4840 WORLD::SetRainEffect, 0x005a8860 WORLD::DrawRain, 0x005a8f40 WORLD::DrawSnow, 0x005a6a50 WORLD::SetSmoke2d, 0x005ad600 WORLD::DrawSteam, 0x005aae90 WORLD::SetSpecialObj (the fires), 0x00503650 SNOW::SNOW, 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x005028e0 calcPos, 0x00502ba0 calcPos2, 0x00502330 waterUVModifi, 0x005b1ed0 FIREFLY::FIREFLY, 0x005b2100 FIREFLY::SetBasePosition, 0x005b21a0 FIREFLY::Init, 0x005b2900 FIREFLY::Init (hacked), 0x005b30a0 FIREFLY::Move, 0x005b3a60 FIREFLY::Draw, 0x005b1b60 NSPLINE::PreCalc, 0x005d0560 TOBJ::Init, 0x005d0db0 TOBJ::Move, 0x005d08d0 TOBJ::Draw, 0x005d1440 BIRD::Init, 0x005d1540 BIRD::SetPos, 0x005d1590 BIRD::Move, 0x005d1560 BIRD::Draw, 0x00503360 LENSFLARE::Draw (mode 1); INF SLUS_202.67:0x00106c70 ccBufferSampling::SetShade (the seven-argument form), 0x00106dd0 ccBufferSampling::MakePacket, 0x00108930 ccLayer::Add, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x0019f190 WORLD_MAN::GetWeather, 0x0019ef50 WORLD_MAN::GetTime, 0x0019f0d0 WORLD_MAN::CheckLensFlare, 0x001da710 ccCheckCameraDeg, 0x001ce300 effSmoke, 0x001412b0 ccShadowModel::Draw, 0x00105820 ccDrawEnv::SetFog, 0x0015c4b0 ccMask::ccMask
-worklog: 19, 25, 33, 38, 130, 145, 164, 365, 480
+worklog: 19, 25, 33, 38, 130, 145, 164, 365, 480, 569
 ---
 
 # Field generation
@@ -338,19 +338,41 @@ dummy taken to the player's side of the map, each flare wrapped likewise.
 - `FIREFLY2::SetBasePosition2` asks the height at the offset, not at the
   place.
 
-**The port.** `piney_world::field::ambient` makes and steps all of it:
-`Ambient::init` and `generate` at `FieldArea::with_world`, `Ambient::draw`
-a frame's pictures as a list of `Op`s in the game's order (sprites,
-`effSmoke` puffs, the 2D smoke's masks, models, sounds, flashes);
-`field_firefly` is `FIREFLY`, `firefly` `FIREFLY2`. `FieldArea` keeps
-`fieldrand` where `Generate` left it and the drawing's function statics
-(the steam's, the thunder's timers, the balloon's scrolls) across fields
-as the game does; `ambient_frame` runs a frame (the last one's list again
-while the tasks sleep) and `ambient_models` draws the haze (the frame
-buffer as its texture), TOBJ and BIRD and the 2D smoke. The sprites go
-through piney-effect (`piney-game fx/ambient.rs`: each `ccEff` made once as
-`Init` left it, fog and depth test as the game set them), the puffs through
-`effSmoke`, the sounds and the flash through the area's events.
+**The port.** Each field type is a `FieldDef` (`piney_world::field::def`,
+one `static` a type, each `BASE_FIELD` with its differences): whether it
+has a field at all (type 4's areas are a lake's dungeons), `defSE`,
+`GetWeather` and `GetTime` by background row, where `SetCharPosition`
+stands the party back from the dungeon, the sparks its `FIREFLY`s throw,
+and its systems by who makes them - `init` (`WORLD::Init`'s, from the
+seed's `fieldrand`), `plain` and `hacked` (`DrawBG`'s), `generate`
+(`Generate`'s, from the layout's) - with the frame's steps awake and
+asleep:
+
+| system | what | types |
+| --- | --- | --- |
+| `Snow` | `SNOW`: flakes by the weather (type 5's `sfg8`, 6's `sfh8`), or the embers | 5, 6; 0 |
+| `Smoke` | the 2D smoke's `ccMask` | 2, 3, 5, 6 |
+| `Steam` | `DrawSteam` and its statics | 0 |
+| `Haze` | the heat haze (3,000 or 6,000 ahead) | 0-3 |
+| `LensFlare` | `LENSFLARE` mode 1, the row's sun (`FlareDraw::Field`) | all |
+| `Scrolls`, `Sky` | `DrawBG`: `v$4519` and the turns (`ScrollsDef::turns`), the row's clumps at the centre (`At::Centre`), type 6's aurora | all |
+| `Tobj`, `Rain`, `Thunder`, `Fireflies`, `Lake` | TOBJ by its roll, the drops and the storm by the weather, `FIREFLY`s by night or hacked, `SetLake`'s water | all |
+| `Firefly2` | the roaming `FIREFLY2`s | 9 |
+| `Fires` | `SetSpecialObj`'s fires' smoke | 7 |
+| `Bird` | `BIRD` by day out of the rain | 10 |
+
+Every type draws in one order (`FIELD_ORDER`, the order above); a type
+without a step's system has nothing to step. The systems put their pieces
+in the frame and hand them back as generic draws: sprites (`EffSprite`),
+models, `ccAnm::Draw`s with the haze's and the lake's sampling, TOBJ's
+shadow, the 2D smoke's masks; the effects' puffs (`effSmoke`), the sounds
+and the flash go out as `MapEvent`s. While the tasks sleep the last frame
+is drawn again, the haze and the lake sampling the picture afresh. The
+drawing's function statics (the thunder's timers, the steam's, the
+balloon's scrolls) live in `SaveState::field_ambient`, each system taking
+and putting its own words; the scroll and the turns in the executable's
+statics (`scroll_statics::WORLD_BG`, `WORLD_BG_TURN`, the lake's
+`WORLD_LAKE`).
 
 `tools/test_field_ambient_rs.py` runs the game's `WORLD::Init`,
 `Generate` and `Draw` (with `DrawEffect`, `DrawRain`, `DrawSnow`,
@@ -358,14 +380,17 @@ through piney-effect (`piney-game fx/ambient.rs`: each `ccEff` made once as
 are, and the lake's and `DrawBG`'s draws) in eemu and the `ambient_probe`
 example side by side: every field type and background row, hacked and
 not, a random server and seed, and a walk of the player and the camera;
-compared are `fieldrand`'s count after `Init` and after `Generate`, what
-they made, and each frame's pictures in order (names, places, patterns,
-scales, transparencies, fog bits, layers, matrices, the masks, the puffs,
-the sounds with TOBJ's hum, the flash, the lake's scroll and three
-animations, the background's clumps with their layers and turns and its
-material writes) with the counts of `fieldrand` and `ccRand`. 120 cases
-of 1,000 frames, and type 6's 12 of 3,400 (past the turns' wrap): 0
-mismatches (worklog 480).
+the probe makes the port's field (its type's systems) from the disc,
+and hands the game's side what it has stand-ins for: the lens flare's sun,
+type 7's fires and Ω's runners' places. Compared are `fieldrand`'s count
+after `Init` and after `Generate`, what they made and the lake's place,
+and each frame's pictures in order (names, places, patterns, scales,
+transparencies, fog bits, layers, matrices, the masks, the lake's scroll
+and three animations, the background's clumps with their layers and
+turns and its material writes), its calls in order (the puffs, the sounds
+with TOBJ's hum, the flash) and the counts of `fieldrand` and `ccRand`.
+120 cases of 1,000 frames, and type 6's 12 of 3,400 (past the turns'
+wrap): 0 mismatches (worklog 480).
 `piney-game --mode field:14/TYPE,ROW[,HACK[,SEED]]` shows another field's
 weather over story area 14.
 

@@ -17,6 +17,7 @@ use crate::chara::pose::Play;
 use crate::draw::{OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
 use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
+use crate::systems::MapEvent;
 use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
 use crate::systems::sky::{SkyClump, SkyDef};
 use crate::systems::statics::ModelsDef;
@@ -25,7 +26,7 @@ use crate::systems::{
     BuildCx, DRAW_BG, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, Request, Step, StepCx, SystemDef,
 };
 use crate::town::scroll_statics as statics;
-use crate::town::{BASE_TOWN, FogParams, TownDef, TownEvent};
+use crate::town::{BASE_TOWN, FogParams, TownDef};
 
 /// `DrawBG`'s clumps and their layers: the sky's two and the mountains'
 /// two, on `bgLayer[0]`-`[3]`.
@@ -282,7 +283,7 @@ impl Airship {
 
     /// `AIRSHIP::Move`: the ccAnm set and stepped, then the turn, the wait
     /// or the leg; the puffs and sounds it makes go to `events`.
-    pub fn move_(&mut self, file: &SceneFile, rng: &mut Rng, events: &mut Vec<TownEvent>) {
+    pub fn move_(&mut self, file: &SceneFile, rng: &mut Rng, events: &mut Vec<MapEvent>) {
         self.root = self.set_root();
         self.play.forward(file);
         self.pos[2] = 0;
@@ -303,7 +304,7 @@ impl Airship {
             self.wait -= 1;
             if self.puff == 0 {
                 self.puffs(ship::WAIT_V, rng, events);
-                events.push(TownEvent::Se3d { n: ship::SE, pos: self.pos });
+                events.push(MapEvent::Se3d { n: ship::SE, pos: self.pos });
                 self.puff = rng.below(8) as i32 + 6;
             } else {
                 self.puff -= 1;
@@ -335,7 +336,7 @@ impl Airship {
     /// The two chimneys' puffs: each place and velocity turned by the
     /// heading (`sceVu0RotMatrix`), the place from the ship's; the size 3
     /// to 5 and the life 40 to 79 from `fieldrand`.
-    fn puffs(&self, v: [F; 2], rng: &mut Rng, events: &mut Vec<TownEvent>) {
+    fn puffs(&self, v: [F; 2], rng: &mut Rng, events: &mut Vec<MapEvent>) {
         let m = piney_data::anim::rot_bits([self.dirc[0], self.dirc[1], self.dirc[2]]);
         for k in 0..2 {
             let at = apply(&m, [ship::CHIMNEYS[k], ship::CHIMNEY_Y, ship::CHIMNEY_Z, ONE]);
@@ -343,7 +344,7 @@ impl Airship {
             let pos = add(at, self.pos);
             let scale = ee::from_int(rng.below(3) as i32 + 3);
             let life = rng.below(40) as i32 + 40;
-            events.push(TownEvent::SmokeN { pos, v: vel, scale, life, kind: ship::PUFF_TEX, fade: ship::PUFF_FADE });
+            events.push(MapEvent::SmokeN { pos, v: vel, scale, life, kind: ship::PUFF_TEX, fade: ship::PUFF_FADE });
         }
     }
 }
@@ -404,9 +405,10 @@ impl MapSystem for Airship {
 mod tests {
     use super::*;
     use crate::systems::Drawn;
+    use crate::systems::MapView;
     use crate::systems::sky::Sky;
     use crate::systems::statics::StaticModels;
-    use crate::town::{Town, TownView};
+    use crate::town::Town;
     use piney_data::volume::Volume;
 
     fn town() -> Option<Town> {
@@ -438,7 +440,7 @@ mod tests {
     #[test]
     fn the_airship_flies_its_first_leg() {
         let Some(mut t) = town() else { return };
-        let v = TownView::default();
+        let v = MapView::default();
         t.step(&v);
         let p = |k: Kind, piece: Piece| Drawn::Piece(k, piece);
         assert_eq!(
@@ -464,6 +466,6 @@ mod tests {
         assert!((2000..2010).contains(&frames), "{frames}");
         let ship = t.systems().get::<Airship>().unwrap();
         assert_eq!((ship.leg, ship.turn, ship.pos), (1, ship::TURN, ship.markers[1]));
-        assert!(t.take_events().iter().any(|e| matches!(e, TownEvent::SmokeN { .. })));
+        assert!(t.take_events().iter().any(|e| matches!(e, MapEvent::SmokeN { .. })));
     }
 }

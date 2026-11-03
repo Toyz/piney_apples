@@ -20,8 +20,8 @@ use piney_desktop::assets::SceneFile;
 use crate::ee::{self, F};
 use crate::hit::HitModel;
 use crate::story_map::{Asleep, BASE_BLOCK, BASE_STORY_MAP, BlockDef, LightsDef, StageByte, Start, StoryMapDef, layer};
-use crate::systems::fireflies::Firefly2Def;
-use crate::systems::scrolls::{MatScroll, ScrollsDef, Shown, Wrap};
+use crate::systems::fireflies::{Firefly2Def, Firefly2Eff, Firefly2Made};
+use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
 use crate::systems::sky::{SkyClump, SkyDef};
 use crate::systems::statics::{ModelsDef, PassLayers, StaticModels};
 use crate::systems::{
@@ -74,7 +74,8 @@ const MARKERS: [&str; 18] = [
 
 /// How many fireflies the constructor makes.
 pub const FIREFLIES: usize = 54;
-static FIREFLIES_DEF: Firefly2Def = Firefly2Def { count: FIREFLIES, markers: &MARKERS, effs: &FIREFLY_EFF };
+static FIREFLIES_DEF: Firefly2Def =
+    Firefly2Def { count: FIREFLIES, made: Firefly2Made::Markers(&MARKERS), eff: Firefly2Eff::ByField(&FIREFLY_EFF) };
 
 /// The constructor's `ccSys.bgColor`.
 pub const BG_COLOR: [u8; 3] = [0x1e, 0x1e, 0x1e];
@@ -106,10 +107,10 @@ static SKY: SkyDef = SkyDef {
 static SCROLLS: ScrollsDef = ScrollsDef {
     steps: &[0x3ac4_9ba6],
     wrap: Wrap::Less,
-    shown: Shown::Before,
     carry: Some(crate::systems::scrolls::Carry::Statics(crate::town::scroll_statics::ARENA_BG)),
     first: None,
-    mats: &[MatScroll::v("MAT_se1_5clo1", 0)],
+    mats: &[MatScroll::v("MAT_se1_5clo1", 0).before()],
+    turns: None,
 };
 
 /// `eventareaB0Light`: the distant light, then the 19 omni lights, those
@@ -378,10 +379,10 @@ mod tests {
     use crate::ee::ONE;
     use crate::story_map::StoryArea;
     use crate::story_map::tests::made;
+    use crate::systems::MapView;
     use crate::systems::fireflies::Fireflies2;
     use crate::systems::scrolls::Scrolls;
     use crate::systems::{Carried, Drawn};
-    use crate::town::TownView;
 
     /// Skeith's arena: the stage's models, the floor's collision, the
     /// start at the centre, the lights.
@@ -401,7 +402,7 @@ mod tests {
     }
 
     fn kinds(a: &mut StoryArea) -> Vec<Kind> {
-        let v = TownView { player: [0, 0, 0, ONE], ..TownView::default() };
+        let v = MapView { player: [0, 0, 0, ONE], ..MapView::default() };
         a.step(&v, true, None);
         a.frame().iter().filter_map(|d| if let Drawn::Piece(k, _) = d { Some(*k) } else { None }).collect()
     }
@@ -430,9 +431,9 @@ mod tests {
         let mut a = made(&archive, Volume::Inf, &ARENA_1, 1, 0);
         let mut s = [0; piney_desktop::SCROLL_STATICS];
         s[crate::town::scroll_statics::ARENA_BG] = 0x3e80_0000;
-        a.take(&Carried { statics: &s, move_tex: None });
+        a.take(&Carried { statics: &s, move_tex: None, field: None });
         assert_eq!(a.systems().get::<Scrolls>().unwrap().v[0], 0x3e80_0000);
-        a.step(&TownView::default(), true, None);
+        a.step(&MapView::default(), true, None);
         let mut out = [0; piney_desktop::SCROLL_STATICS];
         a.put(&mut out, &mut [[0; 2]; piney_desktop::MOVE_TEX_ROWS]);
         assert_eq!(out[crate::town::scroll_statics::ARENA_BG], ee::add(0x3e80_0000, 0x3ac4_9ba6));

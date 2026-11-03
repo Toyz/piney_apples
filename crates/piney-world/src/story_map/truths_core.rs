@@ -202,7 +202,7 @@ mod tests {
         assert!(f.glows.iter().all(|g| g.frame < u32::from(f.pat_num) && (30..130).contains(&g.wait)));
         let mut layers = piney_desktop::layers::Layers::default();
         let mut cc = piney_battle::rand::Genrand::default();
-        let v = crate::town::TownView::default();
+        let v = crate::systems::MapView::default();
         let sprites = a.draw(&mut layers, glam::Mat4::IDENTITY, &v, true, &mut cc);
         assert_eq!(sprites.len(), 7);
         assert!(sprites.iter().all(|s| s.state == EffState::NO_FOG && s.layer == layer::EFF));

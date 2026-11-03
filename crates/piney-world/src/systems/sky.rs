@@ -1,7 +1,8 @@
 //! `DrawBG`'s clumps: the sky, the sun, the cloud layers and mountains, and
-//! in crisis (`town0Nd`) the clumps over them, each at the origin, a dummy
-//! or the bob ([`super::bob::Bob`]) on its own layer, its materials offset
-//! as the scrolls ([`super::scrolls::Scrolls`]) last wrote them.
+//! in crisis (`town0Nd`) the clumps over them, each at the origin, a dummy,
+//! the bob ([`super::bob::Bob`]) or a field's centre turned by its scrolls'
+//! turns on its own layer, its materials offset as the scrolls
+//! ([`super::scrolls::Scrolls`]) last wrote them.
 
 use std::borrow::Cow;
 use std::rc::Rc;
@@ -12,8 +13,10 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
 use super::bob::Bob;
+use super::scrolls::Scrolls;
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::draw::Fogging;
+use crate::ee::ONE;
 use crate::town::clump_models;
 
 /// The layer a clump draws on.
@@ -37,19 +40,32 @@ impl SkyLayer {
     }
 }
 
-/// Where a clump draws: at the origin, at a dummy's position, or raised
-/// by the bob (`EVENTAREA07`'s).
+/// Where a clump draws: at the origin, at a dummy's position, raised by the
+/// bob (`EVENTAREA07`'s), or at a field's centre (`WORLD` +0x6140, z 0)
+/// turned about z by the scrolls' turn `k` (`WORLD::DrawBG`'s
+/// `SetMatrix_PosRotZYX`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum At {
     Origin,
     Dummy(&'static str),
     Bob,
+    Centre(Option<usize>),
+}
+
+/// Which clump: one of the file's by name, or `WORLD::DrawBG`'s by its
+/// background row (`BGTBL`'s four, or `BGTBL2`'s `p` and four, by slot;
+/// field type 6's aurora).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClumpName {
+    Named(&'static str),
+    Row(usize),
+    Aurora,
 }
 
 /// One clump of `DrawBG`.
 #[derive(Clone, Copy, Debug)]
 pub struct SkyClump {
-    pub name: &'static str,
+    pub name: ClumpName,
     pub layer: SkyLayer,
     pub at: At,
     /// Made and drawn only in crisis.
@@ -61,7 +77,13 @@ pub struct SkyClump {
 impl SkyClump {
     /// A clump at the origin, no fog.
     pub const fn on(name: &'static str, layer: i16) -> SkyClump {
-        SkyClump { name, layer: SkyLayer::On(layer), at: At::Origin, crisis: false, fog: false }
+        SkyClump { name: ClumpName::Named(name), layer: SkyLayer::On(layer), at: At::Origin, crisis: false, fog: false }
+    }
+
+    /// A field's: the row's clump or the aurora at the centre, turned by
+    /// turn `turn`, no fog.
+    pub const fn field(name: ClumpName, layer: i16, turn: Option<usize>) -> SkyClump {
+        SkyClump { name, layer: SkyLayer::On(layer), at: At::Centre(turn), crisis: false, fog: false }
     }
 
     /// A crisis clump at the origin.
@@ -84,36 +106,51 @@ struct Made {
 }
 
 /// `DrawBG`'s clumps: by the def's order, None where it makes none (the
-/// crisis sky outside crisis).
+/// crisis sky outside crisis); each one's name as the file has it.
 #[derive(Clone)]
 pub struct Sky {
     def: &'static SkyDef,
     file: Rc<SceneFile>,
     made: Vec<Option<Made>>,
+    names: Vec<String>,
 }
 
 impl Sky {
     pub fn new(def: &'static SkyDef, cx: &mut BuildCx) -> Result<Sky> {
         let file = &**cx.file;
+        let background = cx.field.and_then(|f| f.field).map(|f| &f.scene.background);
+        // A row's clump the row lacks is made empty (its slot drawn with
+        // nothing); a row with no aurora makes none.
+        let names: Vec<Option<String>> = def
+            .clumps
+            .iter()
+            .map(|c| match c.name {
+                ClumpName::Named(name) => Some(cx.name(name).into_owned()),
+                ClumpName::Row(k) => {
+                    Some(background.and_then(|b| b.clumps.get(k)).map_or_else(String::new, |n| n.to_string()))
+                }
+                ClumpName::Aurora => background.and_then(|b| b.aurora).map(String::from),
+            })
+            .collect();
         let made = def
             .clumps
             .iter()
-            .map(|c| {
-                if c.crisis && !cx.crisis {
-                    return Ok(None);
-                }
+            .zip(&names)
+            .map(|(c, name)| {
+                let Some(name) = name.as_deref().filter(|_| !c.crisis || cx.crisis) else { return Ok(None) };
                 let world = match c.at {
-                    At::Origin | At::Bob => Mat4::IDENTITY,
+                    At::Origin | At::Bob | At::Centre(_) => Mat4::IDENTITY,
                     At::Dummy(name) => {
                         let d = file.ccs.find_object(name).and_then(|o| file.scene.dummies.get(&o));
                         let d = d.ok_or_else(|| Error::NotFound(name.into()))?;
                         Mat4::from_translation(Vec3::new(d.pos.x, d.pos.y, d.pos.z))
                     }
                 };
-                Ok(Some(Made { models: clump_models(file, &cx.name(c.name)), world }))
+                Ok(Some(Made { models: clump_models(file, name), world }))
             })
             .collect::<Result<_>>()?;
-        Ok(Sky { def, file: cx.file.clone(), made })
+        let names = names.into_iter().map(Option::unwrap_or_default).collect();
+        Ok(Sky { def, file: cx.file.clone(), made, names })
     }
 
     /// Whether clump `k` was made (a crisis clump only in crisis).
@@ -121,9 +158,19 @@ impl Sky {
         self.made.get(k).is_some_and(Option::is_some)
     }
 
-    /// Clump `k`'s name.
-    pub fn name(&self, k: usize) -> &'static str {
-        self.def.clumps[k].name
+    /// Clump `k`'s name as the file has it.
+    pub fn name(&self, k: usize) -> &str {
+        &self.names[k]
+    }
+
+    /// Clump `k` as the def gives it.
+    pub fn clump(&self, k: usize) -> &SkyClump {
+        &self.def.clumps[k]
+    }
+
+    /// Where the last `DrawBG` put clump `k`.
+    pub fn world(&self, k: usize) -> Option<Mat4> {
+        self.made.get(k)?.as_ref().map(|m| m.world)
     }
 
     /// Which of the crisis clumps clump `k` is, None for one drawn always.
@@ -139,10 +186,17 @@ impl MapSystem for Sky {
             return;
         }
         let bob = others.get::<Bob>().map_or(0, Bob::z);
+        let turn = others.get::<Scrolls>().map_or([0; 2], |s| s.turn);
+        let [x, y] = cx.core.hits.center;
         for (k, (c, made)) in self.def.clumps.iter().zip(&mut self.made).enumerate() {
             let Some(made) = made else { continue };
-            if c.at == At::Bob {
-                made.world = Mat4::from_translation(Vec3::new(0.0, 0.0, crate::ee::f(bob)));
+            match c.at {
+                At::Bob => made.world = Mat4::from_translation(Vec3::new(0.0, 0.0, crate::ee::f(bob))),
+                At::Centre(t) => {
+                    let rz = t.map_or(0, |t| turn[t]);
+                    made.world = crate::draw::mat(&crate::town::pos_rot_zyx([x, y, 0, ONE], [0, 0, rz]));
+                }
+                At::Origin | At::Dummy(_) => {}
             }
             cx.put(Kind::Sky, Piece::Clump(k));
         }

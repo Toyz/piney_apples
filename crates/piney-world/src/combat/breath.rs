@@ -19,9 +19,9 @@ use super::Combat;
 use super::stage::{PlayerFrame, Show};
 use crate::draw::EFF_LAYER;
 use crate::ee::V4;
-use crate::field::ambient::Op;
 use crate::hit::Hits;
 use crate::sprite::{Clut, EffSprite, EffState};
+use crate::systems::Smoke;
 
 /// The enemies' breaths by (scene index, slot), and the frame's flames
 /// and bursts.
@@ -29,7 +29,7 @@ use crate::sprite::{Clut, EffSprite, EffState};
 pub struct Breaths {
     pub map: HashMap<(usize, usize), Breath>,
     pub flames: Vec<EffSprite>,
-    pub smoke: Vec<Op>,
+    pub smoke: Vec<Smoke>,
     /// For tests: the flames drawn and the bursts so far.
     pub drawn: u64,
     pub bursts: u64,
@@ -115,7 +115,7 @@ impl Combat {
                             BreathOut::Smoke { pos, vel, size, n, kind, fade_in, fade_out } => {
                                 self.breaths.bursts += 1;
                                 let (fade_in, fade_out) = (fade_in as u16, fade_out as u16);
-                                self.breaths.smoke.push(Op::Smoke {
+                                self.breaths.smoke.push(Smoke {
                                     pos,
                                     v: vel,
                                     s: size,
@@ -139,13 +139,11 @@ impl Combat {
         self.breaths.map.insert((who, slot), Breath::new(info));
     }
 
-    /// The frame's flames as ambient sprites (layer 3, `ccEff::Init(chunk,
-    /// 0)`: no fog; the palette chunk set outright), then the bursts'
-    /// puffs, taken.
-    pub fn breath_ops(&mut self) -> Vec<Op> {
-        let mut ops: Vec<Op> = self.breaths.flames.drain(..).map(Op::Sprite).collect();
-        ops.append(&mut self.breaths.smoke);
-        ops
+    /// The frame's flames as sprites (layer 3, `ccEff::Init(chunk, 0)`:
+    /// no fog; the palette chunk set outright), and the bursts' puffs,
+    /// taken.
+    pub fn breath_draws(&mut self) -> (Vec<EffSprite>, Vec<Smoke>) {
+        (std::mem::take(&mut self.breaths.flames), std::mem::take(&mut self.breaths.smoke))
     }
 
     /// The world matrix of enemy `who`'s node `name` as it was last drawn.

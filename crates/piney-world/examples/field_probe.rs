@@ -16,7 +16,7 @@ use piney_world::camera::{CamPad, Camera, Scheme};
 use piney_world::chara::motion::PLAYER_ANIM_TBL;
 use piney_world::chara::player::Player;
 use piney_world::ee::{self, V4};
-use piney_world::field::area::{DEF_SE, FieldArea};
+use piney_world::field::area::FieldArea;
 use piney_world::hit;
 use piney_world::{Rand, tasks};
 
@@ -76,8 +76,7 @@ fn main() {
                     protect: false,
                     skip_init: false,
                 };
-                let def_se = DEF_SE[params.field_type as usize];
-                let f = FieldArea::with_world(&archive, volume, params, def_se, 2, 0, None).unwrap();
+                let f = FieldArea::with_world(&archive, volume, params, 2, 0, None).unwrap();
                 let objects = list(f.objects.iter().map(|o| {
                     format!(
                         "[{}, {}, {}, {}, {}, {}, {}]",
@@ -95,7 +94,7 @@ fn main() {
                     "{{\"objects\": {objects}, \"hits\": {hits}, \"map\": {}, \"check3\": {}, \"def_se\": {}, \"list\": {}}}",
                     list(f.field.map.iter().copied()),
                     list(f.field.check3.iter().copied()),
-                    f.hits.def_se,
+                    f.core.hits.def_se,
                     hit_list(&f)
                 );
                 area = Some(f);
@@ -103,7 +102,8 @@ fn main() {
             Some("charpos") => {
                 let start = [n(3), n(4), n(5), ee::ONE];
                 let dungeon = [n(6), n(7), n(8), ee::ONE];
-                let (p, rot) = piney_world::field::world::field_start(n(1) as i32, n(2), start, Some(dungeon));
+                let back = piney_world::field::def::FieldDef::of(n(2)).expect("a field type").back;
+                let (p, rot) = piney_world::field::world::field_start(n(1) as i32, &back, start, Some(dungeon));
                 let m = piney_world::field::world::party_starts(1, p, rot);
                 let members = list(m.iter().map(|v| list([v[0], v[1], v[2], rot])));
                 println!("[{}, {}, {}, {rot}, {members}]", p[0], p[1], p[2]);
@@ -120,13 +120,13 @@ fn main() {
             Some("clear") => {
                 let f = area.as_mut().unwrap();
                 f.list.clear();
-                f.hits.models.clear();
+                f.core.hits.models.clear();
                 println!("{{}}");
             }
             Some("land") => {
                 let f = area.as_mut().unwrap();
-                let z = f.hits.land([n(1), n(2), n(3), ee::ONE], hit::LAND_MASK);
-                let h = &f.hits;
+                let z = f.core.hits.land([n(1), n(2), n(3), ee::ONE], hit::LAND_MASK);
+                let h = &f.core.hits;
                 println!(
                     "{{\"z\": {z}, \"num\": {}, \"att\": {}, \"cp\": {}, \"attribute\": {}}}",
                     h.num,
@@ -140,7 +140,7 @@ fn main() {
                 let pos: V4 = [n(1), n(2), n(3), ee::ONE];
                 let mv: V4 = [n(4), n(5), 0, ee::ONE];
                 let mut body = hit::Body { pos, radius: 0x4234_0000, ..hit::Body::default() };
-                let (r, out) = f.hits.hit_check(&mut body, pos, mv, 0x4234_0000, n(6), n(7) != 0);
+                let (r, out) = f.core.hits.hit_check(&mut body, pos, mv, 0x4234_0000, n(6), n(7) != 0);
                 println!("{{\"r\": {r}, \"move\": {}}}", list(out));
             }
             Some("step") => {
@@ -171,7 +171,7 @@ fn main() {
                 let scheme = Scheme::new(n(5) as i32);
                 let mode = n(6) as i8;
                 f.set_center(pos[0], pos[1]);
-                f.hits.center = [pos[0], pos[1]];
+                f.core.hits.center = [pos[0], pos[1]];
                 run = Some(Run {
                     player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
                     camera: Camera::new(volume, pos, dirc, mode, scheme),
@@ -196,11 +196,11 @@ fn main() {
                     dirc_r: n(6),
                     pow,
                 };
-                tasks(&mut r.camera, &mut r.player, &mut f.hits, &anims, &mut r.rand, &pad, &mut r.mode);
+                tasks(&mut r.camera, &mut r.player, &mut f.core.hits, &anims, &mut r.rand, &pad, &mut r.mode);
                 if r.player.events.contains(&piney_world::chara::motion::ActEvent::Arrived) {
-                    f.hits.hit_enable(&mut r.player.hit_body);
+                    f.core.hits.hit_enable(&mut r.player.hit_body);
                 }
-                f.ofs = f.hits.center;
+                f.ofs = f.core.hits.center;
                 let player = r.player.body.pos;
                 f.step_objects(player);
                 let (p, b, a, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
@@ -268,7 +268,7 @@ fn main() {
                     mat(&c.world_view),
                     mat(&c.world_screen),
                     u8::from(p.enter),
-                    list(f.hits.center),
+                    list(f.core.hits.center),
                     hit_list(f),
                     u8::from(p.attribute_qualified)
                 );

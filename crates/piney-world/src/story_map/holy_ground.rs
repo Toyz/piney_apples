@@ -89,7 +89,7 @@ static REV: AnimDef = AnimDef { anim: "ANM_se1_2la1a", file: None, pos: REV_POS,
 
 /// `DrawLensFlare` (gcmn 0x00402dc0) at `DMY_se1_2lig1point`: in the
 /// church, while no puppet show runs.
-static FLARE: FlareDef = FlareDef { sun: "DMY_se1_2lig1point", draw: FlareDraw::Own };
+static FLARE: FlareDef = FlareDef::at("DMY_se1_2lig1point", FlareDraw::Own);
 
 /// `Draw`: `DrawBG`, `DrawObj2` (its rows), `DrawObj` (its rows, then its
 /// objects within their clip of the eye), `revAnm`, `DrawFloor`, the
