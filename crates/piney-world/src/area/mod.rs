@@ -226,6 +226,14 @@ impl Scene {
     /// the dungeon differs from the one before - a new scene, not a room or
     /// a floor of the same dungeon. A change fades the sound out and loads
     /// the area's sequence bank.
+    /// What `ccSetupGameCtrl` calls once its fade out is over (INF main
+    /// 0x00168b8c, MUT 0x00168d04), in every area: `ccAllSoundOff` for a
+    /// replaced scene, which stops the last one's music before the event's
+    /// phase-2 streams; else `ccEvVoiceStop`.
+    pub fn sound_off(&self) -> crate::Request {
+        if self.changed() { crate::Request::AllSoundOff } else { crate::Request::EvVoiceStop }
+    }
+
     pub fn changed(&self) -> bool {
         self.area != self.area_prev
             || self.town != self.town_prev

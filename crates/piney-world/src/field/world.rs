@@ -208,13 +208,6 @@ pub struct GateHackStream {
     pub crisis: bool,
 }
 
-/// What `ccSetupGameCtrl` calls once its fade out is over (MUT main
-/// 0x00168d04): `ccAllSoundOff` for a new scene, which stops the last
-/// one's music before the event's phase-2 streams; else `ccEvVoiceStop`.
-fn sound_off(scene: &Scene) -> crate::Request {
-    if scene.changed() { crate::Request::AllSoundOff } else { crate::Request::EvVoiceStop }
-}
-
 impl FieldWorld {
     /// `StartPos` as this scene's set-up left it: the leader's place and
     /// his facing (z).
@@ -380,7 +373,7 @@ impl FieldWorld {
         let mut requests = Vec::new();
         let phase = if at.faded {
             // The session drew the fade out and sent its ccSoundFadeOut.
-            requests.push(Request::Game(sound_off(&scene)));
+            requests.push(Request::Game(scene.sound_off()));
             Phase::Hold(0)
         } else {
             if scene.changed() {
@@ -1283,7 +1276,7 @@ impl FieldWorld {
                 piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
                 self.phase = if k + 1 < FADE_FRAMES { Phase::FadeOut(k + 1) } else { Phase::Hold(0) };
                 if k + 1 == FADE_FRAMES {
-                    self.requests.push(Request::Game(sound_off(&self.scene)));
+                    self.requests.push(Request::Game(self.scene.sound_off()));
                 }
             }
             Phase::Hold(k) => {

@@ -371,7 +371,8 @@ impl Session {
         if self.scene.area == piney_world::area::kind::TOWN {
             // ccClearGtHack in the town's set-up: the flag goes.
             self.gt_hack = false;
-            let mut w = WorldMode::enter_after(&self.iso, &self.archive.clone(), state, vm, self.start_before)?;
+            let mut w =
+                WorldMode::enter_after(&self.iso, &self.archive.clone(), state, vm, self.scene, self.start_before)?;
             self.start_before = w.world().start();
             w.init_rand(Arrival { frames: self.sys_frames, faded }.rand_count());
             // ccSpcManager and ccPartyManager as the last area left them.
@@ -1013,7 +1014,14 @@ impl Session {
                 log_in(&self.iso, &mut state, self.sys_frames);
                 self.scene = piney_world::area::Scene::log_in(&mut state.save);
                 self.restock(&mut state);
-                match WorldMode::enter_after(&self.iso, &self.archive.clone(), state.clone(), vm, self.start_before) {
+                match WorldMode::enter_after(
+                    &self.iso,
+                    &self.archive.clone(),
+                    state.clone(),
+                    vm,
+                    self.scene,
+                    self.start_before,
+                ) {
                     Ok(mut w) => {
                         self.start_before = w.world().start();
                         w.init_rand(Arrival { frames: self.sys_frames, faded: false }.rand_count());

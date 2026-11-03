@@ -180,17 +180,24 @@ pub struct WorldMode {
 impl WorldMode {
     /// `ccSetupNewGame` and `ccSetupGameCtrl` in town `town` on `state`.
     #[cfg(test)]
-    pub fn enter(iso: &Path, archive: &Arc<Archive>, state: SaveState, vm: Option<Vm>) -> Result<WorldMode, String> {
-        WorldMode::enter_after(iso, archive, state, vm, ([0; 4], [0; 4]))
+    pub fn enter(
+        iso: &Path,
+        archive: &Arc<Archive>,
+        mut state: SaveState,
+        vm: Option<Vm>,
+    ) -> Result<WorldMode, String> {
+        let scene = piney_world::area::Scene::log_in(&mut state.save);
+        WorldMode::enter_after(iso, archive, state, vm, scene, ([0; 4], [0; 4]))
     }
 
-    /// [`WorldMode::enter`] after a scene whose set-up left `StartPos` at
-    /// `before` ([`piney_world::World::enter_after`]).
+    /// [`WorldMode::enter`] for `scene` after a scene whose set-up left
+    /// `StartPos` at `before` ([`piney_world::World::enter_after`]).
     pub fn enter_after(
         iso: &Path,
         archive: &Arc<Archive>,
         mut state: SaveState,
         vm: Option<Vm>,
+        scene: piney_world::area::Scene,
         before: ([u32; 4], [u32; 4]),
     ) -> Result<WorldMode, String> {
         repair_buttons(&mut state);
@@ -207,8 +214,8 @@ impl WorldMode {
         };
         let mut st = FieldState::new(&state.save, stories);
         st.announcements = crate::desktop::announcements(iso);
-        let mut world =
-            World::enter_after(&mut disc, archive.clone(), state, before).map_err(|e| format!("The World: {e}"))?;
+        let mut world = World::enter_after(&mut disc, archive.clone(), state, scene, before)
+            .map_err(|e| format!("The World: {e}"))?;
         let t = &world.town();
         let map = t.def.minimap.and_then(|m| {
             piney_world::map::town::TownMap::open(archive, world.volume(), m, &t.core.file.stem)
@@ -1495,6 +1502,7 @@ impl Mode for WorldMode {
     }
 
     fn take_events(&mut self) -> Vec<Event> {
+        let scene = self.world.scene();
         let save = &self.world.state().save;
         let town = save.u8(offset::LAST_TOWN);
         let crisis = save.u8(offset::CRISIS) as i8 != 0;
@@ -1508,15 +1516,23 @@ impl Mode for WorldMode {
                 Request::SoundFadeOut => Some(Event::SoundFadeOut),
                 Request::AllSoundOff => Some(Event::AllSoundOff),
                 Request::EvVoiceStop => Some(Event::VoiceStop),
-                // `ccSndSQLoad(2)`: `sqDataTown[townType]`, or its crisis
-                // row (`piney_audio::driver::town_row`).
-                Request::SqLoad(_) => Some(Event::SqLoad(piney_audio::SqContext::Town { town, crisis })),
+                // `ccSndSQLoad(2)` for a replaced scene, as ccSetupGameCtrl
+                // picks it: `sqDataTown[townType]`, or its crisis row
+                // (`piney_audio::driver::town_row`).
+                Request::SqLoad(_) => piney_audio::setup_context(&piney_audio::AreaMusic {
+                    area: scene.area,
+                    scene_replaced: scene.changed(),
+                    town,
+                    crisis,
+                    ..piney_audio::AreaMusic::default()
+                })
+                .map(Event::SqLoad),
                 // `ccSndBgmCtrl`'s town case (0x0017b064, `bgm_plan`): Mac
                 // Anu in the crisis and Dun Loireag with a third sequence
                 // start sequence 2, then every town sequence 0; Mac Anu's
                 // +0x105 and canals' flag reset.
                 Request::BgmCtrl => Some(Event::BgmCtrl(piney_audio::BgmWorld {
-                    scene_replaced: false,
+                    scene_replaced: scene.changed(),
                     town: i32::from(town),
                     crisis: crisis_one,
                     dt_bgm,

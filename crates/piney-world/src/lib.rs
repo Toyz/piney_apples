@@ -190,6 +190,8 @@ pub fn tasks(
 /// The field game in Mac Anu.
 pub struct World {
     save: SaveState,
+    /// `ccGame`'s scene: this town's, and the one before it.
+    scene: area::Scene,
     /// The disc's volume: whose tables these are.
     volume: piney_data::volume::Volume,
     town: Town,
@@ -343,16 +345,18 @@ impl World {
     /// `lastTown` (`saveData+0x8426`, 0-4): the town and Kite read from the disc, the camera and
     /// player as the tasks set them up at the town's start. The frames that
     /// follow fade out, hold, then fade the town in.
-    pub fn enter(iso: &mut Iso, archive: Arc<Archive>, save: SaveState) -> piney_data::Result<World> {
-        World::enter_after(iso, archive, save, ([0; 4], [0; 4]))
+    pub fn enter(iso: &mut Iso, archive: Arc<Archive>, mut save: SaveState) -> piney_data::Result<World> {
+        let scene = area::Scene::log_in(&mut save.save);
+        World::enter_after(iso, archive, save, scene, ([0; 4], [0; 4]))
     }
 
-    /// [`World::enter`] after a scene whose start (`StartPos`) was
-    /// `before`: what a town with no start of its own keeps.
+    /// [`World::enter`] for `scene` after a scene whose start (`StartPos`)
+    /// was `before`: what a town with no start of its own keeps.
     pub fn enter_after(
         iso: &mut Iso,
         archive: Arc<Archive>,
         mut save: SaveState,
+        scene: area::Scene,
         before: (V4, V4),
     ) -> piney_data::Result<World> {
         let volume = iso.volume()?;
@@ -398,7 +402,13 @@ impl World {
             player,
             camera,
             phase: Phase::FadeOut(0),
-            requests: vec![Request::SoundFadeOut, Request::EnableReset(false)],
+            // ccSoundFadeOut for a replaced scene (CheckSceneReplace, INF
+            // main 0x00168a34), as in every area.
+            requests: [scene.changed().then_some(Request::SoundFadeOut), Some(Request::EnableReset(false))]
+                .into_iter()
+                .flatten()
+                .collect(),
+            scene,
             rand,
             merchants: Vec::new(),
             dogs: Vec::new(),
@@ -470,7 +480,7 @@ impl World {
         if let Phase::FadeOut(_) = self.phase {
             self.phase = Phase::Hold(0);
             self.requests.retain(|r| *r != Request::SoundFadeOut);
-            self.requests.push(Request::AllSoundOff);
+            self.requests.push(self.scene.sound_off());
         }
     }
 
@@ -1225,6 +1235,11 @@ impl World {
         self.camera.shake.shake(s[0], s[1], s[2], s[3], &mut || rand.rand());
     }
 
+    /// `ccGame`'s scene as the set-up found it.
+    pub fn scene(&self) -> area::Scene {
+        self.scene
+    }
+
     pub fn town(&self) -> &Town {
         &self.town
     }
@@ -1315,7 +1330,7 @@ impl World {
                 piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
                 self.phase = if k + 1 < FADE_FRAMES { Phase::FadeOut(k + 1) } else { Phase::Hold(0) };
                 if k + 1 == FADE_FRAMES {
-                    self.requests.push(Request::AllSoundOff);
+                    self.requests.push(self.scene.sound_off());
                 }
             }
             Phase::Hold(k) => {

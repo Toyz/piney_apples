@@ -101,3 +101,48 @@ fn the_event_npcs_turned_marker_lasts_while_the_towns_file_does() {
         assert_ne!(heading(&s, marker), turned, "town {town} read again from the disc: the dummy is the disc's");
     }
 }
+
+/// What `ccSetupGameCtrl` asks of the sound on the way to `town`: the
+/// change's fade out and set-up, until it plays.
+fn sound_to_town(s: &mut Session, town: i16) -> Vec<crate::mode::Event> {
+    use crate::mode::Event;
+    s.go(Pending::Story(crate::field_host::SceneChange { scene: [0, town, -1, -1, -1, -1], area: None }));
+    let pad = Pad::default();
+    let mut out = Vec::new();
+    let mut set_up = false;
+    for _ in 0..3000 {
+        s.step(&pad);
+        out.extend(
+            s.take_events().into_iter().filter(|e| {
+                matches!(e, Event::SoundFadeOut | Event::AllSoundOff | Event::VoiceStop | Event::SqLoad(_))
+            }),
+        );
+        let Stage::World(w) = &s.stage else { continue };
+        set_up |= !matches!(w.world().phase(), piney_world::Phase::Play(_));
+        if set_up
+            && w.world().town().def.no == i32::from(town)
+            && matches!(w.world().phase(), piney_world::Phase::Play(n) if n >= 30)
+        {
+            return out;
+        }
+    }
+    panic!("town {town} never played: {}", Mode::title(s));
+}
+
+/// `ccSetupGameCtrl` tests `CheckSceneReplace` in a town as anywhere (INF
+/// main 0x00168a34, 0x00168b8c): the same town set up again fades no
+/// sound, stops only the voices and loads no bank; another town does all
+/// three.
+#[test]
+fn a_town_set_up_again_keeps_its_sound() {
+    use crate::mode::Event;
+    let Some(mut s) = in_town(2) else { return };
+    play_in(&mut s, 2);
+    let again = sound_to_town(&mut s, 2);
+    assert_eq!(again, vec![Event::VoiceStop], "the same town: ccEvVoiceStop only");
+    let other = sound_to_town(&mut s, 0);
+    assert!(other.contains(&Event::SoundFadeOut), "another town fades the sound: {other:?}");
+    assert!(other.contains(&Event::AllSoundOff), "and stops it: {other:?}");
+    assert!(other.iter().any(|e| matches!(e, Event::SqLoad(_))), "and loads its bank: {other:?}");
+    assert!(!other.contains(&Event::VoiceStop), "not ccEvVoiceStop: {other:?}");
+}
