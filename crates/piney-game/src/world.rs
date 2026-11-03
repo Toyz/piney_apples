@@ -1236,12 +1236,10 @@ impl Mode for WorldMode {
         self.st.frame = self.frames;
         // ccThEvent (32) first.
         self.event_frame();
-        // A stream the scripts play runs inside the event task's call: the
-        // town's tasks wait, and its frame is what shows.
-        if let Some(f) = self.stream.frame.take() {
-            self.events.append(&mut self.st.events);
-            return f;
-        }
+        // A stream the scripts play runs inside the event task's call,
+        // which breathes a frame at a time with no task asleep
+        // (ccEventStream): the town's tasks go on, its frame is what shows.
+        let stream_frame = self.stream.frame.take();
         let mut ctx = Ctx::new(View::default());
         self.world.set_menu_view(menu_view(&self.ui));
         // ccThGameCtrl (33): the command target and the buttons; the map
@@ -1493,7 +1491,7 @@ impl Mode for WorldMode {
         if let Some([r, g, b]) = self.world.clear_colour() {
             frame.clear = piney_draw::Rgba([r, g, b, 0x80]);
         }
-        frame
+        stream_frame.unwrap_or(frame)
     }
 
     fn take_events(&mut self) -> Vec<Event> {

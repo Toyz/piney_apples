@@ -33,6 +33,8 @@ pub struct EvStream {
     pub data: Option<Arc<Archive>>,
     pub player: Option<StreamPlayer>,
     pub frame: Option<Frame>,
+    /// The game's `rand()` as the stream took it.
+    pub rand_at: u64,
 }
 
 /// What the event host reads and moves of the world it hosts: the
@@ -497,6 +499,13 @@ impl<W: HostWorld> Host for EvHost<'_, W> {
                         true
                     }
                     None => {
+                        // The world's tasks run beside the stream and draw
+                        // first in a frame (48 before its effects' 80 on);
+                        // none draws `rand()` in any scene played so far, so
+                        // the stream's hand-back is the one generator.
+                        if self.world.state_out().rand != self.stream.rand_at {
+                            tracing::warn!("a task drew rand() while the stream played");
+                        }
                         self.world.set_rand(p.rand());
                         self.stream.player = None;
                         self.st.log("stream done".into());
@@ -515,6 +524,7 @@ impl<W: HostWorld> Host for EvHost<'_, W> {
         self.st.log(format!("stream {num}"));
         let Some(iso) = self.stream.iso.clone() else { return };
         let save = self.world.state_out();
+        self.stream.rand_at = save.rand;
         let (game, list) = self.world.stream_game(self.st);
         let data = self.stream.data.clone();
         let started = usize::try_from(num)
