@@ -264,7 +264,7 @@ impl AreaMode {
         // WORLD::Init's or the DUNGEON constructor's map, and the modes
         // ccThGameCtrl's set-up reads.
         let volume = world.volume();
-        if let Err(e) = piney_world::map::setup_area(world.place_mut(), &archive, volume, &scene) {
+        if let Err(e) = world.area_mut().setup_map(&archive, volume, &scene) {
             tracing::warn!("the area's map: {e}");
         }
         // ccThEffect's and ccThParticle's set-up.
@@ -627,9 +627,7 @@ impl AreaMode {
                 vm.start_thread(&mut h);
                 // WORLD_MAN::SetEventData: a story dungeon's rooms and
                 // positions as the event manager's points and positions.
-                if let piney_world::field::world::Place::Dungeon(d) = self.world.place() {
-                    let area = self.world.scene().area;
-                    let ed = piney_world::dungeon::set_event_data(d.tables, d.event_area, area, 0);
+                if let Some(ed) = self.world.area().event_data(self.world.scene().area) {
                     for [floor, block, num] in ed.points {
                         vm.mng.set_event_point(floor, block, num);
                     }
@@ -1755,24 +1753,23 @@ impl Mode for AreaMode {
             // for the change (ccSleepNoSleepThread in ChangeRequest).
             let awake = !self.asleep && !self.world.scene_change_asked();
             let in_battle = self.world.combat().battle.in_battle != 0;
-            let place = self.world.place_mut();
             let fonts = self.fonts.as_ref();
             // Hidden with the world (Data Drain's black and its movie).
             let mut unseen = Ctx::new(View::default());
             let map_ctx = if self.world_hidden { &mut unseen } else { &mut ctx };
             self.map_st.hud_scale = self.ui.hud_scale;
-            let shown = piney_world::map::area_frame(
-                place,
-                &mut self.map_st,
-                &scene,
+            let mut f = piney_world::area::MapFrame {
+                st: &mut self.map_st,
+                scene: &scene,
                 pos,
                 dirc,
                 awake,
                 in_battle,
                 fonts,
-                &mut ents,
-                map_ctx,
-            );
+                ents: &mut ents,
+                ctx: map_ctx,
+            };
+            let shown = piney_world::map::area_frame(self.world.area_mut(), &mut f);
             if shown {
                 self.ui.map_on();
             }

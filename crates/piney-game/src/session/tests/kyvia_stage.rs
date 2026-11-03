@@ -123,7 +123,7 @@ fn area_47s_door_leads_to_kyvias_disc() {
         assert_eq!((w.scene().area, w.scene().field), (1, field), "{disc}");
         assert_eq!(w.world_man().event, field, "{disc}: eventAreaNumber");
         assert!(
-            w.place().story().is_some_and(|a| a.def.class == piney_data::classes::StoryMapGameClass::Eventareab8),
+            w.area().kind().story().is_some_and(|a| a.def.class == piney_data::classes::StoryMapGameClass::Eventareab8),
             "{disc}: not on the disc"
         );
         assert!(made, "{disc}: event {n} made no Kyvia: {}", Mode::title(&e.s));

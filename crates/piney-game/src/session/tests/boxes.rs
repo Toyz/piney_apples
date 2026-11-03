@@ -7,7 +7,6 @@
 use piney_battle::entry::{Kind, Obj};
 use piney_world::area::{Scene, kind};
 use piney_world::combat::spc::body_id;
-use piney_world::field::world::Place;
 
 use super::shrine::walk_to;
 use super::*;
@@ -46,7 +45,7 @@ type Loose = (i32, [f32; 3], Option<[f32; 3]>);
 fn loose_boxes(s: &Session) -> Vec<Loose> {
     let Stage::Area(a) = &s.stage else { return Vec::new() };
     let w = a.world();
-    let Place::Dungeon(d) = w.place() else { return Vec::new() };
+    let MapKind::Dungeon(d) = w.area().kind() else { return Vec::new() };
     let c = w.combat();
     let mut out = Vec::new();
     for who in c.ctrl.list(Kind::Gimmick) {
@@ -76,7 +75,7 @@ fn area_18_s_boxes_stand_in_the_way() {
     let mut rooms = Vec::new();
     for _ in 0..600 {
         if let Stage::Area(a) = &s.stage
-            && let Place::Dungeon(d) = a.world().place()
+            && let MapKind::Dungeon(d) = a.world().area().kind()
         {
             rooms = (0..d.floors.len())
                 .flat_map(|f| d.floors[f].order.iter().map(move |&r| (f, r)))
@@ -140,7 +139,11 @@ fn kite_stops_at_area_31_s_cure_box() {
 /// frames: his centre never comes within its radius.
 fn kite_stops_at_the_story_box(mut s: Session, (floor, room): (i32, i32)) {
     s.console("god");
-    hold_until(&mut s, 600, |s| matches!(&s.stage, Stage::Area(a) if matches!(a.world().place(), Place::Dungeon(_))));
+    hold_until(
+        &mut s,
+        600,
+        |s| matches!(&s.stage, Stage::Area(a) if matches!(a.world().area().kind(), MapKind::Dungeon(_))),
+    );
     walk_to(&mut s, (floor as usize, room as usize), 30000, |_, _, _| {});
     let the_box = |s: &Session| {
         let Stage::Area(a) = &s.stage else { return None };
@@ -196,7 +199,11 @@ fn chest_cursor_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/chest".into());
     std::fs::create_dir_all(&dir).unwrap();
     s.console("god");
-    hold_until(&mut s, 600, |s| matches!(&s.stage, Stage::Area(a) if matches!(a.world().place(), Place::Dungeon(_))));
+    hold_until(
+        &mut s,
+        600,
+        |s| matches!(&s.stage, Stage::Area(a) if matches!(a.world().area().kind(), MapKind::Dungeon(_))),
+    );
     walk_to(&mut s, (1, 4), 30000, |_, _, _| {});
     let the_box = |s: &Session| {
         let Stage::Area(a) = &s.stage else { return None };

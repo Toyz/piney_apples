@@ -14,7 +14,6 @@ use piney_data::area::AreaTables;
 use piney_data::volume::Volume;
 use piney_input::Raw;
 use piney_world::area::{Scene, WorldMan, kind};
-use piney_world::field::world::Place;
 
 use super::*;
 
@@ -206,8 +205,8 @@ fn tobj_fields_of(disc_name: &str, dir: &str) {
 fn dungeon(s: &Session) -> Option<&piney_world::dungeon::DungeonArea> {
     match &s.stage {
         Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 2) => {
-            match a.world().place() {
-                Place::Dungeon(d) => Some(d),
+            match a.world().area().kind() {
+                MapKind::Dungeon(d) => Some(d),
                 _ => None,
             }
         }

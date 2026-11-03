@@ -23,7 +23,8 @@ fn area_43_flies_over_and_sends_the_party_back() {
     let w = playing(&s).unwrap();
     assert_eq!((w.scene().area, w.scene().field), (1, 43));
     let fly = |w: &piney_world::field::world::FieldWorld| {
-        let a = w.place().story().filter(|a| a.def == &piney_world::story_map::abyss::AREA_43).expect("EVENTAREA03");
+        let a =
+            w.area().kind().story().filter(|a| a.def == &piney_world::story_map::abyss::AREA_43).expect("EVENTAREA03");
         a.systems().get::<piney_world::story_map::abyss::FlyOver>().cloned().unwrap()
     };
     assert!(!fly(w).flag, "area 43 marked on a new game");

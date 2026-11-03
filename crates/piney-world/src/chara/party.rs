@@ -877,7 +877,7 @@ impl crate::World {
             return (crate::ee::VF0, [0; 4]);
         }
         let (pos, dirc) = self.start;
-        let starts = crate::field::world::party_starts(crate::area::kind::TOWN, pos, dirc[2]);
+        let starts = crate::area::map::party_starts(crate::area::kind::TOWN, pos, dirc[2]);
         (starts[slot as usize - 1], [0, 0, dirc[2], 0])
     }
 

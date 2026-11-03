@@ -20,21 +20,21 @@ use piney_desktop::view::View;
 use piney_draw::Frame;
 use piney_input::Pad;
 
-use crate::area::{Scene, WorldMan, kind};
+use crate::area::{AreaMap, Disp, EnterCx, Exit, Scene, WorldMan, kind};
 use crate::camera::{CamPad, Camera, Scheme};
 use crate::chara::body::{Body, TRALL};
 use crate::chara::kite::Kite;
 use crate::chara::player::Player;
 use crate::combat::cast::load_looks;
 use crate::combat::{self, BattleData, Combat, Look, Show};
-use crate::dungeon::{DungeonArea, Exit};
+use crate::dungeon::DungeonArea;
 use crate::ee::{self, F, ONE, V4};
 use crate::event::talk;
 use crate::field::area::FieldArea;
 use crate::field::def::FieldDef;
 use crate::hit::Hits;
 use crate::sprite::{EffSprite, EffState};
-use crate::story_map::{Kept, StoryArea};
+use crate::story_map::Kept;
 use crate::systems::{MapEvent, MapView, Signal, Smoke};
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
 use piney_data::store::Table;
@@ -60,90 +60,6 @@ pub enum Request {
     GameStart,
     /// A story map's scene: the menus banned or back, or its message.
     Story(crate::story_map::StoryRequest),
-}
-
-/// The place the field's tasks run in.
-pub enum Place {
-    Field(Box<FieldArea>),
-    Dungeon(Box<DungeonArea>),
-    /// A story area's own map (`WORLD_MAN.eventmap`, [`crate::story_map`]).
-    Story(Box<StoryArea>),
-}
-
-impl Place {
-    /// The story map, if the place is one.
-    pub fn story(&self) -> Option<&StoryArea> {
-        match self {
-            Place::Story(m) => Some(m),
-            _ => None,
-        }
-    }
-
-    pub fn story_mut(&mut self) -> Option<&mut StoryArea> {
-        match self {
-            Place::Story(m) => Some(m),
-            _ => None,
-        }
-    }
-}
-
-impl Place {
-    fn hits(&mut self) -> &mut Hits {
-        match self {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        }
-    }
-
-    /// The light group the place draws with.
-    pub fn lights(&self) -> &crate::town::TownLights {
-        match self {
-            Place::Field(f) => &f.core.lights,
-            Place::Dungeon(d) => &d.core.lights,
-            Place::Story(m) => m.lights(),
-        }
-    }
-}
-
-/// `WORLD_MAN::SetCharPosition` (main 0x001a1190) for a field made from
-/// words, the party's leader: from a town (`game.areaPrev` not 2) the
-/// field's start (`fieldStartPos`, facing 0); back from its dungeon beside
-/// the entrance (`dungeonPos[0]`) as the field type's def says
-/// ([`crate::field::def::Back`]), 500 up. The position also becomes
-/// `WORLD_MAN.position` (+0x20).
-pub fn field_start(area_prev: i32, back: &crate::field::def::Back, start: V4, dungeon: Option<V4>) -> (V4, F) {
-    if area_prev == kind::DUNGEON
-        && let Some(d) = dungeon
-    {
-        let off = |o: Option<F>, v: F| o.map_or(v, |o| ee::add(o, v));
-        return ([off(back.x, d[0]), off(back.y, d[1]), ee::add(0x43fa_0000, d[2]), ONE], back.facing);
-    }
-    ([start[0], start[1], start[2], ONE], 0)
-}
-
-/// `WORLD_MAN::SetCharPosition`'s other three places (`StartPos[1..3]`,
-/// for party slots 1 and 2; `ccGetStartPositions` asks for all three), from
-/// the leader's `leader` facing `dirc`. In a field (a generated one, not an
-/// `EVENTAREA` map): (+200, +100), (-200, +100) and (0, +300) from him,
-/// facing as he does. In a dungeon: (300, -150), (-300, -150) and
-/// (0, -300) turned by his facing (`sceVu0RotMatrix` of (0, 0, dirc)),
-/// then added to his place.
-pub fn party_starts(area: i32, leader: V4, dirc: F) -> [V4; 3] {
-    let [x, y, z, _] = leader;
-    if area == kind::DUNGEON {
-        let m = piney_data::anim::rot_bits([0, 0, dirc]);
-        let at = |dx: F, dy: F| {
-            let v = ee::apply(&m, [dx, dy, 0, ONE]);
-            [ee::add(v[0], x), ee::add(v[1], y), ee::add(v[2], z), ONE]
-        };
-        return [at(0x4396_0000, 0xc316_0000), at(0xc396_0000, 0xc316_0000), at(0, 0xc396_0000)];
-    }
-    [
-        [ee::add(0x4348_0000, x), ee::add(0x42c8_0000, y), z, ONE],
-        [ee::sub(x, 0x4348_0000), ee::add(0x42c8_0000, y), z, ONE],
-        [x, ee::add(0x4396_0000, y), z, ONE],
-    ]
 }
 
 /// What the HUD projects of a battle character ([`FieldWorld::hud_geometry`]).
@@ -172,7 +88,7 @@ pub struct FieldWorld {
     volume: piney_data::volume::Volume,
     scene: Scene,
     world_man: WorldMan,
-    place: Place,
+    area: Box<dyn AreaMap>,
     /// `WORLD_MAN`'s other dungeons of the area and `lastRoom`, kept
     /// while the one being played is `place`'s.
     dungeons: crate::dungeon::Dungeons,
@@ -379,20 +295,15 @@ impl FieldWorld {
         } else {
             None
         };
-        let (mut place, pos, rot) = match scene.area {
-            kind::FIELD if story.is_some() => {
-                let m = story.take().expect("a story map");
-                let (pos, rot, _) = m.start_positions();
-                (Place::Story(m), pos, rot)
-            }
+        let mut area: Box<dyn AreaMap> = match scene.area {
+            kind::FIELD if story.is_some() => story.take().expect("a story map"),
             kind::FIELD => {
                 // WORLD_MAN::GO(1): the story area is game.field.
                 let mut params = world_man.field_params();
                 params.event = scene.field.max(0);
                 let mut field = FieldArea::with_world(&archive, volume, params, world_man.hack, scene.server, None)?;
                 field.take(&save.scroll_statics, save.field_ambient.as_ref());
-                let (pos, rot) = field_start(scene.area_prev, &field.def.back, field.start_pos(), field.dungeon_pos());
-                (Place::Field(Box::new(field)), pos, rot)
+                Box::new(field)
             }
             kind::DUNGEON => {
                 // WORLD_MAN::GO(2): the dungeon made on the way in is kept
@@ -432,11 +343,12 @@ impl FieldWorld {
                 let mut d = d;
                 d.take(&save.scroll_statics);
                 d.settle(&mut cc);
-                let (pos, rot) = d.start();
-                (Place::Dungeon(d), pos, rot)
+                d
             }
             a => return Err(piney_data::Error::NotFound(format!("area {a}: not a field or a dungeon"))),
         };
+        // ccGetStartPositions: WORLD_MAN::SetCharPosition in the area.
+        let (pos, rot, starts) = area.start(&scene);
         let data = Rc::new(BattleData::read(iso)?);
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
         let kite = match crate::chara::body::weapon_of(&data.t, &save.save, 0) {
@@ -458,20 +370,13 @@ impl FieldWorld {
         let (velocity, height, width) = (f(spc + 0xd4), f(spc + 0x18), f(spc + 0x1c));
         let dirc = [0, 0, rot, 0];
         let player = Player::new(volume, pos, dirc, velocity, width, height);
-        let starts = match &place {
-            Place::Story(m) => m.start_positions().2,
-            _ => party_starts(scene.area, pos, rot),
-        };
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
         let camera = Camera::new(volume, pos, dirc, mode, scheme);
         // ccPlayer::ccPlayer: WORLD_MAN::SetCenter at his feet; he arrives
         // (act 13) from a town, and stands (act 2) with his body on the list
         // at once coming back from the dungeon or inside one.
-        if let Place::Field(f) = &mut place {
-            f.set_center(pos[0], pos[1]);
-        }
-        place.hits().center = [pos[0], pos[1]];
+        area.set_center(pos[0], pos[1]);
         let mut requests = Vec::new();
         let phase = if at.faded {
             // The session drew the fade out and sent its ccSoundFadeOut.
@@ -489,7 +394,7 @@ impl FieldWorld {
             volume,
             scene,
             world_man,
-            place,
+            area,
             dungeons,
             kite,
             player,
@@ -686,11 +591,7 @@ impl FieldWorld {
         let body = Rc::new(self.kite.body.clone());
         let bracelet = self.save.save.u8(offset::PLCOL) != 0;
         let swaps = self.kite.swaps(bracelet);
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let save = &self.save.save;
         self.combat.add_kite(
             save,
@@ -717,11 +618,7 @@ impl FieldWorld {
                     if let Some((w, job)) = crate::chara::body::weapon_of(&self.combat.data.t, &self.save.save, id) {
                         b.equip_weapon(&self.archive, &w, job);
                     }
-                    let hits = match &mut self.place {
-                        Place::Field(f) => &mut f.core.hits,
-                        Place::Dungeon(d) => &mut d.core.hits,
-                        Place::Story(m) => m.hits_mut(),
-                    };
+                    let hits = &mut self.area.core_mut().hits;
                     let save = &self.save.save;
                     self.combat.add_member(
                         save,
@@ -752,11 +649,7 @@ impl FieldWorld {
                     if let Some((w, job)) = crate::chara::body::weapon_of(&self.combat.data.t, &self.save.save, r.id) {
                         b.equip_weapon(&self.archive, &w, job);
                     }
-                    let hits = match &mut self.place {
-                        Place::Field(f) => &mut f.core.hits,
-                        Place::Dungeon(d) => &mut d.core.hits,
-                        Place::Story(m) => m.hits_mut(),
-                    };
+                    let hits = &mut self.area.core_mut().hits;
                     let save = &self.save.save;
                     self.combat.add_member(
                         save,
@@ -776,8 +669,7 @@ impl FieldWorld {
         }
         // ccNavi::ccNavi in a dungeon: SetDungeonMapInfo (gcmn 0x00514890),
         // the window of the room the party arrives in (Get2DMapInfo).
-        if let Place::Dungeon(d) = &self.place {
-            let [x, y, s] = d.map_2d_info(self.scene.block);
+        if let Some([x, y, s]) = self.area.map_2d_info(self.scene.block) {
             for &(_, w) in &self.combat.members {
                 if let Some(a) = self.combat.crew.ais.get_mut(&w) {
                     (a.navi.map_x, a.navi.map_y, a.navi.map_s) = (x as i16, y as i16, s as i16);
@@ -992,34 +884,11 @@ impl FieldWorld {
     /// `marker_pos`'s marker in a field (`ccEvent::Execute` case 144, INF
     /// main 0x001b1aa4): on an event map, `markerEvTbl[n]`'s dummy of the
     /// map's stream; a plain field's (`WORLD_MAN` +0x438) is not ported.
-    /// A story map's door (`WORLD_MAN::Enter` on it swaps the block): the
-    /// middle of the floor polygons whose attribute has the Enter bit
-    /// (0x8_0000) in the block standing now, in world space.
-    pub fn door(&self) -> Option<V4> {
-        let Place::Story(m) = &self.place else { return None };
-        let (mut sum, mut n) = ([0f32; 3], 0f32);
-        for h in &m.hits().models {
-            for p in h.polys.iter().filter(|p| p.att & 0x8_0000 != 0) {
-                for v in &p.vp {
-                    for k in 0..3 {
-                        sum[k] += f32::from_bits(v[k]) + f32::from_bits(h.rm[3][k]);
-                    }
-                    n += 1.0;
-                }
-            }
-        }
-        (n > 0.0).then(|| [(sum[0] / n).to_bits(), (sum[1] / n).to_bits(), (sum[2] / n).to_bits(), ONE])
-    }
-
     pub fn marker(&self, n: i16) -> Option<piney_event::host::Marker> {
         // `ccEvMarker2Pos` (INF main 0x001b1aa4): an event map's stream
         // (`WORLD_MAN` +0x444, +0x1a4), a dungeon's (`dungeon[game.dungeon]`
         // +0xd3884); a plain field stores to address 0 (0x001b1b78).
-        let file = match &self.place {
-            Place::Story(m) => m.file()?,
-            Place::Dungeon(d) => &d.rooms.file,
-            Place::Field(_) => return None,
-        };
+        let file = self.area.marker_file()?;
         let (p, r) = crate::event::marker_in(file, self.volume, n)?;
         Some(piney_event::host::Marker { pos: p.map(f32::from_bits), dirc: f32::from_bits(r) })
     }
@@ -1079,9 +948,8 @@ impl FieldWorld {
     /// last start, for a map after it that sets none.
     pub fn world_man_out(&self) -> WorldMan {
         let mut wm = self.world_man;
-        if let Place::Story(m) = &self.place {
-            let ([x, y, z, _], dirc, _) = m.start_positions();
-            wm.event_start = [x, y, z, dirc];
+        if let Some(start) = self.area.event_start() {
+            wm.event_start = start;
         }
         wm
     }
@@ -1098,21 +966,19 @@ impl FieldWorld {
         &self.camera
     }
 
-    pub fn place(&self) -> &Place {
-        &self.place
+    /// The area `GO` made.
+    pub fn area(&self) -> &dyn AreaMap {
+        &*self.area
     }
 
-    pub fn place_mut(&mut self) -> &mut Place {
-        &mut self.place
+    pub fn area_mut(&mut self) -> &mut dyn AreaMap {
+        &mut *self.area
     }
 
     /// `WORLD_MAN.specialRoom` (+0x160): the dungeon's (0 in a story
     /// area's event room), -1 anywhere else.
     pub fn special_room(&self) -> i32 {
-        match &self.place {
-            Place::Dungeon(d) => d.special_room,
-            _ => -1,
-        }
+        self.area.special_room()
     }
 
     /// The disc's volume: whose tables the field reads.
@@ -1141,33 +1007,20 @@ impl FieldWorld {
         if let Some(r) = self.field_rand() {
             out.field_rand = r;
         }
-        match &self.place {
-            Place::Story(m) => m.put(&mut out.scroll_statics, &mut out.move_tex),
-            Place::Dungeon(d) => d.put(&mut out.scroll_statics),
-            Place::Field(f) => out.field_ambient = Some(f.put(&mut out.scroll_statics)),
-        }
+        self.area.put(&mut out);
         out
     }
 
     /// `fieldrand` as the place's draws leave it (None: a story map that
     /// does not draw from it, which leaves the stream as it came).
     pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
-        match &self.place {
-            Place::Field(f) => f.core.field_rand,
-            Place::Dungeon(d) => d.core.field_rand,
-            Place::Story(m) => m.field_rand().copied(),
-        }
+        self.area.core().field_rand
     }
 
     /// `SimGenerateCode`'s `fieldrand` (a gate menu's words): the place's
     /// draws go on from `seed`, `randcnt` moved on by its 13.
     pub fn set_field_seed(&mut self, seed: u32) {
-        let r = match &mut self.place {
-            Place::Field(f) => f.core.field_rand.as_mut(),
-            Place::Dungeon(d) => d.core.field_rand.as_mut(),
-            Place::Story(m) => m.field_rand_mut(),
-        };
-        match r {
+        match self.area.core_mut().field_rand.as_mut() {
             Some(r) => *r = piney_data::dungeon::Rng { seed, count: r.count.wrapping_add(13) },
             None => self.save.field_rand = piney_data::dungeon::Rng { seed, ..self.save.field_rand },
         }
@@ -1257,11 +1110,19 @@ impl FieldWorld {
     /// nothing happens. True when it asked for the change.
     pub fn room_select(&mut self, floor: i32, block: i32) -> bool {
         let (Ok(f), Ok(b)) = (usize::try_from(floor), usize::try_from(block)) else { return false };
-        let clear = room_clear(&self.combat, floor, block);
-        let Place::Dungeon(d) = &mut self.place else { return false };
-        d.bans = crate::dungeon::bans_of(&self.save.save);
-        d.room_select(f, b, clear);
-        d.settle(&mut self.combat.cc);
+        let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
+        let clear = |f: i32, b: i32| room_clear(ctrl, foes, f, b);
+        let mut cx = EnterCx {
+            player: self.player.body.pos,
+            scene: &self.scene,
+            clear: &clear,
+            save: &mut self.save.save,
+            last_room: &mut self.dungeons.last_room,
+            cc: &mut self.combat.cc,
+        };
+        if !self.area.room_select(f, b, &mut cx) {
+            return false;
+        }
         self.scene.change_scene(-2, -2, -2, -2, floor, block, &mut self.save.save);
         self.requests.push(Request::ChangeScene);
         true
@@ -1272,13 +1133,17 @@ impl FieldWorld {
     /// dungeon's floor, each room's doors as `ccCheckActiveObject` finds
     /// it. True when done.
     pub fn show_map(&mut self) -> bool {
-        let combat = &self.combat;
-        let clear = |f: i32, b: i32| room_clear(combat, f, b);
-        let done = crate::map::show_map(&mut self.place, self.world_man.field_model, self.player.body.pos, &clear);
-        if let Place::Dungeon(d) = &mut self.place {
-            d.settle(&mut self.combat.cc);
-        }
-        done
+        let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
+        let clear = |f: i32, b: i32| room_clear(ctrl, foes, f, b);
+        let mut cx = EnterCx {
+            player: self.player.body.pos,
+            scene: &self.scene,
+            clear: &clear,
+            save: &mut self.save.save,
+            last_room: &mut self.dungeons.last_room,
+            cc: &mut self.combat.cc,
+        };
+        self.area.show_map(self.world_man.field_model, &mut cx)
     }
 
     /// `WORLD_MAN::GoField` (main 0x0019e410; `TransFieldMenu`, menu 86):
@@ -1289,23 +1154,8 @@ impl FieldWorld {
     /// (`ChangeScene(2, -2, -2, 0, 0, lastRoom)`), and nothing in the first.
     /// True when it changed the scene.
     pub fn go_field(&mut self) -> bool {
-        if !matches!(self.place, Place::Dungeon(_)) {
-            return false;
-        }
-        if self.world_man.no_field() {
-            if self.scene.dungeon != 1 {
-                return false;
-            }
-            // 0x0019e45c: the second dungeon's entryFlag cleared.
-            if let Place::Dungeon(d) = &mut self.place {
-                d.gimmicks_placed = false;
-            }
-            self.scene.change_scene(2, -2, -2, 0, 0, self.dungeons.last_room, &mut self.save.save);
-            self.requests.push(Request::ChangeScene);
-            return true;
-        }
-        self.change_area(kind::FIELD, self.scene.field.max(0));
-        true
+        let exit = self.area.go_field(self.world_man.no_field(), &self.scene, self.dungeons.last_room);
+        exit.map(|e| self.exit(e)).is_some()
     }
 
     /// `WORLD_MAN::Enter(pos)` (main 0x0019dda0), which the player calls on
@@ -1313,38 +1163,28 @@ impl FieldWorld {
     /// dungeon, `WORLD_MAN.position` cleared and `ChangeArea(2, 0)`; in a
     /// dungeon, `DUNGEON::GotoNextRoom`'s way on.
     fn enter_place(&mut self) {
-        let combat = &self.combat;
-        let clear = |f: i32, b: i32| room_clear(combat, f, b);
-        match &mut self.place {
-            Place::Field(_) => self.change_area(kind::DUNGEON, 0),
-            // Area 15's door (a block), area 16's (its dungeon from block
-            // 0, else back to block 0); the arenas' Enter does nothing.
-            Place::Story(m) => match m.enter(self.scene.block, self.scene.area_prev) {
-                Ok(crate::story_map::Enter::Stay) => {}
-                Ok(crate::story_map::Enter::Dungeon) => self.change_area(kind::DUNGEON, 0),
-                Ok(crate::story_map::Enter::Block(b)) => {
-                    self.scene.change_scene(-2, -2, -2, -2, -2, b, &mut self.save.save);
-                    self.requests.push(Request::ChangeScene);
-                }
-                Err(err) => tracing::warn!("EVENTAREA::ChangeBlock: {err}"),
-            },
-            Place::Dungeon(d) => {
-                let exit = d.enter(
-                    self.player.body.pos,
-                    &self.scene,
-                    &clear,
-                    &mut self.save.save,
-                    &mut self.dungeons.last_room,
-                );
-                d.settle(&mut self.combat.cc);
-                match exit {
-                    Some(Exit::Area { area, n }) => self.change_area(area, n),
-                    Some(Exit::Scene { area, town, field, dungeon, floor, block }) => {
-                        self.scene.change_scene(area, town, field, dungeon, floor, block, &mut self.save.save);
-                        self.requests.push(Request::ChangeScene);
-                    }
-                    None => {}
-                }
+        let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
+        let clear = |f: i32, b: i32| room_clear(ctrl, foes, f, b);
+        let mut cx = EnterCx {
+            player: self.player.body.pos,
+            scene: &self.scene,
+            clear: &clear,
+            save: &mut self.save.save,
+            last_room: &mut self.dungeons.last_room,
+            cc: &mut self.combat.cc,
+        };
+        if let Some(e) = self.area.enter(&mut cx) {
+            self.exit(e);
+        }
+    }
+
+    /// An area's way out: `ChangeArea`, or `ChangeScene` and its request.
+    fn exit(&mut self, e: Exit) {
+        match e {
+            Exit::Area { area, n } => self.change_area(area, n),
+            Exit::Scene { area, town, field, dungeon, floor, block } => {
+                self.scene.change_scene(area, town, field, dungeon, floor, block, &mut self.save.save);
+                self.requests.push(Request::ChangeScene);
             }
         }
     }
@@ -1357,21 +1197,18 @@ impl FieldWorld {
     /// `piney_battle::entry::EntryCtrl::keep`). For another scene (a lake's
     /// other dungeon) every object is deleted and nothing is kept.
     fn keep_entries(&mut self) {
-        if !matches!(self.place, Place::Dungeon(_)) || !self.combat.started {
+        if !self.area.keeps_entries() || !self.combat.started {
             return;
         }
         let keep = !self.scene.changed();
         let info = self.task_info();
         let cpad = CamPad::default();
         let kept = {
-            let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, cpad, &info);
+            let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, cpad, &info);
             self.combat.with_entry_cx(&mut x, |c, cx| c.keep(cx, keep))
         };
         let actors = kept.olds.iter().flatten().map(|o| self.combat.cast.actors.remove(o)).collect();
-        if let Place::Dungeon(d) = &mut self.place {
-            d.kept_entries = Some(kept);
-            d.kept_actors = actors;
-        }
+        self.area.keep_entries(kept, actors);
     }
 
     /// A gimmick of row `id` put at `pos` facing `dirc` in the room Kite
@@ -1380,7 +1217,7 @@ impl FieldWorld {
     pub fn entry_gimmick(&mut self, id: i32, pos: V4, dirc: V4) -> Option<usize> {
         let info = self.task_info();
         let cpad = CamPad::default();
-        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, cpad, &info);
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, cpad, &info);
         self.combat.entry_gimmick(&mut x, id, pos, dirc)
     }
 
@@ -1410,35 +1247,15 @@ impl FieldWorld {
         ep.ent_root = 0;
         ep.param[2] = 0;
         let info = self.task_info();
-        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
         self.combat.entry_object(&mut x, &mut ep)
-    }
-
-    /// The dungeon, for the next scene of it (`WORLD_MAN.dungeon[n]` lives
-    /// on); None in a field.
-    pub fn into_dungeon(mut self) -> Option<Box<DungeonArea>> {
-        self.keep_entries();
-        match self.place {
-            Place::Dungeon(d) => Some(d),
-            Place::Field(_) | Place::Story(_) => None,
-        }
     }
 
     /// What `WORLD_MAN` keeps for the next scene: the dungeon, or area 15's
     /// map (which the next set-up keeps only for a field).
     pub fn into_kept(mut self) -> Option<Kept> {
         self.keep_entries();
-        match self.place {
-            Place::Dungeon(d) => {
-                let mut all = self.dungeons;
-                let n = d.dungeon.clamp(0, 2) as usize;
-                all.slots[n] = Some(d);
-                Some(Kept::Dungeon(Box::new(all)))
-            }
-            // WORLD_MAN::Quit deletes any story map but area 15's.
-            Place::Story(m) => m.def.kept.then_some(Kept::Story(m)),
-            Place::Field(_) => None,
-        }
+        self.area.into_kept(self.dungeons)
     }
 
     /// One game frame.
@@ -1453,12 +1270,7 @@ impl FieldWorld {
     /// `ccSys.bgColor` (+0x18) as the area leaves it: a dungeon's fog
     /// colour (`DUNGEON::SetFog`); a field's sky covers the frame.
     pub fn set_clear(&self, frame: &mut Frame) {
-        if let Place::Dungeon(d) = &self.place {
-            let [r, g, b] = d.clear();
-            frame.clear = piney_draw::Rgba([r, g, b, 0x80]);
-        }
-        if let Place::Story(m) = &self.place {
-            let [r, g, b] = m.clear();
+        if let Some([r, g, b]) = self.area.clear() {
             frame.clear = piney_draw::Rgba([r, g, b, 0x80]);
         }
     }
@@ -1657,11 +1469,7 @@ impl FieldWorld {
             compulsion_game_over: self.compulsion_game_over,
         };
         let mut game = self.combat.battle;
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let mut host =
             CtrlHost { combat: &mut self.combat, save: &mut self.save, hits, area: self.scene.area, kite: k };
         let out = self.targeting.frame(&leader, &mut cands, &input, &battle, &mut game, &mut host);
@@ -1748,11 +1556,7 @@ impl FieldWorld {
 
     /// The place's collision.
     pub fn place_hits(&self) -> &Hits {
-        match &self.place {
-            Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.core.hits,
-            Place::Story(m) => m.hits(),
-        }
+        &self.area.core().hits
     }
 
     /// Whether `ccThGameCtrl` set `ccMenu.plAttack` since the last call.
@@ -1809,11 +1613,7 @@ impl FieldWorld {
     /// to ([`Combat::entry_affect_with`]).
     pub fn entry_affect(&mut self, on: usize, by: Option<usize>, kind: i16, p: [i16; 3]) {
         let area = self.scene.area;
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let b = Combat::bounds(area, hits);
         let ents = self.combat.ctrl.list(piney_battle::entry::Kind::Enemy);
         // The globals as the caller (a menu, a script) finds them.
@@ -1914,11 +1714,7 @@ impl FieldWorld {
             Step::Affect(Event::Affect { on, by, kind, p }) => {
                 let Some(on) = who(on) else { return true };
                 let area = self.scene.area;
-                let hits = match &mut self.place {
-                    Place::Field(f) => &mut f.core.hits,
-                    Place::Dungeon(d) => &mut d.core.hits,
-                    Place::Story(m) => m.hits_mut(),
-                };
+                let hits = &mut self.area.core_mut().hits;
                 let b = Combat::bounds(area, hits);
                 self.combat.entry_affect_with(on, who(by), kind, p, hits, b);
             }
@@ -1980,11 +1776,7 @@ impl FieldWorld {
     fn ai_call<R>(&mut self, f: impl FnOnce(&mut piney_battle::party_ai::Ctx) -> R) -> R {
         let scene = self.scene;
         let in_battle = self.combat.battle.in_battle;
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         self.combat.with_ai(hits, &mut self.camera, &scene, &mut self.save.save, in_battle, f)
     }
 
@@ -2052,21 +1844,13 @@ impl FieldWorld {
     /// `ccSpcChar::ManualModeAI(member, ev)` (gcmn 0x0059eba0).
     pub fn manual_mode_ai(&mut self, member: usize, ev: i32) {
         let annihilated = self.combat.annihilated();
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         self.combat.with_spc(member, hits, |r, hits| r.manual_mode_ai(ev, annihilated, hits));
     }
 
     /// `ccAI::SetRemoteCmd(member->ai, cmd)` (gcmn 0x005832e0).
     pub fn remote_cmd(&mut self, member: usize, cmd: i32) {
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         self.combat.with_spc(member, hits, |r, _| r.set_remote_cmd(cmd as i16));
     }
 
@@ -2082,11 +1866,7 @@ impl FieldWorld {
     /// in front of the camera, and its `cmndDist`.
     pub fn hud_geometry(&self, who: usize) -> Option<HudGeometry> {
         let c = self.combat.scene.chars.get(who)?;
-        let hits = match &self.place {
-            Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.core.hits,
-            Place::Story(m) => m.hits(),
-        };
+        let hits = &self.area.core().hits;
         let bounds = Combat::bounds(self.scene.area, hits);
         let player = self.player.body.pos;
         // The copy nearest the player (ccTransPosFW2LW).
@@ -2171,11 +1951,7 @@ impl FieldWorld {
     /// passes (on the copy of the character nearest the player).
     pub fn chat_point(&self, who: usize) -> Option<(bool, Option<(i32, i32)>)> {
         let c = self.combat.scene.chars.get(who)?;
-        let hits = match &self.place {
-            Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.core.hits,
-            Place::Story(m) => m.hits(),
-        };
+        let hits = &self.area.core().hits;
         let bounds = Combat::bounds(self.scene.area, hits);
         let pos = piney_battle::kite::fw2lw(&bounds, self.player.body.pos, c.pos);
         let off = [0, 0, ee::mul(0x3f66_6666, c.base().height), 0];
@@ -2190,11 +1966,7 @@ impl FieldWorld {
     /// `pcgsTbl`'s height over it (`ccCalcTagPosChar`). None while no ride.
     pub fn ride_chat_point(&self) -> Option<(bool, Option<(i32, i32)>)> {
         let o = self.combat.ride.obj.as_deref()?;
-        let hits = match &self.place {
-            Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.core.hits,
-            Place::Story(m) => m.hits(),
-        };
+        let hits = &self.area.core().hits;
         let bounds = Combat::bounds(self.scene.area, hits);
         let pos = piney_battle::kite::fw2lw(&bounds, self.player.body.pos, o.ride.pos);
         let off = [0, 0, ee::mul(0x3f66_6666, piney_battle::ride::SIZE), 0];
@@ -2227,7 +1999,7 @@ impl FieldWorld {
             return false;
         }
         let info = self.task_info();
-        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
         let removed = self.combat.with_entry_cx(&mut x, |ctrl, cx| piney_battle::evparty::remove_enemy(ctrl, cx, code));
         if let Some(e) = removed
             && self.command_target() == Some(e)
@@ -2259,7 +2031,7 @@ impl FieldWorld {
         ep.param[1] = item;
         ep.param[2] = trap;
         let info = self.task_info();
-        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
         self.combat.entry_object(&mut x, &mut ep)
     }
 
@@ -2345,7 +2117,7 @@ impl FieldWorld {
     /// has bit 20 (a Gott statue) and that is still on the command list
     /// (`cmndFlag` clear): the room's statue holds it until opened.
     pub fn no_active_object(&self) -> bool {
-        no_active(&self.combat) && self.unopened_statue().is_none()
+        no_active(&self.combat.ctrl, &self.combat.foes) && self.unopened_statue().is_none()
     }
 
     /// The gimmick switched on (`objFlag`) and still on the command list
@@ -2378,8 +2150,8 @@ impl FieldWorld {
     /// `DUNGEON::OpenDoor(game.floor, game.block)`; nothing in a field.
     pub fn open_door(&mut self) {
         let (f, b) = (self.scene.floor, self.scene.block);
-        if let (Place::Dungeon(d), Ok(f), Ok(b)) = (&mut self.place, usize::try_from(f), usize::try_from(b)) {
-            d.open_door(f, b);
+        if let (Ok(f), Ok(b)) = (usize::try_from(f), usize::try_from(b)) {
+            self.area.open_door(f, b);
         }
     }
 
@@ -2412,16 +2184,14 @@ impl FieldWorld {
         ep.param[2] = i32::from(rtype);
         ep.param[3] = piney_battle::gimetc::rad_user_param(user);
         let info = self.task_info();
-        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
         self.combat.entry_object_n(&mut x, &mut ep, 1);
     }
 
     /// `close_door` (case 159, main 0x001b21cc): `DUNGEON::CloseDoor2`, the
     /// doors' closing counted down by `MoveDoor`; nothing in a field.
     pub fn close_door(&mut self) {
-        if let Place::Dungeon(d) = &mut self.place {
-            d.close_door2();
-        }
+        self.area.close_door2();
     }
 
     /// An event's party instruction over the battle's characters
@@ -2433,11 +2203,7 @@ impl FieldWorld {
         let roster = self.combat.roster(ids);
         let area = self.scene.area;
         let positions = self.event_entries.2.clone();
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let (r, out) = self.combat.with_ev_party(hits, &mut self.camera, area, &roster, &positions, f);
         for o in out {
             if let piney_battle::entry::Out::DeleteCmnd(c) = o
@@ -2453,11 +2219,7 @@ impl FieldWorld {
     /// and the camera.
     fn ev_hold_task(&mut self) {
         let area = self.scene.area;
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let bounds = Combat::bounds(area, hits);
         self.combat.ev_hold_frame(hits, bounds);
     }
@@ -2505,16 +2267,12 @@ impl FieldWorld {
         let to_screen = draw::screen(&self.camera.world_screen);
         // WORLD_MAN::GO's shadow packets, the area's distant light their
         // direction (SetLightDirection, copied at GO), sysLayer's view.
-        ctx.layers.shadows = draw::go_shadows(self.place.lights(), &self.camera.world_screen);
-        self.fx.set_fog(self.place.lights().fog);
+        ctx.layers.shadows = draw::go_shadows(&self.area.core().lights, &self.camera.world_screen);
+        self.fx.set_fog(self.area.core().lights.fog);
         self.draw_cast(ctx, to_screen);
         {
             let area = self.scene.area;
-            let hits = match &mut self.place {
-                Place::Field(f) => &mut f.core.hits,
-                Place::Dungeon(d) => &mut d.core.hits,
-                Place::Story(m) => m.hits_mut(),
-            };
+            let hits = &mut self.area.core_mut().hits;
             let bounds = Combat::bounds(area, hits);
             let c = &self.combat;
             let view =
@@ -2525,101 +2283,55 @@ impl FieldWorld {
         // tasks' second frame; what they step (and the hit list a field's
         // passes leave) only while awake.
         if drawn {
-            let eye = self.camera.active().pos;
-            let player = self.player.body.pos;
-            let mut story_out = Vec::new();
             let v = self.map_view();
-            match &mut self.place {
-                Place::Field(field) => {
-                    field.ofs = field.core.hits.center;
-                    field.draw(&mut ctx.layers, to_screen, player, eye, awake);
-                    // The weather, the ambient pictures and the background
-                    // (the rest of WORLD::Draw and DrawEffect): drawn again
-                    // unchanged while the tasks sleep. TOBJ::Init's
-                    // tobjSeLoopStart, after the field's ccSndSQLoad as in
-                    // ccSetupGameCtrl.
-                    self.ambient_calls.extend(field.take_made());
-                    let events = field.step(&v, awake, Some(&mut self.combat.cc));
-                    let mut sprites = field.paint(&mut ctx.layers, to_screen);
-                    // The enemies' breaths' flames and bursts.
-                    let (flames, mut smoke) = self.combat.breath_draws();
-                    sprites.extend(flames);
-                    self.fx.sprites(&sprites, &self.camera, ctx);
-                    if awake {
-                        let mut puffs: Vec<Smoke> = events
-                            .iter()
-                            .filter_map(|e| if let MapEvent::Smoke(s) = e { Some(*s) } else { None })
-                            .collect();
-                        puffs.append(&mut smoke);
-                        self.fx.smoke(&puffs);
-                    }
-                    self.ambient_calls.extend(events.into_iter().filter(|e| !matches!(e, MapEvent::Smoke(_))));
+            // A story map's message closed, for its scene while awake.
+            let message_closed = awake && std::mem::take(&mut self.story_message_closed);
+            let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
+            let clear = |f: i32, b: i32| room_clear(ctrl, foes, f, b);
+            let mut cx = Disp {
+                layers: &mut ctx.layers,
+                to_screen,
+                view: &v,
+                awake,
+                cc: &mut self.combat.cc,
+                save: &self.save.save,
+                clear_all: no_active(ctrl, foes),
+                clear: &clear,
+                camera: &mut self.camera,
+                server: self.scene.server,
+                message_closed,
+                sprites: Vec::new(),
+                events: Vec::new(),
+                story: Vec::new(),
+                path_map: false,
+            };
+            self.area.disp(&mut cx);
+            let Disp { mut sprites, events, story: story_out, path_map, .. } = cx;
+            self.path_map |= path_map;
+            // The symbols' fires (ccSymFire::main's ccEff::Draw on layer 3):
+            // EFF_x008 of XGSYMBOL.CCS, Init(chunk, 0); then the enemies'
+            // breaths' flames, all with the area's own sprites.
+            sprites.extend(self.combat.symbol_fires.iter().map(|&(pos, pattern, scale, colour)| {
+                let fire = piney_battle::gimmick::SYMBOL_FIRE;
+                EffSprite {
+                    scale,
+                    colour: Some(colour),
+                    ..EffSprite::new("xgsymbol", fire, pos, pattern, crate::draw::EFF_LAYER, EffState::NO_FOG)
                 }
-                Place::Dungeon(d) => {
-                    // DUNGEON::Draw's MoveDoor for the cell under the player
-                    // (15 for none), its doors' sounds (ccSeOn3D) played with
-                    // the weather's.
-                    if awake {
-                        let here = d.here(player);
-                        let c = &self.combat;
-                        let clear_all = no_active(c);
-                        let block = here.map_or(i32::from(piney_data::dungeon::NO_ROOM), |h| h as i32);
-                        let clear_here = room_clear(c, d.level as i32, block);
-                        // MoveDoor's SetDoor reads the save's area bans.
-                        d.bans = crate::dungeon::bans_of(&self.save.save);
-                        let sounds = d.move_door(here, clear_all, clear_here);
-                        if let Some(se) = d.door_se() {
-                            self.ambient_calls.extend(sounds.into_iter().map(|(_, pos)| MapEvent::Se3d { n: se, pos }));
-                        }
-                    }
-                    // The dressing's sparks and glows (DrawEff) go to the
-                    // effects as the field's ambient sprites do.
-                    let mut sprites = d.draw(&mut ctx.layers, to_screen, &v, awake);
-                    // The symbols' fires (ccSymFire::main's ccEff::Draw on
-                    // layer 3): EFF_x008 of XGSYMBOL.CCS, Init(chunk, 0).
-                    sprites.extend(self.combat.symbol_fires.iter().map(|&(pos, pattern, scale, colour)| {
-                        let fire = piney_battle::gimmick::SYMBOL_FIRE;
-                        EffSprite {
-                            scale,
-                            colour: Some(colour),
-                            ..EffSprite::new("xgsymbol", fire, pos, pattern, crate::draw::EFF_LAYER, EffState::NO_FOG)
-                        }
-                    }));
-                    // The enemies' breaths' flames and bursts.
-                    let (flames, smoke) = self.combat.breath_draws();
-                    sprites.extend(flames);
-                    if !sprites.is_empty() {
-                        self.fx.sprites(&sprites, &self.camera, ctx);
-                    }
-                    if awake && !smoke.is_empty() {
-                        self.fx.smoke(&smoke);
-                    }
-                    // SetPathFindingMap once the room under the player is
-                    // built after a room change (roomEnterFlag), after its
-                    // MakeMiniMap: before the next frame's tasks here.
-                    if awake && d.room_enter && d.shown(player).1 {
-                        d.room_enter = false;
-                        self.path_map = true;
-                    }
-                }
-                Place::Story(m) => {
-                    // A map's own scene (area 43's fly-over) as its Draw
-                    // runs, while the tasks are awake.
-                    if awake {
-                        let mut x = crate::story_map::StoryFrame {
-                            camera: &mut self.camera,
-                            save: &self.save.save,
-                            server: self.scene.server,
-                            message_closed: std::mem::take(&mut self.story_message_closed),
-                            out: Vec::new(),
-                        };
-                        m.scene(&mut x);
-                        story_out = x.out;
-                    }
-                    let sprites = m.draw(&mut ctx.layers, to_screen, &v, awake, &mut self.combat.cc);
-                    self.fx.sprites(&sprites, &self.camera, ctx);
-                }
+            }));
+            let (flames, mut smoke) = self.combat.breath_draws();
+            sprites.extend(flames);
+            self.fx.sprites(&sprites, &self.camera, ctx);
+            // The area's smoke and the breaths' bursts for the next effect
+            // task; the rest of its calls (thunder, steam, TOBJ's hum, the
+            // doors) for the runtime.
+            if awake {
+                let mut puffs: Vec<Smoke> =
+                    events.iter().filter_map(|e| if let MapEvent::Smoke(s) = e { Some(*s) } else { None }).collect();
+                puffs.append(&mut smoke);
+                self.fx.smoke(&puffs);
             }
+            self.ambient_calls.extend(events.into_iter().filter(|e| !matches!(e, MapEvent::Smoke(_))));
             for r in story_out {
                 self.story_request(r);
             }
@@ -2657,14 +2369,14 @@ impl FieldWorld {
         let info = self.task_info();
         // Kyvia's disc as the boss reads it this frame (`IsMove`,
         // `discPrevPos`, `DMY_marker01`).
-        if let (Some(r), Some(d)) = (self.combat.boss.as_mut(), self.place.story().and_then(|a| a.report().disc)) {
+        if let (Some(r), Some(d)) = (self.combat.boss.as_mut(), self.area.report().disc) {
             r.disc = d;
         }
         // scFadeDef as the frame starts (Kyvia's fourth fight's CheckFade).
         if let Some(r) = self.combat.boss.as_mut() {
             r.disc.fades = self.fades;
         }
-        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, *cpad, &info);
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, *cpad, &info);
         x.path_map = std::mem::take(&mut self.path_map);
         // resignParty and disbandSpc of a member leaving (remote command 5)
         // on the one registry and party, as in a town.
@@ -2686,9 +2398,7 @@ impl FieldWorld {
             }
             signals.extend(std::mem::take(&mut r.arena_clump).into_iter().map(Signal::StageClump));
             signals.extend(std::mem::take(&mut r.body_hits).into_iter().map(|(n, on)| Signal::BodyHit(n, on)));
-            if let Some(a) = self.place.story_mut() {
-                signals.into_iter().for_each(|s| a.signal(s));
-            }
+            signals.into_iter().for_each(|s| self.area.signal(s));
         }
     }
 
@@ -2705,42 +2415,15 @@ impl FieldWorld {
                 self.world_man.enemy_rank(s.area, s.field, s.floor, self.world_man.field_attr())
             };
             let (mc, en, pos) = self.event_entries.clone();
-            let field_attr = self.world_man.field_attr();
-            let time_sym = self.world_man.time_sym();
-            let dungeon = match &mut self.place {
-                Place::Dungeon(d) => {
-                    let gims = (!d.gimmicks_placed).then(|| d.dungeon_gims(field_attr, time_sym));
-                    d.gimmicks_placed = true;
-                    Some(combat::DungeonEntries {
-                        kept: d.kept_entries.take(),
-                        actors: std::mem::take(&mut d.kept_actors),
-                        gims,
-                        rng: *d.rng(),
-                        rows: d.def.breakables,
-                        breakables: d.breakables_here(self.scene.field, self.scene.block),
-                    })
-                }
-                _ => None,
-            };
-            // WORLD_MAN::EntryGimmick's field branch (not on a story map of
-            // its own, which is not a Place::Field).
-            let field = match &self.place {
-                Place::Field(f) => Some(combat::FieldEntries {
-                    gims: f.field_gims(self.scene.field),
-                    map: f.field.clone(),
-                    rng: f.core.field_rand.expect("a field's fieldrand"),
-                    circle_ofs: self.world_man.circle_ofs,
-                    event_area: self.scene.field,
-                    start: f.start_pos(),
-                }),
-                _ => None,
-            };
+            // restoreEntry and WORLD_MAN::EntryGimmick (a dungeon's kept list
+            // and gimmicks, a field's foods and objects).
+            let entries = self.area.entries(&self.scene, &self.world_man);
             let info = self.task_info();
-            let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, *cpad, &info);
-            let rng = self.combat.start_entries(&mut x, rank, ty, &mc, &en, &pos, dungeon, field);
+            let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, *cpad, &info);
+            let rng = self.combat.start_entries(&mut x, rank, ty, &mc, &en, &pos, entries.dungeon, entries.field);
             drop(x);
-            if let (Some(rng), Place::Field(f)) = (rng, &mut self.place) {
-                f.core.field_rand = Some(rng);
+            if let Some(rng) = rng {
+                self.area.core_mut().field_rand = Some(rng);
             }
             self.build_npcs();
             // An `entry 7 code`: ccEntryEventMng's ccBossEntryStart(code),
@@ -2750,9 +2433,9 @@ impl FieldWorld {
             }
             let n = mc.iter().filter(|e| e[0] >= 0).count() + en.iter().filter(|e| matches!(e[0], 5 | 6)).count();
             let (f, b) = (self.scene.floor, self.scene.block);
-            if let (Place::Dungeon(d), Ok(f), Ok(b)) = (&mut self.place, usize::try_from(f), usize::try_from(b)) {
+            if let (Ok(f), Ok(b)) = (usize::try_from(f), usize::try_from(b)) {
                 for _ in 0..n {
-                    d.close_door(f, b);
+                    self.area.close_door(f, b);
                 }
             }
         }
@@ -2776,7 +2459,7 @@ impl FieldWorld {
             };
             (chars[who].pos, dirc)
         };
-        let hits = self.place.hits();
+        let hits = &mut self.area.core_mut().hits;
         let (archive, volume, cc) = (&self.archive, self.volume, &mut self.combat.cc);
         let missing = self.npcs.with_cc(cc, |n| n.build(archive, volume, &placed, area, town, hits, player, at));
         for m in missing {
@@ -2801,11 +2484,7 @@ impl FieldWorld {
             eye: a.kind == crate::camera::kind::EYE,
         };
         let mut rand = crate::Rand(self.combat.rand.0);
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let mut cx = crate::event::entry::NpcCtx {
             player: self.player.body.pos,
             player_dirc: self.player.body.dirc,
@@ -2839,7 +2518,7 @@ impl FieldWorld {
         }
         if !out.gone.is_empty() {
             let info = self.task_info();
-            let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+            let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
             self.combat.with_entry_cx(&mut x, |ctrl, cx| {
                 for &who in &out.gone {
                     ctrl.delete_npc(cx, who);
@@ -2855,11 +2534,7 @@ impl FieldWorld {
     /// `FZeroPosition` with his ground height (0, 0, z), or a carrier's
     /// move this frame while he rides one (worklog 328).
     pub fn player_distance(&self, pos: V4) -> F {
-        let hits = match &self.place {
-            Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.core.hits,
-            Place::Story(m) => m.hits(),
-        };
+        let hits = &self.area.core().hits;
         let b = Combat::bounds(self.scene.area, hits);
         let p = self.player.body.pos;
         let at = |v: V4| piney_battle::kite::w2p_pos(&b, p, v).0;
@@ -2896,8 +2571,8 @@ impl FieldWorld {
                 return;
             }
         };
-        let center = self.place.story().and_then(StoryArea::boss_centre).unwrap_or(self.player.body.pos);
-        let disc = self.place.story().and_then(|a| a.report().disc).unwrap_or_default();
+        let center = self.area.boss_centre().unwrap_or(self.player.body.pos);
+        let disc = self.area.report().disc.unwrap_or_default();
         let env = piney_battle::chara::Env {
             count: self.count,
             menu_type: self.menu_type,
@@ -2911,9 +2586,7 @@ impl FieldWorld {
 
     /// `worldman->eventArea->SwitchLayer()`.
     pub fn switch_layer(&mut self) {
-        if let Some(a) = self.place.story_mut() {
-            a.signal(Signal::SwitchLayer);
-        }
+        self.area.signal(Signal::SwitchLayer);
     }
 
     /// `eventMng.bossEntry` and the boss task's parameter, for an event's
@@ -3084,9 +2757,9 @@ impl FieldWorld {
             && flashes.is_empty()
             && boss_light.is_none()
         {
-            return std::borrow::Cow::Borrowed(self.place.lights());
+            return std::borrow::Cow::Borrowed(&self.area.core().lights);
         }
-        let mut l = self.place.lights().clone();
+        let mut l = self.area.core().lights.clone();
         for &(p, intensity) in symbols.values().rev() {
             l.lights.insert(0, symbol_light(p, intensity));
         }
@@ -3116,7 +2789,7 @@ impl FieldWorld {
             ctx.layers.prepend(piney_battle::boss::blur::LAYER, vec![piney_draw::Cmd::Prim(s.prim_in(&view))]);
         }
         let Some(run) = self.combat.boss.as_ref().filter(|r| !r.exit) else { return };
-        let lights = self.place.lights();
+        let lights = &self.area.core().lights;
         // A ccAnm of the boss's file (Kyvia's arm): every object its clip
         // poses, lit, in the blend or else the draw environment's fog.
         let anm_draw = |ctx: &mut Ctx, layer, clip: &str, time, root, alpha, fog: Option<piney_draw::Fog>| {
@@ -3495,11 +3168,7 @@ impl FieldWorld {
         let c = &self.combat;
         let td = |w: usize| c.cast.get(w).is_none_or(|a| a.trans_dist);
         let mut chars = combat::spc::BattleChars::read(&c.scene, &c.crew, &c.members, c.kite, &td);
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let r = f(&mut self.spcs, &mut chars, hits);
         let cast = &mut self.combat.cast;
         chars.finish(&mut self.combat.scene, &mut self.combat.crew, &mut |w, t| {
@@ -3584,7 +3253,7 @@ impl FieldWorld {
             let restore = crate::chara::party::restores_condition(area, self.scene.area_prev, self.scene.field, es39);
             let store = self.spcs.store;
             let info = self.task_info();
-            let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+            let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
             self.combat.menu_clear_conditions(&mut x, restore, &store);
         }
     }
@@ -3604,7 +3273,7 @@ impl FieldWorld {
         } else {
             let store = self.spcs.store;
             let info = self.task_info();
-            let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+            let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
             self.combat.menu_clear_conditions(&mut x, true, &store);
         }
         self.with_party(|spcs, chars, hits| crate::chara::party::fountain_party(spcs, chars, hits, on));
@@ -3913,24 +3582,15 @@ struct TaskInfo {
 /// map (`WORLD_MAN::Get2DMapPtr`) and the room's window (`Get2DMapInfo`
 /// for `game.block`).
 fn tasks<'a>(
-    place: &'a mut Place,
+    area: &'a mut dyn AreaMap,
     camera: &'a mut Camera,
     save: &'a mut piney_data::save::SaveData,
     pad: CamPad,
     i: &TaskInfo,
 ) -> combat::Tasks<'a> {
-    let dungeon = match place {
-        Place::Field(f) => f.dungeon_pos().unwrap_or([0; 4]),
-        _ => [0; 4],
-    };
-    let (hits, map2d, map2d_info) = match place {
-        Place::Field(f) => (&mut f.core.hits, Vec::new(), [0; 3]),
-        Place::Story(m) => (m.hits_mut(), Vec::new(), [0; 3]),
-        Place::Dungeon(d) => {
-            let (m, n) = (d.map_2d(), d.map_2d_info(i.scene.block));
-            (&mut d.core.hits, m, n)
-        }
-    };
+    let dungeon = area.dungeon_pos().unwrap_or([0; 4]);
+    let (map2d, map2d_info) = (area.map_2d(), area.map_2d_info(i.scene.block).unwrap_or([0; 3]));
+    let hits = &mut area.core_mut().hits;
     let event_area = hits.event_area;
     let puppet_show = camera.puppet_show;
     combat::Tasks {
@@ -3961,29 +3621,34 @@ const IDOL_TYPE: i32 = 1 << 20;
 
 /// `ccCheckActiveObject()` (gcmn 0x0042df70): no enemy and no magic
 /// circle of the entry control's switched on (`objFlag`).
-fn no_active(c: &Combat) -> bool {
-    let on = |i: usize| match c.ctrl.objs.get(i) {
-        Some(piney_battle::entry::Obj::Enemy) => c.foes.get(i).and_then(Option::as_ref).is_some_and(|e| e.obj_flag),
-        _ => c.ctrl.entry_obj(i).is_some_and(|o| o.obj_flag),
+fn no_active(ctrl: &piney_battle::entry::EntryCtrl, foes: &[Option<piney_battle::enemy_ai::Enemy>]) -> bool {
+    let on = |i: usize| match ctrl.objs.get(i) {
+        Some(piney_battle::entry::Obj::Enemy) => foes.get(i).and_then(Option::as_ref).is_some_and(|e| e.obj_flag),
+        _ => ctrl.entry_obj(i).is_some_and(|o| o.obj_flag),
     };
-    !c.ctrl.list(piney_battle::entry::Kind::Enemy).into_iter().any(on)
-        && !c.ctrl.list(piney_battle::entry::Kind::Circle).into_iter().any(on)
+    !ctrl.list(piney_battle::entry::Kind::Enemy).into_iter().any(on)
+        && !ctrl.list(piney_battle::entry::Kind::Circle).into_iter().any(on)
 }
 
 /// `ccCheckActiveObject(floor, block)` (gcmn 0x0042e010): no enemy and no
 /// magic circle of the entry control's lists belongs to that floor and
 /// block, switched on or not (`DUNGEON::SetDoor` opens a room's doors
 /// then).
-fn room_clear(c: &Combat, floor: i32, block: i32) -> bool {
+fn room_clear(
+    ctrl: &piney_battle::entry::EntryCtrl,
+    foes: &[Option<piney_battle::enemy_ai::Enemy>],
+    floor: i32,
+    block: i32,
+) -> bool {
     let here = |i: usize| {
-        let ent = match c.ctrl.objs.get(i) {
-            Some(piney_battle::entry::Obj::Enemy) => c.foes.get(i).and_then(Option::as_ref).map(|e| e.ent),
-            _ => c.ctrl.entry_obj(i).map(|o| o.ent),
+        let ent = match ctrl.objs.get(i) {
+            Some(piney_battle::entry::Obj::Enemy) => foes.get(i).and_then(Option::as_ref).map(|e| e.ent),
+            _ => ctrl.entry_obj(i).map(|o| o.ent),
         };
         ent.is_some_and(|e| e.floor == floor && e.block == block)
     };
-    !c.ctrl.list(piney_battle::entry::Kind::Enemy).into_iter().any(here)
-        && !c.ctrl.list(piney_battle::entry::Kind::Circle).into_iter().any(here)
+    !ctrl.list(piney_battle::entry::Kind::Enemy).into_iter().any(here)
+        && !ctrl.list(piney_battle::entry::Kind::Circle).into_iter().any(here)
 }
 
 /// A symbol's light at `p` (`ccGimSymbol`'s constructor): `ccLight(4, 1)`,

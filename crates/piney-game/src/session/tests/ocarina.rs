@@ -8,7 +8,6 @@
 use piney_input::Buttons;
 use piney_world::area::kind;
 use piney_world::dungeon::DungeonArea;
-use piney_world::field::world::Place;
 
 use super::ride::{area, raw};
 use super::*;
@@ -22,8 +21,8 @@ fn dungeon_at(s: &Session, n: u32) -> Option<&DungeonArea> {
     let Stage::Area(a) = &s.stage else { return None };
     let w = a.world();
     let playing = matches!(w.phase(), piney_world::Phase::Play(k) if k >= n);
-    match w.place() {
-        Place::Dungeon(d) if playing && w.scene().area == kind::DUNGEON => Some(d),
+    match w.area().kind() {
+        MapKind::Dungeon(d) if playing && w.scene().area == kind::DUNGEON => Some(d),
         _ => None,
     }
 }
@@ -47,7 +46,7 @@ fn wait(s: &mut Session, frames: u32, done: impl Fn(&Session) -> bool) -> bool {
 /// as the stairs' ground (attribute 0x80000) asks it.
 fn take_stairs(s: &mut Session, room: usize) {
     let Stage::Area(a) = &mut s.stage else { panic!("not in an area") };
-    let Place::Dungeon(d) = a.world().place() else { panic!("not in a dungeon") };
+    let MapKind::Dungeon(d) = a.world().area().kind() else { panic!("not in a dungeon") };
     let fl = &d.floors[0];
     let cell = (0..6400usize)
         .find(|&i| {
@@ -190,14 +189,15 @@ fn the_ocarina_and_the_stairs_out_of_a_dungeon_reach_its_field() {
         let in_field = |s: &Session| match &s.stage {
             Stage::Area(a) => {
                 let w = a.world();
-                matches!(w.place(), Place::Field(_)) && matches!(w.phase(), piney_world::Phase::Play(n) if n > 60)
+                matches!(w.area().kind(), MapKind::Field(_))
+                    && matches!(w.phase(), piney_world::Phase::Play(n) if n > 60)
             }
             _ => false,
         };
         let what = format!("{words:?} type {dtype} by {}", if ocarina { "the ocarina" } else { "the stairs" });
         assert!(wait(&mut s, 900, in_field), "{what}: not in the field");
         let w = area(&s).world();
-        let Place::Field(f) = w.place() else { unreachable!() };
+        let MapKind::Field(f) = w.area().kind() else { unreachable!() };
         let entrance = f.dungeon_pos().expect("the entrance").map(f32::from_bits);
         let kite = w.player().body.pos.map(f32::from_bits);
         let off = (kite[0] - entrance[0]).hypot(kite[1] - entrance[1]);

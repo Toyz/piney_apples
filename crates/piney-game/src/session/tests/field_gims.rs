@@ -8,7 +8,6 @@
 
 use piney_battle::entry::Kind;
 use piney_world::area::{Scene, WorldMan, kind};
-use piney_world::field::world::Place;
 
 use super::*;
 
@@ -77,7 +76,7 @@ fn entries(words: [i32; 3]) -> Option<(usize, usize, Vec<i32>, i32)> {
         let Stage::Area(a) = &s.stage else { continue };
         let w = a.world();
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 4);
-        let Place::Field(f) = w.place() else { continue };
+        let MapKind::Field(f) = w.area().kind() else { continue };
         if !playing {
             continue;
         }

@@ -11,7 +11,7 @@ use piney_battle::chara::spc_flag;
 use piney_battle::event::{Event, Who};
 use piney_battle::ride::{self, RideTables};
 
-use super::{FieldWorld, Place, tasks};
+use super::{FieldWorld, tasks};
 use crate::camera::CamPad;
 use crate::chara::body::{Body, TRALL};
 use crate::chara::party::SpcChars;
@@ -124,11 +124,7 @@ impl FieldWorld {
         // From Mutation on ccThPucciguso lets the words be heard again.
         self.voices_off = false;
         self.camera.type_lock = true;
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         if let Some(o) = self.combat.ride.obj.as_deref_mut() {
             o.listed = false;
             let mut b = spc::to_body(BODY_WHO, None, &o.ride.hit, false);
@@ -196,7 +192,7 @@ impl FieldWorld {
         // ConditionAdjustment on each, its events carried out.
         let store = self.spcs.store;
         let info = self.task_info();
-        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
         self.combat.menu_clear_conditions(&mut x, false, &store);
         let id = self.combat.crew.sys_msg_id(k);
         self.combat.crew.send(0x1000e, id as u16, 0xffff, 0, 15, -1, None);
@@ -210,11 +206,7 @@ impl FieldWorld {
     /// type free. Its body leaves the collision if it is still in it (a
     /// dungeon entered: the scene goes with it).
     pub fn ride_end(&mut self) {
-        let hits = match &mut self.place {
-            Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.core.hits,
-            Place::Story(m) => m.hits_mut(),
-        };
+        let hits = &mut self.area.core_mut().hits;
         let r = &mut self.combat.ride;
         if let Some(o) = r.obj.take() {
             let mut b = spc::to_body(BODY_WHO, None, &o.ride.hit, false);

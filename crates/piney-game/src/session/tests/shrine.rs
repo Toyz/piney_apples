@@ -9,7 +9,6 @@
 use piney_data::dungeon::{NO_ROOM, RealMap};
 use piney_world::area::{Scene, kind};
 use piney_world::dungeon::DungeonArea;
-use piney_world::field::world::Place;
 
 use super::*;
 
@@ -227,8 +226,8 @@ impl Walker {
             });
             let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
             let c = w.combat();
-            match (c.kite, w.place()) {
-                (Some(k), Place::Dungeon(d)) if playing && banned != Some(true) && a.ui().menu_type() == -1 => {
+            match (c.kite, w.area().kind()) {
+                (Some(k), MapKind::Dungeon(d)) if playing && banned != Some(true) && a.ui().menu_type() == -1 => {
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let cam_z = f32::from_bits(w.camera().rot()[2]);
                     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
@@ -564,7 +563,7 @@ fn event_25_opens_in_area_23s_shrine() {
         if rooms.last() != Some(&(sc.floor, sc.block)) {
             rooms.push((sc.floor, sc.block));
         }
-        if let Place::Dungeon(d) = w.place()
+        if let MapKind::Dungeon(d) = w.area().kind()
             && d.room_at == Some(SHRINE)
             && shrine.is_none()
         {
@@ -681,7 +680,7 @@ fn each_floor_paints_its_own_map() {
         {
             return;
         }
-        let Place::Dungeon(d) = w.place() else { return };
+        let MapKind::Dungeon(d) = w.area().kind() else { return };
         let Some(m) = d.map.as_ref() else { return };
         let f = d.level;
         let squares = (0..200 * 200).filter(|&k| m.small[f * 200 * 200 + k] != 0).count();
@@ -716,8 +715,8 @@ fn shrine_map_shots() {
             let (wd, h) = gs.target_size();
             let path = format!("{dir}/f{}-b{}-{n:03}.png", sc.floor, sc.block);
             std::fs::write(&path, piney_gs::png::encode(wd, h, &gs.read_back())).unwrap();
-            let (level, info) = match w.place() {
-                Place::Dungeon(d) => {
+            let (level, info) = match w.area().kind() {
+                MapKind::Dungeon(d) => {
                     let info = d.map.as_ref().map(|m| {
                         let f = d.level;
                         let seen: Vec<usize> =
@@ -927,7 +926,7 @@ fn event_29_shots() {
         }
         // The doors' words as they change, from the room on.
         if from.is_some()
-            && let Place::Dungeon(d) = a.world().place()
+            && let MapKind::Dungeon(d) = a.world().area().kind()
         {
             let now = (d.door, d.doors.len());
             if door_seen != Some(now) {
@@ -1125,7 +1124,7 @@ fn the_doors_sound_as_they_open() {
     let mut heard = 0;
     walk_to(&mut s, POINT_1, 20_000, |s, events, _| {
         let Stage::Area(a) = &s.stage else { return };
-        if let Place::Dungeon(d) = a.world().place() {
+        if let MapKind::Dungeon(d) = a.world().area().kind() {
             se = se.or(d.door_se());
         }
         heard +=

@@ -103,13 +103,13 @@ fn main() {
                 let start = [n(3), n(4), n(5), ee::ONE];
                 let dungeon = [n(6), n(7), n(8), ee::ONE];
                 let back = piney_world::field::def::FieldDef::of(n(2)).expect("a field type").back;
-                let (p, rot) = piney_world::field::world::field_start(n(1) as i32, &back, start, Some(dungeon));
-                let m = piney_world::field::world::party_starts(1, p, rot);
+                let (p, rot) = piney_world::field::area::field_start(n(1) as i32, &back, start, Some(dungeon));
+                let m = piney_world::area::map::party_starts(1, p, rot);
                 let members = list(m.iter().map(|v| list([v[0], v[1], v[2], rot])));
                 println!("[{}, {}, {}, {rot}, {members}]", p[0], p[1], p[2]);
             }
             Some("dgpos") => {
-                let m = piney_world::field::world::party_starts(2, [n(1), n(2), n(3), ee::ONE], n(4));
+                let m = piney_world::area::map::party_starts(2, [n(1), n(2), n(3), ee::ONE], n(4));
                 println!("{}", list(m.iter().map(|v| list([v[0], v[1], v[2], n(4)]))));
             }
             Some("place") => {

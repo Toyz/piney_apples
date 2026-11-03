@@ -509,8 +509,13 @@ Where the code does by hand, per kind, what a system should do once:
       number arms of the start, `town_ported` and the title gone. Mac Anu's
       ships are its static objects of type 0; Dun Loireag's ranch is the
       world's Grunties, not its `Draw`'s.)
-- [ ] `AreaMap` trait over field, dungeon and story map (the 3-arm match
-      inlined 19 times in `field_world.rs`).
+- [x] `AreaMap` trait over field, dungeon and story map (the 3-arm match
+      inlined 19 times in `field_world.rs`). (worklog 572: `area::AreaMap`,
+      `WORLD_MAN`'s switch on its area once, each kind's impl in its own
+      module; the methods are `WORLD_MAN`'s calls (`SetCharPosition`,
+      `Enter`, `GoField`, `RoomSelect`, `ShowMap`, `EntryGimmick`,
+      `Get2DMapInfo`, `SetEventData`, `ccThFieldDisp`'s `Draw` as `disp`,
+      the minimap) with the switch's do-nothing default; `Place` gone.)
 - [ ] `EvHost<W: HostWorld>` for the 29 identical `Host` methods in
       `field_host.rs` and `area_host.rs` (and the `SaveState` clones).
 - [ ] fieldui: one `MenuDef` table for the two parallel id matches (84 runs

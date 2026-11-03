@@ -10,7 +10,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use piney_world::area::{Scene, WorldMan, kind};
 use piney_world::dungeon::DungeonArea;
-use piney_world::field::world::Place;
 
 use piney_world::ee::{F, V4};
 use piney_world::systems::fireflies::Fireflies;
@@ -118,7 +117,7 @@ fn walk_dressed(
         let mut to = None;
         for _ in 0..600 {
             if let Stage::Area(a) = &s.stage
-                && let Place::Dungeon(d) = a.world().place()
+                && let MapKind::Dungeon(d) = a.world().area().kind()
             {
                 to = Some((0, d.floors[0].down));
                 break;
@@ -129,8 +128,8 @@ fn walk_dressed(
         }
         let to = to.expect("in the dungeon");
         let mut targets: Vec<(usize, usize)> = match &s.stage {
-            Stage::Area(a) => match a.world().place() {
-                Place::Dungeon(d) => pick(d),
+            Stage::Area(a) => match a.world().area().kind() {
+                MapKind::Dungeon(d) => pick(d),
                 _ => Vec::new(),
             },
             _ => Vec::new(),
@@ -142,7 +141,7 @@ fn walk_dressed(
                 let Stage::Area(a) = &s.stage else { return };
                 let w = a.world();
                 let sc = w.scene();
-                let Place::Dungeon(d) = w.place() else { return };
+                let MapKind::Dungeon(d) = w.area().kind() else { return };
                 let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 2);
                 if sc.area != kind::DUNGEON || !playing || d.room_at != Some((sc.floor as usize, sc.block as usize)) {
                     return;
@@ -266,7 +265,7 @@ fn dressed_room_shots() {
             let Stage::Area(a) = &s.stage else { return };
             let w = a.world();
             let sc = w.scene();
-            let Place::Dungeon(d) = w.place() else { return };
+            let MapKind::Dungeon(d) = w.area().kind() else { return };
             let at = [30, 60, 150].into_iter().find(|&n| w.phase() == piney_world::Phase::Play(n));
             if sc.area == kind::DUNGEON
                 && let Some(n) = at
@@ -328,7 +327,7 @@ fn a_lake_by_night_has_its_sky_and_fireflies() {
     }
     let lake_of = |s: &Session| -> (F, Vec<V4>) {
         let Stage::Area(a) = &s.stage else { panic!("in an area") };
-        let Place::Dungeon(d) = a.world().place() else { panic!("in the dungeon") };
+        let MapKind::Dungeon(d) = a.world().area().kind() else { panic!("in the dungeon") };
         let v = d.systems().get::<LakeSky>().expect("a lake's sky").v;
         let flies =
             d.systems().get::<Fireflies>().map_or_else(Vec::new, |f| f.fireflies.iter().map(|f| f.pos).collect());
@@ -343,7 +342,7 @@ fn a_lake_by_night_has_its_sky_and_fireflies() {
         assert_ne!(a, b, "each firefly flies");
     }
     let Stage::Area(a) = &s.stage else { unreachable!() };
-    let Place::Dungeon(d) = a.world().place() else { unreachable!() };
+    let MapKind::Dungeon(d) = a.world().area().kind() else { unreachable!() };
     let sky: Vec<u32> = ["bac_l", "bac_m", "clo_l", "clo_m"]
         .iter()
         .map(|n| d.rooms.file.ccs.find_object(&format!("MDL_o_{n}2_")).expect(n))
@@ -509,7 +508,7 @@ fn many_dungeons_walk() {
         let mut to = None;
         for _ in 0..600 {
             if let Stage::Area(a) = &s.stage
-                && let Place::Dungeon(d) = a.world().place()
+                && let MapKind::Dungeon(d) = a.world().area().kind()
             {
                 to = Some((0, d.floors[0].down));
                 break;

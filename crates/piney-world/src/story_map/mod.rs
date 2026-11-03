@@ -588,6 +588,24 @@ impl StoryArea {
         })
     }
 
+    /// A door of the block standing now (`WORLD_MAN::Enter` on it swaps
+    /// the block): the middle of the floor polygons whose attribute has the
+    /// Enter bit (0x8_0000), in world space.
+    pub fn door(&self) -> Option<V4> {
+        let (mut sum, mut n) = ([0f32; 3], 0f32);
+        for h in &self.core.hits.models {
+            for p in h.polys.iter().filter(|p| p.att & 0x8_0000 != 0) {
+                for v in &p.vp {
+                    for k in 0..3 {
+                        sum[k] += f32::from_bits(v[k]) + f32::from_bits(h.rm[3][k]);
+                    }
+                    n += 1.0;
+                }
+            }
+        }
+        (n > 0.0).then(|| [(sum[0] / n).to_bits(), (sum[1] / n).to_bits(), (sum[2] / n).to_bits(), ONE])
+    }
+
     /// The systems, for tests and probes to read by kind.
     pub fn systems(&self) -> &Systems {
         &self.systems
@@ -740,6 +758,90 @@ impl StoryArea {
             (self.systems, self.core.field_rand) = (systems, rng);
         }
         sprites
+    }
+}
+
+/// `WORLD_MAN`'s calls on a story map of its own (`WORLD_MAN.eventmap`).
+impl crate::area::AreaMap for StoryArea {
+    fn core(&self) -> &AreaCore {
+        &self.core
+    }
+
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
+    }
+
+    fn start(&self, _scene: &crate::area::Scene) -> (V4, F, [V4; 3]) {
+        self.start_positions()
+    }
+
+    fn clear(&self) -> Option<[u8; 3]> {
+        Some(StoryArea::clear(self))
+    }
+
+    fn put(&self, out: &mut piney_desktop::SaveState) {
+        StoryArea::put(self, &mut out.scroll_statics, &mut out.move_tex);
+    }
+
+    /// The map's own scene (area 43's fly-over) while the tasks are awake,
+    /// then its `Draw`.
+    fn disp(&mut self, cx: &mut crate::area::Disp) {
+        if cx.awake {
+            let mut x = StoryFrame {
+                camera: &mut *cx.camera,
+                save: cx.save,
+                server: cx.server,
+                message_closed: cx.message_closed,
+                out: Vec::new(),
+            };
+            self.scene(&mut x);
+            cx.story = x.out;
+        }
+        let sprites = self.draw(cx.layers, cx.to_screen, cx.view, cx.awake, &mut *cx.cc);
+        cx.sprites.extend(sprites);
+    }
+
+    fn marker_file(&self) -> Option<&SceneFile> {
+        self.file()
+    }
+
+    fn event_start(&self) -> Option<[F; 4]> {
+        let ([x, y, z, _], dirc, _) = self.start_positions();
+        Some([x, y, z, dirc])
+    }
+
+    /// Area 15's door (a block), area 16's (its dungeon from block 0, else
+    /// back to block 0); the arenas' Enter does nothing.
+    fn enter(&mut self, cx: &mut crate::area::EnterCx) -> Option<crate::area::Exit> {
+        use crate::area::Exit;
+        match StoryArea::enter(self, cx.scene.block, cx.scene.area_prev) {
+            Ok(Enter::Stay) => None,
+            Ok(Enter::Dungeon) => Some(Exit::Area { area: crate::area::kind::DUNGEON, n: 0 }),
+            Ok(Enter::Block(b)) => {
+                Some(Exit::Scene { area: -2, town: -2, field: -2, dungeon: -2, floor: -2, block: b })
+            }
+            Err(err) => {
+                tracing::warn!("EVENTAREA::ChangeBlock: {err}");
+                None
+            }
+        }
+    }
+
+    fn signal(&mut self, s: Signal) {
+        StoryArea::signal(self, s);
+    }
+
+    fn report(&self) -> Report {
+        StoryArea::report(self)
+    }
+
+    fn boss_centre(&self) -> Option<V4> {
+        StoryArea::boss_centre(self)
+    }
+
+    /// `WORLD_MAN::Quit` deletes any story map but area 15's.
+    fn into_kept(self: Box<Self>, _dungeons: crate::dungeon::Dungeons) -> Option<Kept> {
+        self.def.kept.then_some(Kept::Story(self))
     }
 }
 

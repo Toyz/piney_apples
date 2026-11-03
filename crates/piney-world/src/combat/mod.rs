@@ -316,6 +316,14 @@ pub struct FieldEntries {
     pub start: V4,
 }
 
+/// What the area puts on the entry control as it sets up
+/// ([`crate::area::AreaMap::entries`]).
+#[derive(Default)]
+pub struct AreaEntries {
+    pub dungeon: Option<DungeonEntries>,
+    pub field: Option<FieldEntries>,
+}
+
 /// A box's draw transparency.
 /// `ccCoord::SetMatrix_PosRotZYXScale(pos, rot, scale)` (main
 /// 0x00138120): the scale, the turns (z, y, x), the position.

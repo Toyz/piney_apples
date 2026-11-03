@@ -6,15 +6,14 @@
 //! shut, as they were.
 
 use piney_input::Buttons;
-use piney_world::field::world::Place;
 
 use super::ride::{area, in_field, raw};
 use super::*;
 
 fn map_flag(s: &Session) -> bool {
     match &s.stage {
-        Stage::Area(a) => match a.world().place() {
-            Place::Field(f) => f.map.as_ref().is_some_and(|m| m.map_flag),
+        Stage::Area(a) => match a.world().area().kind() {
+            MapKind::Field(f) => f.map.as_ref().is_some_and(|m| m.map_flag),
             _ => false,
         },
         _ => false,
@@ -144,8 +143,8 @@ struct Held {
 fn held(s: &Session) -> Held {
     let w = area(s).world();
     let (c, t) = (w.camera(), &w.camera().tcam);
-    let (room, doors) = match w.place() {
-        Place::Dungeon(d) => (d.room_at, (d.doors.len(), d.door.door_flag)),
+    let (room, doors) = match w.area().kind() {
+        MapKind::Dungeon(d) => (d.room_at, (d.doors.len(), d.door.door_flag)),
         _ => (None, (0, false)),
     };
     Held { cam: (c.cam_id, t.kind, t.pos, t.view, t.deg, t.dist), room, doors, fight: w.combat().battle.in_battle }
@@ -166,7 +165,7 @@ fn fight_then_back(orb: bool) -> Option<(Vec<Held>, bool)> {
     for f in 0..4000u64 {
         if to.is_none()
             && let Stage::Area(a) = &s.stage
-            && let Place::Dungeon(d) = a.world().place()
+            && let MapKind::Dungeon(d) = a.world().area().kind()
         {
             to = Some((0, d.floors[0].down));
         }
@@ -202,7 +201,7 @@ fn fight_then_back(orb: bool) -> Option<(Vec<Held>, bool)> {
         s.step(&pad);
         s.take_events();
         let a = area(&s);
-        if let Place::Dungeon(d) = a.world().place() {
+        if let MapKind::Dungeon(d) = a.world().area().kind() {
             vanished |= opened && shut.is_none() && d.room_at.is_none();
         }
         up |= opened && a.ui().menu_type() != -1;

@@ -960,6 +960,98 @@ impl FieldArea {
     }
 }
 
+/// `WORLD_MAN::SetCharPosition` (main 0x001a1190) for a field made from
+/// words, the party's leader: from a town (`game.areaPrev` not 2) the
+/// field's start (`fieldStartPos`, facing 0); back from its dungeon beside
+/// the entrance (`dungeonPos[0]`) as the field type's def says
+/// ([`crate::field::def::Back`]), 500 up. The position also becomes
+/// `WORLD_MAN.position` (+0x20).
+pub fn field_start(area_prev: i32, back: &crate::field::def::Back, start: V4, dungeon: Option<V4>) -> (V4, F) {
+    if area_prev == crate::area::kind::DUNGEON
+        && let Some(d) = dungeon
+    {
+        let off = |o: Option<F>, v: F| o.map_or(v, |o| ee::add(o, v));
+        return ([off(back.x, d[0]), off(back.y, d[1]), ee::add(0x43fa_0000, d[2]), ONE], back.facing);
+    }
+    ([start[0], start[1], start[2], ONE], 0)
+}
+
+/// `WORLD_MAN`'s calls on a generated field (`WORLD`).
+impl crate::area::AreaMap for FieldArea {
+    fn core(&self) -> &AreaCore {
+        &self.core
+    }
+
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
+    }
+
+    fn start(&self, scene: &crate::area::Scene) -> (V4, F, [V4; 3]) {
+        let (pos, rot) = field_start(scene.area_prev, &self.def.back, self.start_pos(), self.dungeon_pos());
+        (pos, rot, crate::area::map::party_starts(scene.area, pos, rot))
+    }
+
+    /// `WORLD::SetCenter` as well as the collision's.
+    fn set_center(&mut self, x: F, y: F) {
+        FieldArea::set_center(self, x, y);
+        self.core.hits.center = [x, y];
+    }
+
+    fn put(&self, out: &mut piney_desktop::SaveState) {
+        out.field_ambient = Some(FieldArea::put(self, &mut out.scroll_statics));
+    }
+
+    /// `WORLD::Draw` and `DrawEffect`: the ground and objects round the
+    /// centre, TOBJ's start once, the weather and background, their sprites.
+    fn disp(&mut self, cx: &mut crate::area::Disp) {
+        self.ofs = self.core.hits.center;
+        let (player, eye) = (cx.view.player, cx.view.eye);
+        self.draw(cx.layers, cx.to_screen, player, eye, cx.awake);
+        cx.events.extend(self.take_made());
+        let events = self.step(cx.view, cx.awake, Some(&mut *cx.cc));
+        cx.events.extend(events);
+        cx.sprites.extend(self.paint(cx.layers, cx.to_screen));
+    }
+
+    /// The entrance's Enter: `ChangeArea(2, 0)`, its dungeon.
+    fn enter(&mut self, _cx: &mut crate::area::EnterCx) -> Option<crate::area::Exit> {
+        Some(crate::area::Exit::Area { area: crate::area::kind::DUNGEON, n: 0 })
+    }
+
+    /// `WORLD::ShowMap`: the portals on the map at once.
+    fn show_map(&mut self, field_model: i32, _cx: &mut crate::area::EnterCx) -> bool {
+        self.map.as_mut().is_none_or(|map| crate::map::show_field_map(map, field_model))
+    }
+
+    fn dungeon_pos(&self) -> Option<V4> {
+        FieldArea::dungeon_pos(self)
+    }
+
+    /// `WORLD_MAN::EntryGimmick`'s field branch.
+    fn entries(&mut self, scene: &crate::area::Scene, wm: &crate::area::WorldMan) -> crate::combat::AreaEntries {
+        let field = crate::combat::FieldEntries {
+            gims: self.field_gims(scene.field),
+            map: self.field.clone(),
+            rng: self.core.field_rand.expect("a field's fieldrand"),
+            circle_ofs: wm.circle_ofs,
+            event_area: scene.field,
+            start: self.start_pos(),
+        };
+        crate::combat::AreaEntries { dungeon: None, field: Some(field) }
+    }
+
+    fn setup_map(&mut self, archive: &Arc<Archive>, volume: Volume, _scene: &crate::area::Scene) -> Result<()> {
+        if self.map.is_none() {
+            self.map = Some(Box::new(crate::map::field::FieldMap::new(archive, volume, &self.field, &self.core.file)?));
+        }
+        Ok(())
+    }
+
+    fn minimap(&mut self, f: &mut crate::area::MapFrame) -> bool {
+        crate::map::field_minimap(self, f)
+    }
+}
+
 /// The field's layer for `WORLD_MAN::SetActiveLayer(k)` (the jump table at
 /// main 0x00355790): 0 sysLayer, 1 objLayer, 2 obj2Layer, 3 effLayer, 4
 /// floorLayer, 5 charLayer, 6 refLayer.

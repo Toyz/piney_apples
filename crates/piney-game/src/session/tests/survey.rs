@@ -9,7 +9,6 @@
 use piney_battle::boss::defs;
 use piney_battle::enemy_ai::act as enemy_act;
 use piney_world::area::kind;
-use piney_world::field::world::Place;
 
 use super::shrine::Walker;
 use super::*;
@@ -997,7 +996,7 @@ impl StoryPilot {
         if ids.is_empty() {
             return None;
         }
-        let Place::Dungeon(d) = w.place() else { return None };
+        let MapKind::Dungeon(d) = w.area().kind() else { return None };
         let sc = w.scene();
         let fresh = |f: i32, i: i32| !self.statues_done.contains(&(sc.field, sc.dungeon, f, i));
         // On the way down: the nearest floor from this one first (the walker
@@ -1177,8 +1176,8 @@ impl StoryPilot {
         let wants = story_wants(vm, &w.state().save);
         // A dungeon whose way out leads to a wanted field (an arena) is
         // where the story wants him.
-        let exit = match w.place() {
-            Place::Dungeon(d) => piney_data::dungeon::special::exit_field(d.event_area, w.volume().number() as u32),
+        let exit = match w.area().kind() {
+            MapKind::Dungeon(d) => piney_data::dungeon::special::exit_field(d.event_area, w.volume().number() as u32),
             _ => None,
         };
         let here = wants.iter().any(|x| match *x {
@@ -2451,10 +2450,10 @@ impl StoryPilot {
         f: u64,
         rush: bool,
     ) -> Option<Raw> {
-        let hits = match w.place() {
-            Place::Field(fa) => &fa.core.hits,
-            Place::Story(m) => m.hits(),
-            Place::Dungeon(_) => return None,
+        let hits = match w.area().kind() {
+            MapKind::Field(fa) => &fa.core.hits,
+            MapKind::Story(m) => m.hits(),
+            MapKind::Dungeon(_) => return None,
         };
         let p = w.player().body.pos.map(f32::from_bits);
         let far = (q[0] - p[0]).hypot(q[1] - p[1]);
@@ -2508,7 +2507,7 @@ impl StoryPilot {
         if !playing || banned == Some(true) || a.ui().menu_type() != -1 {
             return None;
         }
-        let Place::Field(fa) = w.place() else { return None };
+        let MapKind::Field(fa) = w.area().kind() else { return None };
         let mid = fa.dungeon_pos()?.map(f32::from_bits);
         let p = w.player().body.pos.map(f32::from_bits);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
@@ -3350,7 +3349,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
 /// type 4: `ChangeScene(2, -2, -2, 1, 0, 0)`).
 fn lake_below(w: &piney_world::field::world::FieldWorld, wants: &[Want]) -> Option<piney_event::vm::EvPoint> {
     let sc = w.scene();
-    let Place::Dungeon(d) = w.place() else { return None };
+    let MapKind::Dungeon(d) = w.area().kind() else { return None };
     let below =
         wants.iter().any(|x| matches!(*x, Want::Dungeon(f, n) if f == sc.field as i16 && i32::from(n) > sc.dungeon));
     below.then_some(piney_event::vm::EvPoint { floor: d.floors.len() as i16, block: 0, num: -1 })
@@ -3934,7 +3933,7 @@ fn walk_to_door(a: &crate::area::AreaMode) -> Option<Raw> {
     if !playing || banned == Some(true) || a.ui().menu_type() != -1 {
         return None;
     }
-    let door = w.door()?.map(f32::from_bits);
+    let door = w.area().get::<piney_world::story_map::StoryArea>()?.door()?.map(f32::from_bits);
     let p = w.player().body.pos.map(f32::from_bits);
     let cam_z = f32::from_bits(w.camera().rot()[2]);
     Some(stick_toward(cam_z, (door[0] - p[0]).atan2(-(door[1] - p[1]))))
@@ -3944,7 +3943,7 @@ fn walk_to_door(a: &crate::area::AreaMode) -> Option<Raw> {
 /// wants: `GotoNextRoom`'s -255 into `special::exit_field`'s field, through
 /// the dungeon's room of type 16 or more (area 46's to field 2).
 fn arena_door(w: &piney_world::field::world::FieldWorld, wants: &[Want]) -> Option<(usize, usize)> {
-    let Place::Dungeon(d) = w.place() else { return None };
+    let MapKind::Dungeon(d) = w.area().kind() else { return None };
     let field = piney_data::dungeon::special::exit_field(d.event_area, w.volume().number() as u32)?;
     wants.contains(&Want::Area(field as i16)).then_some(())?;
     let r = d.edit?.rooms.iter().find(|r| r.room_type >= 16)?;
@@ -4273,7 +4272,7 @@ fn event_115_field_13_talks_to_six() {
         if let Stage::Area(a) = &s.stage {
             let w = a.world();
             if w.scene().field == 13 {
-                story_map |= matches!(w.place(), Place::Story(_));
+                story_map |= matches!(w.area().kind(), MapKind::Story(_));
                 placed |= w.event_targets().len() == 6
                     && w.event_targets().iter().all(|&(t, c)| w.char_pos(t, c).is_some_and(|p| p[0] != 0 || p[1] != 0));
             }

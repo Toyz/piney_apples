@@ -1370,6 +1370,39 @@ mod tests {
 
     use super::*;
 
+    /// The area as its class, for the tests' looks into it.
+    pub(crate) enum MapKind<'a> {
+        Field(&'a piney_world::field::area::FieldArea),
+        Dungeon(&'a piney_world::dungeon::DungeonArea),
+        Story(&'a piney_world::story_map::StoryArea),
+    }
+
+    impl<'a> MapKind<'a> {
+        pub(crate) fn story(&self) -> Option<&'a piney_world::story_map::StoryArea> {
+            match self {
+                MapKind::Story(m) => Some(m),
+                _ => None,
+            }
+        }
+    }
+
+    /// [`MapKind`] of an area.
+    pub(crate) trait KindOf {
+        fn kind(&self) -> MapKind<'_>;
+    }
+
+    impl KindOf for dyn piney_world::area::AreaMap {
+        fn kind(&self) -> MapKind<'_> {
+            if let Some(d) = self.get() {
+                return MapKind::Dungeon(d);
+            }
+            if let Some(m) = self.get() {
+                return MapKind::Story(m);
+            }
+            MapKind::Field(self.get().expect("a field, a dungeon or a story map"))
+        }
+    }
+
     fn press(s: &mut Session, pad: &mut Pad, buttons: Buttons) -> Vec<Event> {
         pad.read(&Raw { buttons, ..Raw::default() });
         s.step(pad);
@@ -3461,8 +3494,8 @@ mod tests {
         assert!(cells.contains(&(96 << 4, 12 << 4)), "the entrance on the map: {cells:?}");
         assert!(cells.contains(&(1296, 1040)), "its red arrow");
         let flag = |s: &Session| match &s.stage {
-            Stage::Area(a) => match a.world().place() {
-                piney_world::field::world::Place::Field(fa) => fa.map.as_ref().is_some_and(|m| m.map_flag),
+            Stage::Area(a) => match a.world().area().kind() {
+                MapKind::Field(fa) => fa.map.as_ref().is_some_and(|m| m.map_flag),
                 _ => false,
             },
             _ => false,
@@ -4730,7 +4763,7 @@ mod tests {
                 if w.scene().area == 2 {
                     break;
                 }
-                let piney_world::field::world::Place::Field(fa) = w.place() else { break };
+                let MapKind::Field(fa) = w.area().kind() else { break };
                 let mid = fa.dungeon_pos().unwrap().map(f32::from_bits);
                 let p = w.player().body.pos.map(f32::from_bits);
                 let (dx, dy) = (mid[0] - p[0], mid[1] - p[1]);
@@ -4943,8 +4976,8 @@ mod tests {
                 });
                 let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
                 let c = w.combat();
-                match (legs.get(leg), c.kite, w.place()) {
-                    (Some(&l), Some(k), piney_world::field::world::Place::Dungeon(d))
+                match (legs.get(leg), c.kite, w.area().kind()) {
+                    (Some(&l), Some(k), MapKind::Dungeon(d))
                         if playing && banned != Some(true) && a.ui().menu_type() == -1 =>
                     {
                         let p = c.scene.chars[k].pos.map(f32::from_bits);
@@ -5101,7 +5134,7 @@ mod tests {
                 kite_on_it |= c.scene.chars[k].skill_id == 1 && c.scene.chars[k].target_char == Some(e);
             }
             if room == (0, 3)
-                && let piney_world::field::world::Place::Dungeon(d) = w.place()
+                && let MapKind::Dungeon(d) = w.area().kind()
             {
                 // This room's portal (the dungeon's others are kept on the
                 // list, switched off).
@@ -5175,7 +5208,7 @@ mod tests {
         let n = walk_into_dungeon(&mut s, |s, n, _| {
             let Stage::Area(a) = &s.stage else { return };
             let w = a.world();
-            let piney_world::field::world::Place::Field(fa) = w.place() else { return };
+            let MapKind::Field(fa) = w.area().kind() else { return };
             if n.is_multiple_of(100) {
                 let c = w.combat();
                 let k = c.kite.unwrap();
@@ -6148,10 +6181,8 @@ mod tests {
             let c = w.combat();
             let foe = c.enemies().first().map(|&e| c.scene.chars[e].hp);
             let room3 = (w.scene().floor, w.scene().block) == (0, 3);
-            let (doors_open, circles) = match w.place() {
-                piney_world::field::world::Place::Dungeon(d) => {
-                    (d.door.door_flag, c.ctrl.list(piney_battle::entry::Kind::Circle).len())
-                }
+            let (doors_open, circles) = match w.area().kind() {
+                MapKind::Dungeon(d) => (d.door.door_flag, c.ctrl.list(piney_battle::entry::Kind::Circle).len()),
                 _ => (false, 0),
             };
             shut |= room3 && circles > 0 && !doors_open;
@@ -6670,7 +6701,6 @@ mod tests {
     fn story_4_item_add_and_room() {
         use piney_battle::item::get_item_num;
         use piney_event::host::Host;
-        use piney_world::field::world::Place;
         let Some((mut s, _)) = story_4_first_room() else { return };
         let Stage::Area(a) = &mut s.stage else { panic!("not in the area") };
         let save = a.world().state().save.clone();
@@ -6680,13 +6710,13 @@ mod tests {
         assert!(orca && !sanjuro);
         let now = &a.world().state().save;
         assert_eq!(get_item_num(now, 2, i32::from(cat), 3), get_item_num(&save, 2, i32::from(cat), 3) + 1);
-        let Place::Dungeon(d) = a.world().place() else { panic!("not a dungeon") };
+        let MapKind::Dungeon(d) = a.world().area().kind() else { panic!("not a dungeon") };
         // The last room of the floor (room 1 plays the story's stream 3 as
         // it is entered).
         let rooms = &d.floors[0].rooms;
         let block = (2..rooms.len()).rev().find(|&i| rooms[i].made).unwrap();
         a.with_host(|h| h.room(0, block as i16));
-        let Place::Dungeon(d) = a.world().place() else { panic!("not a dungeon") };
+        let MapKind::Dungeon(d) = a.world().area().kind() else { panic!("not a dungeon") };
         assert_eq!((d.level, d.room_at, d.room_enter), (0, Some((0, block)), true));
         assert_eq!(d.position[3], piney_world::ee::ONE);
         let at = d.position;
@@ -6747,7 +6777,7 @@ mod tests {
                 gs.render(&frame);
                 let Stage::Area(a) = &s.stage else { panic!("left the area") };
                 let w = a.world();
-                let piney_world::field::world::Place::Dungeon(d) = w.place() else { panic!("not in the dungeon") };
+                let MapKind::Dungeon(d) = w.area().kind() else { panic!("not in the dungeon") };
                 let c = w.combat();
                 let kp = c.scene.chars[c.kite.unwrap()].pos;
                 let cam = w.camera().active().pos;
@@ -7846,6 +7876,7 @@ mod area15 {
     use piney_data::iso::Iso;
     use piney_input::{Buttons, Raw};
 
+    use super::tests::KindOf;
     use super::*;
 
     pub(super) fn disc() -> Option<(PathBuf, Arc<Archive>)> {
@@ -7957,7 +7988,8 @@ mod area15 {
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 15, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
         assert!(
-            w.place()
+            w.area()
+                .kind()
                 .story()
                 .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
                 .is_some_and(|e| e.block == 0)
@@ -7970,7 +8002,8 @@ mod area15 {
         assert!(banks.is_empty(), "the same scene: no bank loaded");
         let w = arrived(&s).unwrap();
         assert!(
-            w.place()
+            w.area()
+                .kind()
                 .story()
                 .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
                 .is_some_and(|e| e.block == 1 && e.systems().get::<piney_world::systems::anim::Anim>().is_some())
@@ -7982,7 +8015,8 @@ mod area15 {
         hold(&mut s, 128, 255, 1500, |s| arrived(s).is_some_and(|w| w.scene().block == 0));
         let w = arrived(&s).unwrap();
         assert!(
-            w.place()
+            w.area()
+                .kind()
                 .story()
                 .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
                 .is_some_and(|e| e.block == 0)
@@ -8002,8 +8036,12 @@ mod area15 {
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 16, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
         assert!(
-            w.place().story().filter(|g| g.def == &piney_world::story_map::giant::GIANT).is_some_and(|g| g.block == 0
-                && g.systems().get::<piney_world::systems::clouds::Clouds>().is_some_and(|c| c.clouds.len() == 25))
+            w.area()
+                .kind()
+                .story()
+                .filter(|g| g.def == &piney_world::story_map::giant::GIANT)
+                .is_some_and(|g| g.block == 0
+                    && g.systems().get::<piney_world::systems::clouds::Clouds>().is_some_and(|c| c.clouds.len() == 25))
         );
         assert!(at(w, [0.0, -5400.0, -50.0]), "{}", Mode::title(&s));
         hold(&mut s, 128, 128, 120, |s| playing(s).is_some_and(|w| w.player().acts.act == 2));
@@ -8013,12 +8051,13 @@ mod area15 {
         let Stage::Area(a) = &mut s.stage else { panic!("not in the dungeon") };
         assert!(a.world_mut().go_field());
         hold(&mut s, 128, 128, 600, |s| {
-            arrived(s)
-                .is_some_and(|w| w.place().story().is_some_and(|g| g.def == &piney_world::story_map::giant::GIANT))
+            arrived(s).is_some_and(|w| {
+                w.area().kind().story().is_some_and(|g| g.def == &piney_world::story_map::giant::GIANT)
+            })
         });
         let w = arrived(&s).unwrap();
         assert!(
-            w.place().story().is_some_and(|g| g.def == &piney_world::story_map::giant::GIANT && g.block == 0),
+            w.area().kind().story().is_some_and(|g| g.def == &piney_world::story_map::giant::GIANT && g.block == 0),
             "{}",
             Mode::title(&s)
         );
@@ -8063,7 +8102,8 @@ mod area15 {
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
         assert_eq!(w.world_man().field_model, 1);
         assert!(
-            w.place()
+            w.area()
+                .kind()
                 .story()
                 .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
                 .is_some_and(|e| e.block == 0)
@@ -8322,7 +8362,8 @@ mod area15 {
         let w = playing(&s).unwrap();
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
         assert!(
-            w.place()
+            w.area()
+                .kind()
                 .story()
                 .filter(|a| a.def == &piney_world::story_map::holy_ground::HOLY_GROUND)
                 .is_some_and(|e| e.block == 0)

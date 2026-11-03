@@ -300,7 +300,7 @@ Kept                     what WORLD_MAN keeps between scenes: the dungeon,
                          or the map its def keeps (area 15's)
 ```
 
-`field_world::FieldWorld` holds it as `Place::Story`: `story_map::build`
+The field world holds it as its area (`area::AreaMap`, worklog 572): `story_map::build`
 makes it for area 15 (or takes the kept one after a door), stands the
 party with `start_positions`, runs the same frame as a field (the
 battle's tasks over the map's collision, `Hits::event_area`), calls
@@ -521,7 +521,7 @@ from the dungeon, `GO(1)` makes a new one, which stands the party at
 (+200, -150), (-200, -150) and (0, +300).
 
 The port is `crates/piney-world/src/story_map/giant.rs`, held as
-`field_world::Place::Giant`. The clouds and flares are story sprites
+the field world's area (an `AreaMap`). The clouds and flares are story sprites
 (`EffSprite`s, a cloud's with its turn). `the_giants_blocks`,
 `the_background_bobs` and the session's
 `the_giants_door_to_its_dungeon_and_back` check it.
@@ -688,7 +688,7 @@ field over its stage's file (the class's `se1_5` names read as the
 stage's: `StoryMapDef::stage`), with the `Firefly2` system
 (`piney_world::systems::fireflies`), its own `Reflection` (`SwitchLayer`)
 and `Bobbing`, and the scroll as a `Scrolls` shown before it steps.
-`FieldWorld` holds it as `Place::Story` for fields 1-8: standing the party at `DMY_center01`, the
+The field world holds it as its area (an `AreaMap`) for fields 1-8: standing the party at `DMY_center01`, the
 battle's tasks over its collision, drawing it in `ccThFieldDisp`'s place.
 The arena draws on from the game's `fieldrand` (below); the fireflies
 (`piney_world::sky::firefly`, type 0) are made in the constructor from it and

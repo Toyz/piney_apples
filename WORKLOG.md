@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-571 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 242, tooling 59, ui 105, video 17, volumes 97, world 167. 143 entries still have open questions - [listed below](#still-open).
+572 entries: audio 44, battle 157, build 30, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 242, tooling 59, ui 105, video 17, volumes 97, world 168. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -583,6 +583,7 @@ The [reference](docs/README.md) says what is true now.
 | 569 | [Fields as defs: FieldDef by field type, WORLD's pictures and background as systems on the runner](worklog/0569-fields-as-defs-fielddef-by-field-type-world-s-pictures-and.md) | 2026-11-02 | world |
 | 570 | [Dungeons as defs: DungeonDef by dungeon type, the dress, lake and leaves as systems](worklog/0570-dungeons-as-defs-dungeondef-by-dungeon-type-the-dress-lake.md) | 2026-11-03 | world |
 | 571 | [A hacked field reads its field file from fieldccs2](worklog/0571-a-hacked-field-reads-its-field-file-from-fieldccs2.md) | 2026-11-03 | world |
+| 572 | [AreaMap: the field world's area behind one trait, WORLD_MAN's switch on its area once](worklog/0572-areamap-the-field-world-s-area-behind-one-trait-world-man-s.md) | 2026-11-03 | world, build |
 
 ## Still open
 

@@ -900,7 +900,7 @@ fn gorre_brothers_model_shots() {
         if let Stage::Area(a) = &s.stage
             && a.world().combat().boss_char().is_some()
         {
-            arena = Some(a.world().place().lights().clone());
+            arena = Some(a.world().area().core().lights.clone());
             break;
         }
     }

@@ -37,7 +37,7 @@ fn issue_74_replay() {
                     sc.floor,
                     sc.block,
                     w.world_man().event,
-                    place_kind(w.place())
+                    place_kind(&w.area().kind())
                 )
             }
             _ => String::new(),
@@ -61,12 +61,11 @@ fn issue_74_replay() {
 }
 
 /// The place's kind, for the replay's lines.
-fn place_kind(p: &piney_world::field::world::Place) -> &'static str {
-    use piney_world::field::world::Place;
+fn place_kind(p: &MapKind) -> &'static str {
     match p {
-        Place::Field(_) => "generated field",
-        Place::Dungeon(_) => "dungeon",
-        Place::Story(_) => "story map",
+        MapKind::Field(_) => "generated field",
+        MapKind::Dungeon(_) => "dungeon",
+        MapKind::Story(_) => "story map",
     }
 }
 
@@ -139,11 +138,11 @@ fn area_66s_last_door_leads_to_the_arena() {
             }
             let Stage::Area(a) = &mut s.stage else { continue };
             let w = a.world();
-            let in_dungeon = matches!(w.place(), piney_world::field::world::Place::Dungeon(_));
+            let in_dungeon = matches!(w.area().kind(), MapKind::Dungeon(_));
             if in_dungeon || !matches!(w.phase(), piney_world::Phase::Play(n) if n > 60) {
                 continue;
             }
-            arena |= w.place().story().is_some_and(|m| m.def == &piney_world::story_map::sky::MIRROR_ARENA);
+            arena |= w.area().kind().story().is_some_and(|m| m.def == &piney_world::story_map::sky::MIRROR_ARENA);
             assert_eq!(w.world_man().event, 67, "{disc}: eventAreaNumber");
             let c = w.combat();
             let foes: Vec<usize> = c.enemies().into_iter().filter(|&e| !c.dead(e)).collect();
@@ -206,13 +205,13 @@ fn fields_66_and_91_are_their_maps() {
             let Stage::Area(a) = &s.stage else { continue };
             let w = a.world();
             if matches!(w.phase(), piney_world::Phase::Play(n) if n > 120) {
-                door = w.door();
+                door = w.area().get::<piney_world::story_map::StoryArea>().and_then(|m| m.door());
                 break;
             }
         }
         let Stage::Area(a) = &mut s.stage else { panic!("{disc}: not in field {field}") };
         let w = a.world();
-        let sky = w.place().story().unwrap_or_else(|| panic!("{disc}: field {field} is no story map"));
+        let sky = w.area().kind().story().unwrap_or_else(|| panic!("{disc}: field {field} is no story map"));
         assert!(sky.def == class, "{disc}");
         let start = sky.core.start.map(f32::from_bits);
         if class == &MIRROR {
@@ -235,7 +234,7 @@ fn fields_66_and_91_are_their_maps() {
             s.step(&pad);
             s.take_events();
             if let Stage::Area(a) = &s.stage
-                && matches!(a.world().place(), piney_world::field::world::Place::Dungeon(_))
+                && matches!(a.world().area().kind(), MapKind::Dungeon(_))
             {
                 dungeon = true;
                 break;
@@ -331,7 +330,7 @@ fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_
         s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
-            && let Some(m) = a.world().place().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
+            && let Some(m) = a.world().area().kind().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
         {
             assert!(!m.systems().get::<Clouds>().unwrap().started, "the map drew before the first look");
             let v = &m.systems().get::<Scrolls>().unwrap().v;
@@ -378,7 +377,7 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
     let mut left = [0; 2];
     for _ in 0..400 {
         if let Stage::Area(a) = &s.stage
-            && let Some(m) = a.world().place().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
+            && let Some(m) = a.world().area().kind().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
         {
             let v = &m.systems().get::<Scrolls>().unwrap().v;
             left = [v[0], v[1]];
@@ -432,7 +431,7 @@ fn the_holy_grounds_scroll_carries_across_visits() {
         s.take_events();
     };
     let scroll_of = |s: &Session| match &s.stage {
-        Stage::Area(a) => a.world().place().story().filter(|e| e.def == &HOLY_GROUND).map(|e| {
+        Stage::Area(a) => a.world().area().kind().story().filter(|e| e.def == &HOLY_GROUND).map(|e| {
             let v = &e.systems().get::<Scrolls>().unwrap().v;
             [v[0], v[1]]
         }),

@@ -20,6 +20,9 @@ use crate::ee::V4;
 use crate::hit::{HitModel, Hits};
 use crate::town::{FogParams, TownLights};
 
+pub mod map;
+pub use map::{AreaMap, Disp, EnterCx, Exit, MapFrame};
+
 /// What every area holds, a Root Town ([`crate::town::Town`]) and each
 /// story map alike: its scene file (the stream `marker_pos` reads, +0x1a4
 /// on an `EVENTAREA`), its collision, its light group, `fieldrand` when its

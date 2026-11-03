@@ -7,7 +7,6 @@
 
 use piney_input::{Buttons, Raw};
 use piney_world::area::{Scene, WorldMan, kind};
-use piney_world::field::world::Place;
 
 use super::*;
 
@@ -310,7 +309,7 @@ fn the_grunty_flute_rides_and_dismounts() {
         l = step(&mut s, &mut pad, Buttons::NONE, 0, &mut events);
     }
     assert!(dist(here, l.kite_pos) > 50.0, "Kite does not walk after the ride");
-    let _ = Place::Field;
+    let _ = MapKind::Field;
 }
 
 /// Pictures of the ride: the Grunty come, standing with Kite on it, running
@@ -422,8 +421,8 @@ fn outbreaks_grunty_leads_kite_to_the_dungeon() {
     assert_eq!(kind, 2 * server + 1 - 2);
     let t = piney_data::tables::combat::of(piney_data::volume::Volume::Out);
     assert_eq!(t.ride_seek_types[kind as usize], 1, "a dungeon Grunty");
-    let dungeon = match area(&s).world().place() {
-        Place::Field(f) => f.dungeon_pos().expect("the entrance").map(f32::from_bits),
+    let dungeon = match area(&s).world().area().kind() {
+        MapKind::Field(f) => f.dungeon_pos().expect("the entrance").map(f32::from_bits),
         _ => panic!("not a field"),
     };
     let start = look(&s).ride_pos;

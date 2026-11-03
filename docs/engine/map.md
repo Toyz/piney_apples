@@ -422,7 +422,9 @@ builds the room again with its doors shut, as they were.
   draws, each returning what it sent (`Out`: sends and texts) in order.
 - `mod.rs`: `MapModes` and `button` (`ChangeMapMode` and the save),
   `MapState` (the modes, `mapAlpha`, the last frame), `town_frame`,
-  `setup_area`, `area_frame`, `show_map`.
+  `area_frame` (the area's `AreaMap::minimap`: `field_minimap`,
+  `dungeon_minimap`), `show_field_map`; the area's `AreaMap::setup_map`
+  makes its map.
 
 The field's and dungeon's painted textures go to the frame as PSMT8
 uploads with their files' palettes. A `FieldArea` and a `DungeonArea` hold
@@ -439,9 +441,9 @@ sleeps); `Request::MapAlpha` into
 tasks' second frame, as `ROOTTOWN01::Draw`), again as it was while every
 task sleeps, and not at all in a field or dungeon while `inBattle`
 (`area_frame`'s `in_battle`; `the_map_is_away_in_a_fight`); `DrawMap`'s `mapStatus` back to the UI (`map_on`). The area
-host's `show_map` and the orb's steps call `FieldWorld::show_map`, which
-gives `map::show_map` the combat's `ccCheckActiveObject` (`room_clear`) for
-the rooms' doors; the town host's answers 1 as `WORLD_MAN::ShowMap` does
+host's `show_map` and the orb's steps call the field world's `show_map`,
+`WORLD_MAN::ShowMap` on the area (`AreaMap::show_map`) with the combat's
+`ccCheckActiveObject` (`room_clear`) for the rooms' doors; the town host's answers 1 as `WORLD_MAN::ShowMap` does
 there.
 
 ## Checks

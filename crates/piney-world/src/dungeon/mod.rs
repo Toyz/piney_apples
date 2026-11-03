@@ -26,7 +26,7 @@ use piney_desktop::layers::Layers;
 
 pub mod def;
 
-use crate::area::{AreaCore, Scene, WorldMan};
+use crate::area::{AreaCore, Exit, Scene, WorldMan};
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, PI, V4};
@@ -34,7 +34,8 @@ use crate::field::ambient::Weather;
 use crate::hit::{HitModel, Hits, UNIT};
 use crate::sprite::EffSprite;
 use crate::systems::{
-    BuildCx, Carried, CarriedMut, DrawCx, Drawn, FieldCx, Joined, MapView, RoomAt, RoomPart, Statics, Systems, paint,
+    BuildCx, Carried, CarriedMut, DrawCx, Drawn, FieldCx, Joined, MapEvent, MapView, RoomAt, RoomPart, Statics,
+    Systems, paint,
 };
 use crate::town::{Light, TownLights};
 use def::{DungeonDef, RoomStep};
@@ -91,16 +92,6 @@ pub fn ban_area(save: &mut SaveData, room: [i32; 4]) {
             save.set_u8(at(i) + k, *v as u8);
         }
     }
-}
-
-/// What `WORLD_MAN::Enter` does in a dungeon (`DUNGEON::GotoNextRoom`'s
-/// answer): a change of scene.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Exit {
-    /// `ChangeScene(a, t, fd, d, f, b)` as `WORLD_MAN::Enter` calls it.
-    Scene { area: i32, town: i32, field: i32, dungeon: i32, floor: i32, block: i32 },
-    /// `ChangeArea(a, n)`.
-    Area { area: i32, n: i32 },
 }
 
 /// One room slot of a floor as `MakeRoom` leaves it: `pos[f][i]`,
@@ -566,6 +557,172 @@ pub struct DungeonArea {
     /// The kept objects' actors (their bodies and animation players), in
     /// the kept lists' order.
     pub kept_actors: Vec<Option<crate::combat::Actor>>,
+}
+
+/// `WORLD_MAN`'s calls on a dungeon (`DUNGEON`).
+impl crate::area::AreaMap for DungeonArea {
+    fn core(&self) -> &AreaCore {
+        &self.core
+    }
+
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
+    }
+
+    fn start(&self, scene: &Scene) -> (V4, F, [V4; 3]) {
+        let (pos, rot) = DungeonArea::start(self);
+        (pos, rot, crate::area::map::party_starts(scene.area, pos, rot))
+    }
+
+    fn clear(&self) -> Option<[u8; 3]> {
+        Some(DungeonArea::clear(self))
+    }
+
+    fn put(&self, out: &mut piney_desktop::SaveState) {
+        DungeonArea::put(self, &mut out.scroll_statics);
+    }
+
+    /// `DUNGEON::Draw`: `MoveDoor` for the cell under the player (15 for
+    /// none) with its doors' `ccSeOn3D`s, the room and `DrawEff`'s sprites,
+    /// and `SetPathFindingMap` once the room entered is built.
+    fn disp(&mut self, cx: &mut crate::area::Disp) {
+        let player = cx.view.player;
+        if cx.awake {
+            let here = self.here(player);
+            let block = here.map_or(i32::from(NO_ROOM), |h| h as i32);
+            let clear_here = (cx.clear)(self.level as i32, block);
+            // MoveDoor's SetDoor reads the save's area bans.
+            self.bans = bans_of(cx.save);
+            let sounds = self.move_door(here, cx.clear_all, clear_here);
+            if let Some(se) = self.door_se() {
+                cx.events.extend(sounds.into_iter().map(|(_, pos)| MapEvent::Se3d { n: se, pos }));
+            }
+        }
+        let sprites = self.draw(cx.layers, cx.to_screen, cx.view, cx.awake);
+        cx.sprites.extend(sprites);
+        if cx.awake && self.room_enter && self.shown(player).1 {
+            self.room_enter = false;
+            cx.path_map = true;
+        }
+    }
+
+    fn marker_file(&self) -> Option<&SceneFile> {
+        Some(&self.rooms.file)
+    }
+
+    fn special_room(&self) -> i32 {
+        self.special_room
+    }
+
+    fn enter(&mut self, cx: &mut crate::area::EnterCx) -> Option<Exit> {
+        let exit = DungeonArea::enter(self, cx.player, cx.scene, cx.clear, cx.save, cx.last_room);
+        self.settle(cx.cc);
+        exit
+    }
+
+    /// From the second dungeon of a field type 4 area back to the first
+    /// (0x0019e45c: its `entryFlag` cleared), at the room its stairs were
+    /// taken from; else `ChangeArea(1, eventAreaNumber)`.
+    fn go_field(&mut self, no_field: bool, scene: &Scene, last_room: i32) -> Option<Exit> {
+        if !no_field {
+            return Some(Exit::Area { area: crate::area::kind::FIELD, n: scene.field.max(0) });
+        }
+        if scene.dungeon != 1 {
+            return None;
+        }
+        self.gimmicks_placed = false;
+        Some(Exit::Scene { area: 2, town: -2, field: -2, dungeon: 0, floor: 0, block: last_room })
+    }
+
+    /// The room built afresh and `WORLD_MAN.position` set in it.
+    fn room_select(&mut self, floor: usize, block: usize, cx: &mut crate::area::EnterCx) -> bool {
+        let clear = (cx.clear)(floor as i32, block as i32);
+        self.bans = bans_of(cx.save);
+        DungeonArea::room_select(self, floor, block, clear);
+        self.settle(cx.cc);
+        true
+    }
+
+    /// `DUNGEON::ShowMap`: one room of the floor a call.
+    fn show_map(&mut self, _field_model: i32, cx: &mut crate::area::EnterCx) -> bool {
+        let done = crate::map::dungeon::show_map_step(self, cx.player, cx.clear);
+        self.settle(cx.cc);
+        done
+    }
+
+    fn open_door(&mut self, floor: usize, block: usize) {
+        DungeonArea::open_door(self, floor, block);
+    }
+
+    fn close_door(&mut self, floor: usize, block: usize) {
+        DungeonArea::close_door(self, floor, block);
+    }
+
+    fn close_door2(&mut self) {
+        DungeonArea::close_door2(self);
+    }
+
+    fn map_2d(&self) -> Vec<u8> {
+        DungeonArea::map_2d(self)
+    }
+
+    fn map_2d_info(&self, block: i32) -> Option<[i32; 3]> {
+        Some(DungeonArea::map_2d_info(self, block))
+    }
+
+    /// `restoreEntry` (the list kept from the last room) and
+    /// `WORLD_MAN::EntryGimmick`'s dungeon branch (once: `entryFlag`).
+    fn entries(&mut self, scene: &Scene, wm: &WorldMan) -> crate::combat::AreaEntries {
+        let gims = (!self.gimmicks_placed).then(|| self.dungeon_gims(wm.field_attr(), wm.time_sym()));
+        self.gimmicks_placed = true;
+        let dungeon = crate::combat::DungeonEntries {
+            kept: self.kept_entries.take(),
+            actors: std::mem::take(&mut self.kept_actors),
+            gims,
+            rng: *self.rng(),
+            rows: self.def.breakables,
+            breakables: self.breakables_here(scene.field, scene.block),
+        };
+        crate::combat::AreaEntries { dungeon: Some(dungeon), field: None }
+    }
+
+    fn keeps_entries(&self) -> bool {
+        true
+    }
+
+    fn keep_entries(&mut self, kept: piney_battle::entry::KeptEntries, actors: Vec<Option<crate::combat::Actor>>) {
+        self.kept_entries = Some(kept);
+        self.kept_actors = actors;
+    }
+
+    /// `WORLD_MAN.dungeon[n]` lives on, with the area's others.
+    fn into_kept(self: Box<Self>, dungeons: Dungeons) -> Option<crate::story_map::Kept> {
+        let mut all = dungeons;
+        let n = self.dungeon.clamp(0, 2) as usize;
+        all.slots[n] = Some(self);
+        Some(crate::story_map::Kept::Dungeon(Box::new(all)))
+    }
+
+    /// The `DUNGEON` constructor's map over the floors `Generate` laid
+    /// out (once: the dungeon keeps it from room to room).
+    fn setup_map(&mut self, archive: &Arc<Archive>, volume: Volume, scene: &Scene) -> Result<()> {
+        if self.map.is_none() {
+            let edit = if self.event != 0 { self.tables.edit(self.event, scene.dungeon.clamp(0, 2)) } else { None };
+            let floors = crate::map::dungeon::floors_of(self, edit);
+            let file = self.rooms.file.clone();
+            let map = crate::map::dungeon::DungeonMap::new(archive, volume, &file, self.def.lake, floors)?;
+            self.map = Some(Box::new(map));
+        }
+        Ok(())
+    }
+
+    fn minimap(&mut self, f: &mut crate::area::MapFrame) -> bool {
+        crate::map::dungeon_minimap(self, f)
+    }
+
+    fn event_data(&self, area: i32) -> Option<EventData> {
+        Some(set_event_data(self.tables, self.event_area, area, 0))
+    }
 }
 
 /// `sceVu0InversMatrix` (main 0x001107b0): the transposed rotation and the

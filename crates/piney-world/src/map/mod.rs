@@ -17,9 +17,8 @@ use piney_desktop::anm::Ctx;
 use piney_desktop::kanji::{Fonts, Kanji, Kt, Names};
 use piney_desktop::view::LayerView;
 
-use crate::area::{Scene, kind};
+use crate::area::kind;
 use crate::ee::{self, F, V4};
-use crate::field::world::Place;
 use sprite::Out;
 
 /// `mapLayer`'s priority (`ccLayer::Init(50, 0)`).
@@ -247,36 +246,6 @@ fn shrink_toward(c: &mut piney_draw::Cmd, k: f32, at: [f32; 2]) {
     (s.x0, s.x1, s.y0, s.y1) = (lo(s.x0, at[0]), hi(s.x1, at[0]), lo(s.y0, at[1]), hi(s.y1, at[1]));
 }
 
-/// The map of the field or dungeon `place` as its set-up makes it (once:
-/// a dungeon keeps its map from room to room): `WORLD::Init`'s sprites and
-/// `Generate`'s texture, or the `DUNGEON` constructor's sprites over the
-/// floors `Generate` laid out.
-pub fn setup_area(
-    place: &mut Place,
-    archive: &std::sync::Arc<piney_data::archive::Archive>,
-    volume: piney_data::volume::Volume,
-    scene: &Scene,
-) -> piney_data::Result<()> {
-    match place {
-        Place::Field(f) => {
-            if f.map.is_none() {
-                f.map = Some(Box::new(field::FieldMap::new(archive, volume, &f.field, &f.core.file)?));
-            }
-        }
-        Place::Dungeon(d) => {
-            if d.map.is_none() {
-                let edit = if d.event != 0 { d.tables.edit(d.event, scene.dungeon.clamp(0, 2)) } else { None };
-                let floors = dungeon::floors_of(d, edit);
-                let file = d.rooms.file.clone();
-                d.map = Some(Box::new(dungeon::DungeonMap::new(archive, volume, &file, d.def.lake, floors)?));
-            }
-        }
-        // A story map of its own draws no map (EVENTAREA02::Draw).
-        Place::Story(_) => {}
-    }
-    Ok(())
-}
-
 /// What the map reads of the entry control's lists (the battle's): a
 /// field's magic portals (their `alpha` is the map's to fade, and goes
 /// back into the portals) and `ccCheckFountain()`; a dungeon's portals and
@@ -290,116 +259,6 @@ pub struct Entries {
     pub event_hold: bool,
 }
 
-/// A frame of `ccThFieldDisp`'s map outside the towns, the player at `pos`
-/// heading `dirc`: in a dungeon first `DUNGEON::Draw`'s `MakeMiniMap` for
-/// the room under him. While `ccGame.inBattle` neither `DrawMiniMap`
-/// (gcmn 0x005a98a4) nor `DUNGEON::DrawMap` (0x005cef78) runs: no map.
-/// While not `awake` the last frame is drawn again. True when
-/// `DUNGEON::DrawMap` set `ccMenu.mapStatus` back to 1.
-#[allow(clippy::too_many_arguments)]
-pub fn area_frame(
-    place: &mut Place,
-    st: &mut MapState,
-    scene: &Scene,
-    pos: V4,
-    dirc: V4,
-    awake: bool,
-    in_battle: bool,
-    fonts: Option<&Fonts>,
-    ents: &mut Entries,
-    ctx: &mut Ctx,
-) -> bool {
-    let mark = ctx.layers.mark();
-    let status = area_map(place, st, scene, pos, dirc, awake, in_battle, fonts, ents, ctx);
-    hud_shrink(ctx, &mark, st.hud_scale);
-    status
-}
-
-/// [`area_frame`]'s map, at the game's size.
-#[allow(clippy::too_many_arguments)]
-fn area_map(
-    place: &mut Place,
-    st: &mut MapState,
-    scene: &Scene,
-    pos: V4,
-    dirc: V4,
-    awake: bool,
-    in_battle: bool,
-    fonts: Option<&Fonts>,
-    ents: &mut Entries,
-    ctx: &mut Ctx,
-) -> bool {
-    let mut status = false;
-    match place {
-        Place::Field(f) => {
-            let Some(map) = f.map.as_mut() else { return false };
-            if awake && in_battle {
-                st.last.clear();
-            } else if awake {
-                // The entry control's portals and fountain.
-                let mut inp = field::Input {
-                    mode: st.modes.field,
-                    alpha: st.alpha,
-                    pos,
-                    dirc,
-                    event_area: scene.field.max(0),
-                    fountain: ents.fountain,
-                    circles: &mut ents.circles,
-                };
-                st.last = map.draw(&mut inp);
-            }
-            map.render(&st.last, fonts, ctx);
-        }
-        Place::Dungeon(d) => {
-            let Some(mut map) = d.map.take() else { return false };
-            if awake {
-                let here = d.here(pos);
-                map.enter_room(&mut d.core.hits, d.level, here);
-                if in_battle {
-                    st.last.clear();
-                    d.map = Some(map);
-                    return false;
-                }
-                let inp = dungeon::Input {
-                    mode: st.modes.dungeon,
-                    special_room: d.special_room,
-                    alpha: st.alpha,
-                    pos,
-                    dirc,
-                    event_hold: ents.event_hold,
-                    circles: &ents.dungeon_circles,
-                    gims: &ents.gims,
-                };
-                let drawn = map.draw(d.level, &inp);
-                status = drawn.map_status;
-                st.last = drawn.outs;
-            }
-            map.render(&st.last, fonts, ctx);
-            d.map = Some(map);
-        }
-        Place::Story(_) => {}
-    }
-    status
-}
-
-/// The events' `show_map`, one frame of `WORLD_MAN::ShowMap` outside the
-/// towns (in a town it does nothing and is done): in a field
-/// `WORLD::ShowMap` unless the story area's map is its own
-/// (`EVENTAREA_INFO.model` 1, `field_model`); in a dungeon one room of
-/// `DUNGEON::ShowMap`, `clear` its rooms' `ccCheckActiveObject(f, i)`.
-/// True when done.
-pub fn show_map(place: &mut Place, field_model: i32, pos: V4, clear: &dyn Fn(i32, i32) -> bool) -> bool {
-    match place {
-        Place::Field(f) => match f.map.as_mut() {
-            Some(map) => show_field_map(map, field_model),
-            None => true,
-        },
-        Place::Dungeon(d) => dungeon::show_map_step(d, pos, clear),
-        // The story area's map is its own: nothing to show.
-        Place::Story(_) => true,
-    }
-}
-
 /// `WORLD_MAN::ShowMap`'s field case: `WORLD::ShowMap` (gcmn 0x005ad990,
 /// `mapFlag = 1`) unless the story area's map is its own.
 pub fn show_field_map(map: &mut field::FieldMap, field_model: i32) -> bool {
@@ -407,6 +266,72 @@ pub fn show_field_map(map: &mut field::FieldMap, field_model: i32) -> bool {
         map.map_flag = true;
     }
     true
+}
+
+/// The minimap's frame of the area (`ccThFieldDisp`'s `DrawMiniMap`,
+/// `MakeMiniMap` and `DrawMap`), the HUD's scale on it.
+pub fn area_frame(area: &mut dyn crate::area::AreaMap, f: &mut crate::area::MapFrame) -> bool {
+    let mark = f.ctx.layers.mark();
+    let status = area.minimap(f);
+    hud_shrink(f.ctx, &mark, f.st.hud_scale);
+    status
+}
+
+/// `WORLD::DrawMiniMap`: out of battle the portals and fountain on the
+/// field's map, in battle none.
+pub(crate) fn field_minimap(fa: &mut crate::field::area::FieldArea, f: &mut crate::area::MapFrame) -> bool {
+    let Some(map) = fa.map.as_mut() else { return false };
+    let st = &mut *f.st;
+    if f.awake && f.in_battle {
+        st.last.clear();
+    } else if f.awake {
+        // The entry control's portals and fountain.
+        let mut inp = field::Input {
+            mode: st.modes.field,
+            alpha: st.alpha,
+            pos: f.pos,
+            dirc: f.dirc,
+            event_area: f.scene.field.max(0),
+            fountain: f.ents.fountain,
+            circles: &mut f.ents.circles,
+        };
+        st.last = map.draw(&mut inp);
+    }
+    map.render(&st.last, f.fonts, f.ctx);
+    false
+}
+
+/// `DUNGEON::MakeMiniMap` and `DrawMap` of the room under the player; the
+/// map status it shows.
+pub(crate) fn dungeon_minimap(d: &mut crate::dungeon::DungeonArea, f: &mut crate::area::MapFrame) -> bool {
+    let Some(mut map) = d.map.take() else { return false };
+    let st = &mut *f.st;
+    let mut status = false;
+    if f.awake {
+        let here = d.here(f.pos);
+        map.enter_room(&mut d.core.hits, d.level, here);
+        if f.in_battle {
+            st.last.clear();
+            d.map = Some(map);
+            return false;
+        }
+        let inp = dungeon::Input {
+            mode: st.modes.dungeon,
+            special_room: d.special_room,
+            alpha: st.alpha,
+            pos: f.pos,
+            dirc: f.dirc,
+            event_hold: f.ents.event_hold,
+            circles: &f.ents.dungeon_circles,
+            gims: &f.ents.gims,
+        };
+        let drawn = map.draw(d.level, &inp);
+        status = drawn.map_status;
+        st.last = drawn.outs;
+    }
+    map.render(&st.last, f.fonts, f.ctx);
+    d.map = Some(map);
+    status
 }
 
 #[cfg(test)]
