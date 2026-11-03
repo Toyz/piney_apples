@@ -38,6 +38,12 @@ pub struct Weather {
 }
 
 impl Weather {
+    /// The field's own CCS file (`WORLD` +0x6148): `fieldccs[type]`, a
+    /// hacked field's `fieldccs2[type]`.
+    pub fn file(&self, volume: piney_data::volume::Volume) -> &'static str {
+        piney_data::field::tables_of(volume).field_ccs(self.field_type, self.hack).unwrap_or(EFF_FILE)
+    }
+
     pub fn weather(&self) -> u32 {
         get_weather(self.field_type, self.b)
     }
@@ -193,11 +199,6 @@ pub type Layer = u8;
 
 /// `field_eff`, `WORLD`'s effects file (+0x6154).
 pub const EFF_FILE: &str = "field_eff";
-
-/// The field's own CCS file (`fieldccs[type]`, `WORLD` +0x6148).
-pub fn field_file(volume: piney_data::volume::Volume, field_type: u32) -> &'static str {
-    piney_data::field::tables_of(volume).ccs.get(field_type as usize).copied().flatten().unwrap_or(EFF_FILE)
-}
 
 /// A float of a `fieldrand` result, which the game converts as unsigned
 /// (the results are below 2^31, so as signed).

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-570 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 242, tooling 59, ui 105, video 17, volumes 97, world 166. 144 entries still have open questions - [listed below](#still-open).
+571 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 242, tooling 59, ui 105, video 17, volumes 97, world 167. 143 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -582,10 +582,10 @@ The [reference](docs/README.md) says what is true now.
 | 568 | [Golden shots of the fields and dungeons on every volume, every frame's picture and events as digests](worklog/0568-golden-shots-of-the-fields-and-dungeons-on-every-volume.md) | 2026-11-02 | test, world |
 | 569 | [Fields as defs: FieldDef by field type, WORLD's pictures and background as systems on the runner](worklog/0569-fields-as-defs-fielddef-by-field-type-world-s-pictures-and.md) | 2026-11-02 | world |
 | 570 | [Dungeons as defs: DungeonDef by dungeon type, the dress, lake and leaves as systems](worklog/0570-dungeons-as-defs-dungeondef-by-dungeon-type-the-dress-lake.md) | 2026-11-03 | world |
+| 571 | [A hacked field reads its field file from fieldccs2](worklog/0571-a-hacked-field-reads-its-field-file-from-fieldccs2.md) | 2026-11-03 | world |
 
 ## Still open
 
-- [569. Fields as defs: FieldDef by field type, WORLD's pictures and background as systems on the runner](worklog/0569-fields-as-defs-fielddef-by-field-type-world-s-pictures-and.md) - whether a hacked field's objects and ground come from fieldccs2 in the port as WORLD::Init loads them (it loads...
 - [556. Bosses as defs: the class machinery and BossData out; a bare ccBoss its own def's steps, Patterns::words by the volume, actAnmTbl a static slice](worklog/0556-bosses-as-defs-the-class-machinery-and-bossdata-out-a-bare.md) - nothing this step opened.
 - [555. Bosses as defs: Corbenik made of systems, each form its own with its parts lent, the first's hand-over its system's; seeds, roots, eyes and killer eyes each a system](worklog/0555-bosses-as-defs-corbenik-made-of-systems-each-form-its-own.md) - nothing this step opened; the class machinery and BossData are left to take out (worklog 556).
 - [554. Bosses as defs: Innis made of systems, its wave, its missiles' pass, its images and its own; the images' Main written out](worklog/0554-bosses-as-defs-innis-made-of-systems-its-wave-its-missiles.md) - nothing this step opened; Corbenik remains to convert, then Class, each_class! and BossData out.

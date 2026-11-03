@@ -142,7 +142,7 @@ pub fn paint_heights(pixels: &mut [u8], field: &Field) {
 impl FieldMap {
     /// `WORLD::Init`'s map sprites and `Generate`'s texture for `field`
     /// (its objects as `Generate` placed them), its scene file `file` (the
-    /// field's `fieldccs`).
+    /// field file, `fieldccs2` hacked).
     pub fn new(
         archive: &Arc<Archive>,
         volume: piney_data::volume::Volume,

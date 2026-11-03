@@ -361,6 +361,14 @@ impl Backgrounds {
 }
 
 impl Tables {
+    /// The field file `WORLD::Init` reads into +0x6148 (gcmn 0x005a4fd4):
+    /// `fieldccs` when `isHacked` is 2, `fieldccs2` (`field_a1` ..)
+    /// otherwise. None for type 4.
+    pub fn field_ccs(&self, field_type: u32, hack: i32) -> Option<&'static str> {
+        let names = if hack == 2 { &self.ccs } else { &self.ccs2 };
+        names.get(field_type as usize).copied().flatten()
+    }
+
     /// `WORLD::Init`'s draws; weathers above 9 count as 9.
     pub fn init_draws(&self, field_type: u32, weather: u32) -> u32 {
         u32::from(self.init_draws[field_type as usize][(weather as usize).min(WEATHERS - 1)])

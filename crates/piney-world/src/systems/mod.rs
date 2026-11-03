@@ -1144,7 +1144,11 @@ mod tests {
     #[test]
     fn the_mouths_hands_take_their_bones() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let file = SceneFile::read(&archive, crate::field::ambient::field_file(Volume::Inf, 8)).unwrap();
+        let file = SceneFile::read(
+            &archive,
+            crate::field::ambient::Weather { field_type: 8, b: 0, hack: 2 }.file(Volume::Inf),
+        )
+        .unwrap();
         let mut play = Play::new(&file, "ANM_sfk1sto1a").unwrap();
         play.forward(&file);
         let obj = |n: &str| file.ccs.find_object(n).unwrap();

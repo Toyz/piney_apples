@@ -3,7 +3,7 @@ title: Field generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x005a6da0 WORLD::Generate, 0x005a4cd0 WORLD::Init, 0x005adc60 FIELD::MakeField, 0x005a6b00 WORLD::MakeHill, 0x005b4070 FRACTAL2::Generate, 0x005abd20 SetDungeonEnter, 0x005ac7e0 SetLake, 0x005ac120 SetKeyObject, 0x005aba50 SetCover, 0x005a8570 WORLD::DrawMesh, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x005ae940 FIELD::CalcWorldMeshPosition, 0x005b1890 FCOVER::SetPosition, 0x005b19d0 FCOVER::Draw, 0x005a9070 WORLD::DrawEffect, 0x005a97b0 WORLD::Draw (its weather, the lake), 0x005a7ef0 WORLD::DrawBG, 0x005a4840 WORLD::SetRainEffect, 0x005a8860 WORLD::DrawRain, 0x005a8f40 WORLD::DrawSnow, 0x005a6a50 WORLD::SetSmoke2d, 0x005ad600 WORLD::DrawSteam, 0x005aae90 WORLD::SetSpecialObj (the fires), 0x00503650 SNOW::SNOW, 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x005028e0 calcPos, 0x00502ba0 calcPos2, 0x00502330 waterUVModifi, 0x005b1ed0 FIREFLY::FIREFLY, 0x005b2100 FIREFLY::SetBasePosition, 0x005b21a0 FIREFLY::Init, 0x005b2900 FIREFLY::Init (hacked), 0x005b30a0 FIREFLY::Move, 0x005b3a60 FIREFLY::Draw, 0x005b1b60 NSPLINE::PreCalc, 0x005d0560 TOBJ::Init, 0x005d0db0 TOBJ::Move, 0x005d08d0 TOBJ::Draw, 0x005d1440 BIRD::Init, 0x005d1540 BIRD::SetPos, 0x005d1590 BIRD::Move, 0x005d1560 BIRD::Draw, 0x00503360 LENSFLARE::Draw (mode 1); INF SLUS_202.67:0x00106c70 ccBufferSampling::SetShade (the seven-argument form), 0x00106dd0 ccBufferSampling::MakePacket, 0x00108930 ccLayer::Add, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x0019f190 WORLD_MAN::GetWeather, 0x0019ef50 WORLD_MAN::GetTime, 0x0019f0d0 WORLD_MAN::CheckLensFlare, 0x001da710 ccCheckCameraDeg, 0x001ce300 effSmoke, 0x001412b0 ccShadowModel::Draw, 0x00105820 ccDrawEnv::SetFog, 0x0015c4b0 ccMask::ccMask
-worklog: 19, 25, 33, 38, 130, 145, 164, 365, 480, 569
+worklog: 19, 25, 33, 38, 130, 145, 164, 365, 480, 569, 571
 ---
 
 # Field generation
@@ -151,6 +151,12 @@ objLayer and the second on refLayer (+0x4d0, priority 30), its
 `v` go on by 0.005, both back to 0 once `v` is past 1. `u$4930` and
 `v$4933` (gp 0x00378d4c, 0x00378d54) are statics of the executable and
 carry from field to field.
+
+**Field file** (*read*, gcmn 0x005a4fd4). `WORLD::Init` reads the field's
+own file into +0x6148: `fieldccs[type]` (`field_a` ..) when `isHacked` is
+2, `fieldccs2[type]` (`field_a1` ..) otherwise. `FIELD::SetCCS` takes its
+ground, cover and object models from it, each `SNOW` its effects, the
+minimap its texture; the port loads it by `Weather::file` (worklog 571).
 
 **Background** (*read*).
 - `WORLD::Init` loads a plain field's background (`isHacked`, +0x2c, 2)

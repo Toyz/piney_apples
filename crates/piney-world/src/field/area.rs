@@ -90,10 +90,11 @@ pub struct FieldObject {
 pub struct FieldArea {
     /// The field type's def.
     pub def: &'static FieldDef,
-    /// The field's CCS file (`fieldccs[type]`), its collision (the height
-    /// map and the objects' hits), the light the ground and objects were
-    /// lit by (as Kite's draw takes it), `fieldrand` as `Generate` left it,
-    /// which the drawing goes on drawing from, and the start.
+    /// The field's CCS file (`fieldccs[type]`, a hacked field's
+    /// `fieldccs2[type]`), its collision (the height map and the objects'
+    /// hits), the light the ground and objects were lit by (as Kite's draw
+    /// takes it), `fieldrand` as `Generate` left it, which the drawing goes
+    /// on drawing from, and the start.
     pub core: AreaCore,
     pub field: Rc<Field>,
     pub tables: &'static Tables,
@@ -268,8 +269,10 @@ impl FieldArea {
         let tables = field::tables_of(volume);
         let generated = field::generate(tables, &params).map_err(|e| Error::Format(e.to_string()))?;
         let field = Rc::new(generated);
-        let stem = tables.ccs[ft as usize].ok_or_else(|| Error::NotFound(format!("field type {ft} has no field")))?;
-        let file = Rc::new(SceneFile::read(archive, stem)?);
+        // The field file (+0x6148): FIELD::SetCCS's models, SNOW's, the
+        // minimap's texture; a hacked field's is fieldccs2's.
+        let weather = Weather { field_type: ft, b: params.weather, hack: hack as i32 };
+        let file = Rc::new(SceneFile::read(archive, weather.file(volume))?);
         // isHacked other than 2: BGTBL2's background, light and fog.
         let hacked = hack != 2 && tables.backgrounds.has_hacked(ft);
         let bg_name = tables.backgrounds.file_name(ft, params.weather, hacked);
@@ -455,7 +458,6 @@ impl FieldArea {
         // WORLD::Init's systems from the seed's fieldrand (before the
         // layout's draws), DrawBG's, then Generate's after SetStartPos from
         // the layout's.
-        let weather = Weather { field_type: ft, b: params.weather, hack: hack as i32 };
         let bg_systems = if area.scene.background.hacked { def.hacked } else { def.plain };
         let (systems, made, rng) = {
             let fcx = FieldCx { def, weather, server, field: Some(&area), centre: centre.unwrap_or(start) };

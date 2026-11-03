@@ -9,7 +9,7 @@ use piney_data::dungeon::Rng;
 
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Eff, Env, Ground, Layer, Weather, field_file, fr};
+use crate::field::ambient::{Eff, Env, Ground, Layer, Weather, fr};
 use crate::sprite::EffSprite;
 
 /// What a field type makes: its embers, or flakes as the weather asks,
@@ -95,7 +95,7 @@ impl Flake {
 
     /// `SNOW(stream, kind)` (0x00503650) for kinds 0-2, a flake one of
     /// `effs`.
-    pub fn new(kind: u32, field_type: u32, effs: [&'static str; 4], env: &Env, rng: &mut Rng) -> Flake {
+    pub fn new(kind: u32, file: &'static str, effs: [&'static str; 4], env: &Env, rng: &mut Rng) -> Flake {
         let (a, b) = match kind {
             0 => (0x4248_0000, TWO),
             1 => (0x4348_0000, 0x4080_0000),
@@ -118,7 +118,7 @@ impl Flake {
                 3
             };
             s.eff = Eff::new(effs[k]);
-            s.eff.file = field_file(env.volume, field_type);
+            s.eff.file = file;
             s.calc_pos(env, rng);
             let z0 = rng.below(800) as i32;
             // GetHeight(x, y != -500): the comparison went into the
@@ -134,7 +134,7 @@ impl Flake {
             }
         } else {
             s.eff = Eff::new("EFF_sfa8fir1").scaled(0x3f00_0000);
-            s.eff.file = field_file(env.volume, field_type);
+            s.eff.file = file;
             s.calc_pos2(env, rng);
         }
         s
@@ -212,7 +212,8 @@ impl Snow {
             SnowDef::Flakes { light, effs, .. } if w.weather() == 4 => (light, 0, effs),
             SnowDef::Flakes { .. } => (0, 0, [""; 4]),
         };
-        let flakes = (0..count).map(|_| Flake::new(kind, w.field_type, effs, &env, &mut cx.rng)).collect();
+        let file = w.file(cx.volume);
+        let flakes = (0..count).map(|_| Flake::new(kind, file, effs, &env, &mut cx.rng)).collect();
         Ok(Snow { weather: w, flakes, started: false, drawn: Vec::new() })
     }
 
