@@ -332,7 +332,7 @@ fn dungeons_of(disc_name: &str, dir: &str) {
         let rooms = d.edit.map_or(&[][..], |e| e.rooms);
         rooms
             .iter()
-            .filter(|r| r.room_type == piney_world::dungeon::leaves::LEAF_ROOM)
+            .filter(|r| r.room_type == piney_world::systems::leaves::LEAF_ROOM)
             .map(|r| (r.floor, r.index))
             .collect()
     });

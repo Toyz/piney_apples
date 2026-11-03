@@ -697,6 +697,7 @@ impl Town {
             cc: None,
             field: None,
             made: Vec::new(),
+            rooms: None,
         };
         let systems = Systems::build(def.systems, &mut cx)?;
         core.field_rand = def.systems.iter().any(SystemDef::field_rand).then_some(env.rng);

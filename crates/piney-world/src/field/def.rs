@@ -9,7 +9,7 @@ use piney_data::classes::GameClass;
 
 use crate::ee::F;
 use crate::story_map::layer;
-use crate::systems::fireflies::{FirefliesDef, Firefly2Def, Firefly2Eff, Firefly2Made};
+use crate::systems::fireflies::{FirefliesDef, Firefly2Def, Firefly2Eff, Firefly2Made, Made};
 use crate::systems::flare::{FlareDef, FlareDraw, Sun};
 use crate::systems::haze::HazeDef;
 use crate::systems::scrolls::{Carry, Mat, MatScroll, ScrollsDef, Shown, Turns, Wrap};
@@ -199,7 +199,7 @@ static FLAKES_6: SnowDef =
 
 /// `Generate`'s five `FIREFLY`s by night or hacked, and field type 9's
 /// fifteen `FIREFLY2`s roaming about the camera.
-static FIREFLIES: FirefliesDef = FirefliesDef { count: 5 };
+static FIREFLIES: FirefliesDef = FirefliesDef { count: 5, made: Made::Generate };
 static ROAMERS: Firefly2Def =
     Firefly2Def { count: 15, made: Firefly2Made::Roam, eff: Firefly2Eff::Field("EFF_sfzfir1") };
 

@@ -126,7 +126,7 @@ impl FieldWorld {
         self.camera.type_lock = true;
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         if let Some(o) = self.combat.ride.obj.as_deref_mut() {
@@ -212,7 +212,7 @@ impl FieldWorld {
     pub fn ride_end(&mut self) {
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let r = &mut self.combat.ride;

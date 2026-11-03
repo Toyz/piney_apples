@@ -12,6 +12,14 @@ use piney_world::area::{Scene, WorldMan, kind};
 use piney_world::dungeon::DungeonArea;
 use piney_world::field::world::Place;
 
+use piney_world::ee::{F, V4};
+use piney_world::systems::fireflies::Fireflies;
+use piney_world::systems::lake_sky::LakeSky;
+use piney_world::systems::pieces::Pieces;
+use piney_world::systems::room_lights::RoomLights;
+use piney_world::systems::room_water::RoomWater;
+use piney_world::systems::sparks::Sparks;
+
 use super::shrine::walk_to;
 use super::*;
 
@@ -139,23 +147,31 @@ fn walk_dressed(
                 if sc.area != kind::DUNGEON || !playing || d.room_at != Some((sc.floor as usize, sc.block as usize)) {
                     return;
                 }
-                let x = &d.dress;
                 let e = seen.entry((words, sc.floor, sc.block)).or_default();
                 e.dtype = d.dtype;
-                e.pieces = [
-                    x.lights.len(),
-                    x.sparks.len(),
-                    x.objects.len(),
-                    x.anm_objects.len(),
-                    x.anm_objects2.len(),
-                    usize::from(x.water.is_some()),
-                ];
-                e.group = d.lights.lights.len();
-                e.patterns.insert(x.lights.iter().map(|r| r.pat).collect());
+                e.pieces = pieces(d);
+                e.group = d.core.lights.lights.len();
+                let lights = d.systems().get::<RoomLights>().map_or(&[][..], |x| &x.lights);
+                e.patterns.insert(lights.iter().map(|r| r.pat).collect());
             });
         }
     }
     seen
+}
+
+/// What the room's systems stood: room lights, sparks, statues, walls,
+/// animated objects, water.
+fn pieces(d: &DungeonArea) -> [usize; 6] {
+    let s = d.systems();
+    let p = s.get::<Pieces>();
+    [
+        s.get::<RoomLights>().map_or(0, |x| x.lights.len()),
+        s.get::<Sparks>().map_or(0, |x| x.sparks.len()),
+        p.map_or(0, |p| p.objects.len()),
+        p.map_or(0, |p| p.walls.len()),
+        p.map_or(0, |p| p.anms.len()),
+        usize::from(s.get::<RoomWater>().is_some_and(|w| w.water.is_some())),
+    ]
 }
 
 /// Floor 0's rooms in the order the generator made them, the first five
@@ -170,7 +186,7 @@ fn first_rooms(d: &DungeonArea) -> Vec<(usize, usize)> {
 pub(super) fn rooms_with_pieces(d: &DungeonArea) -> Vec<(usize, usize)> {
     const DUMMIES: [&str; 8] =
         ["OBJ_o_magma", "OBJ_0paf0_", "OBJ_0paw", "OBJ_0pag0_", "OBJ_0pac0_", "OBJ_0par0_", "OBJ_0pab0_", "OBJ_0ps"];
-    let f = &d.file;
+    let f = &d.rooms.file;
     let holds = |model: &str| {
         f.anim(model).is_some_and(|k| {
             f.anims[k]
@@ -259,16 +275,11 @@ fn dressed_room_shots() {
                 let [x, y, z] = words;
                 let path = format!("{dir}/t{town}-{x}-{y}-{z}-f{}-b{}-{n:03}.png", sc.floor, sc.block);
                 std::fs::write(&path, piney_gs::png::encode(wd, h, &gs.read_back())).unwrap();
-                let p = &d.dress;
+                let [lights, sparks, statues, walls, animated, water] = pieces(d);
                 println!(
-                    "{path}: type {} lights {} sparks {} walls {} animated {} water {} statues {}",
-                    d.dtype,
-                    p.lights.len(),
-                    p.sparks.len(),
-                    p.anm_objects.len(),
-                    p.anm_objects2.len(),
-                    p.water.is_some(),
-                    p.objects.len()
+                    "{path}: type {} lights {lights} sparks {sparks} walls {walls} animated {animated} water {water} \
+                     statues {statues}",
+                    d.dtype
                 );
             }
         });
@@ -315,25 +326,27 @@ fn a_lake_by_night_has_its_sky_and_fireflies() {
     for _ in 0..200 {
         step(&mut s);
     }
-    let lake_of = |s: &Session| -> piney_world::dungeon::lake::Lake {
+    let lake_of = |s: &Session| -> (F, Vec<V4>) {
         let Stage::Area(a) = &s.stage else { panic!("in an area") };
         let Place::Dungeon(d) = a.world().place() else { panic!("in the dungeon") };
-        d.lake.clone().expect("a lake")
+        let v = d.systems().get::<LakeSky>().expect("a lake's sky").v;
+        let flies =
+            d.systems().get::<Fireflies>().map_or_else(Vec::new, |f| f.fireflies.iter().map(|f| f.pos).collect());
+        (v, flies)
     };
     let before = lake_of(&s);
     let frame = step(&mut s);
     let after = lake_of(&s);
-    assert!(after.night, "bgnum 2 is the lakes' night");
-    assert_eq!(after.fireflies.len(), 5, "SetRoom's fireflies");
-    assert_ne!(before.v, after.v, "the sky's scroll runs");
-    for (a, b) in before.fireflies.iter().zip(&after.fireflies) {
-        assert_ne!(a.pos, b.pos, "each firefly flies");
+    assert_eq!(after.1.len(), 5, "bgnum 2 is the lakes' night: SetRoom's fireflies");
+    assert_ne!(before.0, after.0, "the sky's scroll runs");
+    for (a, b) in before.1.iter().zip(&after.1) {
+        assert_ne!(a, b, "each firefly flies");
     }
     let Stage::Area(a) = &s.stage else { unreachable!() };
     let Place::Dungeon(d) = a.world().place() else { unreachable!() };
     let sky: Vec<u32> = ["bac_l", "bac_m", "clo_l", "clo_m"]
         .iter()
-        .map(|n| d.file.ccs.find_object(&format!("MDL_o_{n}2_")).expect(n))
+        .map(|n| d.rooms.file.ccs.find_object(&format!("MDL_o_{n}2_")).expect(n))
         .collect();
     let first: Vec<u32> = frame
         .cmds

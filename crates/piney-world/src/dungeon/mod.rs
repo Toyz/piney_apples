@@ -6,12 +6,17 @@
 //! it, and its rooms' `ccModelHit`s stay registered across them. The room's
 //! collision is its Anime chunk's pieces with Hit chunks, then each door's
 //! frame and leaf (docs/engine/dungeon.md, "Entering and walking a dungeon").
+//! What each room stands beside (the water, sparks, room lights, pieces, a
+//! lake's sky and fireflies, type 32's leaves) are the dungeon type's
+//! systems ([`def::DungeonDef`]).
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
 use piney_data::archive::Archive;
+use piney_data::ccs::Ccs;
 use piney_data::dungeon::{self, DOWN, Dummies, FogRow, NO_ROOM, RealMap, RoomSize, Rotation, Tables, UP, special};
 use piney_data::save::SaveData;
 use piney_data::volume::Volume;
@@ -19,18 +24,20 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
-mod dress;
-pub mod lake;
-pub mod leaves;
+pub mod def;
 
-pub use dress::{Clump, Dressing, RoomLight, Spark, Water};
-
-use crate::area::{Scene, WorldMan};
+use crate::area::{AreaCore, Scene, WorldMan};
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, PI, V4};
+use crate::field::ambient::Weather;
 use crate::hit::{HitModel, Hits, UNIT};
+use crate::sprite::EffSprite;
+use crate::systems::{
+    BuildCx, Carried, CarriedMut, DrawCx, Drawn, FieldCx, Joined, MapView, RoomAt, RoomPart, Statics, Systems, paint,
+};
 use crate::town::{Light, TownLights};
+use def::{DungeonDef, RoomStep};
 
 /// `WORLD_MAN` bounds in `GO(2)`: 0..60000 both ways.
 pub const SIZE: F = 0x476a_6000;
@@ -184,7 +191,7 @@ impl Anm {
 
 /// A scene file with its objects' models and Hit chunks, as an anm reads
 /// them ([`RoomFile`], or the dungeon's own).
-type Src<'a> = (&'a Rc<SceneFile>, &'a HashMap<u32, Vec<u32>>, &'a HashMap<u32, Vec<HitModel>>);
+pub type Src<'a> = (&'a Rc<SceneFile>, &'a HashMap<u32, Vec<u32>>, &'a HashMap<u32, Vec<HitModel>>);
 
 /// A scene file rooms are played from, with its objects' models and its
 /// Hit chunks by model.
@@ -192,6 +199,198 @@ pub struct RoomFile {
     pub file: Rc<SceneFile>,
     obj_models: HashMap<u32, Vec<u32>>,
     hit_models: HashMap<u32, Vec<HitModel>>,
+}
+
+/// The dungeon's scene files as its rooms read them: its own
+/// (`DungeonName[type]`, its name for the effects) with its objects' models
+/// and its Hit chunks by model, the event room's (`spccs`), the Eff chunks'
+/// pattern transparencies, water 0's model (`OBJ_f_8s40_`, drawn with the
+/// picture behind it), the palette swaps every model of the file draws
+/// with, and the texture's clut type.
+pub struct Rooms {
+    pub file: Rc<SceneFile>,
+    pub name: &'static str,
+    pub obj_models: HashMap<u32, Vec<u32>>,
+    pub hit_models: HashMap<u32, Vec<HitModel>>,
+    pub spccs: Option<RoomFile>,
+    pub eff_pats: HashMap<u32, Vec<u16>>,
+    pub water_model: Option<piney_data::model::Model>,
+    pub clut_swaps: Vec<(u32, u32)>,
+    pub tex_clut: dungeon::TexClut,
+}
+
+/// The water's own object, whose model water 0 draws with the picture
+/// behind it (@5659).
+const WATER_OBJ: &str = "OBJ_f_8s40_";
+
+impl Rooms {
+    /// The scene file an anm plays from (the event room's `spccs`, else
+    /// the dungeon's), with its objects' models and Hit chunks.
+    pub fn src(&self, special: bool) -> Src<'_> {
+        match (special, &self.spccs) {
+            (true, Some(r)) => (&r.file, &r.obj_models, &r.hit_models),
+            _ => (&self.file, &self.obj_models, &self.hit_models),
+        }
+    }
+
+    /// The name of an object in the anm's scene file.
+    pub fn name_in(&self, special: bool, obj: u32) -> Option<&str> {
+        self.src(special).0.ccs.object_name(obj)
+    }
+
+    /// The name of an object of the dungeon's file ("?" for none).
+    pub fn name(&self, obj: u32) -> String {
+        self.name_in(false, obj).unwrap_or("?").to_string()
+    }
+
+    /// `ccAnm::SetAnm(name)` from the dungeon's file or the event room's
+    /// (`special`), `forwards` `_AnimateForward`s, and the objects posed
+    /// under `root`.
+    pub fn make_anm_in(&self, special: bool, name: &str, root: &[V4; 4], forwards: usize) -> Option<Anm> {
+        let file = self.src(special).0.clone();
+        let mut play = Play::new(&file, name)?;
+        for _ in 0..forwards {
+            play.forward(&file);
+        }
+        let objects = self.pose_with(special, &play, root, None);
+        Some(Anm::new(play, *root, objects, special))
+    }
+
+    /// Every object controller of the anm's animation at its time, in the
+    /// chunk's order, with its world matrix ([`pose_in`]).
+    pub fn pose(&self, play: &Play, root: &[V4; 4]) -> Vec<Instance> {
+        self.pose_with(false, play, root, None)
+    }
+
+    /// [`Rooms::pose`] with one controller's local matrix replaced (the
+    /// door leaf `MoveDoor` lowers).
+    pub fn pose_with(&self, special: bool, play: &Play, root: &[V4; 4], over: Option<(u32, [V4; 4])>) -> Vec<Instance> {
+        pose_in(self.src(special).0, play, root, over)
+    }
+
+    /// The hit models an anm's objects carry (`ccAnm::HitEnable(1)`,
+    /// `ccAnm::SetHitMatrix`), each at its object's world matrix when its
+    /// hits were last placed and that matrix's inverse, `type` 1, but those
+    /// `MoveDoor` took off; `tag` keeps each anm's apart.
+    pub fn anm_hits(&self, anm: &Anm, tag: u32) -> Vec<HitModel> {
+        (0..anm.objects.len()).flat_map(|k| self.obj_hits(anm, k, tag)).collect()
+    }
+
+    /// The hit models of object `k` of an anm (see [`Rooms::anm_hits`]).
+    pub fn obj_hits(&self, anm: &Anm, k: usize, tag: u32) -> Vec<HitModel> {
+        let mut out = Vec::new();
+        let Some(o) = anm.objects.get(k) else { return out };
+        let (_, obj_models, hit_models) = self.src(anm.special);
+        let Some(models) = obj_models.get(&o.target) else { return out };
+        let at = anm.hit_world.get(k).copied().unwrap_or(o.world);
+        for m in models {
+            let Some(hs) = hit_models.get(m) else { continue };
+            for (j, h) in hs.iter().enumerate() {
+                let mut h = h.clone();
+                h.rm = at;
+                h.im = invers(&at);
+                h.kind = 1;
+                h.id = (tag << 20) | ((k as u32) << 4) | j as u32;
+                out.push(h);
+            }
+        }
+        out
+    }
+
+    /// Node `k` of a clump's hit models at `m`, `type` 1.
+    pub fn clump_hits(&self, nodes: &[u32], m: &[V4; 4], tag: u32, k: usize) -> Vec<HitModel> {
+        let mut out = Vec::new();
+        let Some(models) = nodes.get(k).and_then(|n| self.obj_models.get(n)) else { return out };
+        for model in models {
+            for (j, h) in self.hit_models.get(model).map(Vec::as_slice).unwrap_or(&[]).iter().enumerate() {
+                let mut h = h.clone();
+                h.rm = *m;
+                h.im = invers(m);
+                h.kind = 1;
+                h.id = (tag << 20) | ((k as u32) << 4) | j as u32;
+                out.push(h);
+            }
+        }
+        out
+    }
+
+    /// `ccAnm::GetSubstAdrs(pattern)` on `room`: its objects whose name (an
+    /// ExtObj copy's target's) is the pattern, or with a trailing `*`
+    /// starts with it, in the anm's order.
+    pub fn subst(&self, room: &Anm, pattern: &str) -> Vec<Instance> {
+        let (want, prefix) = match pattern.strip_suffix('*') {
+            Some(p) => (p, true),
+            None => (pattern, false),
+        };
+        room.objects
+            .iter()
+            .filter(|o| {
+                self.name_in(room.special, o.target)
+                    .is_some_and(|n| if prefix { n.starts_with(want) } else { n == want })
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// The number of patterns of the dungeon file's Eff `name`.
+    pub fn pat_num(&self, name: &str) -> u32 {
+        self.file.ccs.find_object(name).and_then(|o| self.eff_pats.get(&o)).map_or(0, |p| p.len() as u32)
+    }
+
+    /// The nodes of the dungeon file's clump `name`, in its order.
+    pub fn clump_nodes(&self, name: &str) -> Vec<u32> {
+        self.file
+            .ccs
+            .find_object(name)
+            .and_then(|c| self.file.scene.clumps.iter().find(|(o, _)| *o == c))
+            .map(|(_, n)| n.clone())
+            .unwrap_or_default()
+    }
+
+    /// `ccClump::Draw` of `nodes` at `m`: each node's models (those with
+    /// colour or ST) at the matrix.
+    pub fn clump_pieces(&self, nodes: &[u32], m: &[V4; 4]) -> Vec<(u32, Mat4)> {
+        let world = draw::mat(m);
+        let mut models: Vec<u32> = nodes.iter().filter_map(|n| self.obj_models.get(n)).flatten().copied().collect();
+        models.dedup();
+        models.retain(|model| self.file.models.get(model).is_some_and(|i| i.mtype & 0x600 != 0x600));
+        models.into_iter().map(|model| (model, world)).collect()
+    }
+}
+
+/// Each Eff chunk's (0x0e00) pattern transparencies by its `EFF_` object:
+/// `patNum` (u16 at +14) patterns of 8 bytes from +36, the transparency
+/// (4096 = 1) at +4 of each (`crates/piney-effect/src/eff.rs`).
+fn eff_patterns(ccs: &Ccs) -> HashMap<u32, Vec<u16>> {
+    let d: &[u8] = &ccs.data;
+    let u16_at = |p: usize| u16::from_le_bytes([d[p], d[p + 1]]);
+    let mut out = HashMap::new();
+    for ch in ccs.walk().chunks {
+        if ch.in_frames || ch.kind != 0x0e00 {
+            continue;
+        }
+        let p = ch.payload();
+        if p + 36 > d.len() {
+            continue;
+        }
+        let n = usize::from(u16_at(p + 14));
+        if p + 36 + 8 * n > d.len() {
+            continue;
+        }
+        let object = u32::from_le_bytes([d[p], d[p + 1], d[p + 2], d[p + 3]]);
+        out.insert(object, (0..n).map(|i| u16_at(p + 36 + 8 * i + 4)).collect());
+    }
+    out
+}
+
+/// `sceVu0RotMatrix(m, local, (0, 0, rotate))` then `sceVu0TransMatrix(m,
+/// m, (x, y, 0))`: a dummy's own matrix turned and moved with the room.
+pub fn placed(local: &[V4; 4], slot: &Slot, turn: bool) -> [V4; 4] {
+    let mut m = if turn { piney_data::anim::rot_bits_of(*local, [0, 0, slot.rotate]) } else { *local };
+    for (k, p) in [slot.pos[0], slot.pos[1], 0].into_iter().enumerate() {
+        m[3][k] = ee::add(m[3][k], p);
+    }
+    m
 }
 
 impl RoomFile {
@@ -250,10 +449,6 @@ pub struct Block {
 
 /// The clump `SetDoor` makes the ban block of (`@7310`).
 const BLOCK_CLUMP: &str = "CMP_o_block_m0_";
-/// The ban block's place in `joined` (its nodes by index).
-const BLOCK: usize = usize::MAX;
-/// `door[4]`: the doors' places in `joined` are 0..4.
-const DOORS: usize = 4;
 /// `SetDoor`'s starting distance for the four candidates (400,000).
 const FAR: F = 0x47c3_5000;
 
@@ -274,16 +469,19 @@ const LEAF_DROP: F = 0x40cc_cccd;
 
 /// A dungeon as `DUNGEON` holds it, the room the party is in built.
 pub struct DungeonArea {
-    /// The collision world: the room's and its doors' hit models, `game.area`
-    /// 2.
-    pub hits: Hits,
-    /// The light characters are drawn with (the dungeon's ambient and its
-    /// distant light).
-    pub lights: TownLights,
+    /// The dungeon type's def.
+    pub def: &'static DungeonDef,
+    /// The scene file it loads (`DungeonName[type]`), the collision world
+    /// (the room's and its doors' hit models, `game.area` 2), the light
+    /// characters are drawn with (the dungeon's ambient and its distant
+    /// light, a room's lights with them), `fieldrand` as `Generate` left it,
+    /// then each `SetRoom`'s and `Draw`'s.
+    pub core: AreaCore,
+    /// Its files as the rooms read them.
+    pub rooms: Rc<Rooms>,
     pub tables: &'static Tables,
-    /// `DUNGEON.type` (0-9) and the scene file it loads (`DungeonName[type]`).
+    /// `DUNGEON.type` (0-9).
     pub dtype: u8,
-    pub file: Rc<SceneFile>,
     /// `DUNGEON.isEventArea`: the story area whose `EditDungeon` table laid
     /// the dungeon out, or 0 for a random one.
     pub event: i32,
@@ -302,26 +500,14 @@ pub struct DungeonArea {
     /// `CloseDoor2` keep.
     pub door: DoorState,
     /// What joined the `ccModelHit` list after the room's, in its order:
-    /// the doors' objects as (door, object), the ban block's nodes as
-    /// (`BLOCK`, node), the dressing's pieces as `dress` numbers them.
+    /// the doors' objects, the ban block's nodes, the systems' pieces'.
     /// `ccAnm::HitEnable(1)` appends an object's hit that is not on it,
     /// `HitDisable` takes it off, so a leaf `MoveDoor` took off and put
     /// back comes last.
-    joined: Vec<(usize, usize)>,
-    /// What `SetWater`, `SetLight`, `SetObject` and `SetAnmObject` stood
-    /// in the room built ([`Dressing`]).
-    pub dress: Dressing,
-    /// The lakes' sky and fireflies (types 8 and 9).
-    pub lake: Option<lake::Lake>,
-    /// `DrawWater`'s scroll (`u$8862`, gp 0x00378d88).
-    water_u: F,
-    /// The file's `OBJ_f_8s40_` model, which water 0 draws with the picture
-    /// behind it.
-    water_model: Option<piney_data::model::Model>,
-    /// The file's Eff chunks' pattern transparencies by `EFF_` object.
-    eff_pats: HashMap<u32, Vec<u16>>,
-    /// The scene file's name (`DungeonName[type]`), for the effects.
-    pub file_name: &'static str,
+    joined: Vec<Joined>,
+    /// The type's systems, and what the last `Draw` drew of them.
+    systems: Systems,
+    frame: Vec<Drawn>,
     /// `WORLD_MAN.position` (+0x20): where the leader arrives, heading in w.
     pub position: V4,
     /// `WORLD_MAN.fieldtype` (field type 4's lake dungeons lead into
@@ -339,24 +525,6 @@ pub struct DungeonArea {
     /// `fogParam` table (its VA) and row the constructor picks.
     pub tex_clut: dungeon::TexClut,
     pub fog_table: (u32, usize),
-    /// The palettes the dungeon's own file is drawn with in place of its
-    /// `CLT_`s: (drawn, used instead), `SetClutList`'s names and their
-    /// "c1" / "c2" / "c3" twins ([`dungeon::Tables::clut_list`]). `SetRoom`
-    /// swaps them in the room's models with `ccAnm::ChangeClut`, which
-    /// writes the shared models' materials, so from the first room on every
-    /// model of the file (the doors' too) draws with them.
-    pub clut_swaps: Vec<(u32, u32)>,
-    /// Each target object's models (MDL_ objects), for drawing and hits.
-    obj_models: HashMap<u32, Vec<u32>>,
-    /// The file's Hit chunks by the model they hang on.
-    hit_models: HashMap<u32, Vec<HitModel>>,
-    /// `DUNGEON.spccs` (+0xd3888): the scene file of the story area's event
-    /// room, which `MakeRoom(ROOMDATA *)` loads for a row of type 25-35
-    /// (the last such row's, floor by floor).
-    pub spccs: Option<RoomFile>,
-    /// The `ccRandF()` draws type 32's leaves made since the caller last
-    /// settled them ([`DungeonArea::settle_leaves`]).
-    leaf_rand_owed: u32,
     /// `WORLD_MAN.specialRoom` (+0x160): -1 (the constructor, and
     /// `GotoNextRoom` as it leaves a room), 0 once `GotoNextRoom` or
     /// `RoomSelect` has stood the party in an event room at its
@@ -386,8 +554,6 @@ pub struct DungeonArea {
     /// `roomEnterFlag` (+0x4c): set by the constructor and `GotoNextRoom`,
     /// cleared by `Draw` when it runs `SetPathFindingMap` for the room.
     pub room_enter: bool,
-    /// `fieldrand` as `Generate` left it, then each `SetRoom`'s dressing.
-    pub rng: dungeon::Rng,
     /// `WORLD_MAN.entryFlag[1 + dungeon]` (+0x58 + 4 dungeon): `EntryGimmick`
     /// (main 0x001a1fe0) placed this dungeon's boxes, portals and idols.
     /// It lives with the dungeon. A lake's stairs and `GoField` clear it as
@@ -578,31 +744,34 @@ pub fn set_event_data(tables: &Tables, event_area: i32, area: i32, f20: F) -> Ev
 }
 
 impl DungeonArea {
-    /// `DrawWater`'s `u$8862` and a lake's `DrawBG` `v$8917`: statics of
-    /// the executable's data, the same for every dungeon, which carry on
-    /// across them all ([`crate::town::scroll_statics`]).
-    pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        use crate::town::scroll_statics::{DUNGEON_LAKE, DUNGEON_WATER};
-        self.water_u = s[DUNGEON_WATER];
-        if let Some(l) = self.lake.as_mut() {
-            l.v = s[DUNGEON_LAKE];
-        }
+    /// What outlives the dungeon, into its systems: `DrawWater`'s `u$8862`
+    /// and a lake's `DrawBG` `v$8917`, statics of the executable's data, the
+    /// same for every dungeon, which carry on across them all
+    /// ([`crate::town::scroll_statics`]).
+    pub fn take(&mut self, statics: &Statics) {
+        self.systems.take(&Carried { statics, move_tex: None, field: None });
     }
 
     /// The statics written back.
-    pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        use crate::town::scroll_statics::{DUNGEON_LAKE, DUNGEON_WATER};
-        s[DUNGEON_WATER] = self.water_u;
-        if let Some(l) = &self.lake {
-            s[DUNGEON_LAKE] = l.v;
-        }
+    pub fn put(&self, statics: &mut Statics) {
+        self.systems.put(&mut CarriedMut { statics, move_tex: None, field: None });
+    }
+
+    /// The systems, for tests and probes to read by kind.
+    pub fn systems(&self) -> &Systems {
+        &self.systems
+    }
+
+    /// `fieldrand` as the dungeon's draws leave it.
+    pub fn rng(&mut self) -> &mut dungeon::Rng {
+        self.core.field_rand.get_or_insert(dungeon::Rng::POWER_ON)
     }
 
     /// `GO(2)` for `scene` (`game.dungeon`, floor, block) of `world_man`'s
     /// area: `DUNGEON::DUNGEON(game.dungeon)`, `Generate` (random, or the
     /// story area's `EditDungeon`), `SetRoom(0, 0)`, `GetStartPosition`;
     /// no room banned.
-    pub fn new(archive: &Archive, world_man: &WorldMan, scene: &Scene) -> Result<DungeonArea> {
+    pub fn new(archive: &Arc<Archive>, world_man: &WorldMan, scene: &Scene) -> Result<DungeonArea> {
         Self::new_banned(archive, piney_data::volume::Volume::Inf, world_man, scene, NO_BANS)
     }
 
@@ -610,7 +779,7 @@ impl DungeonArea {
     /// counts and exits differ), with the save's area bans (`SetRoom(0, 0)`'s
     /// `SetDoor` reads them).
     pub fn new_banned(
-        archive: &Archive,
+        archive: &Arc<Archive>,
         volume: piney_data::volume::Volume,
         world_man: &WorldMan,
         scene: &Scene,
@@ -632,6 +801,7 @@ impl DungeonArea {
         let floor_count = tables.edit_floor_count(event_area) as usize;
         let types = tables.types.types(world_man.field_type, event_area, world_man.hack as i32, false);
         let dtype = types[code.min(1)];
+        let def = DungeonDef::of(dtype).ok_or_else(|| Error::NotFound(format!("dungeon type {dtype}")))?;
         let server = scene.server.max(0) as u32;
         // WORLD_MAN::SetDungeonTexClut (main 0x0019f4b0): by server and
         // field type, but story area 120 keeps the defaults (2, 0).
@@ -644,7 +814,7 @@ impl DungeonArea {
         // MakeRoom(ROOMDATA *)'s GetCCSAdrs for an event room: the last row
         // of type 25-35 MakeFloor reaches (floor by floor, not the lake
         // types) leaves its file in spccs.
-        let spccs_name = edit.filter(|_| dtype < 8).and_then(|e| {
+        let spccs_name = edit.filter(|_| !def.lake).and_then(|e| {
             (0..floor_count)
                 .flat_map(|f| e.rooms.iter().filter(move |r| r.floor == f as i32))
                 .filter_map(|r| special::event_room(r.room_type, event_area))
@@ -674,16 +844,25 @@ impl DungeonArea {
             });
 
         let RoomFile { obj_models, hit_models, .. } = RoomFile::new(volume, file.clone())?;
-        // What the dressing reads of the file: water 0's model, the glows'
+        // What the systems read of the file: water 0's model, the glows'
         // and sparks' patterns.
-        let water_model = file.ccs.find_object(dress::WATER_OBJ).and_then(|o| {
+        let water_model = file.ccs.find_object(WATER_OBJ).and_then(|o| {
             let target = file.scene.ext.get(&o).copied().unwrap_or(o);
             let id = file.obj_model.get(&target).copied()?;
             piney_data::model::models(&file.ccs).ok()?.into_iter().find(|m| m.object == id)
         });
-        let eff_pats = dress::eff_patterns(&file.ccs);
-        let lake = dungeon::is_lake(dtype)
-            .then(|| lake::Lake::new(&file, dtype, world_man.weather, world_man.field_type, world_man.hack));
+        let eff_pats = eff_patterns(&file.ccs);
+        let rooms = Rc::new(Rooms {
+            file: file.clone(),
+            name: tables.ccs_name(dtype, u32::from(tc.tex_type)),
+            obj_models,
+            hit_models,
+            spccs,
+            eff_pats,
+            water_model,
+            clut_swaps,
+            tex_clut: tc,
+        });
 
         let heights: Rc<dyn crate::hit::Heights> = Rc::new(Heights);
         let hits = Hits { volume, area: 2, bounds: Some(BOUNDS), heights: Some(heights), ..Hits::default() };
@@ -707,20 +886,46 @@ impl DungeonArea {
             }],
             fog: Some(room_fog_params(&fog)),
         };
-        let mut area = DungeonArea {
+        // The type's systems, as the constructor makes them (no draws of
+        // fieldrand): WORLD_MAN's weather row and hack flag the lakes' sky
+        // and fireflies read.
+        let weather = Weather { field_type: world_man.field_type, b: world_man.weather, hack: world_man.hack as i32 };
+        let field_def =
+            world_man.field().ok_or_else(|| Error::NotFound(format!("field type {}", world_man.field_type)))?;
+        let mut cx = BuildCx {
+            archive,
+            tables: volume,
+            volume,
+            file: &rooms.file,
+            stem: rooms.name,
+            crisis: false,
+            rng: dungeon::Rng::POWER_ON,
+            map: None,
+            cc: None,
+            field: Some(FieldCx { def: field_def, weather, server: scene.server, field: None, centre: [0, 0, 0, ONE] }),
+            made: Vec::new(),
+            rooms: Some(&rooms),
+        };
+        let systems = Systems::build(def.systems, &mut cx)?;
+        let core = AreaCore {
+            file,
             hits,
             lights: lights.clone(),
+            field_rand: Some(dungeon::Rng::new(world_man.dungeon_seed[code])),
+            start: [0, 0, 0, ONE],
+        };
+        let mut area = DungeonArea {
+            def,
+            core,
+            rooms,
             base_lights: lights,
             room_fog: fog,
-            spccs,
-            leaf_rand_owed: 0,
             special_room: -1,
             dungeon: scene.dungeon,
             bans,
             block: None,
             tables,
             dtype,
-            file,
             event: if edit.is_some() { event } else { 0 },
             floor_count,
             floors: Vec::new(),
@@ -730,26 +935,18 @@ impl DungeonArea {
             doors: Vec::new(),
             door: DoorState::default(),
             joined: Vec::new(),
-            dress: Dressing::default(),
-            lake,
-            water_u: 0,
-            water_model,
-            eff_pats,
-            file_name: tables.ccs_name(dtype, u32::from(tc.tex_type)),
+            systems,
+            frame: Vec::new(),
             position: [0, 0, 0, ONE],
             field_type: world_man.field_type,
             event_area,
             prev: (0, 0, [0, 0]),
             fog,
             tex_clut: tc,
-            clut_swaps,
             fog_table: (fog_table.va, fog_index),
-            obj_models,
-            hit_models,
             map: None,
             edit,
             room_enter: true,
-            rng: dungeon::Rng::new(world_man.dungeon_seed[code]),
             gimmicks_placed: false,
             kept_entries: None,
             kept_actors: Vec::new(),
@@ -762,7 +959,7 @@ impl DungeonArea {
                 std::mem::take(&mut area.floors)
             }
             None => {
-                let dummies = Dummies::read(&area.file.ccs, &tables.gim_patterns)?;
+                let dummies = Dummies::read(&area.rooms.file.ccs, &tables.gim_patterns)?;
                 let params = dungeon::Params {
                     seed: world_man.dungeon_seed[code],
                     dtype,
@@ -776,7 +973,7 @@ impl DungeonArea {
                     code: code as u32,
                 };
                 let d = dungeon::generate(tables, &params, &dummies).map_err(|e| Error::Format(e.to_string()))?;
-                area.rng = d.rng;
+                area.core.field_rand = Some(d.rng);
                 area.random_floors(&d)
             }
         };
@@ -797,7 +994,7 @@ impl DungeonArea {
     /// would rebuild `prevFloor`/`prevBlock`, is never set on this path).
     /// The old player's body leaves the character list with him.
     pub fn reenter(&mut self, _scene: &Scene) -> Result<()> {
-        self.hits.chars.clear();
+        self.core.hits.chars.clear();
         Ok(())
     }
 
@@ -893,7 +1090,7 @@ impl DungeonArea {
             };
             // Generate makes the ten floors (a lake type: floor 0), and
             // MakeFloor's story path builds nothing for the lake types.
-            if self.dtype >= 8 {
+            if self.def.lake {
                 out.push(layout);
                 continue;
             }
@@ -908,7 +1105,7 @@ impl DungeonArea {
             }
             // The "E" tables of the type's family: types t and t + 4 share
             // them (sroom_infoE0, E1, E2, E4).
-            let family = 4 + self.dtype as usize % 4;
+            let family = self.def.family;
             for rd in edit.rooms.iter().filter(|r| r.floor == level as i32) {
                 let set = match rd.size {
                     RoomSize::Small => 0,
@@ -927,7 +1124,7 @@ impl DungeonArea {
                 for row in table.rows.iter().filter(|row| row.exits.0 == rd.exits.0) {
                     // 25-35: the event room's anm from spccs.
                     let event_room =
-                        special::event_room(rd.room_type, self.event_area).filter(|_| self.spccs.is_some());
+                        special::event_room(rd.room_type, self.event_area).filter(|_| self.rooms.spccs.is_some());
                     let model = match rd.room_type {
                         t if t < 12 => row.models.get(if t < 6 { t as usize } else { 0 }).copied(),
                         12 | 13 => row.models.first().copied(),
@@ -974,15 +1171,18 @@ impl DungeonArea {
             if exits & bit == 0 {
                 continue;
             }
-            if k == 0 && dungeon::is_lake(self.dtype) {
+            if k == 0 && self.def.lake {
                 let first = self.no_field() && self.dungeon == 0 && at == (0, 0);
                 let w = if first { facing(slot.rotate, ONE) } else { ONE };
                 layout.start[0] = [slot.pos[0], slot.pos[1], 0, w];
                 continue;
             }
             let root = Self::room_root(slot);
-            let Some(anm) = slot.model.and_then(|m| self.make_anm_in(slot.special, m, &root, 1)) else { continue };
-            let Some(o) = anm.objects.iter().find(|o| self.name_in(slot.special, o.target) == Some(START_DUMMY)) else {
+            let Some(anm) = slot.model.and_then(|m| self.rooms.make_anm_in(slot.special, m, &root, 1)) else {
+                continue;
+            };
+            let Some(o) = anm.objects.iter().find(|o| self.rooms.name_in(slot.special, o.target) == Some(START_DUMMY))
+            else {
                 continue;
             };
             let t = o.world[3];
@@ -990,81 +1190,9 @@ impl DungeonArea {
         }
     }
 
-    /// The scene file an anm plays from (the event room's `spccs`, else
-    /// the dungeon's), with its objects' models and Hit chunks.
-    fn src(&self, special: bool) -> Src<'_> {
-        match (special, &self.spccs) {
-            (true, Some(r)) => (&r.file, &r.obj_models, &r.hit_models),
-            _ => (&self.file, &self.obj_models, &self.hit_models),
-        }
-    }
-
-    /// The name of an object in the anm's scene file.
-    fn name_in(&self, special: bool, obj: u32) -> Option<&str> {
-        self.src(special).0.ccs.object_name(obj)
-    }
-
     /// `SetMatrix_PosRotZYX((x, y, 0), (0, 0, rotate))`.
     fn room_root(slot: &Slot) -> [V4; 4] {
         crate::town::pos_rot_zyx([slot.pos[0], slot.pos[1], 0, ONE], [0, 0, slot.rotate])
-    }
-
-    /// `ccAnm::SetAnm(name)` from the dungeon's file or the event room's
-    /// (`special`), `forwards` `_AnimateForward`s, and the objects posed
-    /// under `root`.
-    fn make_anm_in(&self, special: bool, name: &str, root: &[V4; 4], forwards: usize) -> Option<Anm> {
-        let file = self.src(special).0.clone();
-        let mut play = Play::new(&file, name)?;
-        for _ in 0..forwards {
-            play.forward(&file);
-        }
-        let objects = self.pose_with(special, &play, root, None);
-        Some(Anm::new(play, *root, objects, special))
-    }
-
-    /// Every object controller of the anm's animation at its time, in the
-    /// chunk's order, with its world matrix: `ccCoord::_SetLWMatrix` up the
-    /// chain of parents (an ExtObj copy's own parent, else its Obj chunk's),
-    /// each `parent * local` as `sceVu0MulMatrix` rounds it, the anm's
-    /// matrix at the top. A parent no controller poses stands at its rest
-    /// (the unit matrix).
-    pub fn pose(&self, play: &Play, root: &[V4; 4]) -> Vec<Instance> {
-        self.pose_with(false, play, root, None)
-    }
-
-    /// [`DungeonArea::pose`] with one controller's local matrix replaced
-    /// (the door leaf `MoveDoor` lowers).
-    fn pose_with(&self, special: bool, play: &Play, root: &[V4; 4], over: Option<(u32, [V4; 4])>) -> Vec<Instance> {
-        pose_in(self.src(special).0, play, root, over)
-    }
-
-    /// The hit models an anm's objects carry (`ccAnm::HitEnable(1)`,
-    /// `ccAnm::SetHitMatrix`), each at its object's world matrix when its
-    /// hits were last placed and that matrix's inverse, `type` 1, but those
-    /// `MoveDoor` took off; `tag` keeps each anm's apart.
-    fn anm_hits(&self, anm: &Anm, tag: u32) -> Vec<HitModel> {
-        (0..anm.objects.len()).flat_map(|k| self.obj_hits(anm, k, tag)).collect()
-    }
-
-    /// The hit models of object `k` of an anm (see [`DungeonArea::anm_hits`]).
-    fn obj_hits(&self, anm: &Anm, k: usize, tag: u32) -> Vec<HitModel> {
-        let mut out = Vec::new();
-        let o = &anm.objects[k];
-        let (_, obj_models, hit_models) = self.src(anm.special);
-        let Some(models) = obj_models.get(&o.target) else { return out };
-        let at = anm.hit_world.get(k).copied().unwrap_or(o.world);
-        for m in models {
-            let Some(hs) = hit_models.get(m) else { continue };
-            for (j, h) in hs.iter().enumerate() {
-                let mut h = h.clone();
-                h.rm = at;
-                h.im = invers(&at);
-                h.kind = 1;
-                h.id = (tag << 20) | ((k as u32) << 4) | j as u32;
-                out.push(h);
-            }
-        }
-        out
     }
 
     /// New doors: the old ones' hits gone with them (the ban block's and
@@ -1072,7 +1200,7 @@ impl DungeonArea {
     /// in turn.
     fn put_doors(&mut self, doors: Vec<Anm>) {
         self.doors = doors;
-        self.joined.retain(|&(k, _)| k >= DOORS);
+        self.joined.retain(|j| !matches!(j, Joined::Door(..)));
         for k in 0..self.doors.len() {
             self.door_hit_enable(k);
         }
@@ -1082,8 +1210,8 @@ impl DungeonArea {
     /// list appended.
     fn door_hit_enable(&mut self, k: usize) {
         for o in 0..self.doors[k].objects.len() {
-            if !self.joined.contains(&(k, o)) {
-                self.joined.push((k, o));
+            if !self.joined.contains(&Joined::Door(k, o)) {
+                self.joined.push(Joined::Door(k, o));
             }
         }
     }
@@ -1111,7 +1239,7 @@ impl DungeonArea {
     /// that the light has no parent to move it is not checked.
     fn event_room_lights(&mut self, er: special::EventRoom, row: &dungeon::RoomData) {
         let Some(room) = &self.room else { return };
-        let Some(spccs) = &self.spccs else { return };
+        let Some(spccs) = &self.rooms.spccs else { return };
         let Ok((ambient, lights)) = crate::town::anim_lights(&spccs.file, room.play.anim) else { return };
         let Some(name) = er.light else { return };
         let obj = spccs.file.ccs.find_object(name);
@@ -1124,13 +1252,13 @@ impl DungeonArea {
             if light.kind != 1 {
                 light.pos = at;
             }
-            self.lights.lights.push(light);
+            self.core.lights.lights.push(light);
         }
         // GetAmbient: each byte of the chunk's packed ambient over 255 in
         // the EE's division.
         if let Some(a) = ambient {
             let c = |v: f32| f32::from_bits(ee::div(ee::from_int((v * 255.0).round() as i32), 0x437f_0000));
-            self.lights.ambient = Vec3::new(c(a.x), c(a.y), c(a.z));
+            self.core.lights.ambient = Vec3::new(c(a.x), c(a.y), c(a.z));
         }
     }
 
@@ -1153,47 +1281,76 @@ impl DungeonArea {
         self.doors.clear();
         self.joined.clear();
         self.block = None;
-        self.clear_dress();
+        self.room_part(None, RoomPart::Clear, None, f, None);
         self.room_at = Some((f, i));
         self.door.still_open = false;
         self.door.close_start = 0;
         // DelGrp(DUNGEON+0x370): the last event room's light leaves.
-        self.lights.lights.truncate(self.base_lights.lights.len());
+        self.core.lights.lights.truncate(self.base_lights.lights.len());
         let Some(mut slot) = self.slot(f, i).cloned() else {
             self.rebuild_hits();
             return;
         };
+        let mut event_room = None;
         if let Some((er, row)) = self.event_room_at(f, i) {
             slot.rotate = er.rotate;
             if let Some(s) = self.floors.get_mut(f).and_then(|fl| fl.rooms.get_mut(i)) {
                 s.rotate = er.rotate;
             }
             let root = Self::room_root(&slot);
-            self.room = if self.spccs.is_some() { self.make_anm_in(true, er.anm, &root, 2) } else { None };
+            self.room = if self.rooms.spccs.is_some() { self.rooms.make_anm_in(true, er.anm, &root, 2) } else { None };
             self.event_room_lights(er, row);
-            if self.event_room_type(f, i) == Some(leaves::LEAF_ROOM) {
-                self.set_leaves(slot.pos);
-            }
+            event_room = self.event_room_type(f, i);
             let [near, far, _, max] = special::EVENT_ROOM_FOG.map(f32::from_bits);
             self.room_fog = FogRow { colour: [0.0; 3], near, far, max, ambient: self.fog.ambient };
         } else {
-            self.lights = self.base_lights.clone();
+            self.core.lights = self.base_lights.clone();
             self.room_fog = self.fog;
             let root = Self::room_root(&slot);
-            self.room = slot.model.and_then(|m| self.make_anm_in(slot.special, m, &root, 1));
+            self.room = slot.model.and_then(|m| self.rooms.make_anm_in(slot.special, m, &root, 1));
         }
-        self.lights.fog = Some(room_fog_params(&self.room_fog));
-        // After the room's hits: SetWater, SetLight, SetObject, SetDoor,
-        // SetAnmObject ([`Dressing`]).
-        if self.room.is_some() {
-            self.set_water(&slot);
-            self.set_light();
-            self.set_object(f, &slot);
-            self.set_door(&slot, clear);
-            self.set_anm_object(&slot);
-            self.set_lake_fireflies(&slot);
+        self.core.lights.fog = Some(room_fog_params(&self.room_fog));
+        // After the room's hits, the type's steps: an event room's own, then
+        // with the room built SetWater, SetLight, SetObject, SetDoor,
+        // SetAnmObject, a lake's fireflies.
+        for &step in self.def.room {
+            match step {
+                RoomStep::Run(kind, part) if part == RoomPart::Leaves || self.room.is_some() => {
+                    self.room_part(Some(kind), part, Some(&slot), f, event_room);
+                }
+                RoomStep::Doors if self.room.is_some() => self.set_door(&slot, clear),
+                _ => {}
+            }
         }
         self.rebuild_hits();
+    }
+
+    /// `kind`'s `part` of `SetRoom` (every system's with None) for room
+    /// `slot` on floor `floor`, the room's event type `event_room`.
+    fn room_part(
+        &mut self,
+        kind: Option<crate::systems::Kind>,
+        part: RoomPart,
+        slot: Option<&Slot>,
+        floor: usize,
+        event_room: Option<i32>,
+    ) {
+        let mut rng = self.core.field_rand.unwrap_or(dungeon::Rng::POWER_ON);
+        let mut cx = crate::systems::RoomCx {
+            rooms: &self.rooms,
+            room: self.room.as_ref(),
+            slot,
+            floor,
+            level: self.level,
+            event_room,
+            rng: &mut rng,
+            lights: &mut self.core.lights,
+            joined: &mut self.joined,
+        };
+        self.systems.room(kind, part, &mut cx);
+        if self.core.field_rand.is_some() {
+            self.core.field_rand = Some(rng);
+        }
     }
 
     /// VU1's fog by depth as the last `SetRoom` set it (`SetFog(near, far,
@@ -1238,7 +1395,7 @@ impl DungeonArea {
             let by = |prefix: &str| {
                 room.objects
                     .iter()
-                    .find(|o| self.name_in(room.special, o.target).is_some_and(|n| n.starts_with(prefix)))
+                    .find(|o| self.rooms.name_in(room.special, o.target).is_some_and(|n| n.starts_with(prefix)))
             };
             by(d.gate).or_else(|| by(d.dummy)).map(|o| o.world)
         });
@@ -1258,8 +1415,8 @@ impl DungeonArea {
         self.joined.clear();
         self.block = None;
         self.room_at = None;
-        self.clear_dress();
-        self.lights.lights.truncate(self.base_lights.lights.len());
+        self.room_part(None, RoomPart::Clear, None, self.level, None);
+        self.core.lights.lights.truncate(self.base_lights.lights.len());
         self.rebuild_hits();
     }
 
@@ -1273,7 +1430,7 @@ impl DungeonArea {
         let locals: Vec<[V4; 4]> = room
             .objects
             .iter()
-            .filter(|o| self.name_in(room.special, o.target).is_some_and(|n| n.starts_with(dummy)))
+            .filter(|o| self.rooms.name_in(room.special, o.target).is_some_and(|n| n.starts_with(dummy)))
             .map(|o| o.local)
             .collect();
         self.door.lock_num = locals.len() as i32;
@@ -1284,15 +1441,15 @@ impl DungeonArea {
             for (k, p) in [slot.pos[0], slot.pos[1], 0].into_iter().enumerate() {
                 m[3][k] = ee::add(m[3][k], p);
             }
-            let Some(mut play) = Play::new(&self.file, anime) else { continue };
+            let Some(mut play) = Play::new(&self.rooms.file, anime) else { continue };
             let frames = match steps {
-                Steps::Open => self.file.anims[play.anim].frames,
+                Steps::Open => self.rooms.file.anims[play.anim].frames,
                 Steps::Shut => 1,
             };
             for _ in 0..frames {
-                play.forward(&self.file);
+                play.forward(&self.rooms.file);
             }
-            let objects = self.pose(&play, &m);
+            let objects = self.rooms.pose(&play, &m);
             doors.push(Anm::new(play, m, objects, false));
         }
         doors
@@ -1336,16 +1493,16 @@ impl DungeonArea {
         let mut slot = self.slot(f, i)?.clone();
         let room = if let Some((er, _)) = self.event_room_at(f, i) {
             slot.rotate = er.rotate;
-            self.spccs.as_ref()?;
-            self.make_anm_in(true, er.anm, &Self::room_root(&slot), 2)?
+            self.rooms.spccs.as_ref()?;
+            self.rooms.make_anm_in(true, er.anm, &Self::room_root(&slot), 2)?
         } else {
-            self.make_anm_in(slot.special, slot.model?, &Self::room_root(&slot), 1)?
+            self.rooms.make_anm_in(slot.special, slot.model?, &Self::room_root(&slot), 1)?
         };
         let d = self.tables.doors;
         let named = |prefix: &str| -> Vec<V4> {
             room.objects
                 .iter()
-                .filter(|o| self.name_in(room.special, o.target).is_some_and(|n| n.starts_with(prefix)))
+                .filter(|o| self.rooms.name_in(room.special, o.target).is_some_and(|n| n.starts_with(prefix)))
                 .map(|o| o.world[3])
                 .collect()
         };
@@ -1362,7 +1519,7 @@ impl DungeonArea {
         let mut best = ee::from_int(12000);
         let mut pick = None;
         for p in found {
-            let dist = piney_battle::enemy_ai::get_dist_on(self.hits.volume, at, p);
+            let dist = piney_battle::enemy_ai::get_dist_on(self.core.hits.volume, at, p);
             if !ee::le(best, dist) {
                 best = dist;
                 pick = Some(p);
@@ -1379,7 +1536,7 @@ impl DungeonArea {
     /// 400,000. Its hits join the list's tail at that matrix.
     fn set_block(&mut self, slot: &Slot) {
         self.block = None;
-        self.joined.retain(|&(k, _)| k != BLOCK);
+        self.joined.retain(|j| !matches!(j, Joined::Block(_)));
         if self.event_area == 0 {
             return;
         }
@@ -1399,7 +1556,7 @@ impl DungeonArea {
         let named = |prefix: &str| -> Vec<[V4; 4]> {
             room.objects
                 .iter()
-                .filter(|o| self.name_in(room.special, o.target).is_some_and(|n| n.starts_with(prefix)))
+                .filter(|o| self.rooms.name_in(room.special, o.target).is_some_and(|n| n.starts_with(prefix)))
                 .map(|o| o.local)
                 .collect()
         };
@@ -1418,7 +1575,7 @@ impl DungeonArea {
         if places.is_empty() {
             return;
         }
-        let volume = self.hits.volume;
+        let volume = self.core.hits.volume;
         let dist: [F; 4] = std::array::from_fn(|k| {
             places.get(k).map_or(FAR, |m| piney_battle::enemy_ai::get_dist_on(volume, target, m[3]))
         });
@@ -1427,11 +1584,11 @@ impl DungeonArea {
         let b = if lt(2, 3) { 2 } else { 3 };
         let pick = if lt(a, b) { a } else { b };
         let Some(&m) = places.get(pick) else { return };
-        let Some(c) = self.file.ccs.find_object(BLOCK_CLUMP) else { return };
-        let Some((_, nodes)) = self.file.scene.clumps.iter().find(|(o, _)| *o == c) else { return };
+        let Some(c) = self.rooms.file.ccs.find_object(BLOCK_CLUMP) else { return };
+        let Some((_, nodes)) = self.rooms.file.scene.clumps.iter().find(|(o, _)| *o == c) else { return };
         let nodes = nodes.clone();
         for k in 0..nodes.len() {
-            self.joined.push((BLOCK, k));
+            self.joined.push(Joined::Block(k));
         }
         self.block = Some(Block { nodes, m });
     }
@@ -1439,7 +1596,7 @@ impl DungeonArea {
     /// The hit models of node `k` of the ban block, at its matrix, `type` 1.
     fn block_hits(&self, k: usize) -> Vec<HitModel> {
         match &self.block {
-            Some(b) => self.clump_hits(&b.nodes, &b.m, 0xff, k),
+            Some(b) => self.rooms.clump_hits(&b.nodes, &b.m, 0xff, k),
             None => Vec::new(),
         }
     }
@@ -1486,7 +1643,7 @@ impl DungeonArea {
     pub fn close_door2(&mut self) {
         self.door.still_open = false;
         if let Some(d) = self.doors.first() {
-            self.door.close_start = self.file.anims[d.play.anim].frames as i32;
+            self.door.close_start = self.rooms.file.anims[d.play.anim].frames as i32;
         }
     }
 
@@ -1499,12 +1656,9 @@ impl DungeonArea {
     }
 
     /// The sound `MoveDoor` (gcmn 0x005cd3d0) plays as a door opens or
-    /// shuts, by the dungeon's type (`DUNGEON` +0x10), the same for both
-    /// (its jump tables @8659 and @8664): 45, 46, 47, 51 for types 0-3 and
-    /// again 4-7, 48 for 8 and 9.
+    /// shuts, by the dungeon's type, the same for both.
     pub fn door_se(&self) -> Option<i32> {
-        const SE: [i32; 10] = [45, 46, 47, 51, 45, 46, 47, 51, 48, 48];
-        SE.get(usize::from(self.dtype)).copied()
+        Some(self.def.door_se)
     }
 
     /// `DUNGEON::MoveDoor(here)` (gcmn 0x005cd3d0), from `Draw` each frame for
@@ -1523,8 +1677,8 @@ impl DungeonArea {
         }
         // The cell's byte: 15 for no room, a slot no floor has.
         let here = here.unwrap_or(NO_ROOM as usize);
-        let keeps = matches!(self.dtype, 3 | 7 | 8 | 9);
-        let file = self.file.clone();
+        let keeps = self.def.leaf_off;
+        let file = self.rooms.file.clone();
         for k in 0..self.doors.len() {
             if self.door.still_open {
                 continue;
@@ -1537,7 +1691,7 @@ impl DungeonArea {
                 let ended = d.play.forward(&file);
                 d.leaf = None;
                 self.door.lock_off = i32::from(ended);
-                let objects = self.pose(&self.doors[k].play, &self.doors[k].root);
+                let objects = self.rooms.pose(&self.doors[k].play, &self.doors[k].root);
                 self.doors[k].objects = objects;
                 self.door_hit_enable(k);
                 let d = &mut self.doors[k];
@@ -1547,7 +1701,7 @@ impl DungeonArea {
                 if self.door.lock_off != 0 && keeps {
                     let leaf = d.objects.iter().position(|o| file.ccs.object_name(o.controller) == Some(LEAF));
                     if let Some(o) = leaf {
-                        self.joined.retain(|&h| h != (k, o));
+                        self.joined.retain(|&h| h != Joined::Door(k, o));
                     }
                 }
             } else {
@@ -1566,7 +1720,7 @@ impl DungeonArea {
                     let mut m = UNIT;
                     m[3] = [t[0], t[1], t[2], ONE];
                     let over = Some((o.controller, m));
-                    let objects = self.pose_with(false, &d.play, &d.root, over);
+                    let objects = self.rooms.pose_with(false, &d.play, &d.root, over);
                     let d = &mut self.doors[k];
                     d.leaf = over;
                     d.objects = objects;
@@ -1591,22 +1745,24 @@ impl DungeonArea {
     }
 
     /// The `ccModelHit` list: the room's hit models in its anm's order, then
-    /// the dressing's, the doors' and the ban block's as they joined it.
+    /// the doors', the ban block's and the systems' pieces' as they joined it.
     fn rebuild_hits(&mut self) {
         let mut models = Vec::new();
         if let Some(r) = &self.room {
-            models.extend(self.anm_hits(r, 1));
+            models.extend(self.rooms.anm_hits(r, 1));
         }
-        for &(k, o) in &self.joined {
-            if k == BLOCK {
-                models.extend(self.block_hits(o));
-            } else if k >= DOORS {
-                models.extend(self.dress_hits(k, o));
-            } else if let Some(d) = self.doors.get(k) {
-                models.extend(self.obj_hits(d, o, 2 + k as u32));
+        for &j in &self.joined {
+            match j {
+                Joined::Block(k) => models.extend(self.block_hits(k)),
+                Joined::Door(k, o) => {
+                    if let Some(d) = self.doors.get(k) {
+                        models.extend(self.rooms.obj_hits(d, o, 2 + k as u32));
+                    }
+                }
+                Joined::Piece(kind, n, o) => models.extend(self.systems.hits(kind, n, o)),
             }
         }
-        self.hits.models = models;
+        self.core.hits.models = models;
     }
 
     /// The names of the registered hit models' objects, in list order (for
@@ -1614,22 +1770,26 @@ impl DungeonArea {
     pub fn hit_names(&self) -> Vec<String> {
         let mut out = Vec::new();
         let names = |special: bool, o: &Instance| -> Vec<String> {
-            let (_, obj_models, hit_models) = self.src(special);
+            let (_, obj_models, hit_models) = self.rooms.src(special);
             let Some(models) = obj_models.get(&o.target) else { return Vec::new() };
             let n: usize = models.iter().map(|m| hit_models.get(m).map_or(0, Vec::len)).sum();
-            vec![self.name_in(special, o.controller).unwrap_or("?").to_string(); n]
+            vec![self.rooms.name_in(special, o.controller).unwrap_or("?").to_string(); n]
         };
         if let Some(r) = &self.room {
             r.objects.iter().for_each(|o| out.extend(names(r.special, o)));
         }
-        for &(k, o) in &self.joined {
-            if k == BLOCK {
-                let n = self.block_hits(o).len();
-                out.extend(std::iter::repeat_n(BLOCK_CLUMP.to_string(), n));
-            } else if k >= DOORS {
-                out.extend(self.dress_hit_names(k, o));
-            } else if let Some(o) = self.doors.get(k).and_then(|d| d.objects.get(o)) {
-                out.extend(names(false, o));
+        for &j in &self.joined {
+            match j {
+                Joined::Block(k) => {
+                    let n = self.block_hits(k).len();
+                    out.extend(std::iter::repeat_n(BLOCK_CLUMP.to_string(), n));
+                }
+                Joined::Door(k, o) => {
+                    if let Some(o) = self.doors.get(k).and_then(|d| d.objects.get(o)) {
+                        out.extend(names(false, o));
+                    }
+                }
+                Joined::Piece(kind, n, o) => out.extend(self.systems.hit_names(kind, n, o)),
             }
         }
         out
@@ -1691,7 +1851,7 @@ impl DungeonArea {
             return 15;
         }
         if next == NO_ROOM as usize && down == here {
-            if dungeon::is_lake(self.dtype) {
+            if self.def.lake {
                 return -1;
             }
             if let Some(n) = self.floors.get(level + 1) {
@@ -1779,8 +1939,8 @@ impl DungeonArea {
     fn user_point(&self, anm: &str, pos: [F; 2]) -> Option<V4> {
         let mut root = UNIT;
         root[3] = [pos[0], pos[1], 0, ONE];
-        let a = self.make_anm_in(true, anm, &root, 1)?;
-        let o = a.objects.iter().find(|o| self.name_in(true, o.target) == Some(USER_POINT))?;
+        let a = self.rooms.make_anm_in(true, anm, &root, 1)?;
+        let o = a.objects.iter().find(|o| self.rooms.name_in(true, o.target) == Some(USER_POINT))?;
         Some(o.world[3])
     }
 
@@ -1788,7 +1948,7 @@ impl DungeonArea {
     /// y, z, 1: `ccStream::Decode_DummyPos` 0x0014d4d0) plus `(pos, 0, 1)`
     /// (`sceVu0AddVector`), so w is 2.
     fn marker_point(&self, marker: &str, pos: [F; 2]) -> Option<V4> {
-        let file = &self.spccs.as_ref()?.file;
+        let file = &self.rooms.spccs.as_ref()?.file;
         let d = file.scene.dummies.get(&file.ccs.find_object(marker)?)?;
         let m = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE];
         Some([ee::add(m[0], pos[0]), ee::add(m[1], pos[1]), ee::add(m[2], 0), ee::add(m[3], ONE)])
@@ -1947,32 +2107,25 @@ impl DungeonArea {
         self.fog.colour_bytes()
     }
 
-    /// `DUNGEON::Draw` for this frame: the dressing ([`Dressing`]), then the room
-    /// under the player if built ([`DungeonArea::shown`]): its doors
-    /// (`MoveDoor`), the room's pieces on `objLayer` fogged by depth, and the ban
-    /// block. With `step` false as the last frame left it. `world_screen` is the
-    /// camera's (the water samples the picture behind it). Returns the `ccEff`s
+    /// `DUNGEON::Draw` for this frame: the type's systems in its order
+    /// (asleep, as they stand), then the room under the player if built
+    /// ([`DungeonArea::shown`]): its doors (`MoveDoor`), the room's pieces on
+    /// `objLayer` fogged by depth, and the ban block. Returns the `ccEff`s
     /// `DrawEff` draws.
-    pub fn draw(
-        &mut self,
-        layers: &mut Layers,
-        to_screen: Mat4,
-        world_screen: &[V4; 4],
-        player: V4,
-        step: bool,
-    ) -> Vec<crate::sprite::EffSprite> {
-        // DrawBG (the lakes' sky), then DrawWater and DrawEff with the
-        // lakes' fireflies after the glows, then the pieces.
-        self.draw_bg(layers, to_screen, self.here(player), step);
-        let mut ops = self.draw_dress(layers, to_screen, world_screen, step);
-        self.draw_fireflies(player, step, &mut ops);
-        let fog = self.room_depth_fog();
-        self.draw_leaves(layers, to_screen, fog, step);
+    pub fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, view: &MapView, awake: bool) -> Vec<EffSprite> {
+        let player = view.player;
+        let here = self.here(player);
+        self.run(if awake { self.def.order } else { self.def.asleep }, view, here);
+        let mut sprites = Vec::new();
+        let rows = HashMap::new();
+        for r in self.requests(&rows) {
+            paint(layers, to_screen, &r, &mut sprites);
+        }
         let (_, built, doors) = self.shown(player);
         // Past the array's last row the game hands `ccAnm::Draw` the word
         // after it (a ROOM_INFO row read as a `ccAnime`): no room is drawn.
         if !built && doors == 0 {
-            return ops;
+            return sprites;
         }
         // VU1 fogs each vertex by its depth: `SetFog(near, far, 0, max,
         // colour)` of the room's row.
@@ -1980,7 +2133,7 @@ impl DungeonArea {
         let rows = HashMap::new();
         let anms: Vec<&Anm> = self.doors.iter().chain(self.room.as_ref().filter(|_| built)).collect();
         for anm in anms {
-            let (file, obj_models, _) = self.src(anm.special);
+            let (file, obj_models, _) = self.rooms.src(anm.special);
             for o in &anm.objects {
                 let Some(models) = obj_models.get(&o.target) else { continue };
                 let world = draw::mat(&o.world);
@@ -1990,7 +2143,7 @@ impl DungeonArea {
                     }
                     // An event room's anm is lit (`SetLightEnv(1)`): the
                     // room's light group reaches its lit models.
-                    let lights = anm.special.then(|| crate::chara::kite::light_matrix(&self.lights, world, false));
+                    let lights = anm.special.then(|| crate::chara::kite::light_matrix(&self.core.lights, world, false));
                     let d = Draw {
                         file,
                         model,
@@ -2000,7 +2153,7 @@ impl DungeonArea {
                         lights,
                         nodes: &[],
                         morph: Vec::new(),
-                        clut_swaps: if anm.special { Vec::new() } else { self.clut_swaps.clone() },
+                        clut_swaps: if anm.special { Vec::new() } else { self.rooms.clut_swaps.clone() },
                     };
                     draw::model_edited(layers, OBJ_LAYER, to_screen, &d, None, draw::Fogging::Depth(depth));
                 }
@@ -2008,9 +2161,51 @@ impl DungeonArea {
         }
         // The ban block (`ccClump::Draw`): its nodes' models at its matrix.
         if let Some(b) = &self.block {
-            self.draw_clump(layers, to_screen, &b.nodes, &b.m);
+            for (model, world) in self.rooms.clump_pieces(&b.nodes, &b.m) {
+                let d = Draw {
+                    file: &self.rooms.file,
+                    model,
+                    world,
+                    alpha: 1.0,
+                    rows: &rows,
+                    lights: None,
+                    nodes: &[],
+                    morph: Vec::new(),
+                    clut_swaps: self.rooms.clut_swaps.clone(),
+                };
+                draw::model_edited(layers, OBJ_LAYER, to_screen, &d, None, draw::Fogging::Depth(depth));
+            }
         }
-        ops
+        sprites
+    }
+
+    /// `steps` of the type's systems for a frame seen from `view`, `here`
+    /// the room under the player ([`DungeonArea::draw`] runs the def's).
+    pub fn run(&mut self, steps: &'static [crate::systems::Step], view: &MapView, here: Option<usize>) {
+        let room = here.and_then(|h| self.slot(self.level, h)).map(|s| RoomAt { pos: s.pos, size: s.size });
+        let v = MapView { room, ..view.clone() };
+        self.frame.clear();
+        let mut events = Vec::new();
+        self.systems.run(steps, &mut self.core, &v, &mut self.frame, &mut events);
+    }
+
+    /// The last frame's pieces as generic draws, fogged by the room's depth
+    /// fog, with `rows`.
+    pub fn requests<'a>(&'a self, rows: &'a HashMap<u32, [u8; 2]>) -> Vec<crate::systems::Request<'a>> {
+        let cx = DrawCx { core: &self.core, fog: draw::Fogging::Depth(self.room_depth_fog()), rows };
+        self.systems.requests(&self.frame, &cx)
+    }
+
+    /// The game's `ccRand` draws the systems owe (type 32's leaves'
+    /// tilts), drawn after each call that can `SetRoom`.
+    pub fn settle(&mut self, cc: &mut dyn piney_battle::rand::Rng) {
+        self.systems.settle(cc);
+    }
+
+    /// The `EditDungeon` row type of an event room at (f, i).
+    fn event_room_type(&self, f: usize, i: usize) -> Option<i32> {
+        let e = self.edit?;
+        e.rooms.iter().find(|r| r.room_type >= 16 && r.floor == f as i32 && r.index == i as i32).map(|r| r.room_type)
     }
 }
 
@@ -2062,12 +2257,14 @@ impl DungeonArea {
     /// in their order: the search's index and the dummy's world matrix.
     fn room_dummies(&self, slot: &Slot) -> Vec<(usize, [V4; 4])> {
         let Some(model) = slot.model else { return Vec::new() };
-        let Some(anm) = self.make_anm_in(slot.special, model, &Self::room_root(slot), 1) else { return Vec::new() };
+        let Some(anm) = self.rooms.make_anm_in(slot.special, model, &Self::room_root(slot), 1) else {
+            return Vec::new();
+        };
         let patterns = self.tables.gim_patterns;
         let mut out = Vec::new();
         for (k, pat) in patterns.iter().enumerate() {
             for o in &anm.objects {
-                if self.name_in(slot.special, o.target).is_some_and(|n| pat.matches(n)) {
+                if self.rooms.name_in(slot.special, o.target).is_some_and(|n| pat.matches(n)) {
                     out.push((k, o.world));
                 }
             }
@@ -2082,9 +2279,9 @@ impl DungeonArea {
     /// `GIMMICKDATA` row or an event is; else a box on `fieldrand(100) >=
     /// 20`, a portal always, a special object on `>= 31`.
     fn story_rolls(&mut self, edit: &'static dungeon::EditDungeon) {
-        let levels = if dungeon::is_lake(self.dtype) { 1 } else { self.floor_count };
+        let levels = if self.def.lake { 1 } else { self.floor_count };
         for f in 0..levels.min(self.floors.len()) {
-            self.rng.below(5);
+            self.rng().below(5);
             for i in self.floors[f].order.clone() {
                 let kinds: Vec<usize> =
                     self.room_dummies(&self.floors[f].rooms[i]).into_iter().map(|(k, _)| k).collect();
@@ -2128,10 +2325,10 @@ impl DungeonArea {
         let rows = |lo: i32| e.gimmicks.iter().any(|g| g.floor == f && g.index == b && (lo..=4).contains(&g.gim_type));
         let event = e.rooms.iter().any(|r| r.event_flag != 0 && r.floor == f && r.index == b);
         match kind {
-            0 => !rows(0) && !event && self.rng.below(100) >= 20,
+            0 => !rows(0) && !event && self.rng().below(100) >= 20,
             1 => !rows(1) && !event,
             2 => true,
-            _ => self.rng.below(100) >= 31,
+            _ => self.rng().below(100) >= 31,
         }
     }
 
@@ -2142,7 +2339,7 @@ impl DungeonArea {
     /// position. None in the lake types, in `game.field` 14 (the tutorial's
     /// dungeon) or in a story room with an event.
     pub fn breakables_here(&self, field: i32, block: i32) -> Vec<(u8, V4)> {
-        if matches!(self.dtype, 8 | 9) || field == 14 {
+        if self.def.lake || field == 14 {
             return Vec::new();
         }
         let level = self.level as i32;
@@ -2155,7 +2352,7 @@ impl DungeonArea {
         for family in [2u8, 4, 5, 6, 7] {
             let prefix = format!("OBJ_0pr{family}");
             for o in &room.objects {
-                if self.name_in(room.special, o.controller).is_some_and(|n| n.starts_with(&prefix)) {
+                if self.rooms.name_in(room.special, o.controller).is_some_and(|n| n.starts_with(&prefix)) {
                     let t = o.world[3];
                     out.push((family, [t[0], t[1], t[2], ONE]));
                 }
@@ -2173,14 +2370,7 @@ impl DungeonArea {
     pub fn dungeon_gims(&mut self, field_attr: i32, time_sym: bool) -> piney_battle::entry::DungeonGims {
         use piney_battle::entry::{DungeonGims, EditGim, EditRoom};
         let slots = self.gim_slots();
-        let food = match self.dtype {
-            0 | 4 => 34,
-            1 | 5 => 35,
-            2 | 6 => 36,
-            3 | 7 => 37,
-            8 | 9 => 33,
-            _ => 23,
-        };
+        let food = self.def.food;
         let edit = self.edit.map(|e| {
             e.gimmicks
                 .iter()
@@ -2232,7 +2422,7 @@ impl DungeonArea {
             counter: 0,
             rooms,
             rotate,
-            lake: dungeon::is_lake(self.dtype),
+            lake: self.def.lake,
             time_sym: i32::from(time_sym),
             field_attr,
             food,
@@ -2294,7 +2484,7 @@ mod tests {
         // startpos[0][0] as the game's MakeRoom leaves it (eemu).
         assert_eq!(d.start().0.map(ee::f), [15000.0, 21750.0, 0.0, 1.0]);
         assert_eq!(d.floors[0].down, 4);
-        assert_eq!(d.hits.models.len(), 43);
+        assert_eq!(d.core.hits.models.len(), 43);
     }
 
     /// Issue #78: from Mutation on, event area 125 (Hidden Darkside Holy
@@ -2318,7 +2508,7 @@ mod tests {
         // to "B 15" from Mutation on).
         let edit = d.tables.edit(d.event, 0);
         let floors = crate::map::dungeon::floors_of(&d, edit);
-        let map = crate::map::dungeon::DungeonMap::new(&archive, volume, &d.file, i32::from(d.dtype), floors).unwrap();
+        let map = crate::map::dungeon::DungeonMap::new(&archive, volume, &d.rooms.file, d.def.lake, floors).unwrap();
         assert_eq!(map.labels.len(), 15);
         assert_eq!(map.labels[14], b"B 15");
     }
@@ -2425,15 +2615,15 @@ mod tests {
         };
         let d = run(0, 3);
         assert_eq!(d.tex_clut.clut_type, 2);
-        assert!(d.clut_swaps.is_empty());
+        assert!(d.rooms.clut_swaps.is_empty());
         for (server, sfx) in [(1, "c1"), (3, "c2")] {
             let d = run(server, 3);
-            assert!(!d.clut_swaps.is_empty(), "server {server}");
-            for &(from, to) in &d.clut_swaps {
-                let (a, b) = (d.file.ccs.object_name(from).unwrap(), d.file.ccs.object_name(to).unwrap());
+            assert!(!d.rooms.clut_swaps.is_empty(), "server {server}");
+            for &(from, to) in &d.rooms.clut_swaps {
+                let (a, b) = (d.rooms.file.ccs.object_name(from).unwrap(), d.rooms.file.ccs.object_name(to).unwrap());
                 assert!(a.starts_with("CLT_") && b == format!("{a}{sfx}"), "{a} -> {b}");
             }
-            eprintln!("server {server} type {}: {} palettes swapped", d.dtype, d.clut_swaps.len());
+            eprintln!("server {server} type {}: {} palettes swapped", d.dtype, d.rooms.clut_swaps.len());
         }
     }
 
@@ -2453,29 +2643,30 @@ mod tests {
             scene.field = 40;
             DungeonArea::new(&archive, &wm, &scene).unwrap()
         };
-        assert!(run(0).clut_swaps.is_empty(), "GetBG 0");
+        assert!(run(0).rooms.clut_swaps.is_empty(), "GetBG 0");
         for bg in 1..=3 {
             let d = run(bg);
             assert!(matches!(d.dtype, 8 | 9), "a lake: {}", d.dtype);
-            let (textures, _) = piney_data::texture::read(&d.file.ccs).unwrap();
-            let from: Vec<u32> = d.clut_swaps.iter().map(|s| s.0).collect();
-            let names = dress::LAKE_PIECES.iter().map(|p| p.1).chain(dress::LAKE_PICKS);
+            let (textures, _) = piney_data::texture::read(&d.rooms.file.ccs).unwrap();
+            let from: Vec<u32> = d.rooms.clut_swaps.iter().map(|s| s.0).collect();
+            let names =
+                crate::systems::pieces::LAKE_PIECES.iter().map(|p| p.1).chain(crate::systems::pieces::LAKE_PICKS);
             let mut seen = 0;
             for name in names {
-                let Some(c) = d.file.ccs.find_object(name) else { continue };
+                let Some(c) = d.rooms.file.ccs.find_object(name) else { continue };
                 seen += 1;
-                let nodes = d.file.scene.clumps.iter().find(|(k, _)| *k == c).map(|(_, n)| n.clone()).unwrap();
+                let nodes = d.rooms.file.scene.clumps.iter().find(|(k, _)| *k == c).map(|(_, n)| n.clone()).unwrap();
                 let cluts: Vec<u32> = (nodes.iter())
-                    .filter_map(|n| d.file.obj_model.get(n))
-                    .filter_map(|m| d.file.models.get(m))
+                    .filter_map(|n| d.rooms.file.obj_model.get(n))
+                    .filter_map(|m| d.rooms.file.models.get(m))
                     .flat_map(|i| i.mmats.iter().filter_map(|mm| mm.material))
-                    .filter_map(|mat| d.file.scene.materials.get(&mat))
+                    .filter_map(|mat| d.rooms.file.scene.materials.get(&mat))
                     .filter_map(|m| textures.iter().find(|t| t.object == m.texture))
                     .map(|t| t.clut)
                     .collect();
                 assert!(cluts.iter().any(|c| from.contains(c)), "bg {bg} {name}: {cluts:?} not swapped");
             }
-            assert_eq!(seen, 8, "bg {bg}: the lake's clumps in {}", d.file.stem);
+            assert_eq!(seen, 8, "bg {bg}: the lake's clumps in {}", d.rooms.file.stem);
         }
     }
 
@@ -2521,7 +2712,7 @@ mod tests {
             );
             d.set_room(f, i);
             let room = d.room.as_ref().unwrap();
-            let drawn = room.objects.iter().filter(|o| d.obj_models.contains_key(&o.target)).count();
+            let drawn = room.objects.iter().filter(|o| d.rooms.obj_models.contains_key(&o.target)).count();
             assert!(drawn > 0, "field {field}: the statue room's pieces");
         }
     }
@@ -2543,14 +2734,14 @@ mod tests {
                 .map(|a| {
                     a.objects
                         .iter()
-                        .filter(|o| d.file.ccs.object_name(o.controller) == Some(LEAF))
+                        .filter(|o| d.rooms.file.ccs.object_name(o.controller) == Some(LEAF))
                         .map(|o| (o.local.map(|c| c.map(ee::f)), ee::f(o.world[3][2])))
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>()
         };
         let a = &d.doors[0];
-        println!("dtype {} anim frames {} time {}", d.dtype, d.file.anims[a.play.anim].frames, a.play.time);
+        println!("dtype {} anim frames {} time {}", d.dtype, d.rooms.file.anims[a.play.anim].frames, a.play.time);
         println!("shut {:?}", leaf(&d));
         d.open_door(0, 3);
         println!("open {:?} time {}", leaf(&d), d.doors[0].play.time);

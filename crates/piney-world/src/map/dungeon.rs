@@ -96,8 +96,9 @@ pub struct Floor {
 pub struct DungeonMap {
     pub spr: [Spr; 4],
     pub r: F,
-    /// `DUNGEON.type` (+0x10).
-    pub dtype: i32,
+    /// A lake (`DUNGEON.type` 8 or 9): its map shows the lake's own
+    /// sprites.
+    pub lake: bool,
     pub floors: Vec<Floor>,
     /// `smallmap[10][200][200]` (the game's rows are 256 wide).
     pub small: Vec<u8>,
@@ -170,7 +171,7 @@ impl DungeonMap {
         archive: &Arc<Archive>,
         volume: Volume,
         file: &SceneFile,
-        dtype: i32,
+        lake: bool,
         floors: Vec<Floor>,
     ) -> piney_data::Result<DungeonMap> {
         let (textures, cluts) = piney_data::texture::read(&file.ccs)?;
@@ -203,7 +204,7 @@ impl DungeonMap {
         Ok(DungeonMap {
             spr: [Spr::mask(MAP, 2, 0), Spr::mask(MAP1, 50, 5), Spr::mask(MAP2, 2, 0), Spr::mask(MAP3, 50, 5)],
             r: 0,
-            dtype,
+            lake,
             floors,
             small: vec![0; count * SIDE * SIDE],
             map_hide: 0,
@@ -354,7 +355,7 @@ impl DungeonMap {
         });
         let up = (floor.up != NO_ROOM && seen(fi, floor.up as i32)).then_some(floor.start[0]);
         let down = (floor.down != NO_ROOM && seen(fi, floor.down as i32)).then_some(floor.start[1]);
-        let special = self.dtype == 8 || self.dtype == 9;
+        let special = self.lake;
         let [map, map1, map2, map3] = &mut self.spr;
         // The magic portals.
         map1.rot = 0;
@@ -534,7 +535,7 @@ pub fn show_map_step(area: &mut crate::dungeon::DungeonArea, player: V4, clear: 
     let done = match map.unseen(f) {
         Some(i) => {
             set_room(area, i);
-            map.make_mini_map(&mut area.hits, f, i);
+            map.make_mini_map(&mut area.core.hits, f, i);
             map.paint(f, false);
             area.delete_room();
             false

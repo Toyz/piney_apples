@@ -174,7 +174,9 @@ fn pieces(a: &StoryArea) -> Vec<(Kind, Piece, Option<i16>, bool)> {
         let Drawn::Piece(kind, piece) = *d else { continue };
         let (layer, fog) = match reqs.next() {
             Some(Request::Models { layer, fog, .. }) => (Some(layer), !matches!(fog, Fogging::None)),
-            Some(Request::Anim { layer, fog, .. }) => (Some(layer), !matches!(fog, Fogging::None)),
+            Some(Request::Anim { layer, fog, .. } | Request::Pieces { layer, fog, .. }) => {
+                (Some(layer), !matches!(fog, Fogging::None))
+            }
             Some(Request::Sprite(s)) => (Some(s.layer), s.state.fog),
             Some(Request::Posed { layer, .. } | Request::Masks { layer, .. }) => (Some(layer), false),
             None => (None, false),

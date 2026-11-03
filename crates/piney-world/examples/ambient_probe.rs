@@ -264,6 +264,7 @@ fn init_count(archive: &Arc<Archive>, volume: Volume, f: &FieldArea, seed: u32, 
         cc: None,
         field: Some(fcx),
         made: Vec::new(),
+        rooms: None,
     };
     Systems::build(f.def.init, &mut cx).expect("Init's systems");
     cx.rng.count

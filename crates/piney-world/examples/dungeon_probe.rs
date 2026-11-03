@@ -21,7 +21,30 @@ use piney_world::chara::player::Player;
 use piney_world::dungeon::{DungeonArea, Exit};
 use piney_world::ee::{self, V4};
 use piney_world::hit::LAND_MASK;
+use piney_world::systems::fireflies::Fireflies;
+use piney_world::systems::lake_sky::LakeSky;
+use piney_world::systems::leaves::Leaves;
+use piney_world::systems::pieces::Pieces;
+use piney_world::systems::room_lights::RoomLights;
+use piney_world::systems::room_water::RoomWater;
+use piney_world::systems::sparks::Sparks;
+use piney_world::systems::{Hook, Kind, MapView, Request, Step};
 use piney_world::{Rand, tasks};
+
+/// `DrawEff`'s steps: the sparks, the room lights, a lake's fireflies.
+const DRAW_EFF: &[Step] = &[
+    Step::Run(Kind::Sparks, Hook::Draw),
+    Step::Run(Kind::RoomLights, Hook::Draw),
+    Step::Run(Kind::Fireflies, Hook::Draw),
+];
+/// `DrawEff` with type 32's leaves at its end.
+const LEAF_EFF: &[Step] = &[
+    Step::Run(Kind::Sparks, Hook::Draw),
+    Step::Run(Kind::RoomLights, Hook::Draw),
+    Step::Run(Kind::Leaves, Hook::Draw),
+];
+/// A lake's `DrawBG`.
+const DRAW_BG: &[Step] = &[Step::Run(Kind::LakeSky, Hook::Draw)];
 
 /// Kite and the camera in the dungeon.
 struct Run {
@@ -45,8 +68,8 @@ fn mat(m: &[V4; 4]) -> String {
 
 /// Type 32's leaves: each one's timer, spin, turns, place, step.
 fn leaves(d: &DungeonArea) -> String {
-    let Some(l) = d.dress.leaves.as_ref() else { return "null".into() };
-    let one = |x: &piney_world::dungeon::leaves::Leaf| {
+    let Some(l) = d.systems().get::<Leaves>().filter(|l| l.tree.is_some()) else { return "null".into() };
+    let one = |x: &piney_world::systems::leaves::Leaf| {
         format!(
             "[{}, {}, {}, {}, {}, {}, {}]",
             x.timer,
@@ -64,6 +87,7 @@ fn leaves(d: &DungeonArea) -> String {
 fn hit_list(d: &DungeonArea) -> String {
     let names = d.hit_names();
     let items: Vec<String> = d
+        .core
         .hits
         .models
         .iter()
@@ -73,19 +97,21 @@ fn hit_list(d: &DungeonArea) -> String {
     format!("[{}]", items.join(", "))
 }
 
-/// What `SetRoom` stood in the room ([`piney_world::dungeon::Dressing`]),
-/// and `fieldrand` after it.
+/// What `SetRoom` stood in the room (the type's systems), and `fieldrand`
+/// after it.
 fn dress(d: &DungeonArea) -> String {
-    let x = &d.dress;
+    let s = d.systems();
+    let file = &d.rooms.file;
     let anm_name = |a: &piney_world::dungeon::Anm| -> String {
-        d.file.ccs.object_name(d.file.anims[a.play.anim].object).unwrap_or("?").to_string()
+        file.ccs.object_name(file.anims[a.play.anim].object).unwrap_or("?").to_string()
     };
-    let water = match &x.water {
+    let water = match s.get::<RoomWater>().and_then(|w| w.water.as_ref()) {
         Some(w) => format!("[\"{}\", {}]", w.name, mat(&w.root)),
         None => "null".into(),
     };
-    let sparks: Vec<String> = x
-        .sparks
+    let sparks: Vec<String> = s
+        .get::<Sparks>()
+        .map_or(&[][..], |x| &x.sparks)
         .iter()
         .map(|s| {
             format!(
@@ -100,11 +126,12 @@ fn dress(d: &DungeonArea) -> String {
             )
         })
         .collect();
-    let lights: Vec<String> = x
-        .lights
+    let lights: Vec<String> = s
+        .get::<RoomLights>()
+        .map_or(&[][..], |x| &x.lights)
         .iter()
         .map(|r| {
-            let l = &d.lights.lights[r.light];
+            let l = &d.core.lights.lights[r.light];
             let (e2, p2) = r.eff2.map_or(("", [0; 4]), |(e, p)| (e, p));
             format!(
                 "[\"{}\", {}, {}, \"{e2}\", {}, {}, {}, {}, {}]",
@@ -119,28 +146,35 @@ fn dress(d: &DungeonArea) -> String {
             )
         })
         .collect();
-    let objects: Vec<String> = x.objects.iter().map(|c| format!("[\"{}\", {}]", c.name, mat(&c.m))).collect();
+    let pieces = s.get::<Pieces>();
+    let objects: Vec<String> =
+        pieces.map_or(&[][..], |p| &p.objects).iter().map(|c| format!("[\"{}\", {}]", c.name, mat(&c.m))).collect();
     let anms = |v: &[piney_world::dungeon::Anm]| -> String {
         let items: Vec<String> = v.iter().map(|a| format!("[\"{}\", {}]", anm_name(a), mat(&a.root))).collect();
         format!("[{}]", items.join(", "))
     };
-    let clut = match d.spark_clut() {
+    let clut = match s.get::<Sparks>().and_then(|x| x.clut) {
         Some(piney_world::sprite::Clut::Change { new, old }) => format!("[\"{new}\", \"{old}\"]"),
         _ => "null".into(),
     };
-    let fireflies: Vec<String> =
-        d.lake.iter().flat_map(|l| &l.fireflies).map(|f| format!("[{}, {}]", list(&f.base[..3]), f.pattern)).collect();
+    let fireflies: Vec<String> = s
+        .get::<Fireflies>()
+        .map_or(&[][..], |x| &x.fireflies)
+        .iter()
+        .map(|f| format!("[{}, {}]", list(&f.base[..3]), f.pattern))
+        .collect();
+    let rng = d.core.field_rand.unwrap_or(piney_data::dungeon::Rng::POWER_ON);
     format!(
         "{{\"water\": {water}, \"sparks\": [{}], \"lights\": [{}], \"objects\": [{}], \"anmobj\": {}, \
          \"anmobj2\": {}, \"clut\": {clut}, \"fireflies\": [{}], \"rng\": [{}, {}]}}",
         sparks.join(", "),
         lights.join(", "),
         objects.join(", "),
-        anms(&x.anm_objects),
-        anms(&x.anm_objects2),
+        anms(pieces.map_or(&[][..], |p| &p.walls)),
+        anms(pieces.map_or(&[][..], |p| &p.anms)),
         fireflies.join(", "),
-        d.rng.seed,
-        d.rng.count
+        rng.seed,
+        rng.count
     )
 }
 
@@ -250,8 +284,8 @@ fn main() {
                              \"dress\": {}}}",
                             a.dtype,
                             a.event,
-                            a.file.stem,
-                            a.spccs.as_ref().map_or("", |r| r.file.stem.as_str()),
+                            a.rooms.file.stem,
+                            a.rooms.spccs.as_ref().map_or("", |r| r.file.stem.as_str()),
                             a.tex_clut.clut_type,
                             a.tex_clut.tex_type,
                             a.fog_table.0,
@@ -286,21 +320,24 @@ fn main() {
                 // The owed ccRandF()s from sgenrand(seed)'s words.
                 let a = d.as_mut().unwrap();
                 let mut cc = piney_battle::rand::Genrand::seeded(n(1) as u32);
-                a.settle_leaves(&mut cc);
-                println!("{{\"leaves\": {}, \"rng\": [{}, {}]}}", leaves(a), a.rng.seed, a.rng.count);
+                a.settle(&mut cc);
+                let r = *a.rng();
+                println!("{{\"leaves\": {}, \"rng\": [{}, {}]}}", leaves(a), r.seed, r.count);
             }
             "leafeff" => {
                 let a = d.as_mut().unwrap();
                 let frames: Vec<String> = (0..n(1))
                     .map(|_| {
-                        a.draw_eff(true);
-                        let ms: Vec<String> = a.step_leaves(true).iter().map(mat).collect();
+                        a.run(LEAF_EFF, &MapView::default(), None);
+                        let l = a.systems().get::<Leaves>();
+                        let ms: Vec<String> = l.map_or(&[][..], |l| &l.matrices).iter().map(mat).collect();
+                        let r = *a.rng();
                         format!(
                             "{{\"leaves\": {}, \"matrices\": [{}], \"rng\": [{}, {}]}}",
                             leaves(a),
                             ms.join(", "),
-                            a.rng.seed,
-                            a.rng.count
+                            r.seed,
+                            r.count
                         )
                     })
                     .collect();
@@ -321,22 +358,31 @@ fn main() {
                 let mut frames = Vec::new();
                 let player = (w.len() > 3).then(|| [hex(w[2]), hex(w[3]), 0, ee::ONE]);
                 for _ in 0..n(1) {
-                    let mut ops = a.draw_eff(true);
-                    if let Some(p) = player {
-                        a.draw_fireflies(p, true, &mut ops);
+                    match player {
+                        Some(player) => a.run(DRAW_EFF, &MapView { player, ..MapView::default() }, None),
+                        None => a.run(&DRAW_EFF[..2], &MapView::default(), None),
                     }
-                    let sprites: Vec<String> = ops
+                    let rows = std::collections::HashMap::new();
+                    let sprites: Vec<String> = a
+                        .requests(&rows)
                         .iter()
-                        .map(|s| format!("[\"{}\", {}, {}, {}]", s.eff, list(&s.pos), s.pattern, s.transparency))
+                        .filter_map(|r| match r {
+                            Request::Sprite(s) => {
+                                Some(format!("[\"{}\", {}, {}, {}]", s.eff, list(&s.pos), s.pattern, s.transparency))
+                            }
+                            _ => None,
+                        })
                         .collect();
+                    let room_lights = a.systems().get::<RoomLights>().map_or(&[][..], |x| &x.lights);
                     let lights: Vec<u32> =
-                        a.dress.lights.iter().map(|r| a.lights.lights[r.light].intensity.to_bits()).collect();
+                        room_lights.iter().map(|r| a.core.lights.lights[r.light].intensity.to_bits()).collect();
+                    let r = *a.rng();
                     frames.push(format!(
                         "{{\"sprites\": [{}], \"lights\": {}, \"rng\": [{}, {}]}}",
                         sprites.join(", "),
                         list(&lights),
-                        a.rng.seed,
-                        a.rng.count
+                        r.seed,
+                        r.count
                     ));
                 }
                 println!("{{\"frames\": [{}]}}", frames.join(", "));
@@ -346,19 +392,23 @@ fn main() {
                 let here = Some(n(1) as usize);
                 let frames: Vec<String> = (0..n(2))
                     .map(|_| {
-                        let v = a.bg_scroll(true).map_or(-1, |(_, v)| i64::from(v));
-                        let m =
-                            a.bg_world(here).map_or_else(Vec::new, |m| m.to_cols_array().map(f32::to_bits).to_vec());
+                        a.run(DRAW_BG, &MapView::default(), here);
+                        let sky = a.systems().get::<LakeSky>();
+                        let v = sky.filter(|s| s.material.is_some()).map_or(-1, |s| i64::from(s.shown));
+                        let m = sky
+                            .and_then(|s| s.world)
+                            .map_or_else(Vec::new, |m| m.to_cols_array().map(f32::to_bits).to_vec());
                         format!("[{v}, {}]", list(&m))
                     })
                     .collect();
-                let clumps = a.lake.as_ref().map_or(0, |l| l.clumps.len());
+                let clumps = a.systems().get::<LakeSky>().map_or(0, |l| l.clumps.len());
                 println!("{{\"clumps\": {clumps}, \"frames\": [{}]}}", frames.join(", "));
             }
             "rng" => {
                 let a = d.as_mut().unwrap();
-                a.rng = piney_data::dungeon::Rng { seed: n(1) as u32, count: n(2) as u32 };
-                println!("{{\"rng\": [{}, {}]}}", a.rng.seed, a.rng.count);
+                *a.rng() = piney_data::dungeon::Rng { seed: n(1) as u32, count: n(2) as u32 };
+                let r = *a.rng();
+                println!("{{\"rng\": [{}, {}]}}", r.seed, r.count);
             }
             "select" => {
                 let a = d.as_mut().unwrap();
@@ -508,8 +558,8 @@ fn main() {
             "land" => {
                 let a = d.as_mut().unwrap();
                 let pos = [hex(w[1]), hex(w[2]), hex(w[3]), 0x3f80_0000];
-                let z = a.hits.land(pos, LAND_MASK);
-                let h = &a.hits;
+                let z = a.core.hits.land(pos, LAND_MASK);
+                let h = &a.core.hits;
                 println!(
                     "{{\"z\": {z}, \"num\": {}, \"cp\": {}, \"dist\": {}, \"att\": {}, \"attribute\": {}}}",
                     h.num,
@@ -521,7 +571,7 @@ fn main() {
             }
             "height" => {
                 let a = d.as_ref().unwrap();
-                println!("{{\"h\": {}}}", a.hits.ground_height(hex(w[1]), hex(w[2])));
+                println!("{{\"h\": {}}}", a.core.hits.ground_height(hex(w[1]), hex(w[2])));
             }
             "goto" => {
                 let a = d.as_mut().unwrap();
@@ -570,7 +620,7 @@ fn main() {
             "fog" => {
                 let a = d.as_ref().unwrap();
                 let f = &a.room_fog;
-                let amb = a.lights.ambient;
+                let amb = a.core.lights.ambient;
                 println!(
                     "{{\"fog\": [{}, {}, 0, {}, {}], \"ambient\": [{}, {}, {}]}}",
                     f.near.to_bits(),
@@ -600,9 +650,9 @@ fn main() {
                 player.acts.restraint = false;
                 player.acts.transfer_lag = 0;
                 player.acts.cloak = ee::ONE;
-                a.hits.chars.clear();
-                a.hits.center = [pos[0], pos[1]];
-                a.hits.hit_enable(&mut player.hit_body);
+                a.core.hits.chars.clear();
+                a.core.hits.center = [pos[0], pos[1]];
+                a.core.hits.hit_enable(&mut player.hit_body);
                 let camera = Camera::new(volume, pos, dirc, mode, Scheme::new(hex(w[5]) as i32));
                 // The disc's square roots (Outbreak's and Quarantine's sqrt.s).
                 run = Some(Run { player, camera, rand: Rand(u64::from(hex(w[7]))), mode });
@@ -624,7 +674,7 @@ fn main() {
                     dirc_r: hex(w[6]),
                     pow,
                 };
-                tasks(&mut r.camera, &mut r.player, &mut a.hits, &anims, &mut r.rand, &pad, &mut r.mode);
+                tasks(&mut r.camera, &mut r.player, &mut a.core.hits, &anims, &mut r.rand, &pad, &mut r.mode);
                 let (p, b, ac, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
                 let t = &c.tcam;
                 println!(

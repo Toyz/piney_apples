@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-569 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 242, tooling 59, ui 105, video 17, volumes 97, world 165. 144 entries still have open questions - [listed below](#still-open).
+570 entries: audio 44, battle 157, build 29, content 3, decomp 29, disc 6, engine 27, format 18, iop 3, render 131, save 16, script 62, test 242, tooling 59, ui 105, video 17, volumes 97, world 166. 144 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -581,6 +581,7 @@ The [reference](docs/README.md) says what is true now.
 | 567 | [The disc's DrawBG scroll is the executable's: it carries across visits from its first-use 1.0](worklog/0567-the-disc-s-drawbg-scroll-is-the-executable-s-it-carries.md) | 2026-11-02 | world |
 | 568 | [Golden shots of the fields and dungeons on every volume, every frame's picture and events as digests](worklog/0568-golden-shots-of-the-fields-and-dungeons-on-every-volume.md) | 2026-11-02 | test, world |
 | 569 | [Fields as defs: FieldDef by field type, WORLD's pictures and background as systems on the runner](worklog/0569-fields-as-defs-fielddef-by-field-type-world-s-pictures-and.md) | 2026-11-02 | world |
+| 570 | [Dungeons as defs: DungeonDef by dungeon type, the dress, lake and leaves as systems](worklog/0570-dungeons-as-defs-dungeondef-by-dungeon-type-the-dress-lake.md) | 2026-11-03 | world |
 
 ## Still open
 

@@ -294,9 +294,10 @@ pub struct DungeonEntries {
     pub actors: Vec<Option<Actor>>,
     pub gims: Option<entry::DungeonGims>,
     pub rng: piney_data::dungeon::Rng,
-    /// The dungeon's type and the built room's breakables' dummies
+    /// The dungeon type's breakables' rows (none in the lakes) and the
+    /// built room's breakables' dummies
     /// ([`crate::dungeon::DungeonArea::breakables_here`]).
-    pub dtype: u8,
+    pub rows: Option<[i32; 4]>,
     pub breakables: Vec<(u8, V4)>,
 }
 
@@ -314,12 +315,6 @@ pub struct FieldEntries {
     pub event_area: i32,
     pub start: V4,
 }
-
-/// `DUNGEON::EntryBreakObject`'s gimmick rows by dungeon type (its jump
-/// table @4166 and `EntryBreakObjectMain`'s @4116, types 0-3 and again
-/// 4-7): `OBJ_0pr4*` .. `OBJ_0pr7*` take them in turn, `OBJ_0pr2*` one of
-/// the four at random (`fieldrand(4)`, drawn for every breakable).
-const BREAK_ROWS: [[i32; 4]; 4] = [[8, 10, 7, 12], [8, 9, 7, 12], [10, 9, 11, 12], [13, 14, 11, 12]];
 
 /// A box's draw transparency.
 /// `ccCoord::SetMatrix_PosRotZYXScale(pos, rot, scale)` (main
@@ -1189,8 +1184,7 @@ impl Combat {
             }
             // DUNGEON::EntryBreakObject, every time: the room's breakables,
             // gimmicks of entRoot 2 (deleted as the room is left).
-            if d.dtype < 8 {
-                let rows = BREAK_ROWS[usize::from(d.dtype % 4)];
+            if let Some(rows) = d.rows {
                 for (family, pos) in d.breakables {
                     let pick = rows[rng.below(4) as usize];
                     let mut ep = entry::entry_param_clear();

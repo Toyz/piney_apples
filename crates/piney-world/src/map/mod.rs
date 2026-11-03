@@ -267,8 +267,8 @@ pub fn setup_area(
             if d.map.is_none() {
                 let edit = if d.event != 0 { d.tables.edit(d.event, scene.dungeon.clamp(0, 2)) } else { None };
                 let floors = dungeon::floors_of(d, edit);
-                let file = d.file.clone();
-                d.map = Some(Box::new(dungeon::DungeonMap::new(archive, volume, &file, i32::from(d.dtype), floors)?));
+                let file = d.rooms.file.clone();
+                d.map = Some(Box::new(dungeon::DungeonMap::new(archive, volume, &file, d.def.lake, floors)?));
             }
         }
         // A story map of its own draws no map (EVENTAREA02::Draw).
@@ -354,7 +354,7 @@ fn area_map(
             let Some(mut map) = d.map.take() else { return false };
             if awake {
                 let here = d.here(pos);
-                map.enter_room(&mut d.hits, d.level, here);
+                map.enter_room(&mut d.core.hits, d.level, here);
                 if in_battle {
                     st.last.clear();
                     d.map = Some(map);

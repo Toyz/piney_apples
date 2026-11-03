@@ -4818,7 +4818,8 @@ mod tests {
             Leg::Door(_) if stage == 0 => {
                 let inner = leg_goal(d, kite, leg, 1)?;
                 let at = |x: f32, y: f32| [x.to_bits(), y.to_bits(), (kite[2] + 95.0).to_bits(), 1f32.to_bits()];
-                let clear = d.hits.clone().line(at(kite[0], kite[1]), at(inner[0], inner[1]), 0x4000_0001, 1).is_none();
+                let clear =
+                    d.core.hits.clone().line(at(kite[0], kite[1]), at(inner[0], inner[1]), 0x4000_0001, 1).is_none();
                 if clear {
                     return Some(inner);
                 }
@@ -4854,7 +4855,7 @@ mod tests {
                 Some([sum[0] / n + dx * k, sum[1] / n + dy * k])
             }
             Leg::Stairs => {
-                let mut hits = d.hits.clone();
+                let mut hits = d.core.hits.clone();
                 let mut best: Option<(f32, [f32; 2])> = None;
                 for x in 0..80 {
                     for y in 0..80 {
@@ -6752,7 +6753,7 @@ mod tests {
                 let cam = w.camera().active().pos;
                 let mut head = kp;
                 head[2] = (f32::from_bits(kp[2]) + 140.0).to_bits();
-                let mut hits = d.hits.clone();
+                let mut hits = d.core.hits.clone();
                 let cut = hits.line(head, cam, piney_world::hit::CAMERA_MASK, 0).is_some();
                 behind += usize::from(cut);
                 if n % 15 == 0 || cut {

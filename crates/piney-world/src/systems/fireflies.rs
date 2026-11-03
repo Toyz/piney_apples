@@ -1,13 +1,14 @@
 //! The fireflies, two classes of the game's: `FIREFLY2`
 //! ([`crate::sky::firefly`]), the boss arenas' made over the file's markers
 //! and field type 9's roaming about the camera ([`Fireflies2`]); and
-//! `FIREFLY` ([`crate::field::firefly`]), a field's by night or hacked
-//! ([`Fireflies`]). Each moves and draws from `fieldrand` every frame.
+//! `FIREFLY` ([`crate::field::firefly`]), a field's or a lake room's by
+//! night or hacked ([`Fireflies`]). Each moves and draws from `fieldrand`
+//! every frame.
 
 use piney_data::statics::Position;
 use piney_data::{Error, Result};
 
-use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
+use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, RoomCx, RoomPart, StepCx};
 use crate::draw::EFF_LAYER;
 use crate::ee;
 use crate::field::ambient::{EFF_FILE, Env, Ground, uint_float};
@@ -140,17 +141,31 @@ impl MapSystem for Fireflies2 {
     }
 }
 
-/// How many `FIREFLY`s a field's `Generate` makes by night or hacked.
+/// Who makes the `FIREFLY`s: a field's `Generate` (each at a random place
+/// of the field), or a lake's `SetRoom` (0x005c38c0, by the room's centre,
+/// anew for each room).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Made {
+    Generate,
+    Room,
+}
+
+/// How many `FIREFLY`s are made by night or hacked, and by whom.
 #[derive(Clone, Copy, Debug)]
 pub struct FirefliesDef {
     pub count: usize,
+    pub made: Made,
 }
 
-/// The `FIREFLY`s, whether the area has a field (their new bases stand on
-/// it), their sparks' sprite, and this frame's sprites.
+/// The `FIREFLY`s, whether they are made (by night or hacked) and hacked,
+/// whether the area has a field (their new bases stand on it), their
+/// sparks' sprite, and this frame's sprites.
 #[derive(Clone, Debug)]
 pub struct Fireflies {
+    def: &'static FirefliesDef,
     pub fireflies: Vec<FieldFirefly>,
+    night: bool,
+    hacked: bool,
     field: bool,
     spark: &'static str,
     drawn: Vec<EffSprite>,
@@ -158,27 +173,33 @@ pub struct Fireflies {
 
 impl Fireflies {
     /// `WORLD::Generate`'s: by night or hacked, each at a random place of
-    /// the field.
+    /// the field. A lake's come with each room.
     pub fn new(def: &'static FirefliesDef, cx: &mut BuildCx) -> Result<Fireflies> {
         let f = cx.field.expect("an area's fireflies");
         let w = f.weather;
+        let night = w.time() == 2 || w.hacked();
         let mut fireflies = Vec::new();
-        if let Some(area) = f.field
-            && (w.time() == 2 || w.hacked())
-        {
+        if let (Made::Generate, Some(area), true) = (def.made, f.field, night) {
             let bounds = [0x473b_8000, 0x473b_8000];
             for _ in 0..def.count {
                 fireflies.push(FieldFirefly::new(w.hacked(), bounds, Ground::Field(&area.field), &mut cx.rng));
             }
         }
-        Ok(Fireflies { fireflies, field: f.def.field, spark: f.def.spark, drawn: Vec::new() })
+        let (field, spark) = (f.def.field, f.def.spark);
+        Ok(Fireflies { def, fireflies, night, hacked: w.hacked(), field, spark, drawn: Vec::new() })
     }
 }
 
 impl MapSystem for Fireflies {
-    /// Each one's `Move`, then its `Draw`.
+    /// `Draw`: each one's `Move`, then its `Draw`. `Again`: its `Draw`
+    /// alone (a lake's, which draws while the tasks sleep).
     fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
-        if hook != Hook::Draw || self.fireflies.is_empty() {
+        let step = match hook {
+            Hook::Draw => true,
+            Hook::Again => false,
+            _ => return,
+        };
+        if self.fireflies.is_empty() {
             return;
         }
         let Some(mut rng) = cx.core.field_rand else { return };
@@ -186,12 +207,27 @@ impl MapSystem for Fireflies {
         {
             let env = Env::of(cx);
             for f in &mut self.fireflies {
-                f.step(&env, self.field, &mut rng);
+                if step {
+                    f.step(&env, self.field, &mut rng);
+                }
                 f.draw(&env, self.spark, &mut rng, &mut self.drawn);
             }
         }
         cx.core.field_rand = Some(rng);
         (0..self.drawn.len()).for_each(|k| cx.put(Kind::Fireflies, Piece::Item(k)));
+    }
+
+    /// A lake's `SetRoom`: by night or hacked, five new ones by the room's
+    /// centre.
+    fn room(&mut self, part: RoomPart, cx: &mut RoomCx, _: &mut Others) {
+        let (RoomPart::Fireflies, Made::Room, true, Some(slot)) = (part, self.def.made, self.night, cx.slot) else {
+            return;
+        };
+        if cx.room.is_none() {
+            return;
+        }
+        let hacked = self.hacked;
+        self.fireflies = (0..self.def.count).map(|_| FieldFirefly::lake(hacked, slot.pos, cx.rng)).collect();
     }
 
     fn draw<'a>(&'a self, piece: Piece, _: &DrawCx<'a>) -> Option<Request<'a>> {

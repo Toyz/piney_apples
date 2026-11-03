@@ -16,11 +16,17 @@ pub mod fires;
 pub mod flare;
 pub mod haze;
 pub mod lake;
+pub mod lake_sky;
+pub mod leaves;
+pub mod pieces;
 pub mod rain;
+pub mod room_lights;
+pub mod room_water;
 pub mod scrolls;
 pub mod sky;
 pub mod smoke;
 pub mod snow;
+pub mod sparks;
 pub mod statics;
 pub mod steam;
 pub mod tobj;
@@ -152,6 +158,60 @@ pub struct MapView {
     pub rot2: V4,
     /// `ccSys` +0x358 & 1: the frame counter's low bit.
     pub odd: bool,
+    /// In a dungeon, the room under the player (`DUNGEON::Draw`'s).
+    pub room: Option<RoomAt>,
+}
+
+/// A dungeon room's centre (`pos[f][i]`, z 0) and size (0-2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RoomAt {
+    pub pos: [F; 2],
+    pub size: u8,
+}
+
+/// Which part of `DUNGEON::SetRoom` a system makes (or the room's going,
+/// `DeleteRoom` and `ClearRoom`: [`RoomPart::Clear`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RoomPart {
+    Clear,
+    /// An event room's own (type 32's tree and leaves).
+    Leaves,
+    /// `SetWater`.
+    Water,
+    /// `SetLight`.
+    Light,
+    /// `SetObject`.
+    Object,
+    /// `SetAnmObject`.
+    AnmObject,
+    /// A lake's fireflies.
+    Fireflies,
+}
+
+/// What joined a dungeon room's `ccModelHit` list after the room's own, in
+/// its order: a door's object, a node of the ban block, or a system's
+/// piece's (piece, entry).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Joined {
+    Door(usize, usize),
+    Block(usize),
+    Piece(Kind, usize, usize),
+}
+
+/// What `SetRoom` hands each system: the dungeon's files, the room's anm
+/// and slot (None: the room's going), the floor it is on and the
+/// dungeon's level, its event room's type, `fieldrand`, the light group
+/// and the hit list's joins.
+pub struct RoomCx<'a> {
+    pub rooms: &'a crate::dungeon::Rooms,
+    pub room: Option<&'a crate::dungeon::Anm>,
+    pub slot: Option<&'a crate::dungeon::Slot>,
+    pub floor: usize,
+    pub level: usize,
+    pub event_room: Option<i32>,
+    pub rng: &'a mut Rng,
+    pub lights: &'a mut crate::town::TownLights,
+    pub joined: &'a mut Vec<Joined>,
 }
 
 impl MapView {
@@ -310,6 +370,18 @@ pub enum Request<'a> {
         edit: Option<(u32, Arc<piney_draw::VertexEdits>)>,
         shadow: Option<(F, u8)>,
     },
+    /// Models each at its own world matrix (a dungeon's anms' objects, its
+    /// clumps' nodes), with the file's palette swaps (`ccAnm::ChangeClut`)
+    /// and one model's vertex edits.
+    Pieces {
+        file: &'a SceneFile,
+        pieces: Vec<(u32, Mat4)>,
+        layer: i16,
+        rows: Cow<'a, HashMap<u32, [u8; 2]>>,
+        fog: Fogging,
+        clut_swaps: &'a [(u32, u32)],
+        edit: Option<(u32, Arc<piney_draw::VertexEdits>)>,
+    },
     /// A `ccMask`'s puffs (`MakePacket(0, 1)` each: a 512 x 512 sprite of
     /// the 128 x 128 texture, the colour's alpha 0x60 by the puff's
     /// transparency), then one `SendPacketS`: each (transparency, x, y).
@@ -408,6 +480,23 @@ pub fn paint(layers: &mut Layers, to_screen: Mat4, r: &Request, sprites: &mut Ve
             sp.send(layers);
         }
         Request::Masks { .. } => {}
+        Request::Pieces { file, pieces, layer, rows, fog, clut_swaps, edit } => {
+            for &(model, world) in pieces {
+                let d = Draw {
+                    file,
+                    model,
+                    world,
+                    alpha: 1.0,
+                    rows,
+                    lights: None,
+                    nodes: &[],
+                    morph: Vec::new(),
+                    clut_swaps: clut_swaps.to_vec(),
+                };
+                let e = edit.as_ref().filter(|(m, _)| *m == model).map(|(_, e)| e);
+                draw::model_edited(layers, *layer, to_screen, &d, e, *fog);
+            }
+        }
     }
 }
 
@@ -453,6 +542,8 @@ pub struct BuildCx<'a> {
     pub cc: Option<&'a mut dyn piney_battle::rand::Rng>,
     /// In a field or dungeon, what `WORLD_MAN` holds of the area.
     pub field: Option<FieldCx<'a>>,
+    /// In a dungeon, its files as its rooms read them.
+    pub rooms: Option<&'a Rc<crate::dungeon::Rooms>>,
     /// What the constructors started besides their drawing (TOBJ::Init's
     /// `tobjSeLoopStart`), for the host once the area is up.
     pub made: Vec<MapEvent>,
@@ -583,6 +674,22 @@ pub(crate) trait MapSystem {
 
     /// The materials' offsets it writes (`MoveTexture`, `DrawBG`).
     fn rows(&self, _file: &SceneFile, _out: &mut HashMap<u32, [u8; 2]>) {}
+
+    /// Its part of a dungeon's `SetRoom`, or the room's going.
+    fn room(&mut self, _part: RoomPart, _cx: &mut RoomCx, _others: &mut Others) {}
+
+    /// The hit models of its piece `n`'s entry `o` on the hit list, and
+    /// their names (for the checks).
+    fn hits(&self, _n: usize, _o: usize) -> Vec<HitModel> {
+        Vec::new()
+    }
+
+    fn hit_names(&self, _n: usize, _o: usize) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// The game's `ccRand` draws it owes since the last call, drawn.
+    fn settle(&mut self, _cc: &mut dyn piney_battle::rand::Rng) {}
 }
 
 /// A system's own type, found in a list by its kind.
@@ -710,6 +817,30 @@ macro_rules! systems {
                     $(System::$v(x) => MapSystem::rows(&**x, file, out),)*
                 }
             }
+
+            fn room(&mut self, part: RoomPart, cx: &mut RoomCx, others: &mut Others) {
+                match self {
+                    $(System::$v(x) => MapSystem::room(&mut **x, part, cx, others),)*
+                }
+            }
+
+            fn hits(&self, n: usize, o: usize) -> Vec<HitModel> {
+                match self {
+                    $(System::$v(x) => MapSystem::hits(&**x, n, o),)*
+                }
+            }
+
+            fn hit_names(&self, n: usize, o: usize) -> Vec<String> {
+                match self {
+                    $(System::$v(x) => MapSystem::hit_names(&**x, n, o),)*
+                }
+            }
+
+            fn settle(&mut self, cc: &mut dyn piney_battle::rand::Rng) {
+                match self {
+                    $(System::$v(x) => MapSystem::settle(&mut **x, cc),)*
+                }
+            }
         }
 
         $(impl SystemKind for $t {
@@ -779,6 +910,18 @@ systems! {
     Tobj(tobj::Tobj, (), true, Some(GameClass::Tobj)),
     /// `BIRD`: field type 10's hawk.
     Bird(bird::Bird, (), false, Some(GameClass::Bird)),
+    /// A dungeon room's water (`SetWater`, `DrawWater`).
+    RoomWater(room_water::RoomWater, room_water::RoomWaterDef, false, None),
+    /// `SetWater`'s embers: `SNOW`s of type 3 over the magma.
+    Sparks(sparks::Sparks, sparks::SparksDef, true, Some(GameClass::Snow)),
+    /// `SetLight`'s room lights: glows and their omni lights.
+    RoomLights(room_lights::RoomLights, room_lights::RoomLightsDef, true, None),
+    /// `SetObject`'s and `SetAnmObject`'s pieces.
+    Pieces(pieces::Pieces, pieces::PiecesDef, true, None),
+    /// A lake's `DrawBG`.
+    LakeSky(lake_sky::LakeSky, lake_sky::LakeSkyDef, false, None),
+    /// Type 32's tree and `LEAF`s.
+    Leaves(leaves::Leaves, (), true, Some(GameClass::Leaf)),
     /// Mac Anu's own: its camera-eye clip of the rows and objects.
     MacAnu(crate::town::mac_anu::Clip, (), false, None),
     /// Carmina Gade's own: its `AIRSHIP`.
@@ -858,6 +1001,32 @@ impl Systems {
         let mut r = Report::default();
         self.all.iter().for_each(|s| s.report(&mut r));
         r
+    }
+
+    /// Each system's part of `SetRoom`, in the dungeon's order: `kind`'s
+    /// `part`, or with `kind` None every system's (the room's going).
+    pub fn room(&mut self, kind: Option<Kind>, part: RoomPart, cx: &mut RoomCx) {
+        for k in 0..self.all.len() {
+            if kind.is_some_and(|kind| self.all[k].kind() != kind) {
+                continue;
+            }
+            let (me, mut others) = self.split_at(k);
+            me.room(part, cx, &mut others);
+        }
+    }
+
+    /// The hit models of `kind`'s piece `n`'s entry `o`, and their names.
+    pub fn hits(&self, kind: Kind, n: usize, o: usize) -> Vec<HitModel> {
+        self.of_kind(kind).map_or_else(Vec::new, |s| s.hits(n, o))
+    }
+
+    pub fn hit_names(&self, kind: Kind, n: usize, o: usize) -> Vec<String> {
+        self.of_kind(kind).map_or_else(Vec::new, |s| s.hit_names(n, o))
+    }
+
+    /// The game's `ccRand` draws the systems owe, drawn in their order.
+    pub fn settle(&mut self, cc: &mut dyn piney_battle::rand::Rng) {
+        self.all.iter_mut().for_each(|s| s.settle(cc));
     }
 
     /// The offsets the scrolls last wrote into `file`'s materials.

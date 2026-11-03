@@ -245,7 +245,7 @@ Where the code does by hand, per kind, what a system should do once:
       `place_entries`, `field/npcs.rs` `FieldNpcs::build`, the merchants'
       `dummy_of`, the registry count `regist_npc_num`); one entry system
       that resolves markers and dummies for any area.
-- [ ] **The map's own systems** (the contract above): water, sky, clouds,
+- [x] **The map's own systems** (the contract above): water, sky, clouds,
       lens flare, fireflies (`FIREFLY` and `FIREFLY2` are two real game
       classes; keep both, as systems), static objects and models, scrolls,
       lights, the minimap (`map/` already one folder), in fields the
@@ -281,7 +281,11 @@ Where the code does by hand, per kind, what a system should do once:
       (`Fireflies`) beside `Firefly2` (`Roam`), the field's light its
       `AreaCore`'s, the ambient (`Snow`, `Smoke`, `Steam`, `Haze`, `Lake`,
       `Rain`, `Thunder`, `Fires`, `Tobj`, `Bird`) systems; no world or game
-      code names a field type. Left: the dungeons'.)
+      code names a field type. Worklog 570: the dungeons are defs:
+      `DungeonDef` by dungeon type (`BASE_DUNGEON`), `SetRoom` the def's
+      `RoomStep`s over its systems (`RoomWater`, `Sparks`, `RoomLights`,
+      `Pieces`, `LakeSky`, `Fireflies` made by the room, `Leaves`), `Draw`
+      its order; no world or game code names a dungeon type.)
 - [ ] **Scene transitions.** The session's `change`, `leave`, `enter_world`
       and the modes' `change_area` / `scene_change` / `leave` repeat the
       same request handling (worklog 503 had the console's `town` skip it);

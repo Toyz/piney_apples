@@ -91,7 +91,7 @@ impl Place {
     fn hits(&mut self) -> &mut Hits {
         match self {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         }
     }
@@ -100,7 +100,7 @@ impl Place {
     pub fn lights(&self) -> &crate::town::TownLights {
         match self {
             Place::Field(f) => &f.core.lights,
-            Place::Dungeon(d) => &d.lights,
+            Place::Dungeon(d) => &d.core.lights,
             Place::Story(m) => m.lights(),
         }
     }
@@ -410,7 +410,7 @@ impl FieldWorld {
                         // dungeon already made (MUT main 0x001b5d40,
                         // 0x001b5d9c) and zeroes randcnt: its draws go on
                         // from the game's stream.
-                        d.rng = piney_data::dungeon::Rng { seed: save.field_rand.seed, count: 0 };
+                        d.core.field_rand = Some(piney_data::dungeon::Rng { seed: save.field_rand.seed, count: 0 });
                         // Back up from a field type 4 area's second dungeon.
                         if world_man.no_field()
                             && scene.dungeon_prev == 1
@@ -430,8 +430,8 @@ impl FieldWorld {
                     )?),
                 };
                 let mut d = d;
-                d.take_statics(&save.scroll_statics);
-                d.settle_leaves(&mut cc);
+                d.take(&save.scroll_statics);
+                d.settle(&mut cc);
                 let (pos, rot) = d.start();
                 (Place::Dungeon(d), pos, rot)
             }
@@ -688,7 +688,7 @@ impl FieldWorld {
         let swaps = self.kite.swaps(bracelet);
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let save = &self.save.save;
@@ -719,7 +719,7 @@ impl FieldWorld {
                     }
                     let hits = match &mut self.place {
                         Place::Field(f) => &mut f.core.hits,
-                        Place::Dungeon(d) => &mut d.hits,
+                        Place::Dungeon(d) => &mut d.core.hits,
                         Place::Story(m) => m.hits_mut(),
                     };
                     let save = &self.save.save;
@@ -754,7 +754,7 @@ impl FieldWorld {
                     }
                     let hits = match &mut self.place {
                         Place::Field(f) => &mut f.core.hits,
-                        Place::Dungeon(d) => &mut d.hits,
+                        Place::Dungeon(d) => &mut d.core.hits,
                         Place::Story(m) => m.hits_mut(),
                     };
                     let save = &self.save.save;
@@ -901,6 +901,7 @@ impl FieldWorld {
             rot: c.tcam.rot,
             rot2: c.tcam.rot3,
             odd: self.count & 1 != 0,
+            room: None,
         }
     }
 
@@ -1016,7 +1017,7 @@ impl FieldWorld {
         // +0xd3884); a plain field stores to address 0 (0x001b1b78).
         let file = match &self.place {
             Place::Story(m) => m.file()?,
-            Place::Dungeon(d) => &d.file,
+            Place::Dungeon(d) => &d.rooms.file,
             Place::Field(_) => return None,
         };
         let (p, r) = crate::event::marker_in(file, self.volume, n)?;
@@ -1142,7 +1143,7 @@ impl FieldWorld {
         }
         match &self.place {
             Place::Story(m) => m.put(&mut out.scroll_statics, &mut out.move_tex),
-            Place::Dungeon(d) => d.put_statics(&mut out.scroll_statics),
+            Place::Dungeon(d) => d.put(&mut out.scroll_statics),
             Place::Field(f) => out.field_ambient = Some(f.put(&mut out.scroll_statics)),
         }
         out
@@ -1153,7 +1154,7 @@ impl FieldWorld {
     pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
         match &self.place {
             Place::Field(f) => f.core.field_rand,
-            Place::Dungeon(d) => Some(d.rng),
+            Place::Dungeon(d) => d.core.field_rand,
             Place::Story(m) => m.field_rand().copied(),
         }
     }
@@ -1163,7 +1164,7 @@ impl FieldWorld {
     pub fn set_field_seed(&mut self, seed: u32) {
         let r = match &mut self.place {
             Place::Field(f) => f.core.field_rand.as_mut(),
-            Place::Dungeon(d) => Some(&mut d.rng),
+            Place::Dungeon(d) => d.core.field_rand.as_mut(),
             Place::Story(m) => m.field_rand_mut(),
         };
         match r {
@@ -1260,7 +1261,7 @@ impl FieldWorld {
         let Place::Dungeon(d) = &mut self.place else { return false };
         d.bans = crate::dungeon::bans_of(&self.save.save);
         d.room_select(f, b, clear);
-        d.settle_leaves(&mut self.combat.cc);
+        d.settle(&mut self.combat.cc);
         self.scene.change_scene(-2, -2, -2, -2, floor, block, &mut self.save.save);
         self.requests.push(Request::ChangeScene);
         true
@@ -1275,7 +1276,7 @@ impl FieldWorld {
         let clear = |f: i32, b: i32| room_clear(combat, f, b);
         let done = crate::map::show_map(&mut self.place, self.world_man.field_model, self.player.body.pos, &clear);
         if let Place::Dungeon(d) = &mut self.place {
-            d.settle_leaves(&mut self.combat.cc);
+            d.settle(&mut self.combat.cc);
         }
         done
     }
@@ -1335,7 +1336,7 @@ impl FieldWorld {
                     &mut self.save.save,
                     &mut self.dungeons.last_room,
                 );
-                d.settle_leaves(&mut self.combat.cc);
+                d.settle(&mut self.combat.cc);
                 match exit {
                     Some(Exit::Area { area, n }) => self.change_area(area, n),
                     Some(Exit::Scene { area, town, field, dungeon, floor, block }) => {
@@ -1658,7 +1659,7 @@ impl FieldWorld {
         let mut game = self.combat.battle;
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let mut host =
@@ -1749,7 +1750,7 @@ impl FieldWorld {
     pub fn place_hits(&self) -> &Hits {
         match &self.place {
             Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.hits,
+            Place::Dungeon(d) => &d.core.hits,
             Place::Story(m) => m.hits(),
         }
     }
@@ -1810,7 +1811,7 @@ impl FieldWorld {
         let area = self.scene.area;
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let b = Combat::bounds(area, hits);
@@ -1915,7 +1916,7 @@ impl FieldWorld {
                 let area = self.scene.area;
                 let hits = match &mut self.place {
                     Place::Field(f) => &mut f.core.hits,
-                    Place::Dungeon(d) => &mut d.hits,
+                    Place::Dungeon(d) => &mut d.core.hits,
                     Place::Story(m) => m.hits_mut(),
                 };
                 let b = Combat::bounds(area, hits);
@@ -1981,7 +1982,7 @@ impl FieldWorld {
         let in_battle = self.combat.battle.in_battle;
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         self.combat.with_ai(hits, &mut self.camera, &scene, &mut self.save.save, in_battle, f)
@@ -2053,7 +2054,7 @@ impl FieldWorld {
         let annihilated = self.combat.annihilated();
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         self.combat.with_spc(member, hits, |r, hits| r.manual_mode_ai(ev, annihilated, hits));
@@ -2063,7 +2064,7 @@ impl FieldWorld {
     pub fn remote_cmd(&mut self, member: usize, cmd: i32) {
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         self.combat.with_spc(member, hits, |r, _| r.set_remote_cmd(cmd as i16));
@@ -2083,7 +2084,7 @@ impl FieldWorld {
         let c = self.combat.scene.chars.get(who)?;
         let hits = match &self.place {
             Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.hits,
+            Place::Dungeon(d) => &d.core.hits,
             Place::Story(m) => m.hits(),
         };
         let bounds = Combat::bounds(self.scene.area, hits);
@@ -2172,7 +2173,7 @@ impl FieldWorld {
         let c = self.combat.scene.chars.get(who)?;
         let hits = match &self.place {
             Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.hits,
+            Place::Dungeon(d) => &d.core.hits,
             Place::Story(m) => m.hits(),
         };
         let bounds = Combat::bounds(self.scene.area, hits);
@@ -2191,7 +2192,7 @@ impl FieldWorld {
         let o = self.combat.ride.obj.as_deref()?;
         let hits = match &self.place {
             Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.hits,
+            Place::Dungeon(d) => &d.core.hits,
             Place::Story(m) => m.hits(),
         };
         let bounds = Combat::bounds(self.scene.area, hits);
@@ -2434,7 +2435,7 @@ impl FieldWorld {
         let positions = self.event_entries.2.clone();
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let (r, out) = self.combat.with_ev_party(hits, &mut self.camera, area, &roster, &positions, f);
@@ -2454,7 +2455,7 @@ impl FieldWorld {
         let area = self.scene.area;
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let bounds = Combat::bounds(area, hits);
@@ -2511,7 +2512,7 @@ impl FieldWorld {
             let area = self.scene.area;
             let hits = match &mut self.place {
                 Place::Field(f) => &mut f.core.hits,
-                Place::Dungeon(d) => &mut d.hits,
+                Place::Dungeon(d) => &mut d.core.hits,
                 Place::Story(m) => m.hits_mut(),
             };
             let bounds = Combat::bounds(area, hits);
@@ -2573,7 +2574,7 @@ impl FieldWorld {
                     }
                     // The dressing's sparks and glows (DrawEff) go to the
                     // effects as the field's ambient sprites do.
-                    let mut sprites = d.draw(&mut ctx.layers, to_screen, &self.camera.world_screen, player, awake);
+                    let mut sprites = d.draw(&mut ctx.layers, to_screen, &v, awake);
                     // The symbols' fires (ccSymFire::main's ccEff::Draw on
                     // layer 3): EFF_x008 of XGSYMBOL.CCS, Init(chunk, 0).
                     sprites.extend(self.combat.symbol_fires.iter().map(|&(pos, pattern, scale, colour)| {
@@ -2714,8 +2715,8 @@ impl FieldWorld {
                         kept: d.kept_entries.take(),
                         actors: std::mem::take(&mut d.kept_actors),
                         gims,
-                        rng: d.rng,
-                        dtype: d.dtype,
+                        rng: *d.rng(),
+                        rows: d.def.breakables,
                         breakables: d.breakables_here(self.scene.field, self.scene.block),
                     })
                 }
@@ -2802,7 +2803,7 @@ impl FieldWorld {
         let mut rand = crate::Rand(self.combat.rand.0);
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let mut cx = crate::event::entry::NpcCtx {
@@ -2856,7 +2857,7 @@ impl FieldWorld {
     pub fn player_distance(&self, pos: V4) -> F {
         let hits = match &self.place {
             Place::Field(f) => &f.core.hits,
-            Place::Dungeon(d) => &d.hits,
+            Place::Dungeon(d) => &d.core.hits,
             Place::Story(m) => m.hits(),
         };
         let b = Combat::bounds(self.scene.area, hits);
@@ -3496,7 +3497,7 @@ impl FieldWorld {
         let mut chars = combat::spc::BattleChars::read(&c.scene, &c.crew, &c.members, c.kite, &td);
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.core.hits,
-            Place::Dungeon(d) => &mut d.hits,
+            Place::Dungeon(d) => &mut d.core.hits,
             Place::Story(m) => m.hits_mut(),
         };
         let r = f(&mut self.spcs, &mut chars, hits);
@@ -3927,7 +3928,7 @@ fn tasks<'a>(
         Place::Story(m) => (m.hits_mut(), Vec::new(), [0; 3]),
         Place::Dungeon(d) => {
             let (m, n) = (d.map_2d(), d.map_2d_info(i.scene.block));
-            (&mut d.hits, m, n)
+            (&mut d.core.hits, m, n)
         }
     };
     let event_area = hits.event_area;

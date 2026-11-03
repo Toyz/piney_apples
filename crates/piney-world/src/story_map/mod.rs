@@ -488,6 +488,7 @@ impl StoryArea {
             cc: shorten(Some(&mut *env.cc)),
             field: None,
             made: Vec::new(),
+            rooms: None,
         };
         let systems = Systems::build(def.systems, &mut cx)?;
         let mut rng = cx.rng;
@@ -531,6 +532,7 @@ impl StoryArea {
             cc: shorten(cc),
             field: None,
             made: Vec::new(),
+            rooms: None,
         };
         let made = self.systems.build_block(block.systems, &mut cx);
         *rng = cx.rng;

@@ -471,6 +471,7 @@ impl FieldArea {
                 cc: None,
                 field: Some(fcx),
                 made: Vec::new(),
+                rooms: None,
             };
             let mut systems = Systems::build(def.init, &mut cx)?;
             systems.extend(bg_systems, &mut cx)?;

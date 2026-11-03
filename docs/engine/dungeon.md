@@ -3,7 +3,7 @@ title: Dungeon generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x00597d84 ccPlayer::ccPlayer (the lake's arrival), 0x005c1440 DUNGEON::SetClutList, 0x005c17b0 DUNGEON::ChangeClut; INF SLUS_202.67:0x0013aad0 ccModel::ChangeClut, 0x00152d00 ccAnm::ChangeClut; INF gcmn.prg:0x005c12a0 DUNGEON::Generate, 0x005c0110 MakeFloor, 0x005b6840 FOOT::FOOT, 0x005b7330 FOOT::Move, 0x005b78c0 FOOT::CheckDirection, 0x005ba1d0 DUNGEON::MakeRoom, 0x005bb340 SetAllGim, 0x005be020 MakeRealMap, 0x005bcbb0 DUNGEON::MakeRoom(ROOMDATA *), 0x005b7c00 DUNGEON::DUNGEON, 0x005c1ca0 SetRoom, 0x005c3a50 ClearRoom, 0x005c1980 DeleteRoom, 0x005c7c30 SetDoor, 0x005cd3d0 MoveDoor, 0x005c9e10 GotoNextRoom, 0x005ce930 DUNGEON::Draw, 0x005cf030 DUNGEON::GetHeight, 0x005cf040 GetStartPosition, 0x005c4560 SetLight, 0x0042e010 ccCheckActiveObject, 0x00571da0 initHitCheck, 0x005c8820 DUNGEON::OpenDoor, 0x005c8f50 CloseDoor, 0x005c8800 CloseDoor2, 0x005cf080 GetRoom2DPos, 0x005b6720 GetEditDungeonPtr; INF SLUS_202.67:0x001382f0 ccCoord::SetMatrix_PosRotZYX, 0x00110a30 sceVu0RotMatrixZ, 0x00139330 ccDirectLight::CheckRange, 0x001392d0 ccDirectLight::Init, 0x001389b0 ccCreateLight, 0x00105820 ccDrawEnv::SetFog, 0x0019f4b0 WORLD_MAN::SetDungeonTexClut, 0x0019cf50 SetDungeonTypeFromField, 0x0019c460 fieldrand, 0x0019f8e0 WORLD_MAN::GO, 0x0019dda0 WORLD_MAN::Enter, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a10c0 WORLD_MAN::GetHeight, 0x001a4070 WORLD_MAN::SetPrevRoom, 0x00151f30 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153760 ccModelHit::HitEnable, 0x001107b0 sceVu0InversMatrix, 0x0014cb80 ccStream::Decode_ExtObj, 0x001b3620 ccEvent::SetEventPoint, 0x001b3590 ccEvent::SetEventPos, 0x001a22b0 WORLD_MAN::Get2DMapPtr, 0x001b218c open_door, 0x001b21cc close_door, 0x0019dca0 WORLD_MAN::RoomSelect, 0x001b0948 room, 0x001b097c room_point; INF gcmn.prg:0x005c95c0 DUNGEON::RoomSelect, 0x005b61e0 DUNGEON::GetBanRoom; INF SLUS_202.67:0x0013cff0 ccClump::HitEnable, 0x0013d240 ccClump::SetHitMatrix, 0x001d9dd0 ccGetDist, 0x00178400 ccSaveData::CheckAreaBan; INF gcmn.prg:0x005c3f30 DUNGEON::SetWater, 0x005c70c0 SetObject, 0x005c6e80 EntryObject, 0x005c3ad0 SetAnmObject, 0x005ce1c0 DrawWater, 0x005cdee0 DrawEff, 0x005ce3d0 DUNGEON::DrawBG, 0x00503cf0 SNOW::SNOW(ccStream *, float *), 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x00502e20 calcPos3; INF SLUS_202.67:0x00151ce0 ccAnm::GetSubstAdrs, 0x00101ad0 ccMatchIndex, 0x00101e20 ccSubstSearchResult::SetTbl, 0x00138b60 ccSetColor, 0x00139060 ccLightGrp::AddGrp, 0x0013ba20 ccEff::Init, 0x0014bce0 ccStream::Decode_Model, 0x0013b5c0 ccObj::Init; MUT SLUS_205.62:0x001b6f70 WORLD_MAN::EntryGimmick
-worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391, 482, 483, 486, 492, 496, 497, 550, 557
+worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391, 482, 483, 486, 492, 496, 497, 550, 557, 570
 ---
 
 # Dungeon generation
@@ -635,32 +635,48 @@ nothing to draw.
 - For k < 10: `object[k]` drawn, `anmobj[k]` and `anmobj2[k]` stepped and
   drawn.
 
-**The port** (`dungeon_area::Dressing`,
-`crates/piney-world/src/dungeon/dress.rs`):
+**The port.** Each dungeon type is a `DungeonDef`
+(`piney_world::dungeon::def`, one `static` a type, each `BASE_DUNGEON`
+with its differences): whether it is a lake, its food, its breakables'
+rows, its story rooms' `ROOM_INFO` family, `MoveDoor`'s sound and whether
+an open door's leaf leaves the hit list, and its systems:
 
-- `set_room_with` runs `set_water`, `set_light`, `set_object`, `set_door`
-  and `set_anm_object` with `DungeonArea.rng` as `fieldrand`; the pieces
-  join the hit list (`joined`) in the game's order, and `put_doors` keeps
-  them in place.
-- `RoomFile`'s models leave out those without mmats (no hits for them).
-- `draw` draws the dressing whether or not the player's cell is the room's
-  and steps it while awake. `DrawEff`'s sprites go to the effects as the
-  fields' ambient ones do (`EffSprite`, the palette change its state's
-  `Clut::Change`).
-- The glows' omni lights join `lights` and flicker with their glows.
+| system | what | types |
+| --- | --- | --- |
+| `RoomWater` | `SetWater`'s water, `DrawWater` (`u$8862` in the statics) | all |
+| `Sparks` | `SetWater`'s embers (`SNOW` type 3), types 0 and 1's palettes | all |
+| `RoomLights` | `SetLight`'s glows and omni lights (by `type & 3`, the altar's in 2 and 6) | 0-7 |
+| `Pieces` | `object[]`, `anmobj[]`, `anmobj2[]`: the lakes' statues, 3 and 7's walls, 0-3's anms | all |
+| `LakeSky`, `Fireflies` | the lake's `DrawBG` (`v$8917`) and `SetRoom`'s `FIREFLY`s | 8, 9 |
+| `Leaves` | type 32's tree and `LEAF`s | all (an event room of type 32) |
+
+- `SetRoom` runs the def's room steps (`ROOM`): an event room's own, then
+  with the room built each system's `SetWater`, `SetLight`, `SetObject`,
+  the core's `SetDoor`, `SetAnmObject`, a lake's fireflies, with
+  `fieldrand`; each piece's hits join the list (`joined`) in the game's
+  order, and `put_doors` keeps them in place. `DeleteRoom` and a new room
+  clear them.
+- `RoomFile`'s models leave out those without mmats (no hits for them);
+  `Rooms` holds the dungeon's files as the systems read them.
+- `Draw` runs the def's order (`ORDER`: the lake's sky, the water,
+  `DrawEff`'s sparks, glows, fireflies and leaves, then the pieces) whether
+  or not the player's cell is the room's, then the room, its doors and the
+  ban block; asleep, `ASLEEP`, each as it stands (the water sampling the
+  picture afresh, the fireflies drawn again). `DrawEff`'s sprites go to
+  the effects as the fields' do (`EffSprite`, the palette change its
+  state's `Clut::Change`).
+- The glows' omni lights join the light group and flicker with their glows.
 - Water 0 samples the frame drawn so far, not the copy made after it.
-- `u` lives as long as the dungeon.
 - `EntryObject`'s palettes for the lakes' statues and flowers (`GetBG` 1-3:
   `ccClump::ChangeClut(+0x24c[k], +0x14c[k])`, the `SetClutList` pairs)
   are the file's `clut_swaps`, which every model of the file draws with, as
   the shared materials do in the game (`a_lakes_statues_take_its_palettes`,
   worklog 482).
-- Type 32's tree and leaves (`dungeon_area/leaves.rs`): `set_leaves` makes
-  the tree and the twenty `LEAF`s with `fieldrand`; their `ccRandF` tilts
-  are owed until the world draws them from `ccRand`
-  (`DungeonArea::settle_leaves`, after each call that can `SetRoom`).
-  `step_leaves` is `DrawEff`'s last part; the tree draws fogged, the
-  leaves unfogged (tools/test_dungeon_rt.py `test_leaves`, worklog 492).
+- Type 32's tree and leaves (the `Leaves` system): made with `fieldrand`;
+  their `ccRandF` tilts are owed until the world draws them from `ccRand`
+  (`DungeonArea::settle`, after each call that can `SetRoom`). Its step is
+  `DrawEff`'s last part; the tree draws fogged, the leaves unfogged
+  (tools/test_dungeon_rt.py `test_leaves`, worklog 492).
 
 ## Type 32's tree and leaves
 
@@ -739,16 +755,11 @@ DrawEff       (0x005cdee0) after the glows, types 8 and 9 by night or
   back within 2,500 of him when more than 3,000 away (z 0 in field type
   4), their sparks `EFF_sfpfir_1` (`EFF_sfzfir1` in field type 9).
 
-The port (`crates/piney-world/src/dungeon/lake.rs`):
-
-- `Lake::new` finds the clumps and the material; `DungeonArea::draw` calls
-  `draw_bg` (`bg_scroll`, `bg_world`) before the dressing, and
-  `draw_fireflies` after `DrawEff`'s sprites, which go to the effects with
-  them (`field_eff` is loaded on first use).
-- `field_firefly::FieldFirefly::lake` makes each firefly;
-  `field_ambient::Env.bounds` carries the dungeon's bounds to `Move` and
-  its sparks.
-- `v` lives as long as the dungeon.
+The port: the lakes' `LakeSky` (the clumps and the material, the scroll
+in the executable's statics) and `Fireflies` (`Made::Room`,
+`FieldFirefly::lake` for each) systems; the fireflies' sprites go to the
+effects with `DrawEff`'s; the dungeon's bounds reach `Move` and the sparks
+through the frame's `Env`.
 
 ## Event rooms
 

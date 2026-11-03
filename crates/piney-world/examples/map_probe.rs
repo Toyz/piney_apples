@@ -219,8 +219,8 @@ fn main() {
                     DungeonArea::new_banned(&archive, volume, &wm, &scene, piney_world::dungeon::NO_BANS).unwrap();
                 let edit = if a.event != 0 { a.tables.edit(a.event, scene.dungeon) } else { None };
                 let floors = dungeon::floors_of(&a, edit);
-                let file = a.file.clone();
-                let m = dungeon::DungeonMap::new(&archive, volume, &file, i32::from(a.dtype), floors).unwrap();
+                let file = a.rooms.file.clone();
+                let m = dungeon::DungeonMap::new(&archive, volume, &file, a.def.lake, floors).unwrap();
                 let sizes = list(m.floors.iter().map(|f| {
                     list(f.rooms.iter().map(|r| format!("[{}, {}, {}]", u8::from(r.made), r.size, u8::from(r.special))))
                 }));
@@ -244,7 +244,7 @@ fn main() {
                 let (f, i) = (n(1) as usize, n(2) as usize);
                 a.set_room(f, i);
                 let mut m = a.map.take().unwrap();
-                let new = m.make_mini_map(&mut a.hits, f, i);
+                let new = m.make_mini_map(&mut a.core.hits, f, i);
                 if new {
                     m.paint(f, false);
                 }

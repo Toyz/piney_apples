@@ -99,7 +99,7 @@ fn waypoint(d: &DungeonArea, p: [f32; 4], q: [f32; 2], room: usize) -> Option<[f
         let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
         let n = dx.hypot(dy).max(1.0);
         let (sx, sy) = (-dy / n * 50.0, dx / n * 50.0);
-        let mut hits = d.hits.clone();
+        let mut hits = d.core.hits.clone();
         [30.0, 95.0].into_iter().all(|h| {
             [-1.0f32, 0.0, 1.0].into_iter().all(|k| {
                 let (ox, oy) = (sx * k, sy * k);
@@ -426,7 +426,7 @@ impl Walker {
 fn detour(d: &DungeonArea, p: [f32; 4], q: [f32; 2]) -> (Vec<[f32; 2]>, bool) {
     const STEP: f32 = 150.0;
     let at = |x: f32, y: f32, h: f32| [x.to_bits(), y.to_bits(), (p[2] + h).to_bits(), 1f32.to_bits()];
-    let mut hits = d.hits.clone();
+    let mut hits = d.core.hits.clone();
     let mut clear = |a: [f32; 2], b: [f32; 2]| {
         let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
         let n = dx.hypot(dy).max(1.0);
@@ -568,7 +568,7 @@ fn event_25_opens_in_area_23s_shrine() {
             && d.room_at == Some(SHRINE)
             && shrine.is_none()
         {
-            let file = d.spccs.as_ref().map(|f| f.file.stem.clone());
+            let file = d.rooms.spccs.as_ref().map(|f| f.file.stem.clone());
             shrine = Some((d.special_room, file, d.position.map(f32::from_bits)));
         }
         if (sc.floor, sc.block) == (2, 2) && kite_at.is_none() && w.phase() == piney_world::Phase::Play(0) {

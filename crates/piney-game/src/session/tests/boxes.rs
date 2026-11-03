@@ -56,7 +56,7 @@ fn loose_boxes(s: &Session) -> Vec<Loose> {
         }
         let at = c.scene.chars[who].pos.map(f32::from_bits);
         let id = body_id(who, c.kite);
-        let listed = d.hits.chars.iter().find(|b| b.id == id).map(|b| b.pos.map(f32::from_bits));
+        let listed = d.core.hits.chars.iter().find(|b| b.id == id).map(|b| b.pos.map(f32::from_bits));
         let near = listed.is_some_and(|p| (0..3).all(|k| (p[k] - at[k]).abs() < 1.0));
         if !near {
             out.push((o.gim_id, [at[0], at[1], at[2]], listed.map(|p| [p[0], p[1], p[2]])));
