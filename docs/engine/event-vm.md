@@ -269,7 +269,7 @@ In the port:
 - The town host flashes its `scFadeDef` (on the font layer) and tints the
   town's Piros (`piney_world::chara::char::AffectColour`, drawn through
   `Body::draw_char_fog`).
-- The field and dungeon host (`area_host.rs`) does the same: the flashes on
+- In a field or dungeon the host (`ev_host.rs`, the same `EvHost`) does the same: the flashes on
   the area's `scFadeDef`, the tint on Piros's character in the fights
   (`FieldWorld::set_affect_colour`), whose `ccChar::Draw` takes the blend
   each frame it is drawn (`AffectColour::blend`, a flash counting down) and
@@ -474,7 +474,8 @@ only mark its gate), 312 in Mac Anu, and the rest on the desktop.
 
 In the field (`game.status` 5) the task runs beside the field's tasks, the
 first of them each frame (priority 32). `crates/piney-game`'s
-`field_host.rs` is the host, `world.rs`'s `WorldMode` runs it.
+`ev_host.rs`'s `EvHost` is the host (one for every area, what differs by
+world its `HostWorld`), `world.rs`'s `WorldMode` runs it.
 
 **The set-up.** `ccSetupGameCtrl` (0x00168960) calls `ccStartThEvent` and
 `ccEnableThEvent(0)` after its fade out and two held black frames, then

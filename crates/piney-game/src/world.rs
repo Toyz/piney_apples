@@ -26,7 +26,8 @@ use piney_world::event::entry::Kind;
 use piney_world::event::talk::{self, Shop, TalkRequest};
 use piney_world::{Phase, Request, World};
 
-use crate::field_host::{FieldHost, FieldState, MENU_LAYER, SceneChange};
+use crate::ev_host::{EvHost, EvStream, HostWorld};
+use crate::field_host::{FieldState, MENU_LAYER, SceneChange};
 use crate::mode::{Event, Mode};
 use piney_data::store::Table;
 
@@ -143,6 +144,8 @@ pub struct WorldMode {
     vm: Option<Vm>,
     /// What the scripts see of the field besides the world and the UI.
     st: FieldState,
+    /// The scripts' streams and a Ryu Book's cover.
+    stream: EvStream,
     setup: Setup,
     frames: u64,
     /// `ccSys.count`.
@@ -203,8 +206,6 @@ impl WorldMode {
             HashMap::new()
         };
         let mut st = FieldState::new(&state.save, stories);
-        st.stream.iso = Some(iso.to_path_buf());
-        st.stream.data = Some(archive.clone());
         st.announcements = crate::desktop::announcements(iso);
         let mut world =
             World::enter_after(&mut disc, archive.clone(), state, before).map_err(|e| format!("The World: {e}"))?;
@@ -232,6 +233,7 @@ impl WorldMode {
             ui: Box::new(ui),
             vm,
             st,
+            stream: EvStream { iso: Some(iso.to_path_buf()), data: Some(archive.clone()), ..EvStream::default() },
             setup,
             frames: 0,
             count: 0,
@@ -263,20 +265,20 @@ impl WorldMode {
     /// Whether the scripts play a stream.
     #[cfg(test)]
     pub fn streaming(&self) -> bool {
-        self.st.stream.player.is_some()
+        self.stream.player.is_some()
     }
 
     /// The playing stream's number.
     #[cfg(test)]
     pub fn stream_num(&self) -> Option<usize> {
-        self.st.stream.player.as_ref().map(|p| p.num())
+        self.stream.player.as_ref().map(|p| p.num())
     }
 
     /// The playing stream's frame (`ccGetStreamFrame`), once it has
     /// stepped.
     #[cfg(test)]
     pub fn stream_frame(&self) -> Option<u32> {
-        self.st.stream.player.as_ref().and_then(|p| match p.frame() {
+        self.stream.player.as_ref().and_then(|p| match p.frame() {
             (f, true) => Some(f),
             _ => None,
         })
@@ -378,7 +380,14 @@ impl WorldMode {
             return;
         }
         {
-            let mut h = FieldHost { world: &mut self.world, ui: &mut self.ui, st: &mut self.st };
+            let mut h = EvHost {
+                world: &mut *self.world,
+                ui: &mut self.ui,
+                st: &mut self.st,
+                teach: None,
+                reset: std::cell::Cell::new(false),
+                stream: &mut self.stream,
+            };
             vm.frame(&mut h);
         }
         let s = self.world.state_mut();
@@ -398,7 +407,14 @@ impl WorldMode {
             // The fade out and hold are over: ccInitRand, ccStartThEvent,
             // WORLD_MAN::SetEventData, ccEnableThEvent(0).
             Setup::Before if self.world.phase() == Phase::Hold(piney_world::HOLD_FRAMES - 1) => {
-                let mut h = FieldHost { world: &mut self.world, ui: &mut self.ui, st: &mut self.st };
+                let mut h = EvHost {
+                    world: &mut *self.world,
+                    ui: &mut self.ui,
+                    st: &mut self.st,
+                    teach: None,
+                    reset: std::cell::Cell::new(false),
+                    stream: &mut self.stream,
+                };
                 vm.start_thread(&mut h);
                 vm.enable(0);
                 self.setup = Setup::Pass(0);
@@ -608,13 +624,13 @@ impl WorldMode {
             .collect();
         // The book's cover stream, a frame a menu frame until it ends.
         if self.book_stream
-            && let Some(p) = &mut self.st.stream.player
+            && let Some(p) = &mut self.stream.player
         {
             match p.step(&self.st.pad, &mut self.events) {
-                Some(f) => self.st.stream.frame = Some(f),
+                Some(f) => self.stream.frame = Some(f),
                 None => {
                     self.world.set_rand(p.rand());
-                    self.st.stream.player = None;
+                    self.stream.player = None;
                     self.book_stream = false;
                     self.ui.book_stream_done();
                 }
@@ -708,7 +724,7 @@ impl WorldMode {
                 let save = self.world.state_out();
                 self.cover_palette = cover.palette.or(self.cover_palette);
                 let num = cover.stream;
-                let started = match (self.st.stream.iso.clone(), self.st.stream.data.clone()) {
+                let started = match (self.stream.iso.clone(), self.stream.data.clone()) {
                     (Some(iso), Some(data)) => usize::try_from(num)
                         .map_err(|_| format!("stream {num}"))
                         .and_then(|n| {
@@ -718,7 +734,7 @@ impl WorldMode {
                 };
                 match started {
                     Ok(p) => {
-                        self.st.stream.player = Some(p);
+                        self.stream.player = Some(p);
                         self.book_stream = true;
                     }
                     Err(e) => {
@@ -729,7 +745,7 @@ impl WorldMode {
             }
             R::BookStream(None) => {
                 if std::mem::take(&mut self.book_stream)
-                    && let Some(p) = self.st.stream.player.take()
+                    && let Some(p) = self.stream.player.take()
                 {
                     self.world.set_rand(p.rand());
                 }
@@ -1222,7 +1238,7 @@ impl Mode for WorldMode {
         self.event_frame();
         // A stream the scripts play runs inside the event task's call: the
         // town's tasks wait, and its frame is what shows.
-        if let Some(f) = self.st.stream.frame.take() {
+        if let Some(f) = self.stream.frame.take() {
             self.events.append(&mut self.st.events);
             return f;
         }
@@ -1260,7 +1276,7 @@ impl Mode for WorldMode {
         // its frame shows now, as the scripts' streams' do. Kept for the
         // next frame's check, it showed every other frame, with the town's
         // frame between, and half the presses never reached it (#21).
-        if let Some(f) = self.st.stream.frame.take() {
+        if let Some(f) = self.stream.frame.take() {
             self.events.append(&mut self.st.events);
             return f;
         }
@@ -1523,7 +1539,7 @@ impl Mode for WorldMode {
 
     /// While the scripts play a stream, its archive (the stream's pictures).
     fn archive(&self) -> Option<Arc<Archive>> {
-        self.st.stream.player.as_ref().map(crate::stream::StreamPlayer::archive)
+        self.stream.player.as_ref().map(crate::stream::StreamPlayer::archive)
     }
 
     fn title(&self) -> String {
@@ -1571,6 +1587,146 @@ impl Mode for WorldMode {
             pl.acts.act,
             f32::from_bits(pl.body.speed)
         )
+    }
+}
+
+/// The scripts' instructions as a Root Town answers them; what it has
+/// none of (an enemy list, a boss, a dungeon's rooms) keeps
+/// [`HostWorld`]'s nothing-here answers.
+impl HostWorld for World {
+    fn state(&self) -> &SaveState {
+        World::state(self)
+    }
+
+    fn state_mut(&mut self) -> &mut SaveState {
+        World::state_mut(self)
+    }
+
+    fn state_out(&self) -> SaveState {
+        World::state_out(self)
+    }
+
+    /// `ccGame`: status 5 and the scene the town's set-up left.
+    fn game(&self, st: &FieldState) -> piney_event::host::Game {
+        st.game.view()
+    }
+
+    /// `ccGame::ChangeArea` goes to the session, which changes the scene.
+    fn change_area(&mut self, st: &mut FieldState, a: i32, n: i32) {
+        st.events.push(Event::ChangeArea { area: a, town: n });
+    }
+
+    /// `ccGame::ChangeScene` on the town's `ccGame` (`lastTown` follows the
+    /// town).
+    fn change_scene(&mut self, st: &mut FieldState, scene: [i16; 6]) {
+        st.game.change_scene(&mut World::state_mut(self).save, scene.map(i32::from));
+    }
+
+    /// `ccGame` status 5 and this field for `ccSndStreamCtrl`, the town's
+    /// file list.
+    fn stream_game(&self, st: &FieldState) -> (piney_audio::stream::StreamGame, crate::stream::FileList) {
+        (
+            piney_audio::stream::StreamGame { status: st.game.status, field: st.game.field },
+            crate::stream::FileList::Town,
+        )
+    }
+
+    fn set_rand(&mut self, rand: u64) {
+        World::set_rand(self, rand);
+    }
+
+    fn server(&self) -> i32 {
+        town_server(&World::state(self).save)
+    }
+
+    /// A town keeps `GO`'s `hackFlag` 3 in the crisis.
+    fn menu_noise(&self) -> bool {
+        World::state(self).save.u8(offset::CRISIS) != 0
+    }
+
+    fn party(&self) -> [i32; 3] {
+        World::party(self)
+    }
+
+    fn char_pos(&self, ty: i16, code: i16) -> Option<[u32; 4]> {
+        World::char_pos(self, ty, code).map(|(p, _)| p)
+    }
+
+    /// `charTbl[pc].name`, which `spcParam[pc].base.name` points at.
+    fn char_name(&self, ui: &FieldUi, pc: i16) -> Vec<u8> {
+        usize::try_from(pc).ok().and_then(|i| ui.texts().char_names.get(i)).cloned().unwrap_or_default()
+    }
+
+    fn marker(&self, marker: i16) -> Option<piney_event::host::Marker> {
+        World::marker(self, marker)
+    }
+
+    fn command_target(&self) -> Option<piney_event::host::CharRef> {
+        self.command_target_ref()
+    }
+
+    fn target_alive(&self, target: &piney_event::host::CharRef) -> bool {
+        World::target_alive(self, target)
+    }
+
+    fn player_distance(&self, pos: [u32; 4]) -> u32 {
+        World::player_distance(self, pos)
+    }
+
+    fn camera_type(&self) -> Option<i32> {
+        None
+    }
+
+    fn teach_camera(&mut self, part: u8) {
+        World::teach_camera(self, part);
+    }
+
+    fn event_camera(&mut self, c: piney_event::host::CameraCommand) -> bool {
+        World::event_camera(self, c)
+    }
+
+    fn npc_command(&mut self, c: piney_event::host::NpcCommand) -> bool {
+        World::npc_command(self, c)
+    }
+
+    fn pc_command(&mut self, c: piney_event::host::PcCommand) -> bool {
+        World::pc_command(self, c)
+    }
+
+    fn set_trans(&mut self, ty: i16, code: i16, on: bool) -> bool {
+        World::set_trans(self, ty, code, on)
+    }
+
+    fn set_affect_colour(&mut self, code: i32, fix: i16, rate: i16, colour: u32) -> bool {
+        World::set_affect_colour(self, code, fix, rate, colour)
+    }
+
+    fn spc_loaded(&self, code: i32) -> bool {
+        World::spc_loaded(self, code)
+    }
+
+    fn menu_ban(&mut self, on: bool) {
+        self.menu_ban_camera(on);
+        self.menu_ban_party(on);
+    }
+
+    fn party_add(&mut self, pc: i32) -> i32 {
+        World::party_add(self, pc)
+    }
+
+    fn party_remove(&mut self, pc: i32) {
+        World::party_remove(self, pc);
+    }
+
+    fn remove(&mut self, ty: i16, code: i16) -> bool {
+        World::remove(self, ty, code);
+        true
+    }
+
+    /// The town's view for the menu, the member's handle.
+    fn spc_item(&self, code: i32) -> Option<(piney_fieldui::World, u32)> {
+        self.town_party().member(code)?;
+        Some((ui_world(self, None, 0), handle(Kind::Spc, code)))
     }
 }
 
@@ -1948,7 +2104,14 @@ mod tests {
         let job = mode.world.state().save.i16(offset::SPC_PARAM + offset::SPC_PARAM_SIZE * 2 + 0xd8);
         let cat = i32::from((job + 1).rem_euclid(6));
         let before = mode.world.state().save.clone();
-        let mut h = FieldHost { world: &mut mode.world, ui: &mut mode.ui, st: &mut mode.st };
+        let mut h = EvHost {
+            world: &mut *mode.world,
+            ui: &mut mode.ui,
+            st: &mut mode.st,
+            teach: None,
+            reset: std::cell::Cell::new(false),
+            stream: &mut mode.stream,
+        };
         assert!(h.add_spc_item(2, cat as i16, 3, 2), "Orca is in the town");
         assert!(!h.add_spc_item(8, cat as i16, 3, 1), "Piros is not");
         let s = &mode.world.state().save;

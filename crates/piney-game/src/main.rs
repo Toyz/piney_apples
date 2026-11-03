@@ -9,11 +9,11 @@
 #![forbid(unsafe_code)]
 
 mod area;
-mod area_host;
 mod catch_up;
 mod console;
 mod desktop;
 mod dvd;
+mod ev_host;
 mod field_host;
 mod fx;
 mod gameover;

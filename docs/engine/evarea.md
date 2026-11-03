@@ -312,7 +312,7 @@ across the church's set-up in the slot that keeps a dungeon.
 words for area 15 lead there as well (from `--mode story:11`, once
 BlackRose has given them). Event 11's instructions in the map (the
 arrival's camera, BlackRose, the church's streams) are the event host's:
-`crates/piney-game/src/area_host.rs` and `field_host.rs`.
+`crates/piney-game/src/ev_host.rs` (`EvHost`, the field world's `HostWorld`).
 
 ## Checks
 

@@ -1182,7 +1182,7 @@ Mac Anu (marker 31, 80) and event 17 in area 18's dungeon (marker 1, 250:
 Mia's line sending Kite to the magic portal, block 14, before the Data
 Drain's lesson). The port's town answers it with `World::player_distance`,
 the fields and dungeons with `FieldWorld::player_distance` through
-`AreaHost`; `event_17_walks_kite_to_the_portal` plays event 17 from its
+`EvHost`; `event_17_walks_kite_to_the_portal` plays event 17 from its
 dungeon's entrance through block 14, the portal's fight and block 17.
 
 `item_add_menu` while an event plays opens the item-get menu (29; the
@@ -1329,7 +1329,7 @@ out of the hit list. The world holds the class itself (`RtownPc` over a
 `TownPcs::outside` with no landmarks; `Merchant::at`), which steps after
 the battle's tasks with the field's collision, is drawn with the field's
 lights and fog, and takes the NPC instructions (`FieldWorld::npc_command`,
-`set_trans`; `AreaHost::npc`, `trans`). Each frame the stand-in is put
+`set_trans`; `EvHost::npc`, `trans`). Each frame the stand-in is put
 where the class stands, on or off the command lists as the class is; the
 starts (a PC's `PcEvent::Transfer`, the Administrator's `SysopEvent`s) go
 to the next frame's effects as `Show::Npc` (effTransfer; act -5's force

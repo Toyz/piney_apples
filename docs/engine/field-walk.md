@@ -918,7 +918,7 @@ gameover               GameOverNoise: ccGameOverNoise's Main, NOISE, TV
                        and the view frame it leaves
 piney-game area.rs     AreaMode: the field's mode 6 with the field's menus,
                        the party's panels, the event task and its set-up
-piney-game area_host.rs  the event scripts' host outside the towns
+piney-game ev_host.rs  EvHost: the event scripts' host, every area
 piney-game fx.rs       AreaFx: piney-effect over the battle (the starters,
                        ccThEffect, ccThParticle, the portals' draw, the
                        numbers); fx/ambient.rs the areas' smoke puffs

@@ -25,7 +25,7 @@ The port is in four places:
   `stfroll` group.
 - `AreaFx::ending` (`crates/piney-game/src/fx.rs`) runs and draws it on
   the field's effect tasks.
-- `Wait::EndingKanji` (piney-event) and `AreaHost` start and wait for it.
+- `Wait::EndingKanji` (piney-event) and `EvHost` start and wait for it.
 
 ## ending_kanji (opcode 169)
 

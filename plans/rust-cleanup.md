@@ -516,8 +516,13 @@ Where the code does by hand, per kind, what a system should do once:
       `Enter`, `GoField`, `RoomSelect`, `ShowMap`, `EntryGimmick`,
       `Get2DMapInfo`, `SetEventData`, `ccThFieldDisp`'s `Draw` as `disp`,
       the minimap) with the switch's do-nothing default; `Place` gone.)
-- [ ] `EvHost<W: HostWorld>` for the 29 identical `Host` methods in
+- [x] `EvHost<W: HostWorld>` for the 29 identical `Host` methods in
       `field_host.rs` and `area_host.rs` (and the `SaveState` clones).
+      (worklog 573: `ev_host.rs`, one `impl Host for EvHost<W>`; each
+      world's `HostWorld` its own answers (the scene's `ccGame`, the change
+      of scene, the stream's file list, the battle's entries, waits and
+      area instructions with a town's nothing-here defaults); `FieldHost`,
+      `AreaHost`, `AreaStream` and `TownStream` gone for one `EvStream`.)
 - [ ] fieldui: one `MenuDef` table for the two parallel id matches (84 runs
       twice: an explicit flag), `MenuCtrl::{cur, init_cursors, msg_check,
       info, back_to_list}`, `Ctx::pushed_key`, a `MenuTail` trait.

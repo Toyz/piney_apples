@@ -1,7 +1,7 @@
 //! Mode 6 outside the towns: `ccSetupGameCtrl` for a field (area 1) or a
 //! dungeon (area 2), with the field's menus and HUD (`piney-fieldui`) over
 //! `piney_world::field::world`. A frame runs the event task (`ccThEvent`,
-//! [`crate::area_host`]), the world's tasks, then `ccThMenu`. The event task
+//! [`crate::ev_host`]), the world's tasks, then `ccThMenu`. The event task
 //! arrives asleep in the `scene` that asked for this area and ends it before
 //! `ccStartThEvent`; then the passes at 0 and 2, `rebootSpcManager`, and
 //! `ccEnableThEvent(4)` at F0 (docs/engine/field-game.md).
@@ -27,8 +27,8 @@ use piney_world::story_map::Kept;
 use piney_world::story_map::StoryRequest;
 use piney_world::{Phase, Request as GameRequest};
 
-use crate::area_host::{self, AreaHost};
-use crate::field_host::{FieldState, MENU_LAYER};
+use crate::ev_host::{self, EvHost, EvStream, HostWorld};
+use crate::field_host::{FieldState, MENU_LAYER, STATUS_WORLD};
 use crate::mode::{Event, Mode};
 use crate::world::Setup;
 use piney_data::store::Table;
@@ -58,7 +58,7 @@ pub struct AreaMode {
     story_message: bool,
     fonts: Option<piney_desktop::kanji::Fonts>,
     /// The scripts' cutscene streams (`stream`).
-    stream: area_host::AreaStream,
+    stream: EvStream,
     /// The item use the menu task is inside (`ccUseItemRequest`): the
     /// user's and the target's scene indices, for its steps.
     item_use: Option<(usize, usize)>,
@@ -257,7 +257,7 @@ impl AreaMode {
             Default::default()
         };
         let mut st = FieldState::new(&state.save, stories);
-        st.game = area_host::game_of(&scene);
+        st.game = crate::field_host::game_of(&scene);
         st.announcements = crate::desktop::announcements(iso);
         let mut world = FieldWorld::enter(&mut disc, archive.clone(), state, scene, world_man, kept, at, spcs)
             .map_err(|e| format!("area {} field {} dungeon {}: {e}", scene.area, scene.field, scene.dungeon))?;
@@ -310,7 +310,7 @@ impl AreaMode {
             ride: ride::RideSeq::default(),
             map_showing: false,
             fonts,
-            stream: area_host::AreaStream { iso: iso.to_path_buf(), data: Some(archive), ..Default::default() },
+            stream: EvStream { iso: Some(iso.to_path_buf()), data: Some(archive), ..Default::default() },
         })
     }
 
@@ -440,12 +440,12 @@ impl AreaMode {
 
     /// The scripts' host over this area, lent to `f` (for tests).
     #[cfg(test)]
-    pub fn with_host<R>(&mut self, f: impl FnOnce(&mut AreaHost) -> R) -> R {
-        let mut h = AreaHost {
-            world: &mut self.world,
+    pub fn with_host<R>(&mut self, f: impl FnOnce(&mut EvHost<FieldWorld>) -> R) -> R {
+        let mut h = EvHost {
+            world: &mut *self.world,
             ui: &mut self.ui,
             st: &mut self.st,
-            teach: [false; 3],
+            teach: Some([false; 3]),
             reset: std::cell::Cell::new(false),
             stream: &mut self.stream,
         };
@@ -469,7 +469,7 @@ impl AreaMode {
         if let Some(g) = self.world.take_gate_stream() {
             let save = self.world.state_out();
             let game = piney_audio::stream::StreamGame { status: crate::field_host::STATUS_WORLD, field: g.field };
-            let iso = self.stream.iso.clone();
+            let iso = self.stream.iso.clone().unwrap_or_default();
             match crate::stream::StreamPlayer::gate_hack(&iso, g.town, g.field, g.crisis, &save, game, &mut self.events)
             {
                 Ok(p) => {
@@ -578,14 +578,14 @@ impl AreaMode {
         // The passes' windows are the set-up screen's.
         self.ui.set_setup(matches!(self.setup, Setup::Pass(_)));
         vm.set_operate_set(self.world.state().operate_set);
-        let teach = area_host::teach_input(pad, self.world.camera().scheme.ctrl_type);
+        let teach = ev_host::teach_input(pad, self.world.camera().scheme.ctrl_type);
         let reset = {
             let reset = std::cell::Cell::new(false);
-            let mut h = AreaHost {
-                world: &mut self.world,
+            let mut h = EvHost {
+                world: &mut *self.world,
                 ui: &mut self.ui,
                 st: &mut self.st,
-                teach,
+                teach: Some(teach),
                 reset,
                 stream: &mut self.stream,
             };
@@ -615,9 +615,9 @@ impl AreaMode {
             // closed events done), WORLD_MAN::SetEventData,
             // ccEnableThEvent(0).
             Setup::Before if self.world.phase() == Phase::Hold(piney_world::HOLD_FRAMES - 1) => {
-                let (teach, reset) = ([false; 3], std::cell::Cell::new(false));
-                let mut h = AreaHost {
-                    world: &mut self.world,
+                let (teach, reset) = (Some([false; 3]), std::cell::Cell::new(false));
+                let mut h = EvHost {
+                    world: &mut *self.world,
                     ui: &mut self.ui,
                     st: &mut self.st,
                     teach,
@@ -1242,7 +1242,7 @@ impl AreaMode {
             // operateTarget).
             TalkRequest::Event { .. } => {
                 if let Some(vm) = &mut self.vm {
-                    vm.mng.operate_target = AreaHost::target_ref(&self.world);
+                    vm.mng.operate_target = target_ref(&self.world);
                 }
                 self.world.close_menu();
             }
@@ -1276,7 +1276,7 @@ impl AreaMode {
         let save = self.world.state_out();
         let started = match (usize::try_from(num), self.stream.data.as_deref()) {
             (Ok(n), Some(data)) => crate::stream::StreamPlayer::drain(
-                &self.stream.iso,
+                self.stream.iso.as_deref().unwrap_or(Path::new("")),
                 data,
                 n,
                 &save,
@@ -1972,6 +1972,311 @@ impl Mode for AreaMode {
             "The World - area {} field {} - {phase} - Kite at ({:.0}, {:.0}, {:.0}) act {}{menu}",
             s.area, s.field, p[0], p[1], p[2], pl.acts.act
         )
+    }
+}
+
+/// `Host::command_target` of `world`: the command target's scene index,
+/// its base type flags and id.
+pub(crate) fn target_ref(world: &FieldWorld) -> Option<piney_event::host::CharRef> {
+    let i = world.command_target()?;
+    let ch = world.combat().scene.chars.get(i)?;
+    Some(piney_event::host::CharRef { handle: i as u32, types: ch.ty() as u32, code: ch.id() })
+}
+
+/// The scripts' instructions as a field, a dungeon or a story map answers
+/// them: the characters are the battle's, the entries its entry control's.
+impl HostWorld for FieldWorld {
+    fn state(&self) -> &SaveState {
+        FieldWorld::state(self)
+    }
+
+    fn state_mut(&mut self) -> &mut SaveState {
+        FieldWorld::state_mut(self)
+    }
+
+    fn state_out(&self) -> SaveState {
+        FieldWorld::state_out(self)
+    }
+
+    /// `ccGame` as the area's scene holds it, `cntStop` the scripts'.
+    fn game(&self, st: &FieldState) -> piney_event::host::Game {
+        let mut g = crate::field_host::game_of(&self.scene()).view();
+        g.cnt_stop = st.game.cnt_stop;
+        g
+    }
+
+    /// `ccGame::ChangeArea`: the world's change of scene.
+    fn change_area(&mut self, _st: &mut FieldState, a: i32, n: i32) {
+        FieldWorld::change_area(self, a, n);
+    }
+
+    /// The session changes the scene (with the `area` before it).
+    fn change_scene(&mut self, _st: &mut FieldState, _scene: [i16; 6]) {}
+
+    /// `ccEventStream(num, 1)`: the subtitles and `ccSndStreamCtrl`'s music
+    /// as the town has them, the field's file list.
+    fn stream_game(&self, _st: &FieldState) -> (piney_audio::stream::StreamGame, crate::stream::FileList) {
+        let game = piney_audio::stream::StreamGame { status: STATUS_WORLD, field: self.scene().field };
+        (game, crate::stream::FileList::Field)
+    }
+
+    fn set_rand(&mut self, rand: u64) {
+        FieldWorld::set_rand(self, rand);
+    }
+
+    fn server(&self) -> i32 {
+        self.scene().server
+    }
+
+    /// `WORLD_MAN.hackFlag` 3: a hacked area, or any in the crisis.
+    fn menu_noise(&self) -> bool {
+        self.world_man().hack == 3
+    }
+
+    fn party(&self) -> [i32; 3] {
+        FieldWorld::party(self)
+    }
+
+    fn char_pos(&self, ty: i16, code: i16) -> Option<[u32; 4]> {
+        FieldWorld::char_pos(self, ty, code)
+    }
+
+    fn char_name(&self, _ui: &FieldUi, pc: i16) -> Vec<u8> {
+        FieldWorld::char_name(self, i32::from(pc))
+    }
+
+    /// `marker_pos`'s marker: an event map's `markerEvTbl` dummy.
+    fn marker(&self, marker: i16) -> Option<piney_event::host::Marker> {
+        FieldWorld::marker(self, marker)
+    }
+
+    fn command_target(&self) -> Option<piney_event::host::CharRef> {
+        target_ref(self)
+    }
+
+    fn target_alive(&self, target: &piney_event::host::CharRef) -> bool {
+        self.listed(target.handle as usize)
+    }
+
+    /// `near_marker`'s distance from Kite to an event position.
+    fn player_distance(&self, pos: [u32; 4]) -> u32 {
+        FieldWorld::player_distance(self, pos)
+    }
+
+    /// `camCtrlType`.
+    fn camera_type(&self) -> Option<i32> {
+        Some(self.camera().scheme.ctrl_type)
+    }
+
+    fn teach_camera(&mut self, part: u8) {
+        FieldWorld::teach_camera(self, part);
+    }
+
+    fn event_camera(&mut self, c: piney_event::host::CameraCommand) -> bool {
+        FieldWorld::event_camera(self, c);
+        true
+    }
+
+    /// The event's NPCs outside the towns (`piney_world::field::npcs`).
+    fn npc_command(&mut self, c: piney_event::host::NpcCommand) -> bool {
+        FieldWorld::npc_command(self, c)
+    }
+
+    fn pc_command(&mut self, c: piney_event::host::PcCommand) -> bool {
+        FieldWorld::pc_command(self, c)
+    }
+
+    fn set_trans(&mut self, ty: i16, code: i16, on: bool) -> bool {
+        FieldWorld::set_trans(self, ty, code, on)
+    }
+
+    fn set_affect_colour(&mut self, code: i32, fix: i16, rate: i16, colour: u32) -> bool {
+        FieldWorld::set_affect_colour(self, code, fix, rate, colour)
+    }
+
+    fn spc_loaded(&self, code: i32) -> bool {
+        FieldWorld::spc_loaded(self, code)
+    }
+
+    fn menu_ban(&mut self, on: bool) {
+        self.menu_ban_camera(on);
+        self.menu_ban_party(on);
+    }
+
+    /// `ccParty::AddMember(pc)` over the field's characters.
+    fn party_add(&mut self, pc: i32) -> i32 {
+        FieldWorld::party_add(self, pc)
+    }
+
+    /// `ccParty::DelMember` of the member's slot; the member's character
+    /// stays where it is, out of the party.
+    fn party_remove(&mut self, pc: i32) {
+        FieldWorld::party_remove(self, pc);
+    }
+
+    /// `remove 5|6 code`: the enemy deleted from the entry control.
+    fn remove(&mut self, ty: i16, code: i16) -> bool {
+        self.remove_entry(ty, code)
+    }
+
+    /// The character the area built for the registry id (S108's Sanjuro,
+    /// S111's Natsume), its handle as the HUD's view names it.
+    fn spc_item(&self, code: i32) -> Option<(piney_fieldui::World, u32)> {
+        self.combat().who(code)?;
+        let scene = self.scene();
+        let w = piney_fieldui::World {
+            game: piney_fieldui::Game {
+                status: 5,
+                area: scene.area,
+                town: scene.town,
+                field: scene.field,
+                dungeon: scene.dungeon,
+                floor: scene.floor,
+                server: scene.server,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        Some((w, (1 << 24) | u32::from(code as u16)))
+    }
+
+    fn game_over(&self) -> bool {
+        self.compulsion_game_over
+    }
+
+    /// `gtHackFlag` cleared unless a field (or a dungeon of type 8 or 9)
+    /// was entered from a town.
+    fn clear_gt_hack(&mut self) -> Option<bool> {
+        FieldWorld::clear_gt_hack(self);
+        Some(self.gt_hack())
+    }
+
+    fn condition_effect(&mut self, on: bool) {
+        FieldWorld::condition_effect(self, on);
+    }
+
+    fn entry_present(&self, list: piney_event::host::EntryList, ty: i16, code: i16) -> bool {
+        FieldWorld::entry_present(self, list == piney_event::host::EntryList::Gimmicks, ty, code)
+    }
+
+    /// `eventMng.bossEntry` (the boss's code) and its task's parameter.
+    fn boss(&self) -> Option<piney_event::host::Boss> {
+        let entry = self.boss_entry().unwrap_or(0);
+        self.boss_task().map(|p| piney_event::host::Boss { entry, task_param: Some(p) })
+    }
+
+    fn no_active_object(&self) -> bool {
+        FieldWorld::no_active_object(self)
+    }
+
+    fn no_entries(&self) -> bool {
+        FieldWorld::no_entries(self)
+    }
+
+    /// The trap-removal effect at the command target (`effRemoveTrap(pos,
+    /// -1, -1)`), with the frame's other shows.
+    fn remove_trap(&mut self) -> bool {
+        self.remove_trap_effect();
+        true
+    }
+
+    /// `EntryAffect(cmndTarget, plw, 12, 0, 0, 0)`: the trap taken off the
+    /// command target (none: nothing).
+    fn remove_trap_done(&mut self) {
+        if let Some(t) = FieldWorld::command_target(self) {
+            self.affect_from_player(t, 12);
+        }
+    }
+
+    /// `open_door` / `close_door` in a dungeon (`DUNGEON::OpenDoor`,
+    /// `CloseDoor2`) and `radiator` (event 30's bracelet); the others are
+    /// not reached outside the towns yet.
+    fn gimmick(&mut self, g: piney_event::host::GimmickCommand) -> bool {
+        use piney_event::host::GimmickCommand;
+        match g {
+            GimmickCommand::OpenDoor => self.open_door(),
+            GimmickCommand::CloseDoor => self.close_door(),
+            GimmickCommand::Radiator { rtype, ty, code, x, y, z, roty, rotz } => {
+                self.radiator(rtype, ty, code, x, y, z, roty, rotz)
+            }
+            _ => {}
+        }
+        true
+    }
+
+    /// `WORLD_MAN::RoomSelect(floor, block)`.
+    fn room(&mut self, floor: i16, block: i16) -> bool {
+        self.room_select(i32::from(floor), i32::from(block))
+    }
+
+    /// `WORLD_MAN::ShowMap`: the field's portals at once, or one room of the
+    /// dungeon's a frame.
+    fn show_map(&mut self) -> bool {
+        FieldWorld::show_map(self)
+    }
+
+    fn event_positions(&mut self, positions: &[piney_event::vm::EvPos]) {
+        let to = |p: &piney_event::vm::EvPos| piney_battle::entry::EvPos {
+            floor: p.floor,
+            block: p.block,
+            num: p.num,
+            dirc: p.dirc.to_bits(),
+            pos: p.pos.map(f32::to_bits),
+        };
+        self.set_event_positions(positions.iter().map(to).collect());
+    }
+
+    /// The enemy to the event position (its heading from the position the
+    /// area's set-up took, when it is one).
+    fn enemy_put(&mut self, enemy: i16, pos: [u32; 4]) -> bool {
+        let dirc = FieldWorld::event_positions(self).iter().find(|e| e.pos[..3] == pos[..3]).map(|e| e.dirc);
+        FieldWorld::enemy_put(self, enemy, pos, dirc)
+    }
+
+    /// `hold type code` / `hold_end`: the event's `ccThEvHold` task.
+    fn hold(&mut self, target: Option<(i16, i16)>) -> bool {
+        self.set_event_hold(target);
+        true
+    }
+
+    fn battle_ready(&mut self) -> bool {
+        FieldWorld::battle_ready(self);
+        true
+    }
+
+    /// `player_skill`'s set-up: `ccMenu +0xc` (`panelStatus`) 1, `+0x102`
+    /// (`targetForbid`) 0, `cmndTargetFix` 1, the target's box withheld.
+    fn player_skill_begin(&mut self, m: &mut piney_battle::evparty::SkillMenu) -> bool {
+        FieldWorld::player_skill_begin(self, m);
+        true
+    }
+
+    fn player_skill_busy(&self) -> bool {
+        FieldWorld::player_skill_busy(self)
+    }
+
+    fn player_skill_step(&mut self, push: u32, m: &mut piney_battle::evparty::SkillMenu) {
+        FieldWorld::player_skill_step(self, push, m);
+    }
+
+    fn player_skill_end(&mut self, m: &mut piney_battle::evparty::SkillMenu) -> bool {
+        FieldWorld::player_skill_end(self, m);
+        true
+    }
+
+    /// `gate_hack_anim`: while `ccCheckGtHackAnm()` (`ghoFlag`).
+    fn gate_hack_anim(&self) -> Option<bool> {
+        Some(FieldWorld::gate_hack_anim(self))
+    }
+
+    fn ending_start(&mut self) -> bool {
+        FieldWorld::ending_start(self);
+        true
+    }
+
+    /// `ending_kanji`: until `STFROLL_VOL4`'s tscb +0x14 is set.
+    fn ending_running(&mut self) -> bool {
+        FieldWorld::ending_running(self)
     }
 }
 

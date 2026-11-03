@@ -1,30 +1,17 @@
-//! The event scripts in The World's towns: `piney-event`'s interpreter hosted by
-//! the town, as `ccThEvent` (priority 32) runs beside its tasks. Windows go to
-//! the field UI's `ccMsg` (their voice asked by the window), menus to `ccMenu`,
-//! the camera instructions to the event camera, `pc_*` and `npc_*` to the
-//! world's characters, `stream` to `ccEventStream(num, 1)`, `scene` to the
-//! session (the task sleeps in its `ChangeRequest(6, 7)`), `sound` to
-//! `ccSndEvRequest`. Every call is logged with its frame ([`FieldState::calls`]);
-//! the instructions are in docs/engine/events.md.
+//! What the event scripts' host ([`crate::ev_host`]) holds of The World
+//! besides the world and the UI: `ccGame`, the faders (`ccMenu`'s and
+//! `scFadeDef`), `piros_colour`'s run, the call log, the `area` and `scene`
+//! the scripts asked for; the instructions are in docs/engine/events.md.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use piney_data::archive::Archive;
 use piney_data::save::{SaveData, offset};
 use piney_desktop::anm::Ctx;
-use piney_draw::Frame;
-use piney_event::host::{
-    Announce, CameraCommand, CharRef, Game, Host, Marker, MessageCall, MessageKind, NpcCommand, Party, PcCommand,
-    StoryArea, Wait,
-};
-use piney_fieldui::FieldUi;
+use piney_event::host::{Game, StoryArea};
 use piney_input::Pad;
-use piney_world::World;
 
 use crate::mode::Event;
-use crate::stream::{FileList, StreamPlayer};
 
 /// `ccGame.status` in The World.
 pub const STATUS_WORLD: i32 = 5;
@@ -280,6 +267,28 @@ impl CcGame {
     }
 }
 
+/// `ccGame` as an area's scene holds it.
+pub fn game_of(scene: &piney_world::area::Scene) -> CcGame {
+    CcGame {
+        status: STATUS_WORLD,
+        area: scene.area,
+        area_prev: scene.area_prev,
+        server: scene.server,
+        town: scene.town,
+        field: scene.field,
+        dungeon: scene.dungeon,
+        floor: scene.floor,
+        block: scene.block,
+        server_prev: scene.server_prev,
+        town_prev: scene.town_prev,
+        field_prev: scene.field_prev,
+        dungeon_prev: scene.dungeon_prev,
+        floor_prev: scene.floor_prev,
+        block_prev: scene.block_prev,
+        ..CcGame::default()
+    }
+}
+
 /// A mode change the scripts asked for, which the field does not follow
 /// yet: `ccGame::ChangeScene` and the `area` before it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -289,17 +298,6 @@ pub struct SceneChange {
     /// The `area` instruction's story area and its words (the field
     /// `WORLD_MAN::SimGenerateCode` would build), if one came first.
     pub area: Option<(i16, [Option<i32>; 3])>,
-}
-
-/// The event scripts' `stream` in the town ([`crate::stream`]): the disc it
-/// plays from and DATA.BIN for its pictures (None: streams count as
-/// played), the player while the call waits, and its frame this game frame.
-#[derive(Default)]
-pub struct TownStream {
-    pub iso: Option<PathBuf>,
-    pub data: Option<Arc<Archive>>,
-    pub player: Option<StreamPlayer>,
-    pub frame: Option<Frame>,
 }
 
 /// What the runtime answers the scripts with in The World, apart from the
@@ -332,8 +330,6 @@ pub struct FieldState {
     pub change: Option<SceneChange>,
     /// The windows opened, (event, message).
     pub shown: Vec<(u16, i16)>,
-    /// `stream`'s player (the town's; the fields keep their own).
-    pub stream: TownStream,
     /// `DispInfo`'s gate-address and desktop-item lines, as the desktop
     /// composes them (None: those windows open empty).
     pub announcements: Option<Arc<crate::story::Announcements>>,
@@ -382,7 +378,6 @@ impl FieldState {
             area: None,
             change: None,
             shown: Vec::new(),
-            stream: TownStream::default(),
             announcements: None,
             frame_rate: None,
         }
@@ -390,444 +385,6 @@ impl FieldState {
 
     pub(crate) fn log(&mut self, s: String) {
         self.calls.push((self.frame, s));
-    }
-}
-
-/// The scripts' view of The World.
-pub struct FieldHost<'a> {
-    pub world: &'a mut World,
-    pub ui: &'a mut FieldUi,
-    pub st: &'a mut FieldState,
-}
-
-impl FieldHost<'_> {
-    /// `charTbl[pc].name`, which `spcParam[pc].base.name` points at.
-    fn member_name(&self, pc: i16) -> Vec<u8> {
-        usize::try_from(pc).ok().and_then(|i| self.ui.texts().char_names.get(i)).cloned().unwrap_or_default()
-    }
-
-    /// A frame of `piros_colour`: its flashes and Piros's tint.
-    fn piros_actions(&mut self, acts: Vec<crate::piros::Action>) {
-        use crate::piros::Action;
-        for a in acts {
-            match a {
-                Action::Flash { count, colour } => {
-                    self.st.fade_def.flash(count, colour);
-                }
-                Action::Tint(t) => {
-                    self.world.set_affect_colour(crate::piros::PIROS, t.fix, t.rate, t.colour);
-                }
-            }
-        }
-    }
-}
-
-impl Host for FieldHost<'_> {
-    fn save(&mut self) -> &mut SaveData {
-        &mut self.world.state_mut().save
-    }
-
-    fn game(&self) -> Game {
-        self.st.game.view()
-    }
-
-    fn frame_rate(&self) -> i32 {
-        piney_world::FRAME_RATE as i32
-    }
-
-    fn party(&self) -> Party {
-        let ids = self.world.party();
-        Party { ids, num: ids.iter().filter(|&&i| i >= 0).count() as i32 }
-    }
-
-    /// The SPC manager holds Kite and the members events placed.
-    fn spc_present(&self, code: i16) -> bool {
-        self.world.char_pos(2, code).is_some()
-    }
-
-    fn field_menu(&self) -> i32 {
-        self.ui.menu_type()
-    }
-
-    fn pad_pushed(&self) -> u32 {
-        self.st.pad.push.bits()
-    }
-
-    fn marker(&self, marker: i16) -> Option<Marker> {
-        self.world.marker(marker)
-    }
-
-    fn command_target(&self) -> Option<CharRef> {
-        self.world.command_target_ref()
-    }
-
-    fn target_alive(&self, target: &CharRef) -> bool {
-        self.world.target_alive(target)
-    }
-
-    fn trans(&mut self, ty: i16, code: i16, on: bool) {
-        let done = self.world.set_trans(ty, code, on);
-        self.st.log(format!("trans {ty} {code} {on}{}", if done { "" } else { " (not placed)" }));
-    }
-
-    /// `ccSystem::SetFrameRate` (event 31's opening).
-    fn set_frame_rate(&mut self, rate: i16) {
-        self.st.log(format!("set_frame_rate {rate}"));
-        self.st.frame_rate = u32::try_from(rate).ok().filter(|&r| r > 0);
-    }
-
-    /// `overlay`: the game loads an overlay's code before a mode change; the
-    /// port keeps every overlay's at once, so there is nothing to load.
-    fn load_overlay(&mut self, which: piney_event::host::Overlay) {
-        self.st.log(format!("load_overlay {which:?}"));
-    }
-
-    /// `near_marker`'s distance; a marker the town lacks reads an unset
-    /// vector in the game, taken here as out of every bound.
-    fn player_distance(&self, pos: Option<[f32; 4]>) -> f32 {
-        let Some(p) = pos else { return f32::MAX };
-        f32::from_bits(self.world.player_distance(p.map(f32::to_bits)))
-    }
-
-    fn story_area(&self, area: i16) -> Option<StoryArea> {
-        self.st.stories.get(&area).copied()
-    }
-
-    // --- Windows --------------------------------------------------------------------------
-
-    fn message_open(&mut self, call: &MessageCall<'_>) {
-        self.st.shown.push((call.event, call.msg));
-        self.st.log(format!("message_open {} {} {:?}", call.event, call.msg, call.kind));
-        let save = self.world.state().clone();
-        self.ui.message_open(call, &save);
-        // teach_camera1 and 2 turn the event camera over to the pad as
-        // their prompt opens (cpCtrl 5, 6).
-        if let MessageKind::Teach(part @ (1 | 2)) = call.kind {
-            self.world.teach_camera(part);
-        }
-    }
-
-    fn message_check(&mut self) -> i32 {
-        let pad = self.st.pad;
-        let r = self.ui.message_check(&pad, self.world.state());
-        if r != 0 {
-            self.st.log(format!("message_check {r}"));
-        }
-        r
-    }
-
-    fn message_close(&mut self) {
-        self.st.log("message_close".into());
-        self.ui.message_close();
-    }
-
-    /// `DispInfo` (0x001b27b0): in The World it waits for the menus to be
-    /// shut and shows the lines `Execute` composed: a member's address as
-    /// the field UI words it, a gate address or a desktop item as the
-    /// desktop does ([`crate::story::Announcements`]).
-    fn announce(&mut self, a: Announce) {
-        self.st.log(format!("announce {a:?}"));
-        let save = self.world.state().clone();
-        match a {
-            Announce::Member { pc } => {
-                let name = self.member_name(pc);
-                self.ui.announce(a, &name, &save);
-            }
-            _ => {
-                let lines = self.st.announcements.as_ref().map(|t| t.lines(a, &save.save)).unwrap_or_default();
-                self.ui.announce_lines(&lines, &save);
-            }
-        }
-    }
-
-    // --- Modes and the screen -------------------------------------------------------------
-
-    fn change_request(&mut self, num: i32, sf: i32) {
-        self.st.log(format!("change_request {num} {sf}"));
-        self.st.events.push(Event::ChangeMode { num, sf });
-    }
-
-    fn change_area(&mut self, a: i32, n: i32) {
-        self.st.log(format!("change_area {a} {n}"));
-        self.st.events.push(Event::ChangeArea { area: a, town: n });
-    }
-
-    /// `ccGame::ChangeScene` (0x00167380): the scene moves on, recorded for
-    /// the session, which sets the next scene up; `lastTown` follows the
-    /// town, and `ChangeRequest(6, 7)` stops the task ([`Host::busy`]).
-    fn change_scene(&mut self, area: i16, town: i16, field: i16, dungeon: i16, floor: i16, block: i16) {
-        self.st.log(format!("change_scene {area} {town} {field} {dungeon} {floor} {block}"));
-        let [a, t, fd, d, f, b] = [area, town, field, dungeon, floor, block].map(i32::from);
-        self.st.game.change_scene(&mut self.world.state_mut().save, [a, t, fd, d, f, b]);
-        self.st.change = Some(SceneChange { scene: [area, town, field, dungeon, floor, block], area: self.st.area });
-        self.st.events.push(Event::ChangeMode { num: 6, sf: 7 });
-    }
-
-    fn fade(&mut self, count: i16, alpha: i16, more: bool, reset: bool) {
-        self.st.log(format!("fade {count} {alpha} more={more}"));
-        self.st.fade.event(&mut self.st.fade_num, count, alpha, more, reset);
-    }
-
-    fn noise(&mut self, level: i32) {
-        self.st.log(format!("noise {level}"));
-        self.ui.noise(level);
-    }
-
-    /// `ccSndEvRequest` ([`crate::mode::sound_request`]).
-    fn sound(&mut self, cmd: i16, p0: i16, p1: i16, p2: i16) {
-        self.st.log(format!("sound {cmd} {p0} {p1} {p2}"));
-        self.st.events.extend(crate::mode::sound_request(cmd, p0, p1, p2));
-    }
-
-    fn sound_effect(&mut self, se: i32) {
-        self.st.log(format!("sound_effect {se}"));
-        self.st.events.push(Event::Se(se));
-    }
-
-    /// `compulsionGameOver` (0x00378c74): `ccThGameCtrl` zeroes it as it
-    /// starts and only `ccMenuCtrl::DataDrainMenu` sets it, so in a town it
-    /// stays 0.
-    fn game_over(&self) -> bool {
-        false
-    }
-
-    /// `ccClearGtHack` (0x001b77c0), from `ccStartThEvent`: `gtHackFlag`
-    /// (0x00378a98) cleared, kept only on arriving from a town (areaPrev
-    /// 0) in a field or a dungeon of type 8 or 9 - never in a town, where
-    /// the session drops the flag as it sets the town up (the gate hack
-    /// sets it afterwards, for the next scene); the call is logged.
-    fn clear_gate_hack(&mut self) {
-        self.st.log("clear_gate_hack".into());
-    }
-
-    /// `piros_colour` ([`crate::piros`]): on `eventStatus[1]`, with Piros
-    /// in the town.
-    fn piros_colour(&mut self, code: i16) -> bool {
-        self.st.log(format!("piros_colour {code}"));
-        let status = self.world.state().save.u8(crate::piros::STATUS) as i8;
-        let loaded = self.world.spc_loaded(crate::piros::PIROS);
-        let seq = crate::piros::Sequence::new(status, code, loaded);
-        let tells = seq.tells();
-        self.st.piros = Some(seq);
-        tells
-    }
-
-    /// `DispInfo`'s window with `piros_colour`'s line.
-    fn info_lines(&mut self, lines: &[&[u8]]) {
-        self.st.log(format!("info_lines {}", lines.len()));
-        let lines: Vec<Vec<u8>> = lines.iter().map(|l| l.to_vec()).collect();
-        let save = self.world.state().clone();
-        self.ui.announce_lines(&lines, &save);
-    }
-
-    /// `piros_colour` needs nothing before its wait; the town has no other
-    /// wait with a start.
-    fn begin(&mut self, w: Wait) {
-        if w != Wait::PirosColour {
-            piney_event::host::unported("begin");
-        }
-    }
-
-    fn end(&mut self, w: Wait) {
-        if w != Wait::PirosColour {
-            piney_event::host::unported("end");
-        }
-    }
-
-    /// `scene`'s `ChangeRequest(6, 7)`: asleep from then on. `stream`: the
-    /// stream plays inside the call, a frame of it per game frame, until
-    /// it returns. `piros_colour`: its breaths.
-    fn busy(&mut self, w: Wait) -> bool {
-        match w {
-            Wait::PirosColour => {
-                let Some(mut seq) = self.st.piros.take() else { return false };
-                let (acts, busy) = seq.tick();
-                self.piros_actions(acts);
-                if busy {
-                    self.st.piros = Some(seq);
-                }
-                busy
-            }
-            Wait::Stream => {
-                let st = &mut *self.st;
-                let Some(p) = &mut st.stream.player else { return false };
-                match p.step(&st.pad, &mut st.events) {
-                    Some(f) => {
-                        st.stream.frame = Some(f);
-                        true
-                    }
-                    None => {
-                        self.world.set_rand(p.rand());
-                        st.stream.player = None;
-                        false
-                    }
-                }
-            }
-            _ => false,
-        }
-    }
-
-    /// `ccEventStream(num, 1)` (0x001b5670): the stream with its subtitles
-    /// and the music around it, `ccGame` status 5 and this field for
-    /// `ccSndStreamCtrl`. It plays inside the call, so the town's tasks do
-    /// not run meanwhile. A stream that cannot start counts as played.
-    fn stream(&mut self, num: i16) {
-        self.st.log(format!("stream {num}"));
-        let Some(iso) = self.st.stream.iso.clone() else { return };
-        let save = self.world.state_out();
-        let game = piney_audio::stream::StreamGame { status: self.st.game.status, field: self.st.game.field };
-        let data = self.st.stream.data.clone();
-        let started = usize::try_from(num).map_err(|_| format!("stream {num}")).and_then(|n| {
-            StreamPlayer::event(&iso, data.as_deref(), n, &save, game, FileList::Town, &mut self.st.events)
-        });
-        match started {
-            Ok(p) => self.st.stream.player = Some(p),
-            Err(e) => tracing::warn!("events: {e}; counted as played"),
-        }
-    }
-
-    // --- The field ------------------------------------------------------------------------
-
-    fn camera(&mut self, c: CameraCommand) {
-        let done = self.world.event_camera(c);
-        self.st.log(format!("camera {c:?}{}", if done { "" } else { " (not ported)" }));
-    }
-
-    fn npc(&mut self, c: NpcCommand) {
-        let done = self.world.npc_command(c);
-        self.st.log(format!("npc {c:?}{}", if done { "" } else { " (not done)" }));
-    }
-
-    fn pc(&mut self, c: PcCommand) {
-        let done = self.world.pc_command(c);
-        self.st.log(format!("pc {c:?}{}", if done { "" } else { " (not done)" }));
-    }
-
-    fn remove(&mut self, ty: i16, code: i16) {
-        self.st.log(format!("remove {ty} {code}"));
-        self.world.remove(ty, code);
-    }
-
-    fn party_add(&mut self, pc: i16) {
-        self.st.log(format!("party_add {pc}"));
-        let slot = self.world.party_add(i32::from(pc));
-        // ccEvent's party_add also sets the new slot's menu face.
-        if slot >= 0 {
-            let plcol = self.world.state().save.u8(offset::PLCOL) != 0;
-            self.ui.set_menu_face(slot as usize, i32::from(pc), plcol);
-        }
-    }
-
-    fn party_remove(&mut self, pc: i16) {
-        self.st.log(format!("party_remove {pc}"));
-        self.world.party_remove(i32::from(pc));
-    }
-
-    /// `ccEvent::MenuBan` / `MenuClr` (0x001b2460, 0x001b25c0): the menus
-    /// forbidden and their panels and map hidden (ccMenu), the camera id
-    /// kept, the party under manual control.
-    fn menu_ban(&mut self, on: bool) {
-        self.st.log(format!("menu_ban {on}"));
-        self.ui.menu_ban(on);
-        self.world.menu_ban_camera(on);
-        self.world.menu_ban_party(on);
-    }
-
-    fn open_menu(&mut self, num: i16) {
-        self.st.log(format!("open_menu {num}"));
-        self.ui.event_menu(num);
-    }
-
-    /// `item_add` for a companion (case 93, main 0x001afd04, playing, pc
-    /// not 0, category 0-9): `ccEvent::GetSpc(pc)`, the character the town
-    /// built for that registry id, then `ccMenu->AddSpcItem(ch, category,
-    /// id, num, 0)`. None built: false, and the item goes into the save.
-    /// `item_add_menu` while playing (event 16's contest prize in Mac Anu,
-    /// event 24's): the item-get menu (29), which gives the item, as in the
-    /// fields.
-    fn item_get_menu(&mut self, pc: i16, category: i16, id: i16, num: i16) {
-        self.st.log(format!("item_get_menu {pc} {category} {id} {num}"));
-        let c = &mut self.ui.ctrl;
-        c.item_num = (i32::from(category) << 16) | i32::from(id as u16);
-        c.open_req = 29;
-        c.mode = 0;
-        c.first_time = 1;
-    }
-
-    /// After the item-get menu closed: `ccMenu +0x0c` (`panelStatus`) 3.
-    fn item_get_menu_end(&mut self) {
-        self.st.log("item_get_menu_end".into());
-        self.ui.ctrl.panel_status = 3;
-    }
-
-    fn add_spc_item(&mut self, pc: i16, category: i16, id: i16, num: i16) -> bool {
-        let code = i32::from(pc);
-        if self.world.town_party().member(code).is_none() {
-            return false;
-        }
-        self.st.log(format!("add_spc_item {pc} {category} {id} {num}"));
-        let w = crate::world::ui_world(self.world, None, 0);
-        let h = crate::world::handle(piney_world::event::entry::Kind::Spc, code);
-        let (c, i, n) = (i32::from(category), i32::from(id), i32::from(num));
-        self.ui.add_spc_item(&w, self.world.state_mut(), h, code, c, i, n);
-        true
-    }
-
-    /// `virus_core` (case 124, main 0x001b06c8) runs `SimGenerateCode` only
-    /// at level 1 (`ccEventFlagSet`: a volume's events brought forward, the
-    /// port's story starts), never while playing; there its host is
-    /// `start.rs`'s. Here, as `WORLD_MAN` would be left: the area the words
-    /// make on the town's server, as Area Information shows it. (The field
-    /// generator's `seed` and `randcnt` it also moves are left aside, as
-    /// everywhere in the port's area words.)
-    fn generate_area(&mut self, words: [Option<i32>; 3]) {
-        self.st.log(format!("generate_area {words:?}"));
-        if let [Some(a), Some(b), Some(c)] = words {
-            let s = self.world.state().save.u8(offset::LAST_TOWN);
-            let server = piney_world::area::SERVER_OF_TOWN.get(usize::from(s)).copied().unwrap_or(0);
-            let save = self.world.state().clone();
-            self.ui.set_area_words([a, b, c], server, &save);
-        }
-    }
-
-    /// `area` (0x001b04b8): areas 1-13 quit the field (`WORLD_MAN::Quit`)
-    /// and set `eventAreaNumber`; any other has `WORLD_MAN::SimGenerateCode`
-    /// build it from its words. Recorded: the session builds it as the
-    /// scene changes (`area::ev_area_world_man`).
-    fn area(&mut self, area: i16) {
-        let words = self.st.stories.get(&area).map(|a| a.words).unwrap_or_default();
-        self.st.log(format!("area {area} {words:?}"));
-        self.st.area = Some((area, words));
-    }
-
-    fn map_on(&mut self) {
-        self.st.log("map_on".into());
-        self.ui.map_on();
-    }
-
-    fn target_forbid(&mut self, on: bool) {
-        self.st.log(format!("target_forbid {on}"));
-        self.ui.target_forbid(on);
-    }
-
-    /// `condition_fx_on` / `condition_fx_off`: `spcConditionEffectFlag`,
-    /// which a town draws nothing by (no condition tints there) and which
-    /// `ccThSpc`'s start sets again in the next area.
-    fn condition_effect(&mut self, on: bool) {
-        self.st.log(format!("condition_effect {on}"));
-    }
-
-    /// The first play pass's end (`ccThEvent`, main 0x001b5eb0): with
-    /// `WORLD_MAN.hackFlag` 3 `ccMenu.interNoiz = 1`. `GO` sets `hackFlag`
-    /// 2 for every area before its town, field or dungeon, 3 when the
-    /// save's crisis byte (+0x6772) is set, and a town keeps that: in the
-    /// crisis the town's menu has its noise.
-    fn play_pass_done(&mut self) {
-        let crisis = self.world.state().save.u8(offset::CRISIS) != 0;
-        self.st.log(format!("play_pass_done{}", if crisis { " noise 1" } else { "" }));
-        if crisis {
-            self.ui.noise(1);
-        }
     }
 }
 
