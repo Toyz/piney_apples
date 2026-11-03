@@ -167,7 +167,7 @@ fn first_rooms(d: &DungeonArea) -> Vec<(usize, usize)> {
 /// The rooms (at most four, floor by floor) whose model holds a magma
 /// dummy (sparks), the water's, a wall's, an animated object's or a lake
 /// statue's.
-fn rooms_with_pieces(d: &DungeonArea) -> Vec<(usize, usize)> {
+pub(super) fn rooms_with_pieces(d: &DungeonArea) -> Vec<(usize, usize)> {
     const DUMMIES: [&str; 8] =
         ["OBJ_o_magma", "OBJ_0paf0_", "OBJ_0paw", "OBJ_0pag0_", "OBJ_0pac0_", "OBJ_0par0_", "OBJ_0pab0_", "OBJ_0ps"];
     let f = &d.file;

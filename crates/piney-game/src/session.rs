@@ -7271,6 +7271,9 @@ mod tests {
     /// Golden shots of the story maps and the fields by type.
     mod map_shots;
 
+    /// Golden shots of the fields and dungeons on every volume.
+    mod field_shots;
+
     /// Issue #50: Ryu Book III's "Online" for the people in town.
     mod ryu_book_online;
 
