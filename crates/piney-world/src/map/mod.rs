@@ -18,7 +18,7 @@ use piney_desktop::kanji::{Fonts, Kanji, Kt, Names};
 use piney_desktop::view::LayerView;
 
 use crate::area::kind;
-use crate::ee::{self, F, V4};
+use crate::ee::{self, F};
 use sprite::Out;
 
 /// `mapLayer`'s priority (`ccLayer::Init(50, 0)`).
@@ -182,25 +182,15 @@ impl MapState {
 }
 
 /// `ROOTTOWN01::DrawMap` for a frame of the town's `ccThFieldDisp`: drawn
-/// with the player at `pos` heading `dirc` while `awake`, else the last
-/// frame again.
-#[allow(clippy::too_many_arguments)]
-pub fn town_frame(
-    map: &mut town::TownMap,
-    st: &mut MapState,
-    pos: V4,
-    dirc: V4,
-    race: Option<[Option<town::Racer>; 3]>,
-    awake: bool,
-    ctx: &mut Ctx,
-) {
-    if awake {
-        st.last = map.draw(&town::Input { mode: st.modes.town, alpha: st.alpha, pos, dirc, race });
+/// with the player where he stands while awake, else the last frame again.
+pub(crate) fn town_minimap(map: &mut town::TownMap, f: &mut crate::area::MapFrame) {
+    let st = &mut *f.st;
+    if f.awake {
+        let input = town::Input { mode: st.modes.town, alpha: st.alpha, pos: f.pos, dirc: f.dirc, race: f.race };
+        st.last = map.draw(&input);
     }
     let place = |spr: u8| map.place(spr).cloned();
-    let mark = ctx.layers.mark();
-    render(&st.last, &place, &|_| None, None, ctx);
-    hud_shrink(ctx, &mark, st.hud_scale);
+    render(&st.last, &place, &|_| None, None, f.ctx);
 }
 
 /// Not the game's: everything drawn since `mark` shrunk by the HUD scale
@@ -343,15 +333,31 @@ mod tests {
     /// scissor with it. The town's map had been left at full size.
     #[test]
     fn the_hud_scale_shrinks_the_town_map() {
+        use crate::area::AreaMap as _;
         let Some(archive) = crate::town::tests::archive() else { return };
-        let def = crate::town::mac_anu::MAC_ANU.minimap.unwrap();
-        let mut map = town::TownMap::open(&archive, piney_data::volume::Volume::Inf, def, "town01").unwrap();
+        let volume = piney_data::volume::Volume::Inf;
+        let scene = crate::area::Scene::init();
+        let mut town = crate::town::Town::open(&archive, volume, 0, false).unwrap();
+        town.setup_map(&archive, volume, &scene).unwrap();
         let mut draw = |k: f32| {
             let mut st = MapState::new(&SaveState::fresh());
             st.set_alpha(1.0);
             st.hud_scale = k;
             let mut ctx = Ctx::new(piney_desktop::view::View::default());
-            town_frame(&mut map, &mut st, crate::START_POS, [0; 4], None, true, &mut ctx);
+            let mut ents = Entries::default();
+            let mut f = crate::area::MapFrame {
+                st: &mut st,
+                scene: &scene,
+                pos: crate::START_POS,
+                dirc: [0; 4],
+                awake: true,
+                in_battle: false,
+                fonts: None,
+                ents: &mut ents,
+                race: None,
+                ctx: &mut ctx,
+            };
+            area_frame(&mut town, &mut f);
             ctx.layers.flatten()
         };
         let (full, half) = (draw(1.0), draw(0.5));

@@ -1070,6 +1070,7 @@ impl DungeonArea {
             lights: lights.clone(),
             field_rand: Some(dungeon::Rng::new(world_man.dungeon_seed[code])),
             start: [0, 0, 0, ONE],
+            written: Vec::new(),
         };
         let mut area = DungeonArea {
             def,

@@ -170,8 +170,7 @@ pub struct WorldMode {
     /// Where the Chaos Gate asked to go (`WORLD_MAN::SetGenerateCode` or
     /// `ChangeArea`), for the title.
     leaving: Option<String>,
-    /// The minimap (`ROOTTOWN01::DrawMap`) and what `WORLD_MAN` keeps of it.
-    map: Option<Box<piney_world::map::town::TownMap>>,
+    /// What `WORLD_MAN` keeps of the minimap (the map is the area's).
     map_st: piney_world::map::MapState,
     /// The effects that draw the town's own sprites (Dun Loireag's).
     town_fx: Option<Box<crate::town_fx::TownFx>>,
@@ -216,13 +215,6 @@ impl WorldMode {
         st.announcements = crate::desktop::announcements(iso);
         let mut world = World::enter_after(&mut disc, archive.clone(), state, scene, before)
             .map_err(|e| format!("The World: {e}"))?;
-        let t = &world.town();
-        let map = t.def.minimap.and_then(|m| {
-            piney_world::map::town::TownMap::open(archive, world.volume(), m, &t.core.file.stem)
-                .map_err(|e| tracing::warn!("the town's map: {e}"))
-                .ok()
-                .map(Box::new)
-        });
         let town_fx = Some(crate::town_fx::TownFx::new(archive, disc.volume().map_err(|e| e.to_string())?))
             .and_then(|f| f.map_err(|e| tracing::warn!("the town's effects: {e}")).ok())
             .map(Box::new);
@@ -252,7 +244,6 @@ impl WorldMode {
             cover_palette: None,
             area_code_set: None,
             leaving: None,
-            map,
             map_st,
             town_fx,
         })
@@ -1389,14 +1380,13 @@ impl Mode for WorldMode {
             }
             // ccSoundMain's scene sounds: the canals of the town type it
             // tests, the breeder's tune by DMY_merchant6.
-            let town = &self.world.town();
-            let breeder =
-                town.core.file.ccs.find_object("DMY_merchant6").and_then(|o| town.core.file.scene.dummies.get(&o));
+            let file = &self.world.area().core().file;
+            let breeder = file.ccs.find_object("DMY_merchant6").and_then(|o| file.scene.dummies.get(&o));
             let scene_sound = piney_audio::scene::SceneInput {
                 camera: Some(self.world.camera().active().pos),
                 kite: self.world.player().body.pos,
                 block: 0,
-                town: Some(town.def.no),
+                town: Some(self.world.scene().town),
                 breeder: breeder.map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), 0x3f80_0000]),
             };
             self.events.push(Event::SceneSound(scene_sound));
@@ -1410,13 +1400,28 @@ impl Mode for WorldMode {
         if let Phase::Play(f) = self.world.phase()
             && f >= 2
             && self.setup != Setup::Left
-            && let Some(map) = self.map.as_mut().filter(|_| !self.hack_screen)
+            && !self.hack_screen
         {
             let p = self.world.player();
             let (pos, dirc) = (p.body.pos, p.body.dirc);
             self.map_st.hud_scale = self.ui.hud_scale;
-            let racers = self.world.map_racers();
-            piney_world::map::town_frame(map, &mut self.map_st, pos, dirc, racers, !self.world.asleep(), &mut ctx);
+            let race = self.world.map_racers();
+            let scene = self.world.scene();
+            let awake = !self.world.asleep();
+            let mut ents = piney_world::map::Entries::default();
+            let mut f = piney_world::area::MapFrame {
+                st: &mut self.map_st,
+                scene: &scene,
+                pos,
+                dirc,
+                awake,
+                in_battle: false,
+                fonts: None,
+                ents: &mut ents,
+                race,
+                ctx: &mut ctx,
+            };
+            piney_world::map::area_frame(self.world.area_mut(), &mut f);
         }
         // ccThEffect (80) and ccThParticle (98): Kite's, the members' and
         // the walking PCs' transfers started, the effects stepped (not
@@ -1594,7 +1599,7 @@ impl Mode for WorldMode {
             (None, None) => String::new(),
         };
         let fade = self.st.fade.alpha().map_or(String::new(), |a| format!(" - fade {a}"));
-        let town = self.world.town().def.name;
+        let town = piney_world::town::TownDef::of(self.world.scene().town, self.world.volume()).map_or("", |d| d.name);
         format!(
             "The World - {town} - {phase} - Kite at ({:.0}, {:.0}, {:.0}) act {} speed {:.1}{target}{menu}{leaving}{events}{fade}",
             p[0],

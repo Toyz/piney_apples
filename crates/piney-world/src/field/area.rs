@@ -428,7 +428,7 @@ impl FieldArea {
             ..Hits::default()
         };
         let start = [field.start_pos[0], field.start_pos[1], field.start_pos[2], ONE];
-        let core = AreaCore { file, hits, lights, field_rand: None, start };
+        let core = AreaCore { file, hits, lights, field_rand: None, start, written: Vec::new() };
         let mut area = FieldArea {
             def,
             core,

@@ -36,7 +36,7 @@ fn play_in(s: &mut Session, town: i32) {
     let pad = Pad::default();
     for _ in 0..3000 {
         if let Stage::World(w) = &s.stage
-            && w.world().town().def.no == town
+            && w.world().scene().town == town
             && matches!(w.world().phase(), piney_world::Phase::Play(n) if n >= 30)
         {
             return;
@@ -120,7 +120,7 @@ fn sound_to_town(s: &mut Session, town: i16) -> Vec<crate::mode::Event> {
         let Stage::World(w) = &s.stage else { continue };
         set_up |= !matches!(w.world().phase(), piney_world::Phase::Play(_));
         if set_up
-            && w.world().town().def.no == i32::from(town)
+            && w.world().scene().town == i32::from(town)
             && matches!(w.world().phase(), piney_world::Phase::Play(n) if n >= 30)
         {
             return out;

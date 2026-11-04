@@ -87,6 +87,8 @@ pub struct MapFrame<'a> {
     pub in_battle: bool,
     pub fonts: Option<&'a Fonts>,
     pub ents: &'a mut Entries,
+    /// The Flag Race's riders on a town's map (`DrawMap`'s race marks).
+    pub race: Option<[Option<crate::map::town::Racer>; 3]>,
     pub ctx: &'a mut Ctx,
 }
 

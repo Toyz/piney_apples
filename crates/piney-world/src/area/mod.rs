@@ -35,6 +35,11 @@ pub struct AreaCore {
     pub lights: TownLights,
     pub field_rand: Option<Rng>,
     pub start: V4,
+    /// Dummies of the file whose rotation the game wrote (from Mutation
+    /// on, `setMerchant`'s Event NPC's), by name: the markers read them so
+    /// for as long as the file stays loaded, across a scene change to the
+    /// same area too (the session carries them).
+    pub written: Vec<(String, V4)>,
 }
 
 impl AreaCore {
@@ -55,7 +60,7 @@ impl AreaCore {
         let anim = file.anim(light_anim).ok_or_else(|| Error::NotFound(light_anim.into()))?;
         let lights = TownLights { fog: Some(fog), ..crate::town::read_lights(&file, anim, lights)? };
         let hits = Hits::new(tables, HitModel::read(tables, &file.ccs)?);
-        Ok(AreaCore { file, hits, lights, field_rand: None, start: [0; 4] })
+        Ok(AreaCore { file, hits, lights, field_rand: None, start: [0; 4], written: Vec::new() })
     }
 }
 

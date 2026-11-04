@@ -76,8 +76,8 @@ fn arrival_in_dun_loireag_then_walking() {
     let Some((mut iso, archive)) = disc() else { return };
     let save = in_dun_loireag(&mut iso);
     let mut world = World::enter(&mut iso, archive, save).unwrap();
-    assert_eq!(world.town().def.no, 1);
-    assert_eq!(world.town().core.file.stem, "town02");
+    assert_eq!(world.scene().town, 1);
+    assert_eq!(world.area().core().file.stem, "town02");
     assert_eq!(world.clear_colour(), Some([0x80, 0xc0, 0xf0]));
     let mut pad = Pad::default();
     for _ in 0..FADE_FRAMES + HOLD_FRAMES {
@@ -102,7 +102,13 @@ fn arrival_in_dun_loireag_then_walking() {
     let ids: Vec<i32> = world.merchants().iter().map(piney_world::event::entry::Npc::code).collect();
     assert_eq!(ids, [5, 6, 7, 8, 9, 10]);
     assert_eq!(world.pcs().len(), 15);
-    let clouds = world.town().systems().get::<piney_world::systems::clouds::Clouds>().unwrap();
+    let clouds = world
+        .area()
+        .get::<piney_world::town::Town>()
+        .unwrap()
+        .systems()
+        .get::<piney_world::systems::clouds::Clouds>()
+        .unwrap();
     assert_eq!(clouds.clouds.len(), 25);
     // Stick up: he runs south and stays on the ground.
     let start = world.player().body.pos;

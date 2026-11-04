@@ -1767,6 +1767,7 @@ impl Mode for AreaMode {
                 in_battle,
                 fonts,
                 ents: &mut ents,
+                race: None,
                 ctx: map_ctx,
             };
             let shown = piney_world::map::area_frame(self.world.area_mut(), &mut f);

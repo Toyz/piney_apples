@@ -45,6 +45,7 @@ use piney_input::Pad;
 
 pub use piney_desktop::SaveState;
 
+use crate::area::AreaMap;
 use crate::camera::evcam;
 use crate::camera::{CamPad, Camera, Scheme};
 use crate::chara::kite::Kite;
@@ -194,7 +195,8 @@ pub struct World {
     scene: area::Scene,
     /// The disc's volume: whose tables these are.
     volume: piney_data::volume::Volume,
-    town: Town,
+    /// The area `WORLD_MAN::GO(0)` made ([`area::AreaMap`]).
+    area: Box<dyn AreaMap>,
     gate: Gate,
     kite: Kite,
     /// His `EquipWeapon` dummies and trails (`ccSpcChar::ArmsEffect`).
@@ -277,8 +279,10 @@ pub struct World {
     /// heading.
     start: (V4, V4),
     /// The `ccEff`s the town's last draw asked for (Dun Loireag's lens
-    /// flare and clouds), for the host's effects.
+    /// flare and clouds), for the host's effects, and the effects and
+    /// sounds its draws started since the last take.
     town_sprites: Vec<sprite::EffSprite>,
+    town_events: Vec<crate::systems::MapEvent>,
     // --- the Flag Race (grunty/race.rs, town/ride.rs), from Mutation on ---
     /// Its three flags (`0x00774a90`), its task (`0x0038bd44`) and the
     /// riding Grunty's (`pcgs`); what they asked of the game.
@@ -372,6 +376,10 @@ impl World {
         let crisis = save.save.u8(offset::CRISIS) != 0;
         let mut town = Town::open_with(&archive, volume, town_no, crisis, save.field_rand)?;
         town.take_statics(&save.scroll_statics);
+        town.keep_start(before);
+        if let Err(e) = town.setup_map(&archive, volume, &scene) {
+            tracing::warn!("the town's map: {e}");
+        }
         let gate = Gate::new(&archive, &town.core.file)?;
         let party = crate::town::party::TownParty::new(iso, town_no as usize, &town.core.file)?;
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
@@ -386,7 +394,8 @@ impl World {
         let velocity = save_f(&save, spc + 0xd4);
         let height = save_f(&save, spc + 0x18);
         let width = save_f(&save, spc + 0x1c);
-        let start = town.def.start.unwrap_or(before);
+        let (pos, rot, _) = town.start(&scene);
+        let start = (pos, [0, 0, rot, 0]);
         let player = Player::new(volume, start.0, start.1, velocity, width, height);
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
@@ -395,7 +404,7 @@ impl World {
         Ok(World {
             save,
             volume,
-            town,
+            area: Box::new(town),
             gate,
             kite,
             kite_arms,
@@ -445,6 +454,7 @@ impl World {
             evcam: evcam::EventCam::new(),
             start,
             town_sprites: Vec::new(),
+            town_events: Vec::new(),
             flags: Vec::new(),
             race: None,
             ride: None,
@@ -624,7 +634,7 @@ impl World {
     /// closed) clears the flag.
     fn spc_affect(&mut self, code: i32, cmnd: i16) {
         let Some(w) = self.party.member(code) else { return };
-        let hits = &mut self.town.core.hits;
+        let hits = &mut self.area.core_mut().hits;
         let bounds = combat::Combat::bounds(0, hits);
         let c = &mut self.party.combat;
         c.affect_now(w, c.kite, cmnd, [0; 3], hits, bounds, &mut self.save.save, &[]);
@@ -694,12 +704,16 @@ impl World {
         self.place_spc_entries();
         let reserved = self.spcs.registry_num + self.regist_npc_num;
         let mut mt = mt::Mt::init(self.rand_count);
-        let no = self.town.def.no;
+        let no = self.scene.town;
         let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
         let pool = crate::town::pc::Pool::of(&crate::town::pc::Tables::of(self.volume), server, &self.save.save);
         let rows = crate::town::pc::register_random_npc(&mut mt, reserved, &pool);
-        let town =
-            Rc::new(std::cell::RefCell::new(crate::town::pc::TownPcs::new(self.volume, no, &self.town.core.file, mt)?));
+        let town = Rc::new(std::cell::RefCell::new(crate::town::pc::TownPcs::new(
+            self.volume,
+            no,
+            &self.area.core().file,
+            mt,
+        )?));
         self.town_pcs = Some(town);
         let mut files = crate::town::pc::Files::new();
         for e in std::mem::take(&mut self.event_npcs) {
@@ -707,13 +721,13 @@ impl World {
         }
         let player = self.player.body.pos;
         let event_npc = self.save.save.u8(offset::EVENT_STATUS + merchant::EVENT_NPC_STATUS) != 0;
-        let town = &mut self.town;
+        let core = self.area.core_mut();
         let merchants = merchant::set_merchants(
             &self.archive,
             self.volume,
-            &town.core.file,
-            &mut town.written,
-            &mut town.core.hits,
+            &core.file,
+            &mut core.written,
+            &mut core.hits,
             no,
             player,
             event_npc,
@@ -722,7 +736,8 @@ impl World {
         // ccSetChaosGate (already up), then ccEntryEventMng's by town: 1
         // ccSetDog and ccSetChibiGuso, 2 and 3 ccSetChibiGuso, then the
         // walking PCs.
-        self.dogs = dog::set_dogs(&self.archive, self.volume, &self.town.core.file, &mut self.town.core.hits, no)?;
+        let core = self.area.core_mut();
+        self.dogs = dog::set_dogs(&self.archive, self.volume, &core.file, &mut core.hits, no)?;
         self.place_grunties(no)?;
         let town = self.town_pcs.clone().expect("placed above");
         for (slot, &r) in rows.iter().enumerate() {
@@ -737,7 +752,7 @@ impl World {
                 &model,
                 slot as i32,
                 player,
-                &mut self.town.core.hits,
+                &mut self.area.core_mut().hits,
             ));
         }
         Ok(())
@@ -748,7 +763,7 @@ impl World {
     /// the NPC list before `ccSetMerchant(0)`'s.
     fn place_event_npc(&mut self, files: &mut crate::town::pc::Files, e: EventEntry) -> piney_data::Result<()> {
         let row = npc::NpcRow::of(self.volume, e.code as usize)?;
-        let (no, player) = (self.town.def.no, self.player.body.pos);
+        let (no, player) = (self.scene.town, self.player.body.pos);
         match e.class {
             npc::EventClass::Pc if e.search => {
                 // The SEARCH set-up: the row's stage is its event's status
@@ -756,21 +771,28 @@ impl World {
                 let town = self.town_pcs.clone().expect("the entry control's set-up ran");
                 let stage =
                     usize::try_from(e.code - 117).ok().map(|k| self.save.save.u8(offset::EVENT_STATUS + k) as i8);
-                let file = &self.town.core.file;
+                let file = &self.area.core().file;
                 let set_up = stage
                     .and_then(|st| crate::town::pc::Search::set_up(&town.borrow(), file, i32::from(e.code), st.into()));
                 let Some(s) = set_up else { return Ok(()) };
                 let model = crate::town::pc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
                 let origin = crate::town::pc::Origin::Search(s);
-                let pc =
-                    crate::town::pc::RtownPc::place_as(&town, &row, &model, origin, player, &mut self.town.core.hits);
+                let pc = crate::town::pc::RtownPc::place_as(
+                    &town,
+                    &row,
+                    &model,
+                    origin,
+                    player,
+                    &mut self.area.core_mut().hits,
+                );
                 self.pcs.push(pc);
             }
             npc::EventClass::Pc => {
                 let town = self.town_pcs.clone().expect("the entry control's set-up ran");
                 let model = crate::town::pc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
                 let at = self.event_marker(e.marker);
-                let mut pc = crate::town::pc::RtownPc::place(&town, &row, &model, -1, player, &mut self.town.core.hits);
+                let mut pc =
+                    crate::town::pc::RtownPc::place(&town, &row, &model, -1, player, &mut self.area.core_mut().hits);
                 if let Some(at) = at {
                     (pc.char.pos, pc.char.dirc) = at;
                 }
@@ -778,7 +800,7 @@ impl World {
             }
             npc::EventClass::Merchant => {
                 let at = self.event_marker(e.marker);
-                let m = merchant::event_merchant(&self.archive, &row, &mut self.town.core.hits, no, player, at)?;
+                let m = merchant::event_merchant(&self.archive, &row, &mut self.area.core_mut().hits, no, player, at)?;
                 self.merchants.push(m);
             }
         }
@@ -827,13 +849,14 @@ impl World {
         }
         let tables = Rc::new(grunty::Tables::of(self.volume)?);
         let mut bodies = grunty::Bodies::load(&self.archive)?;
+        let core = self.area.core_mut();
         for (num, id) in rows.into_iter().enumerate() {
             let g = grunty::set_dog(
                 &self.archive,
                 &tables,
                 &mut bodies,
-                &self.town.core.file,
-                &mut self.town.core.hits,
+                &core.file,
+                &mut core.hits,
                 if id < grunty::ROW_YOUNG { &before } else { &self.save.save },
                 no,
                 id,
@@ -847,7 +870,7 @@ impl World {
         let g = grunty::Growth::read(&self.save.save, no);
         if self.volume != piney_data::volume::Volume::Inf && g.level == 4 && g.ty.iter().all(|&t| t != 0) {
             for n in 0..3 {
-                if let Some(f) = race::Flag::new(&self.archive, self.volume, &self.town.core.file, no, n)? {
+                if let Some(f) = race::Flag::new(&self.archive, self.volume, &self.area.core().file, no, n)? {
                     self.flags.push(f);
                 }
             }
@@ -1067,10 +1090,7 @@ impl World {
     /// as the town left them.
     pub fn state_out(&self) -> SaveState {
         let mut out = SaveState { rand: self.rand.0, ..self.save.clone() };
-        if let Some(r) = self.town.field_rand() {
-            out.field_rand = r;
-        }
-        self.town.put_statics(&mut out.scroll_statics);
+        self.area.put(&mut out);
         match &self.town_pcs {
             Some(t) => t.borrow().mt.put(&mut out.cc),
             None => mt::Mt::init(self.rand_count).put(&mut out.cc),
@@ -1087,10 +1107,13 @@ impl World {
     /// `SimGenerateCode`'s `fieldrand` (the gate menu's words): the town's
     /// draws go on from `seed`, `randcnt` moved on by its 13.
     pub fn set_field_seed(&mut self, seed: u32) {
-        let r = self.town.field_rand().unwrap_or(self.save.field_rand);
+        let core = self.area.core_mut();
+        let r = core.field_rand.unwrap_or(self.save.field_rand);
         let r = piney_data::dungeon::Rng { seed, count: r.count.wrapping_add(13) };
         self.save.field_rand = r;
-        self.town.set_field_rand(r);
+        if let Some(f) = &mut core.field_rand {
+            *f = r;
+        }
     }
 
     /// The save, for what the field's menus write (items, tactics, the
@@ -1221,7 +1244,7 @@ impl World {
 
     /// `cc3d`'s fog as the town's constructor set it (`SetFog`).
     pub fn fog(&self) -> Option<town::FogParams> {
-        self.town.core.lights.fog
+        self.area.core().lights.fog
     }
 
     pub fn camera(&self) -> &Camera {
@@ -1240,12 +1263,13 @@ impl World {
         self.scene
     }
 
-    pub fn town(&self) -> &Town {
-        &self.town
+    /// The area `WORLD_MAN::GO(0)` made: the Root Town.
+    pub fn area(&self) -> &dyn AreaMap {
+        &*self.area
     }
 
-    pub fn town_mut(&mut self) -> &mut Town {
-        &mut self.town
+    pub fn area_mut(&mut self) -> &mut dyn AreaMap {
+        &mut *self.area
     }
 
     /// The `ccEff`s the town's last draw asked for (Dun Loireag's lens
@@ -1285,12 +1309,12 @@ impl World {
     /// The effects and sounds the town's draws started since the last
     /// call ([`crate::systems::MapEvent`]).
     pub fn take_town_events(&mut self) -> Vec<crate::systems::MapEvent> {
-        self.town.take_events()
+        std::mem::take(&mut self.town_events)
     }
 
     /// `ccSys.bgColor` as the town's constructor set it (None: black).
     pub fn clear_colour(&self) -> Option<[u8; 3]> {
-        self.town.def.clear
+        self.area.clear()
     }
 
     /// The disc's volume: whose tables the world reads.
@@ -1610,7 +1634,7 @@ impl World {
                 tasks(
                     &mut self.camera,
                     &mut self.player,
-                    &mut self.town.core.hits,
+                    &mut self.area.core_mut().hits,
                     &anims,
                     &mut self.rand,
                     &cpad,
@@ -1646,7 +1670,7 @@ impl World {
             // The arrival's end puts Kite's body on the character list
             // (bodyHit.HitEnable), after the merchants' and the walking PCs'.
             if self.player.events.contains(&motion::ActEvent::Arrived) {
-                self.town.core.hits.hit_enable(&mut self.player.hit_body);
+                self.area.core_mut().hits.hit_enable(&mut self.player.hit_body);
             }
             if let Some(how) = self.player.leave.take() {
                 self.with_party(|spcs, chars, _| spcs.leave(0, how, chars));
@@ -1657,10 +1681,10 @@ impl World {
         let to_screen = draw::screen(&self.camera.world_screen);
         // The draw environment's lights: the town's, then the gate's as its
         // last step left them.
-        let lights = self.gate.lights(&self.town.core.lights);
+        let lights = self.gate.lights(&self.area.core().lights);
         // WORLD_MAN::GO's shadow packets (a town's too).
-        ctx.layers.shadows = draw::go_shadows(&self.town.core.lights, &self.camera.world_screen);
-        self.draw_ride(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.core.lights));
+        ctx.layers.shadows = draw::go_shadows(&self.area.core().lights, &self.camera.world_screen);
+        self.draw_ride(&mut ctx.layers, to_screen, &self.gate.lights(&self.area.core().lights));
         if self.player.drawn && !self.kite_asleep {
             let p = &self.player;
             draw::char_shadow(&mut ctx.layers, p.shadow_t, p.height, |layers| {
@@ -1707,7 +1731,7 @@ impl World {
                 self.gate_sounds.push((se, self.gate.pos));
             }
         }
-        self.gate.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.core.lights));
+        self.gate.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.area.core().lights));
         // The race's flags, the entry control's other gimmicks.
         if awake {
             let (player, cam, volume) = (self.player.body.pos, self.camera.active().clone(), self.volume);
@@ -1724,7 +1748,7 @@ impl World {
             }
         }
         for f in &self.flags {
-            f.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.core.lights));
+            f.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.area.core().lights));
         }
         let view = crate::chara::char::View {
             player: self.player.body.pos,
@@ -1732,14 +1756,14 @@ impl World {
             deg1: t.deg[1],
             eye: t.kind == camera::kind::EYE,
         };
-        let lights = self.gate.lights(&self.town.core.lights);
+        let lights = self.gate.lights(&self.area.core().lights);
         let p = &self.player;
         let mut cx = entry::NpcCtx {
             player: p.body.pos,
             player_dirc: p.body.dirc,
             view,
             cam: self.camera.active(),
-            hits: &mut self.town.core.hits,
+            hits: &mut self.area.core_mut().hits,
             rand: &mut self.rand,
         };
         if awake {
@@ -1843,11 +1867,28 @@ impl World {
                 world_screen: self.camera.world_screen,
                 ..crate::systems::MapView::default()
             };
-            self.town.step(&v);
-            self.town_sprites.clear();
-            for r in self.town.requests() {
-                systems::paint(&mut ctx.layers, to_screen, &r, &mut self.town_sprites);
-            }
+            // A town's entry control holds no enemies: every room is clear
+            // (ccCheckActiveObject), as nothing in its Draw reads.
+            let mut cx = area::Disp {
+                layers: &mut ctx.layers,
+                to_screen,
+                view: &v,
+                awake,
+                cc: &mut self.party.combat.cc,
+                save: &self.save.save,
+                clear_all: true,
+                clear: &|_, _| true,
+                camera: &mut self.camera,
+                server: self.scene.server,
+                message_closed: false,
+                sprites: Vec::new(),
+                events: Vec::new(),
+                story: Vec::new(),
+                path_map: false,
+            };
+            self.area.disp(&mut cx);
+            self.town_sprites = cx.sprites;
+            self.town_events.append(&mut cx.events);
         }
     }
 }

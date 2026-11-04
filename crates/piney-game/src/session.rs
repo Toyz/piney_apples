@@ -443,7 +443,9 @@ impl Session {
         // scene whose list holds the same file again keeps them
         // (`ccFileExistCheck`, INF main 0x001640f0).
         let kept_town = match &stage {
-            Stage::World(w) => Some((w.world().town().core.file.stem.clone(), w.world().town().written.clone())),
+            Stage::World(w) => {
+                Some((w.world().area().core().file.stem.clone(), w.world().area().core().written.clone()))
+            }
             _ => None,
         };
         let (mut state, vm) = match stage {
@@ -489,9 +491,9 @@ impl Session {
         }
         self.stage = self.world_stage(state, vm, true)?;
         if let (Some((stem, written)), Stage::World(w)) = (kept_town, &mut self.stage)
-            && w.world().town().core.file.stem == stem
+            && w.world().area().core().file.stem == stem
         {
-            w.world_mut().town_mut().written = written;
+            w.world_mut().area_mut().core_mut().written = written;
         }
         if let Some(g) = globals {
             match &mut self.stage {
@@ -3954,7 +3956,7 @@ mod tests {
             s.take_events();
         }
         let Stage::World(w) = &s.stage else { panic!("not in a town: {}", Mode::title(&s)) };
-        assert_eq!(w.world().town().def.no, 1, "{}", Mode::title(&s));
+        assert_eq!(w.world().scene().town, 1, "{}", Mode::title(&s));
     }
 
     /// The console's `town N` as the sound hears it: from event 3's field to

@@ -101,9 +101,9 @@ impl World {
     /// [`marker_dummy_in`] of the town's file, with the rotation the game
     /// wrote into the dummy this visit if it did.
     pub fn marker_dummy(&self, n: i16) -> Option<(V4, V4)> {
-        let (pos, rot) = marker_dummy_in(&self.town.core.file, self.volume, n)?;
+        let (pos, rot) = marker_dummy_in(self.area.marker_file()?, self.volume, n)?;
         let name = piney_data::tables::world::of(self.volume).markers.get(n as usize).copied();
-        let written = self.town.written.iter().find(|(d, _)| Some(d.as_str()) == name).map(|&(_, r)| r);
+        let written = self.area.core().written.iter().find(|(d, _)| Some(d.as_str()) == name).map(|&(_, r)| r);
         Some((pos, written.unwrap_or(rot)))
     }
 
@@ -369,7 +369,7 @@ impl World {
                     self.spcs.del_spc(i);
                 }
             }
-            self.party.drop_member(code, &mut self.town.core.hits);
+            self.party.drop_member(code, &mut self.area.core_mut().hits);
             self.party.combat.set_party(self.spcs.party());
         }
     }

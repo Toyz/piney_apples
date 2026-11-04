@@ -44,7 +44,7 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
-use crate::area::AreaCore;
+use crate::area::{AreaCore, AreaMap, Disp, MapFrame};
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
@@ -647,11 +647,11 @@ pub struct Town {
     /// The file (the crisis one in crisis), the lights, the collision, and
     /// `fieldrand` when a system draws from it.
     pub core: AreaCore,
-    /// Dummies whose rotation the game wrote (from Mutation on,
-    /// `setMerchant`'s Event NPC's), by name: the markers read them so for
-    /// as long as the town's file stays loaded, across a scene change to
-    /// the same town too (the session carries them).
-    pub written: Vec<(String, V4)>,
+    /// `WORLD_MAN::SetCharPosition`'s place and heading for Kite: the def's,
+    /// else `StartPos` as the scene before left it ([`Town::keep_start`]).
+    start: (V4, V4),
+    /// Its `DrawMap`'s minimap ([`AreaMap::setup_map`]).
+    map: Option<Box<crate::map::town::TownMap>>,
     systems: Systems,
     /// The last `Draw`'s pieces, the offsets its scrolls wrote into the
     /// file's materials, and the effects and sounds its steps started since
@@ -702,7 +702,17 @@ impl Town {
         let systems = Systems::build(def.systems, &mut cx)?;
         core.field_rand = def.systems.iter().any(SystemDef::field_rand).then_some(env.rng);
         let rows = systems.rows(&core.file);
-        Ok(Town { def, core, written: Vec::new(), systems, frame: Vec::new(), rows, events: Vec::new() })
+        let start = def.start.unwrap_or(([0; 4], [0; 4]));
+        Ok(Town { def, core, start, map: None, systems, frame: Vec::new(), rows, events: Vec::new() })
+    }
+
+    /// `StartPos` as the scene before left it: Kite's start where the def
+    /// gives none (the sixth town's `SetCharPosition` has no case, QUA main
+    /// 0x001b3ac0).
+    pub fn keep_start(&mut self, before: (V4, V4)) {
+        if self.def.start.is_none() {
+            self.start = before;
+        }
     }
 
     /// The systems, for tests and probes to read by kind.
@@ -760,6 +770,67 @@ impl Town {
     /// clouds and water have `SetFogSw(0)`).
     pub fn depth_fog(&self) -> draw::Fogging {
         draw::Fogging::Depth(self.def.fog.depth())
+    }
+}
+
+/// `WORLD_MAN`'s calls on a Root Town (`ROOTTOWN0n`, area 0).
+impl AreaMap for Town {
+    fn core(&self) -> &AreaCore {
+        &self.core
+    }
+
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
+    }
+
+    /// `SetCharPosition`'s town case (INF main 0x001a120c-0x001a13d4): Kite
+    /// at the town's place, the others (+200, +100), (-200, +100) and
+    /// (0, +300) from him facing as he does, as in a field.
+    fn start(&self, scene: &crate::area::Scene) -> (V4, F, [V4; 3]) {
+        let (pos, dirc) = self.start;
+        (pos, dirc[2], crate::area::map::party_starts(scene.area, pos, dirc[2]))
+    }
+
+    fn clear(&self) -> Option<[u8; 3]> {
+        self.def.clear
+    }
+
+    /// `fieldrand` as the draws leave it, and the scroll statics.
+    fn put(&self, out: &mut piney_desktop::SaveState) {
+        if let Some(r) = self.field_rand() {
+            out.field_rand = r;
+        }
+        self.put_statics(&mut out.scroll_statics);
+    }
+
+    /// `ROOTTOWN0n::Draw`: its def's steps, its pieces painted, its
+    /// `ccEff`s and what its steps started handed back.
+    fn disp(&mut self, cx: &mut Disp) {
+        self.step(cx.view);
+        for r in self.requests() {
+            crate::systems::paint(cx.layers, cx.to_screen, &r, &mut cx.sprites);
+        }
+        cx.events.append(&mut self.events);
+    }
+
+    /// `ccEvMarker2Pos` reads the town's own file.
+    fn marker_file(&self) -> Option<&SceneFile> {
+        Some(&self.core.file)
+    }
+
+    fn setup_map(&mut self, archive: &Arc<Archive>, volume: Volume, _scene: &crate::area::Scene) -> Result<()> {
+        if let Some(m) = self.def.minimap {
+            self.map = Some(Box::new(crate::map::town::TownMap::open(archive, volume, m, &self.core.file.stem)?));
+        }
+        Ok(())
+    }
+
+    /// `ROOTTOWN0n::DrawMap`.
+    fn minimap(&mut self, f: &mut MapFrame) -> bool {
+        if let Some(map) = self.map.as_mut() {
+            crate::map::town_minimap(map, f);
+        }
+        false
     }
 }
 

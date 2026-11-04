@@ -459,7 +459,14 @@ impl StoryArea {
             .collect::<Result<_>>()?;
         let lights = TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: None };
         let hits = event_hits(env.volume, env.def_se);
-        let core = AreaCore { file: file.clone(), hits, lights, field_rand: None, start: env.event_start };
+        let core = AreaCore {
+            file: file.clone(),
+            hits,
+            lights,
+            field_rand: None,
+            start: env.event_start,
+            written: Vec::new(),
+        };
         let mut a = StoryArea {
             def,
             core,

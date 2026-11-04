@@ -530,7 +530,7 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
                     ms.list.push(m.unwrap());
                 }
             }
-            let (file, written, hits) = (&t.core.file, &mut t.written, &mut t.core.hits);
+            let (file, written, hits) = (&t.core.file, &mut t.core.written, &mut t.core.hits);
             let made = merchant::set_merchants(archive, volume, file, written, hits, no, v3(1), ms.status).unwrap();
             ms.list.extend(made);
             ms.town = Some(town);
