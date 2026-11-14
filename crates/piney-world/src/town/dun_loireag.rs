@@ -12,7 +12,7 @@ use piney_data::statics::DrawPass;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::{F, ONE, V4};
-use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef, SignTable};
 use crate::systems::clouds::{CloudsDef, Made};
 use crate::systems::flare::{FlareDef, FlareDraw};
 use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
@@ -130,7 +130,7 @@ static FLARE: FlareDef = FlareDef::at(SUN_POINT, FlareDraw::LensFlare);
 /// race's racers, 12 up; the arrow's point dims a sign within (0, 54) and
 /// (10, 49) of it.
 static MINIMAP: MinimapDef = MinimapDef {
-    iconpos: "RT02ICONPOS",
+    signs: SignTable::Rt02,
     tex: "TEX_sr2map1",
     step: (0x3fa3_d70a, 0x3fa5_e354),
     race: true,

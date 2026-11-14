@@ -16,7 +16,7 @@ use piney_desktop::assets::SceneFile;
 use crate::chara::pose::Play;
 use crate::draw::{OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef, SignTable};
 use crate::systems::MapEvent;
 use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
 use crate::systems::sky::{SkyClump, SkyDef};
@@ -105,7 +105,7 @@ static WATER_DEF: WaterDef = WaterDef {
 /// `ROOTTOWN03::DrawMap`: its own layers, the map (16, 46) texels into its
 /// texture, the arrow at (70, 80), sign 3 turned, the balloons centred.
 static MINIMAP: MinimapDef = MinimapDef {
-    iconpos: "RT03ICONPOS",
+    signs: SignTable::Rt03,
     tex: "TEX_sr3map1",
     step: (0x3f82_8f5c, 0x3f81_a9fc),
     race: true,

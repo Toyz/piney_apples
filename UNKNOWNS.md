@@ -485,7 +485,7 @@ player until one of these turns out wrong.
 - [[75]] no shot shows the world moving under a tutorial menu — follows the code
 - [[76]] camera 3 appears one frame later than the game (menus run after the world's tasks) — task order
 - [[77]] what sets WORLD_MAN.specialRoom (+0x160) beyond the known rooms — docs/engine/map.md Unknown
-- [[77]] RT01ICONPOS and the pulse angles are the game's globals; the port starts a new area's pulse at 0 — docs/engine/map.md Unknown — the pulses answered by [[591]]; RT01ICONPOS still open
+- [[77]] RT01ICONPOS and the pulse angles are the game's globals; the port starts a new area's pulse at 0 — docs/engine/map.md Unknown — the pulses answered by [[591]], RT01ICONPOS by [[592]]
 - [[77]] the map for special dungeon types 8 and 9 and story rooms of type 15 and up not checked; labels compared as strings only — test gap
 - [[94]] the staff roll's pixels and the ending song's start and stop not compared — not compared
 - [[94]] ccBufferSampling (+0x138c) and the second mask (+0x1358) created and never used — as the game
@@ -1367,7 +1367,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/map.md: menuClrWait, ccCheckGtHackAnm and the party's annihilation do not hold the map button; ccGame.inBattle does not hide the map — play (duplicates [[77]])
 - docs/engine/map.md: what sets WORLD_MAN.specialRoom beyond the known rooms; ccMenu.mapStatus 3 — research (duplicates [[77]])
 - docs/engine/map.md: the rotated cull reads a leftover width and height — research (duplicates [[144]])
-- docs/engine/map.md: RT01ICONPOS and the pulse angles restart per area — research (phase only; duplicates [[77]]) — the pulses answered by [[591]]; RT01ICONPOS still open
+- docs/engine/map.md: RT01ICONPOS and the pulse angles restart per area — research (phase only; duplicates [[77]]) — the pulses answered by [[591]], RT01ICONPOS by [[592]]
 - docs/engine/map.md: ROOTTOWN03-05's DrawMap — play (duplicates [[260]]; crates/piney-world/src/map/town.rs now has a fourth sprite, to confirm) — answered by [[494]]
 - docs/engine/map.md: ShowMap reads EVENTAREA_INFO by eventAreaNumber; the host takes the model its WORLD_MAN was made with — research (the same area)
 

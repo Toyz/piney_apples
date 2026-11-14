@@ -188,7 +188,7 @@ pub(crate) fn town_minimap(map: &mut town::TownMap, f: &mut crate::area::MapFram
     let st = &mut *f.st;
     if f.awake {
         let input = town::Input { mode: st.modes.town, alpha: st.alpha, pos: f.pos, dirc: f.dirc, race: f.ents.racers };
-        st.last = map.draw(&input, &mut f.statics[map.def.pulse]);
+        st.last = map.draw(&input, &mut f.statics[map.def.pulse], f.signs);
     }
     let place = |spr: u8| map.place(spr).cloned();
     render(&st.last, &place, &|_| None, None, f.ctx);
@@ -352,6 +352,7 @@ mod tests {
             let mut f = crate::area::MapFrame {
                 st: &mut st,
                 statics: &mut save.scroll_statics,
+                signs: &mut save.town_signs,
                 scene: &scene,
                 pos: crate::START_POS,
                 dirc: [0; 4],
@@ -372,5 +373,41 @@ mod tests {
         }
         assert_ne!(half, full);
         assert_eq!(half, want);
+    }
+
+    /// Worklog 592: Mac Anu's signs are gcmn's `RT01ICONPOS`, drawn in
+    /// `SaveState::town_signs`. A second visit draws on from them: the four
+    /// northern signs, placed on the first visit's north end, fade out where
+    /// they stood on the south end. The file's rows (alpha 128, never
+    /// placed), which a log in brings back, drop them at once.
+    #[test]
+    fn a_revisited_towns_signs_fade_out_where_they_stood() {
+        use crate::ee::{ONE, k};
+        let Some(archive) = crate::town::tests::archive() else { return };
+        let volume = piney_data::volume::Volume::Inf;
+        let def = crate::town::mac_anu::MAC_ANU.minimap.unwrap();
+        let at = |y: f32| town::Input { mode: 0, alpha: ONE, pos: [0, k(y), k(600.0), ONE], dirc: [0; 4], race: None };
+        let visit = |kept: &mut piney_desktop::TownSigns, y: f32| {
+            let mut map = town::TownMap::open(&archive, volume, def, "town01").unwrap();
+            let out = map.draw(&at(y), &mut 0, kept);
+            let icons: usize = out
+                .iter()
+                .map(|o| match o {
+                    sprite::Out::Send(s) if s.spr == town::ICONS => s.packets.len(),
+                    _ => 0,
+                })
+                .sum();
+            (icons, kept[0].unwrap())
+        };
+        let mut save = SaveState::fresh();
+        let (_, north) = visit(&mut save.town_signs, 5000.0);
+        assert!(north.iter().all(|r| r.tmpx != -1 && r.alpha == 128), "every sign drawn: {north:?}");
+        let (fading, south) = visit(&mut save.town_signs, -5000.0);
+        assert_eq!(south.map(|r| r.alpha), [124, 124, 124, 124, 128, 128]);
+        assert_eq!(fading, 12, "six signs' balloons and labels");
+        save.load_gcmn();
+        let (fresh, south) = visit(&mut save.town_signs, -5000.0);
+        assert_eq!(south.map(|r| r.alpha), [0, 0, 0, 0, 128, 128]);
+        assert_eq!(fresh, 4, "only the two in view");
     }
 }

@@ -8,7 +8,7 @@ use piney_data::classes::TownGameClass;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::{F, ONE};
-use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef, SignTable};
 use crate::systems::clouds::{CloudsDef, Made};
 use crate::systems::flare::{FlareDef, FlareDraw};
 use crate::systems::scrolls::{MatScroll, ScrollsDef};
@@ -96,7 +96,7 @@ static FLARE: FlareDef = FlareDef::at(SUN_POINT, FlareDraw::LensFlare);
 /// 80), a sign dimmed within (8, 46) and (10, 45), the signs' fade held
 /// while the race runs.
 static MINIMAP: MinimapDef = MinimapDef {
-    iconpos: "RT04ICONPOS",
+    signs: SignTable::Rt04,
     tex: "TEX_sr4map1",
     step: (0x3f4c_cccd, 0x3f4c_cccd),
     race: true,

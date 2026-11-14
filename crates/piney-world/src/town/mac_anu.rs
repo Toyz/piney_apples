@@ -13,7 +13,7 @@ use piney_data::statics::DrawPass;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::{self, F, ONE, V4};
-use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef, SignTable};
 use crate::systems::scrolls::{MatScroll, ScrollsDef, Wrap};
 use crate::systems::sky::{SkyClump, SkyDef};
 use crate::systems::statics::{ModelsDef, ObjectsDef, StaticModels, StaticObjects};
@@ -104,7 +104,7 @@ static WATER_DEF: WaterDef = WaterDef {
 /// `ROOTTOWN01::DrawMap` (gcmn 0x00422d00): the map on the map's view,
 /// the arrow on it at (68, 84), no racers, no dimming.
 static MINIMAP: MinimapDef = MinimapDef {
-    iconpos: "RT01ICONPOS",
+    signs: SignTable::Rt01,
     tex: "TEX_sr1map1",
     step: (0x3fc6_6666, 0x3fcc_cccd),
     race: false,

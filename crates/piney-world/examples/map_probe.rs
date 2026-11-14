@@ -77,8 +77,8 @@ fn outs(o: &[Out], place: &dyn Fn(u8) -> Option<Place>) -> String {
     }))
 }
 
-fn icons(t: &town::TownMap) -> String {
-    list(t.icons.iter().map(|i| list([i.x, i.y, i.u, i.v, i.tmp[0], i.tmp[1], i.tmp2[0], i.tmp2[1], i.alpha])))
+fn icons(t: &town::TownMap, signs: &piney_desktop::TownSigns) -> String {
+    list(t.signs(signs).iter().map(|i| list([i.x, i.y, i.u, i.v, i.tmpx, i.tmpy, i.tmpx2, i.tmpy2, i.alpha])))
 }
 
 fn main() {
@@ -92,6 +92,9 @@ fn main() {
     // The executable's statics, the maps' pulses among them: from the
     // probe's start, never reset, as the game's from power-on.
     let mut statics = [0; piney_desktop::SCROLL_STATICS];
+    // gcmn's sign tables: from the probe's start, as the game's from a
+    // load of GCMN.PRG; a town opened again draws on from them.
+    let mut signs: piney_desktop::TownSigns = [None; piney_desktop::SIGN_TABLES];
     let tables = piney_data::area::AreaTables::of(iso.volume().unwrap());
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
@@ -104,7 +107,7 @@ fn main() {
                 // The town by its file (town01 .. town05, or the crisis one).
                 let def = piney_world::town::TOWNS.iter().find(|d| d.file == &w[1][..6]).and_then(|d| d.minimap);
                 let t = town::TownMap::open(&archive, volume, def.unwrap(), w[1]).unwrap();
-                println!("{{\"icons\": {}}}", icons(&t));
+                println!("{{\"icons\": {}}}", icons(&t, &signs));
                 tmap = Some(t);
             }
             "tframe" => {
@@ -124,9 +127,9 @@ fn main() {
                     dirc: [0, 0, n(6), 0],
                     race,
                 };
-                let o = t.draw(&inp, &mut statics[t.def.pulse]);
+                let o = t.draw(&inp, &mut statics[t.def.pulse], &mut signs);
                 let t = tmap.as_ref().unwrap();
-                println!("{{\"outs\": {}, \"icons\": {}}}", outs(&o, &|s| t.place(s).cloned()), icons(t));
+                println!("{{\"outs\": {}, \"icons\": {}}}", outs(&o, &|s| t.place(s).cloned()), icons(t, &signs));
             }
             "field" => {
                 let params = piney_data::field::Params {

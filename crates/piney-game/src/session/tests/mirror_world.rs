@@ -600,3 +600,64 @@ fn dun_loireags_scrolls_carry_across_visits() {
     crate::session::log_in(&s.iso, &mut state, 0);
     assert_eq!(state.scroll_statics, before, "log in leaves the executable's statics");
 }
+
+/// Worklog 592: Dun Loireag's signs (`RT02ICONPOS`) are gcmn's data, kept
+/// from visit to visit until GCMN.PRG loads again. Kite walks south until
+/// the two northern signs fade out, goes to field 66 and comes back by
+/// Gate Out: the map draws on from the signs as he left them, the two
+/// fading in again from 0, and log in brings back the file's rows. Before,
+/// each visit read the file's rows (every sign at 128, never placed).
+#[test]
+fn dun_loireags_signs_carry_across_visits() {
+    use piney_world::map::town::SignTable;
+    use piney_world::town::dun_loireag::DUN_LOIREAG;
+    let Some((mut s, tables)) = in_dun_loireag() else { return };
+    let slot = SignTable::Rt02.slot();
+    let signs = |s: &Session| match &s.stage {
+        Stage::Area(w) => w.world().state().town_signs[slot],
+        _ => panic!("{}", Mode::title(s)),
+    };
+    let in_town = |s: &Session| {
+        matches!(&s.stage, Stage::Area(w) if w.in_town()
+            && w.world().area().get::<piney_world::town::Town>().is_some_and(|t| t.def == &DUN_LOIREAG))
+    };
+    let mut pad = Pad::default();
+    let south = piney_input::Raw { ly: 0, ..still() };
+    for _ in 0..300 {
+        pad.read(&south);
+        s.step(&pad);
+        s.take_events();
+    }
+    let _ = gate_to_66(&mut s, tables);
+    let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("{}", Mode::title(&s))
+    }
+    let carried = a.world().state_out().town_signs[slot].expect("the field carries the signs");
+    assert_eq!(carried.map(|r| r.alpha), [0, 0, 128, 128, 128, 128], "{carried:?}");
+    assert!(carried.iter().all(|r| r.tmpx != -1), "{carried:?}");
+    a.gate_out();
+    a.vm_mut().unwrap().disable();
+    let (mut back, mut fade_in) = (None, Vec::new());
+    for _ in 0..600 {
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+        if in_town(&s) {
+            let now = signs(&s).expect("the signs");
+            back = back.or(Some(now));
+            if fade_in.last() != Some(&now[0].alpha) {
+                fade_in.push(now[0].alpha);
+            }
+        }
+    }
+    assert_eq!(back, Some(carried), "the town back holds the signs it left");
+    let want: Vec<i32> = (0..=32).map(|k| 4 * k).collect();
+    assert_eq!(fade_in, want, "the northern sign fades in again");
+    let mut state = match &s.stage {
+        Stage::Area(w) if w.in_town() => w.world().state_out(),
+        _ => panic!("{}", Mode::title(&s)),
+    };
+    crate::session::log_in(&s.iso, &mut state, 0);
+    assert_eq!(state.town_signs, [None; piney_desktop::SIGN_TABLES], "log in loads GCMN.PRG again");
+}

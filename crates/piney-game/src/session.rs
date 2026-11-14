@@ -151,10 +151,11 @@ pub struct Session {
 /// `InitSpcParam` (a new game's kit while `newGameFlag` is 0),
 /// `newGameFlag` = 1, `SetSpcBaseMsg`
 /// ([`piney_fieldui::newgame::setup_new_game`]); GCMN.PRG loaded anew, so
-/// the story maps' scrolls are 0; and `WORLD_MAN::Init`'s `fieldrand`
-/// from `ccSys.count`, `frames` at the request plus [`NEW_GAME_FRAMES`].
+/// the story maps' scrolls are 0 and the towns' signs the file's
+/// ([`SaveState::load_gcmn`]); and `WORLD_MAN::Init`'s `fieldrand` from
+/// `ccSys.count`, `frames` at the request plus [`NEW_GAME_FRAMES`].
 pub(crate) fn log_in(iso: &std::path::Path, state: &mut SaveState, frames: u32) {
-    state.move_tex = Default::default();
+    state.load_gcmn();
     let done = crate::open_disc(iso).map_err(|e| e.to_string()).and_then(|mut disc| {
         let v = disc.volume().map_err(|e| e.to_string())?;
         let town = usize::from(state.save.u8(offset::LAST_TOWN)).min(7);

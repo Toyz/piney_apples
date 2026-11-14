@@ -83,6 +83,9 @@ pub struct MapFrame<'a> {
     /// The executable's statics (`SaveState::scroll_statics`), where each
     /// draw's arrow pulse lives from power-on: the draw steps its own.
     pub statics: &'a mut crate::systems::Statics,
+    /// gcmn's sign tables (`SaveState::town_signs`), which a town's
+    /// `DrawMap` draws in place.
+    pub signs: &'a mut piney_desktop::TownSigns,
     pub scene: &'a Scene,
     pub pos: V4,
     pub dirc: V4,

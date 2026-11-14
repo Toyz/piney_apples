@@ -102,7 +102,23 @@ pub struct SaveState {
     /// has drawn, when the executable's own start values hold. piney-world's
     /// `field_ambient::kept_words` lays them out ([`FIELD_AMBIENT`]).
     pub field_ambient: Option<[u32; FIELD_AMBIENT]>,
+    /// `RT01ICONPOS` - `RT05ICONPOS`, gcmn.prg's data: each town class's
+    /// signs as its `DrawMap` left them since GCMN.PRG last loaded, None
+    /// while the file's own rows hold ([`TownSigns`]).
+    pub town_signs: TownSigns,
 }
+
+/// One town's signs (`ICONPOS[6]`, 216 bytes).
+pub type Signs = [piney_data::tables::types::Iconpos; 6];
+
+/// gcmn.prg's sign tables, `RT01ICONPOS` (INF gcmn 0x005d4ad0) to
+/// `RT05ICONPOS` (0x005d57c0), by class; piney-world's `SignTable` names
+/// them.
+pub type TownSigns = [Option<Signs>; SIGN_TABLES];
+
+/// The five Root Town classes' sign tables, on every volume (Quarantine's
+/// sixth town's `DrawMap` returns at once and has none).
+pub const SIGN_TABLES: usize = 5;
 
 /// The scroll statics the port keeps (piney-world's `town::statics` names
 /// them).
@@ -117,14 +133,23 @@ pub const MOVE_TEX_ROWS: usize = 7;
 
 impl SaveState {
     /// What memory holds across `ccThMother`'s soft reset, which boots
-    /// nothing again: `rand()`, `fieldrand`, gcmn's scrolls (until the
-    /// next log in loads GCMN.PRG) and the executable's statics.
+    /// nothing again: `rand()`, `fieldrand`, gcmn's scrolls and signs
+    /// (until the next log in loads GCMN.PRG) and the executable's statics.
     pub fn carry_memory(&mut self, from: &SaveState) {
         self.rand = from.rand;
         self.field_rand = from.field_rand;
         self.move_tex = from.move_tex;
         self.scroll_statics = from.scroll_statics;
         self.field_ambient = from.field_ambient;
+        self.town_signs = from.town_signs;
+    }
+
+    /// GCMN.PRG loaded again (`ccSetupNewGame` at log in, or an event's
+    /// `overlay 3`): gcmn's data as the file holds it, the story maps'
+    /// scrolls at 0 and every town's signs the file's own.
+    pub fn load_gcmn(&mut self) {
+        self.move_tex = [[0; 2]; MOVE_TEX_ROWS];
+        self.town_signs = [None; SIGN_TABLES];
     }
 
     pub fn new(save: SaveData) -> Self {
@@ -139,6 +164,7 @@ impl SaveState {
             move_tex: [[0; 2]; MOVE_TEX_ROWS],
             scroll_statics: [0; SCROLL_STATICS],
             field_ambient: None,
+            town_signs: [None; SIGN_TABLES],
         }
     }
 
@@ -244,14 +270,42 @@ mod tests {
         old.field_rand = piney_data::dungeon::Rng { seed: 5, count: 9 };
         old.move_tex[3] = [1, 2];
         old.scroll_statics[6] = 0x3f00_0000;
+        old.town_signs[1] = Some([sign(40); 6]);
         old.save.set_u8(0, 0x5a);
         let mut new = SaveState::fresh();
         new.carry_memory(&old);
         assert_eq!(
-            (new.rand, new.field_rand, new.move_tex, new.scroll_statics),
-            (77, old.field_rand, old.move_tex, old.scroll_statics)
+            (new.rand, new.field_rand, new.move_tex, new.scroll_statics, new.town_signs),
+            (77, old.field_rand, old.move_tex, old.scroll_statics, old.town_signs)
         );
         assert_eq!(new.save, SaveState::fresh().save);
+    }
+
+    fn sign(alpha: i32) -> piney_data::tables::types::Iconpos {
+        piney_data::tables::types::Iconpos {
+            x: 65,
+            y: 58,
+            u: 231,
+            v: 120,
+            tmpx: 380,
+            tmpy: 60,
+            tmpx2: 395,
+            tmpy2: 74,
+            alpha,
+        }
+    }
+
+    /// GCMN.PRG's load brings back its own data: the scrolls and the
+    /// signs, and only those.
+    #[test]
+    fn loading_gcmn_brings_back_its_data() {
+        let mut s = SaveState::fresh();
+        s.move_tex[0] = [3, 4];
+        s.town_signs[4] = Some([sign(12); 6]);
+        s.scroll_statics[2] = 9;
+        s.load_gcmn();
+        assert_eq!((s.move_tex, s.town_signs), ([[0; 2]; MOVE_TEX_ROWS], [None; SIGN_TABLES]));
+        assert_eq!(s.scroll_statics[2], 9);
     }
 
     #[test]

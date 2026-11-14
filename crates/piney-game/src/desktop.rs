@@ -443,9 +443,14 @@ impl Host for Bridge<'_> {
 
     /// `overlay`: the game loads DEMO.PRG, DESKTOP.PRG, TOPPAGE.PRG or
     /// GCMN.PRG over its overlay region before a mode change. The port
-    /// keeps every overlay's code and data at once, so there is nothing to
-    /// load.
-    fn load_overlay(&mut self, _which: piney_event::host::Overlay) {}
+    /// keeps every overlay's code at once; GCMN.PRG's load brings back its
+    /// data (nine scripts' `overlay 3` before their movies; event 314's
+    /// goes on into field 126 without a log in).
+    fn load_overlay(&mut self, which: piney_event::host::Overlay) {
+        if which == piney_event::host::Overlay::Gcmn {
+            self.state_mut().load_gcmn();
+        }
+    }
 
     /// The phase-4 pass's end: the game sets `ccMenu +0x104` while
     /// `WORLD_MAN +0xf0` is 3. `ccMenu` is the field's menu, which does not

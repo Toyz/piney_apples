@@ -11,7 +11,7 @@ use piney_data::{Error, Result};
 
 use crate::draw::{EFF_LAYER, OBJ_LAYER};
 use crate::ee::{F, ONE, V4};
-use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef};
+use crate::map::town::{ArrowPlace, Balloons, MarkY, MinimapDef, SignTable};
 use crate::sky::cloud;
 use crate::sprite::{EffSprite, EffState};
 use crate::systems::scrolls::ScrollsDef;
@@ -74,7 +74,7 @@ static SKY_CLUMPS: SkyDef = SkyDef { clumps: &[SkyClump::on(SKY, -100)] };
 /// arrow at (87, 92), a sign only within the map's 160 rows and dimmed
 /// within (8, 46) and (10, 45).
 static MINIMAP: MinimapDef = MinimapDef {
-    iconpos: "RT05ICONPOS",
+    signs: SignTable::Rt05,
     tex: "TEX_sr5map1",
     step: (0x4000_0000, 0x4000_0000),
     race: true,

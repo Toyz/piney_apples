@@ -388,9 +388,14 @@ class Town(Game):
 
     def __init__(self, town=0, **kw):
         super().__init__(**kw)
-        m = self.m
         self.hooks()
         self.town = town
+        self.construct()
+
+    def construct(self):
+        """The constructor's map part: layers, masks and the class's
+        numbers, made anew for each visit (RT0nICONPOS is left alone)."""
+        m, town = self.m, self.town
         frame = (340, 36, 160, 160, 80, 80, 1, 1)
         self.map_layer = self.layer(50, frame)
         self.font_layer = self.layer(240)
@@ -522,36 +527,62 @@ class TownMapAgainstGame(unittest.TestCase):
                 frames.append((mode, alpha, pos, dircz, race))
             self.run_town(town, stem, frames)
 
-    def run_town(self, town, stem, frames):
+    def test_revisits(self):
+        """A town entered again (Mac Anu, Dun Loireag): the probe opens
+        its map anew and the game's RT0nICONPOS is as the last visit left
+        it, since only DrawMap touches it; the second visit, from the far
+        end, draws on from it (the signs last seen fading out where they
+        stood)."""
+        for town, stem, seed in ((0, "town01", 11), (1, "town02", 12)):
+            rng = random.Random(seed)
+            first = town_frames(rng)[:40]
+            again = town_frames(rng, (0, fb(-5000.0), 0x44160000, ONE))[:60]
+            self.run_town(town, stem, first, again)
+
+    def run_town(self, town, stem, frames, again=None):
+        """`again`: the town opened a second time after `frames`, on the
+        same game memory, and these walked."""
         g = Town(town)
         p = Probe()
         try:
             got = p.ask("town " + stem)
             self.assertEqual(got["icons"], g.icons())
-            n = v = dim = marks = 0
-            for i, (mode, alpha, pos, dircz, *race) in enumerate(frames):
-                race = race[0] if race else None
-                line = "tframe " + hexs(mode, alpha, pos[0], pos[1], pos[2], dircz)
-                if race:
-                    line += " race " + " ".join(hexs(*r) if r else "- - -" for r in race)
-                mine = p.ask(line)
-                game, sent = g.frame(mode, alpha, pos, dircz, race)
-                self.assertEqual(strip(mine["outs"]), game, (i, mode, [bf(v) for v in pos]))
-                self.assertEqual(mine["icons"], g.icons(), i)
-                self.assertEqual(port_vertices(mine["outs"]), game_vertices(sent), i)
-                n += sum(len(o[3]) for o in game if o[0] == "send")
-                v += sum(len(pk) for _, pk in sent)
-                # A sign dimmed under the arrow: its balloon at alpha 64.
-                dim += sum(1 for o in game if o[0] == "send" and o[1] == 1 for pk in o[3] if pk[14][3] == 64)
-                marks += sum(len(o[3]) for o in game if o[0] == "send" and o[1] == 3)
-            print(f"{stem}: {i + 1} frames, {n} packets, {v} drawn, {dim} dimmed, {marks} racers",
-                  file=sys.stderr)
+            if again:
+                self.walk(g, p, stem, frames)
+                g.construct()
+                got = p.ask("town " + stem)
+                self.assertEqual(got["icons"], g.icons())
+                self.assertTrue(any(r[4] != -1 for r in got["icons"]), "the first visit placed no sign")
+                self.walk(g, p, stem, again)
+                return
+            dim, marks = self.walk(g, p, stem, frames)
             if town == 1 and not any(f[4:] and f[4] for f in frames):
                 self.assertGreater(dim, 0)
             if any(f[4:] and f[4] for f in frames):
                 self.assertGreater(marks, 0)
         finally:
             p.close()
+
+    def walk(self, g, p, stem, frames):
+        """`frames` on both sides, compared: (signs dimmed, racers)."""
+        n = v = dim = marks = 0
+        for i, (mode, alpha, pos, dircz, *race) in enumerate(frames):
+            race = race[0] if race else None
+            line = "tframe " + hexs(mode, alpha, pos[0], pos[1], pos[2], dircz)
+            if race:
+                line += " race " + " ".join(hexs(*r) if r else "- - -" for r in race)
+            mine = p.ask(line)
+            game, sent = g.frame(mode, alpha, pos, dircz, race)
+            self.assertEqual(strip(mine["outs"]), game, (i, mode, [bf(v) for v in pos]))
+            self.assertEqual(mine["icons"], g.icons(), i)
+            self.assertEqual(port_vertices(mine["outs"]), game_vertices(sent), i)
+            n += sum(len(o[3]) for o in game if o[0] == "send")
+            v += sum(len(pk) for _, pk in sent)
+            # A sign dimmed under the arrow: its balloon at alpha 64.
+            dim += sum(1 for o in game if o[0] == "send" and o[1] == 1 for pk in o[3] if pk[14][3] == 64)
+            marks += sum(len(o[3]) for o in game if o[0] == "send" and o[1] == 3)
+        print(f"{stem}: {i + 1} frames, {n} packets, {v} drawn, {dim} dimmed, {marks} racers", file=sys.stderr)
+        return dim, marks
 
 
 

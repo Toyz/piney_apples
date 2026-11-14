@@ -7,12 +7,31 @@ use super::*;
 /// Event 314 from its story start on the desktop under the pilot, through
 /// field 126 (`eventAreaNumber` 126 from Quarantine's instruction 118, the
 /// map with nothing in it, the party's panels out, Kite hidden) and back to
-/// the desktop for the event's end.
+/// the desktop for the event's end. Block 2's `overlay 3` loads GCMN.PRG
+/// before it, so gcmn's data (the scrolls, the towns' signs, left set by
+/// the start here) is the file's again in field 126 (worklog 592).
 #[test]
 fn event_314_plays_through_field_126() {
-    let Some(mut s) = story_session_on("quarantine", 314, |_| {}) else { return };
+    let left = |st: &mut crate::start::Start| {
+        st.state.move_tex[0] = [5, 6];
+        st.state.town_signs[1] = Some(
+            [piney_data::tables::types::Iconpos {
+                x: 65,
+                y: 58,
+                u: 231,
+                v: 120,
+                tmpx: 357,
+                tmpy: 2,
+                tmpx2: 372,
+                tmpy2: 16,
+                alpha: 0,
+            }; 6],
+        );
+    };
+    let Some(mut s) = story_session_on("quarantine", 314, left) else { return };
     let (mut pad, mut pilot) = (Pad::default(), super::survey::StoryPilot::default());
     let (mut field, mut ended, mut rolled) = (None, None, 0u32);
+    let mut gcmn = None;
     for f in 0..60_000u64 {
         let raw = pilot.next(&s, f);
         pad.read(&raw);
@@ -26,6 +45,7 @@ fn event_314_plays_through_field_126() {
             let w = a.world();
             let empty = w.area().kind().story().is_some_and(|m| m.def == &piney_world::story_map::ending::ENDING);
             field = Some((f, w.world_man().event, empty));
+            gcmn = Some((w.state().move_tex, w.state().town_signs));
         }
         if let Stage::Area(a) = &s.stage
             && !a.in_town()
@@ -39,6 +59,8 @@ fn event_314_plays_through_field_126() {
     }
     assert_eq!(field.map(|(_, n, empty)| (n, empty)), Some((126, true)), "field 126: {}", Mode::title(&s));
     assert!(ended.is_some(), "event 314 did not end: {}", Mode::title(&s));
+    let file = ([[0; 2]; piney_desktop::MOVE_TEX_ROWS], [None; piney_desktop::SIGN_TABLES]);
+    assert_eq!(gcmn, Some(file), "overlay 3 loads GCMN.PRG");
     println!("field 126 at {:?}, ended at {ended:?}, rolled {rolled} frames", field.map(|f| f.0));
     assert!(rolled > 11_000, "the staff roll ran {rolled} frames");
 }

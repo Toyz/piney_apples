@@ -3,7 +3,7 @@ title: Carmina Gade, Fort Ouph and Lia Fail - ROOTTOWN03, 04 and 05
 status: partial
 volumes: MUT, OUT, QUA
 covers: MUT gcmn.prg:0x0043b980 ROOTTOWN03::ROOTTOWN03, 0x0043e400 ROOTTOWN03::Draw, 0x0043cb30 DrawBG, 0x0043ce60 DrawObj2, 0x0043cdc0 DrawObj, 0x0043cf00 DrawFloor, 0x00388f60 ROOTTOWN03 vtable, 0x0043af10 AIRSHIP::AIRSHIP, 0x0043b0c0 AIRSHIP::Move; OUT gcmn.prg:0x00439c50 ROOTTOWN04::ROOTTOWN04, 0x0043c430 ROOTTOWN04::Draw, 0x0043aa40 DrawBG, 0x0043af40 DrawObj2, 0x0043ae50 DrawObj, 0x0043b030 DrawFloor, 0x003842d0 ROOTTOWN04 vtable, 0x0043c5e0 ROOTTOWN05::ROOTTOWN05, 0x0043e8e0 ROOTTOWN05::Draw, 0x0043d200 DrawBG, 0x0043d410 DrawObj2, 0x0043d370 DrawObj, 0x0043d4b0 DrawFloor, 0x00384300 ROOTTOWN05 vtable; QUA gcmn.prg:0x004ec350 ROOTTOWN06::ROOTTOWN06, 0x004eca00 ROOTTOWN06::DrawBG, 0x004ecbf0 DrawObj, 0x004ecc90 DrawObj2, 0x004ecd30 DrawFloor, 0x004ecdd0 DrawMap, 0x004ecde0 ROOTTOWN06::Draw, 0x002785e0 ROOTTOWN06 vtable, 0x005ce5b0 RT_MODELTABLE06, 0x0047305c GtTownMenu's warp; QUA SLUS_205.64:0x001b2bf0 WORLD_MAN::GO's town 5, 0x001b3ac0 WORLD_MAN::SetCharPosition's towns, 0x00212afc townNameTbl's row 5, 0x002094b8 sqDataTown's row 11
-worklog: 97, 198, 218, 219, 260, 442, 474
+worklog: 97, 198, 218, 219, 260, 442, 474, 592
 ---
 
 # Carmina Gade, Fort Ouph and Lia Fail - ROOTTOWN03, 04 and 05
@@ -209,6 +209,11 @@ the code keeps one, `ScrollsDef::first`; the map's pulse is stepped
 in the world's own, `MapFrame::statics`);
 `SaveState::carry_memory` keeps them through the soft reset (worklog
 474).
+
+A town map's signs are not such statics: `RT01ICONPOS` - `RT05ICONPOS`
+are GCMN.PRG's data, kept from visit to visit only until GCMN.PRG loads
+again, at log in or an event's `overlay 3` (`SaveState::town_signs`;
+[map](map.md#the-sign-tables), worklog 592).
 
 ## Unknown
 

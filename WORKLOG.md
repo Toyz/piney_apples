@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-591 entries: audio 46, battle 158, build 34, content 3, decomp 34, disc 6, engine 36, format 18, iop 3, render 133, save 16, script 64, test 250, tooling 59, ui 107, video 18, volumes 99, world 186. 156 entries still have open questions - [listed below](#still-open).
+592 entries: audio 46, battle 158, build 34, content 3, decomp 35, disc 6, engine 36, format 18, iop 3, render 133, save 16, script 64, test 251, tooling 59, ui 107, video 18, volumes 100, world 187. 155 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -603,10 +603,10 @@ The [reference](docs/README.md) says what is true now.
 | 589 | [One world, leg 12: one mode for every area, AddSpcItem's view, event_11_warp bisected](worklog/0589-one-world-leg-12-one-mode-for-every-area-addspcitem-s-view.md) | 2026-11-13 | world, engine, decomp, test |
 | 590 | [One world, leg 13: no timing moved in the warp shots, each draw lit as the tasks before it left the lights, full checks and goldens](worklog/0590-one-world-leg-13-no-timing-moved-in-the-warp-shots-each.md) | 2026-11-14 | world, render, decomp, test |
 | 591 | [The minimaps' arrow pulses run on from power-on as the game's statics](worklog/0591-the-minimaps-arrow-pulses-run-on-from-power-on-as-the-game.md) | 2026-11-14 | world, decomp, volumes, test |
+| 592 | [A town map's signs are gcmn's data: RT01ICONPOS-RT05ICONPOS carry from visit to visit until GCMN.PRG loads again](worklog/0592-a-town-map-s-signs-are-gcmn-s-data-rt01iconpos-rt05iconpos.md) | 2026-11-14 | world, decomp, volumes, test |
 
 ## Still open
 
-- [591. The minimaps' arrow pulses run on from power-on as the game's statics](worklog/0591-the-minimaps-arrow-pulses-run-on-from-power-on-as-the-game.md) - RT01ICONPOS (RT02ICONPOS ..; INF gcmn 0x005d4ad0, 0x005d4e90) is GCMN.PRG's own data, which the game keeps from visit...
 - [589. One world, leg 12: one mode for every area, AddSpcItem's view, event_11_warp bisected](worklog/0589-one-world-leg-12-one-mode-for-every-area-addspcitem-s-view.md) (3 questions) - the exact frame offset One Kite moved between Kite's act 12 in Mac Anu and area 15's arrival (event_11_warp 0255, 0260...
 - [588. One world, leg 11: leg 10's field changes checked against the game, the façade gone, one HostWorld](worklog/0588-one-world-leg-11-leg-10-s-field-changes-checked-against-the.md) (4 questions) - the merge of WorldMode and AreaMode into one mode (item 6's last part: one Stage, one menu view in place of ui_world...
 - [587. One world, leg 10: one ccThGameCtrl, one ccSys.count, one frame for a town](worklog/0587-one-world-leg-10-one-ccthgamectrl-one-ccsys-count-one-frame.md) (4 questions) - Item 6 is not done: one mode (WorldMode and AreaMode), one HostWorld, and the façade with its Deref.

@@ -2,8 +2,8 @@
 title: The minimap - town, field and dungeon maps, the map button and ShowMap
 status: partial
 volumes: INF, MUT, OUT, QUA
-covers: INF SLUS_202.67:0x001a4430 ccThFieldDisp, 0x001a3fd0 WORLD_MAN::ChangeMapMode, 0x001a3b70 WORLD_MAN::SetMapAlpha, 0x001a3b80 WORLD_MAN::GetMapAlpha, 0x001a3ee0 WORLD_MAN::ShowMap, 0x0015a960 ccSprite::SetPrim, 0x0015ae80 ccSprite::MakePacket, 0x0015aed0 ccSprite::MakePacketStr, 0x0015c4b0 ccMask::ccMask, 0x0015c690 ccMask::MakePacketS, 0x0015c5e0 ccMask::SendPacketS, 0x00102190 ccRotate, 0x00104ae0 ccView::SetFrame, 0x001538d0 ccHitCheckLM, 0x00129d08 fptoui; INF gcmn.prg:0x00517800 ccThGameCtrl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00422d00 ROOTTOWN01::DrawMap, 0x005d4ad0 RT01ICONPOS, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x00425760 ROOTTOWN02::DrawMap, 0x005d4e90 RT02ICONPOS, 0x005a4cd0 WORLD::Init, 0x005a6da0 WORLD::Generate, 0x005a97b0 WORLD::Draw, 0x005a3940 WORLD::DrawMiniMap, 0x005a3170 WORLD::DrawHeightOnMiniMap, 0x005a1b60 WORLD::DrawKeyObjectOnMiniMap, 0x005a1ff0 WORLD::DrawSubObjectOnMiniMap, 0x005a2510 WORLD::DrawLakeOnMiniMap, 0x005a2840 WORLD::DrawCircleOnMiniMap, 0x005a2c60 WORLD::DrawDungeonOnMiniMap, 0x005ad990 WORLD::ShowMap, 0x0042e0c0 ccCheckFountain, 0x00658680 KeyIconTBL, 0x006586b0 SubIconTBL, 0x006586e0 BaseIconTBL, 0x00658710 TreeIconTBL, 0x006584b0 FP_DUNGEON, 0x006571f0 fieldminimap, 0x005b7c00 DUNGEON::DUNGEON, 0x005ce930 DUNGEON::Draw, 0x005cd850 DUNGEON::MakeMiniMap, 0x005cc160 DUNGEON::DrawMap, 0x005cf260 DUNGEON::ShowMap, 0x005c7c30 DUNGEON::SetDoor, 0x0042e010 ccCheckActiveObject, 0x00695550 levelstr; INF SLUS_202.67:0x003782f8 mapmsg, 0x00378b4c r$1560, 0x00378b64 r$1488, 0x00378b78 r$1569, 0x00378b88 r$1407, 0x00378ba0 r$1313, 0x00378d04 r$3072, 0x00378d78 r$8238, 0x00100008 _start; QUA gcmn.prg:0x004ecdd0 ROOTTOWN06::DrawMap
-worklog: 494, 497, 577, 591
+covers: INF SLUS_202.67:0x001a4430 ccThFieldDisp, 0x001a3fd0 WORLD_MAN::ChangeMapMode, 0x001a3b70 WORLD_MAN::SetMapAlpha, 0x001a3b80 WORLD_MAN::GetMapAlpha, 0x001a3ee0 WORLD_MAN::ShowMap, 0x0015a960 ccSprite::SetPrim, 0x0015ae80 ccSprite::MakePacket, 0x0015aed0 ccSprite::MakePacketStr, 0x0015c4b0 ccMask::ccMask, 0x0015c690 ccMask::MakePacketS, 0x0015c5e0 ccMask::SendPacketS, 0x00102190 ccRotate, 0x00104ae0 ccView::SetFrame, 0x001538d0 ccHitCheckLM, 0x00129d08 fptoui; INF gcmn.prg:0x00517800 ccThGameCtrl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00422d00 ROOTTOWN01::DrawMap, 0x005d4ad0 RT01ICONPOS, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x00425760 ROOTTOWN02::DrawMap, 0x005d4e90 RT02ICONPOS, 0x005d52c0 RT03ICONPOS, 0x005d5570 RT04ICONPOS, 0x005d57c0 RT05ICONPOS, 0x005a4cd0 WORLD::Init, 0x005a6da0 WORLD::Generate, 0x005a97b0 WORLD::Draw, 0x005a3940 WORLD::DrawMiniMap, 0x005a3170 WORLD::DrawHeightOnMiniMap, 0x005a1b60 WORLD::DrawKeyObjectOnMiniMap, 0x005a1ff0 WORLD::DrawSubObjectOnMiniMap, 0x005a2510 WORLD::DrawLakeOnMiniMap, 0x005a2840 WORLD::DrawCircleOnMiniMap, 0x005a2c60 WORLD::DrawDungeonOnMiniMap, 0x005ad990 WORLD::ShowMap, 0x0042e0c0 ccCheckFountain, 0x00658680 KeyIconTBL, 0x006586b0 SubIconTBL, 0x006586e0 BaseIconTBL, 0x00658710 TreeIconTBL, 0x006584b0 FP_DUNGEON, 0x006571f0 fieldminimap, 0x005b7c00 DUNGEON::DUNGEON, 0x005ce930 DUNGEON::Draw, 0x005cd850 DUNGEON::MakeMiniMap, 0x005cc160 DUNGEON::DrawMap, 0x005cf260 DUNGEON::ShowMap, 0x005c7c30 DUNGEON::SetDoor, 0x0042e010 ccCheckActiveObject, 0x00695550 levelstr; INF SLUS_202.67:0x003782f8 mapmsg, 0x00378b4c r$1560, 0x00378b64 r$1488, 0x00378b78 r$1569, 0x00378b88 r$1407, 0x00378ba0 r$1313, 0x00378d04 r$3072, 0x00378d78 r$8238, 0x00100008 _start; QUA gcmn.prg:0x004ecdd0 ROOTTOWN06::DrawMap; INF SLUS_202.67:0x001687a0 ccSetupNewGame, 0x001b0318 ccEvOverlay; MUT gcmn.prg:0x00602db0 RT01ICONPOS, 0x00603aa0 RT05ICONPOS; OUT gcmn.prg:0x006007e0 RT01ICONPOS, 0x00601490 RT05ICONPOS; QUA gcmn.prg:0x004f7b60 RT01ICONPOS, 0x004f8810 RT05ICONPOS
+worklog: 494, 497, 577, 591, 592
 ---
 
 # The minimap - town, field and dungeon maps, the map button and ShowMap
@@ -162,7 +162,8 @@ send          map[2], map[0], map[1] (SendPacketS each)
 ```
 
 `RT01ICONPOS` is a global that starts each sign at alpha 128 and never
-unset (-1) places, and the game keeps it from visit to visit.
+unset (-1) places, and the game keeps it from visit to visit ([the sign
+tables](#the-sign-tables)).
 
 ## Dun Loireag: ROOTTOWN02::DrawMap
 
@@ -422,6 +423,59 @@ visit, whatever was drawn between.
 `alpharate$3075` and `alpharate$8241` (0.7, guarded the same way) are
 constants once set.
 
+## The sign tables
+
+Each town class's signs are a table of six `ICONPOS` (0x24 bytes, 216 a
+table) in GCMN.PRG's own data, the same on every volume:
+
+```text
+table        INF gcmn    MUT gcmn    OUT gcmn    QUA gcmn    class
+RT01ICONPOS  0x005d4ad0  0x00602db0  0x006007e0  0x004f7b60  ROOTTOWN01
+RT02ICONPOS  0x005d4e90  0x00603170  0x00600ba0  0x004f7f20  ROOTTOWN02
+RT03ICONPOS  0x005d52c0  0x006035a0  0x00600fd0  0x004f8350  ROOTTOWN03
+RT04ICONPOS  0x005d5570  0x00603850  0x00601260  0x004f85e0  ROOTTOWN04
+RT05ICONPOS  0x005d57c0  0x00603aa0  0x00601490  0x004f8810  ROOTTOWN05
+
+ICONPOS, all little-endian s32
++0x00  x, y        the sign on the map texture (texels)
++0x08  u, v        the label's cell (texels)
++0x10  tmpx, tmpy  where the balloon was last drawn (screen), -1 never
++0x18  tmpx2,      where the label was last drawn
+       tmpy2
++0x20  alpha       the sign's fade, 0 - 128
+```
+
+The file holds, in every row of every table, `tmp` and `tmp2` -1 and
+alpha 128; u 231 and v 120, 96, 48, 24, 72, 0 for the six rows; the
+places each town's own (Mac Anu's (66, 31), (53, 73), (27, 91), (107,
+91), (26, 164), (107, 163)). The five tables read from the four discs'
+GCMN.PRG are equal.
+
+Every instruction that reaches them is in the class's own `DrawMap`
+(`tools/disasm.py xrefs --scan` over main and gcmn on all four volumes:
+INF 21, 25, 21, 25, 25 relocations; MUT 21-25, OUT and QUA 30-32
+references, all inside `DrawMap`). Nothing else, the constructors
+included, touches them, and
+Quarantine's sixth town (`ROOTTOWN06::DrawMap`, QUA gcmn 0x004ecdd0)
+has none. `DrawMap` reads x, y, u, v and writes the rest: `tmp` and
+`tmp2` for a sign in view (INF `ROOTTOWN01::DrawMap` 0x0042316c,
+0x004231c8 and 0x00423288, 0x004232e4 mirrored; 0x0042347c,
+0x004234e8, 0x004235cc, 0x00423638), its alpha up by 4 to 128
+(0x00423680, 0x00423694), down by 4 to 0 while it fades out where it
+stood (0x004238bc, 0x004238cc), 0 otherwise (0x004238d8).
+
+So a table lasts from a load of GCMN.PRG to the next. Two things load
+it: `ccSetupNewGame` at log in (main 0x001687a0), and the event
+instruction `overlay 3` (114, `ccLoadOverlay`), which nine scripts run
+on the desktop before their movies: events 1, 4 (block 9), 31, 101,
+116, 201, 219, 301 and 314 on every volume. Each goes on on the
+desktop but event 314's block 2 (Quarantine's ending, its `mode 5` and
+then field 126), the only way into the world without a log in. A soft
+reset loads DEMO.PRG over it, and the world comes back only through
+log in. Between loads a returning player finds every
+sign as the last visit left it: one that faded out out of view comes
+back in from 0, 4 a frame.
+
 ## ShowMap: the Fairy's Orb
 
 The events' `show_map` (instruction 122: sound 97, then `WORLD_MAN::ShowMap`
@@ -483,6 +537,16 @@ keeps (`carry_memory`), 0 at power-on. Each draw takes its own as `r`;
 the frame (`MapFrame::statics`, from `World::map_parts`) lends it the
 world's live statics, so a pulse steps where it stands and runs on
 across every area, visit and log in, as the game's.
+
+No town map holds its signs either. The five tables are
+`SaveState::town_signs`, a slot per class (`map::town::SignTable`, the
+def's `MinimapDef::signs`), each None while GCMN.PRG's own rows hold;
+`TownMap::image` is those rows, from the build's `town_icons`.
+`TownMap::draw` draws in the frame's `MapFrame::signs` (the world's
+live ones), filling its slot from the image at its first draw. Every
+mode hands them on; `SaveState::load_gcmn` (log in's
+`session::log_in`, and the desktop host's `overlay 3`) sets them back
+to None with the story maps' `move_tex`; the soft reset carries them.
 
 `piney-game` runs it as the game orders the tasks: the map button right
 after `ccThGameCtrl`'s step, when that frame reached its test
@@ -562,6 +626,16 @@ its red arrow on it, and line 25's `show_map` sets `mapFlag`.
 `dun_loireags_scrolls_carry_across_visits` leaves Dun Loireag for area
 66 and comes back by Gate Out: the field carries `r$1488` and the town
 back steps on from it, not from 0.
+`dun_loireags_signs_carry_across_visits` walks Kite south until the two
+northern signs have faded out, goes to area 66 and back by Gate Out: the
+town back holds `RT02ICONPOS` as he left it and the northern sign fades
+in from 0 to 128 by 4; log in sets the tables back. `test_map_rs`'s
+`test_revisits` opens Mac Anu's and Dun Loireag's maps a second time on
+the game's own memory (the constructor's masks made anew, the table left
+alone) and walks them from the far end: the tables and every packet
+equal (a probe that reads the file's rows again differs at the second
+open). piney-world's `a_revisited_towns_signs_fade_out_where_they_stood`
+does the same through `TownMap`.
 
 ## Unknown
 
@@ -580,11 +654,6 @@ back steps on from it, not from 0.
 - The rotated cull reads a width and height from the scratch area that the
   rotated path never writes; the port takes 0, which only matters for a
   sprite whose corners are all off the screen.
-- `RT01ICONPOS` (`RT02ICONPOS` ..; gcmn 0x005d4ad0, 0x005d4e90) is
-  GCMN.PRG's own data, so the game keeps each sign's fade and places from
-  visit to visit until the next log in loads GCMN.PRG again; the port
-  reads the table afresh at each visit's `TownMap::open` (alpha 128, no
-  places). The pulses are kept as the game keeps them (above).
 - `WORLD_MAN::ShowMap` in a field reads `EVENTAREA_INFO` by
   `eventAreaNumber` (`game.field`); the port's host takes the story area's
   `model` its `WORLD_MAN` was made with, which is the same area wherever the

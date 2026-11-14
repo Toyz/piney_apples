@@ -47,7 +47,9 @@ use piney_data::iso::Iso;
 use piney_draw::Frame;
 use piney_input::Pad;
 
-pub use save::{FIELD_AMBIENT, InitText, MOVE_TEX_ROWS, MailState, SCROLL_STATICS, SaveState};
+pub use save::{
+    FIELD_AMBIENT, InitText, MOVE_TEX_ROWS, MailState, SCROLL_STATICS, SIGN_TABLES, SaveState, Signs, TownSigns,
+};
 
 use crate::acces::Accessory;
 use crate::anm::Ctx;

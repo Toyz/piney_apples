@@ -14,6 +14,7 @@ use piney_data::archive::Archive;
 use piney_data::volume::Volume;
 use piney_desktop::message::WindowTexture;
 use piney_desktop::view::LayerView;
+use piney_desktop::{Signs, TownSigns};
 
 use super::sprite::{FLIP, MIRROR, Out, Place, Spr};
 use super::{FONT_LAYER, MAP_LAYER, pulse};
@@ -39,19 +40,37 @@ pub struct Racer {
     pub fade: F,
 }
 
-/// An `ICONPOS` (0x24 bytes): a sign's place on the map texture, its label
-/// cell, where it was last drawn and its fade.
+/// gcmn.prg's sign tables, one a town class, each `ICONPOS[6]` (a sign's
+/// place, its label's cell, where its balloon and label were last drawn,
+/// -1 never, and its fade). Only the class's `DrawMap` reads or writes
+/// one; the five are alike on every volume (INF gcmn 0x005d4ad0,
+/// 0x005d4e90, 0x005d52c0, 0x005d5570, 0x005d57c0). Their slots in
+/// `SaveState::town_signs` are in this order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct IconPos {
-    pub x: i32,
-    pub y: i32,
-    /// The label's cell (texels).
-    pub u: i32,
-    pub v: i32,
-    /// Where the balloon and the label were last drawn (-1 never).
-    pub tmp: [i32; 2],
-    pub tmp2: [i32; 2],
-    pub alpha: i32,
+pub enum SignTable {
+    Rt01,
+    Rt02,
+    Rt03,
+    Rt04,
+    Rt05,
+}
+
+impl SignTable {
+    /// Its symbol, as the build's `town_icons` names it.
+    pub const fn name(self) -> &'static str {
+        match self {
+            SignTable::Rt01 => "RT01ICONPOS",
+            SignTable::Rt02 => "RT02ICONPOS",
+            SignTable::Rt03 => "RT03ICONPOS",
+            SignTable::Rt04 => "RT04ICONPOS",
+            SignTable::Rt05 => "RT05ICONPOS",
+        }
+    }
+
+    /// Its slot in `SaveState::town_signs`.
+    pub const fn slot(self) -> usize {
+        self as usize
+    }
 }
 
 /// What `DrawMap` reads of the world.
@@ -102,8 +121,8 @@ pub enum Balloons {
 /// (`crate::town::TownDef::minimap`): each class's own numbers.
 #[derive(Clone, Copy, Debug)]
 pub struct MinimapDef {
-    /// `RT0NICONPOS` and the map's texture in the town's file.
-    pub iconpos: &'static str,
+    /// The class's signs and the map's texture in the town's file.
+    pub signs: SignTable,
     pub tex: &'static str,
     /// stepw, steph: the constructor's (+0x88, +0x8c).
     pub step: (F, F),
@@ -148,9 +167,10 @@ pub struct TownMap {
     pub later: bool,
     /// map[0] - map[3]; map[3] only from Mutation on, outside Mac Anu.
     pub spr: [Spr; 4],
-    /// `RT01ICONPOS` (`RT02ICONPOS`, `RT03ICONPOS`) as the draws leave it (a
-    /// global: the game keeps it across visits).
-    pub icons: [IconPos; 6],
+    /// Its sign table as GCMN.PRG's file holds it: the signs until the
+    /// first draw after a load. The draws write the live table, kept from
+    /// visit to visit in `SaveState::town_signs` ([`TownMap::draw`]).
+    pub image: Signs,
     pub mapw: i32,
     pub maph: i32,
     pub stepw: F,
@@ -160,7 +180,7 @@ pub struct TownMap {
 
 impl TownMap {
     /// The constructor's map part of `def` in the file `stem` (the crisis
-    /// one in crisis), its `RT0NICONPOS` as the volume holds it.
+    /// one in crisis), its sign table as the volume holds it.
     pub fn open(
         archive: &Arc<Archive>,
         volume: Volume,
@@ -168,7 +188,7 @@ impl TownMap {
         stem: &str,
     ) -> piney_data::Result<TownMap> {
         let later = volume != Volume::Inf;
-        let (iconpos, tex_name, (stepw, steph)) = (def.iconpos, def.tex, def.step);
+        let (signs, tex_name, (stepw, steph)) = (def.signs.name(), def.tex, def.step);
         // Infection's Dun Loireag puts its arrow on the font layer; a later
         // volume's puts its map and racers on layers of the class's own, as
         // do the towns the port takes from the later volumes (2-4) on any
@@ -179,24 +199,12 @@ impl TownMap {
             (false, ArrowPlace::ScreenOffOwnLayers) => (MAP_LAYER, FONT_LAYER),
             _ => (MAP_LAYER, MAP_LAYER),
         };
-        let rows = piney_data::tables::world::of(volume)
+        let image = piney_data::tables::world::of(volume)
             .town_icons
             .iter()
-            .find(|b| b.name == iconpos)
-            .map(|b| b.rows)
-            .ok_or_else(|| piney_data::Error::NotFound(iconpos.into()))?;
-        let mut icons = [IconPos { x: 0, y: 0, u: 0, v: 0, tmp: [0; 2], tmp2: [0; 2], alpha: 0 }; 6];
-        for (ic, r) in icons.iter_mut().zip(rows) {
-            *ic = IconPos {
-                x: r.x,
-                y: r.y,
-                u: r.u,
-                v: r.v,
-                tmp: [r.tmpx, r.tmpy],
-                tmp2: [r.tmpx2, r.tmpy2],
-                alpha: r.alpha,
-            };
-        }
+            .find(|b| b.name == signs)
+            .and_then(|b| Signs::try_from(b.rows).ok())
+            .ok_or_else(|| piney_data::Error::NotFound(signs.into()))?;
         let tex = |file: &str, name: &str| {
             WindowTexture::read_named(archive, file, name, None)
                 .ok_or_else(|| piney_data::Error::NotFound(format!("{file}::{name}")))
@@ -222,7 +230,7 @@ impl TownMap {
                 Spr::mask(ARROW, 6, 6),
                 Spr::mask(MARKS, def.mark_mask.0, def.mark_mask.1),
             ],
-            icons,
+            image,
             mapw: 140,
             maph: 256,
             stepw,
@@ -236,10 +244,16 @@ impl TownMap {
         self.places.get(spr as usize)
     }
 
+    /// The class's signs as `kept` (`SaveState::town_signs`) holds them.
+    pub fn signs(&self, kept: &TownSigns) -> Signs {
+        kept[self.def.signs.slot()].unwrap_or(self.image)
+    }
+
     /// `ROOTTOWN01::DrawMap` (or `ROOTTOWN02`'s, `ROOTTOWN03`'s) for one
-    /// frame, its pulse `r` (the class's static, [`MinimapDef::pulse`]):
-    /// what it sent, in order.
-    pub fn draw(&mut self, inp: &Input, r: &mut F) -> Vec<Out> {
+    /// frame, its pulse `r` (the class's static, [`MinimapDef::pulse`])
+    /// and its signs drawn in `kept`, where they last from GCMN.PRG's load
+    /// to the next: what it sent, in order.
+    pub fn draw(&mut self, inp: &Input, r: &mut F, kept: &mut TownSigns) -> Vec<Out> {
         let mut addy = 0;
         let mut cy = (self.maph - 160) / 2;
         if inp.mode == 1 {
@@ -364,7 +378,8 @@ impl TownMap {
         icons.cx = 0;
         icons.cy = 0;
         let half = self.mapw / 2;
-        for (i, row) in self.icons.iter_mut().enumerate() {
+        let signs = kept[def.signs.slot()].get_or_insert(self.image);
+        for (i, row) in signs.iter_mut().enumerate() {
             let right = half < row.x;
             let odd = def.odd_sign == Some(i);
             if top < row.y && (!def.sign_window || row.y < top + 160) {
@@ -392,18 +407,18 @@ impl TownMap {
                 if right {
                     icons.dx = fx;
                     icons.dy = fy;
-                    row.tmp = [ee::to_int(fx), ee::to_int(fy)];
+                    (row.tmpx, row.tmpy) = (ee::to_int(fx), ee::to_int(fy));
                 } else {
                     let dx = ee::sub(ee::add(k(6.0), fx), k(54.0));
                     icons.dx = dx;
                     icons.dy = fy;
-                    row.tmp = [ee::to_int(dx), ee::to_int(fy)];
+                    (row.tmpx, row.tmpy) = (ee::to_int(dx), ee::to_int(fy));
                     if !race {
                         icons.ctrl |= MIRROR;
                     }
                 }
                 // The arrow's point inside the balloon's box dims the sign.
-                let (bx, by) = (row.tmp[0], row.tmp[1]);
+                let (bx, by) = (row.tmpx, row.tmpy);
                 let under = def
                     .dim
                     .is_some_and(|[x0, x1, y0, y1]| ax >= bx + x0 && bx + x1 >= ax && ay >= by + y0 && by + y1 >= ay);
@@ -420,7 +435,7 @@ impl TownMap {
                 let lx = if right { lx } else { ee::add(k(6.0), ee::sub(lx, k(54.0))) };
                 icons.dx = lx;
                 icons.dy = if odd && !right { ee::add(k(6.0), ly) } else { ly };
-                row.tmp2 = [ee::to_int(lx), ee::to_int(ly)];
+                (row.tmpx2, row.tmpy2) = (ee::to_int(lx), ee::to_int(ly));
                 if !race {
                     icons.set_alpha(alpha);
                     icons.make_packet(0, 1);
@@ -428,11 +443,11 @@ impl TownMap {
                 if row.alpha != 128 && !(race && def.hold_fade) {
                     row.alpha = (row.alpha + 4).min(128);
                 }
-            } else if row.alpha != 0 && row.tmp[0] != -1 {
+            } else if row.alpha != 0 && row.tmpx != -1 {
                 // Fading out where it last stood.
                 icons.cell(2624, 0, 54, 59, k(54.0), k(59.0));
-                icons.dx = ee::from_int(row.tmp[0]);
-                icons.dy = ee::from_int(row.tmp[1]);
+                icons.dx = ee::from_int(row.tmpx);
+                icons.dy = ee::from_int(row.tmpy);
                 icons.cx = 0;
                 icons.cy = 0;
                 if !race {
@@ -446,8 +461,8 @@ impl TownMap {
                     icons.ctrl &= !MIRROR;
                 }
                 icons.cell(row.u << 4, row.v << 4, 25, 24, k(25.0), k(24.0));
-                icons.dx = ee::from_int(row.tmp2[0]);
-                icons.dy = ee::from_int(row.tmp2[1]);
+                icons.dx = ee::from_int(row.tmpx2);
+                icons.dy = ee::from_int(row.tmpy2);
                 icons.cx = 0;
                 icons.cy = 0;
                 if !race {
