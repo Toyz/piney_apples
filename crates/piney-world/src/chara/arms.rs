@@ -169,7 +169,7 @@ impl Arms {
     /// `ccLattice::SendPacket` sorts them, through the view `ws`.
     pub fn send(&self, layers: &mut piney_desktop::layers::Layers, ws: &[V4; 4]) {
         for (strip, key) in &self.strips {
-            if let Some(cmd) = crate::field::world::trail_packet(strip, ws) {
+            if let Some(cmd) = crate::world::trail_packet(strip, ws) {
                 layers.sorted(crate::draw::EFF_LAYER, f32::from_bits(*key), cmd);
             }
         }

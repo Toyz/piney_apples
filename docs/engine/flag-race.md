@@ -3,7 +3,7 @@ title: The Flag Race - menu 88, the race's task and its flags
 status: partial
 volumes: MUT, OUT, QUA
 covers: MUT gcmn.prg:0x0058a4f0 Flag Race (menu 88), 0x0058c310 its page, 0x0058c930 Rankings (menu 89), 0x0058ca90 its page, 0x005ff820 the race's start, 0x005ff680 its task (PG_RACE), 0x005ff790 the race runs in a town, 0x005fd120 the race's constructor, 0x005fd6b0 its destructor, 0x005fd820 the set-up, 0x005fdaf0 the intro, 0x005fded0 the race's loop, 0x005fdd10 the countdown, 0x005fe290 the finish, 0x005fe830 the rank, 0x005feab0 the quit and time over, 0x005fee10 the HUD, 0x005ff3d0 a time's split, 0x005ff880 the camera-relative place, 0x005ff520 the restart, 0x005fca40 a flag's entry, 0x005fcba0 the flag's constructor, 0x005fcb40 its entry function, 0x005fce60 the flag's main, 0x00774a90 the flags, 0x005283a0 ccPGuso::adultMain's race steps, 0x00531090 the ride is up, 0x005310b0 the ride put down, 0x006d80b0 the flags' markers, 0x006d80e0 Kite's start, 0x006d8130 his heading, 0x006d8330 the ride by kind, 0x006d83c0 by server, 0x006d84a0 0x006d8410 the intro's camera by kind, 0x006d8580 0x006d8530 by server, 0x006d8280 the countdown's height, 0x006d82c0 Kite's place after, 0x006d8140 0x006d8190 the Grunty's at the finish, 0x006d81e0 0x006d8230 the finish's camera, 0x006d82a0 the cups' height, 0x006d8310 0x006d8320 the rank's clips, 0x006d85d0 the timer's cells, 0x0061ce80 0x0061ce30 where the chosen one walks, 0x00682230 the prizes, 0x00682280 the other prizes, 0x006822d0 the wallpapers, 0x00660b90 the greeting, 0x00660cc0 the results, 0x0058bb40 the menu done with the race, 0x005fe058 the loop's end test, 0x005fe0d0 the result music stopped, 0x005fe104 the hold cleared; MUT SLUS_205.62:0x0017a860 the race's time entered, 0x00181f80 ccEvVoiceStop, 0x001816f0 ccBgmPlay, 0x00181720 ccBgmStop, 0x0031e840 bgmWavTbl, 0x0031cce0 bgmParam, 0x001cb154 ccThEvent's wait, 0x0038bd40 the race's task, 0x0038bd44 the race
-worklog: 395, 407
+worklog: 395, 407, 582
 ---
 
 # The Flag Race - menu 88, the race's task and its flags
@@ -183,8 +183,8 @@ and 7.
   `enter_time`, `split`, `before_camera_at`. It talks to the menu's fade
   through `RaceHost`, and to the game through `RaceEvent`s (se, bgm,
   `effOpenBox`, the ride's notes and dust, panel, map, forbid).
-- `piney_world::town::ride`: the riding Grunty's town path, a `RideWorld`
-  over the town's ground.
+- `piney_world::combat::ride`: the one riding Grunty of every area; the
+  race hands it its handling and end (`Cast::race_ride`).
 - `piney_world::grunty`: `RaceLink` and `race_step`.
 - `piney_fieldui::menus::flag_race`: menu 88 and its page. The Rankings
   blink is in `breeder.rs`.

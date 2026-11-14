@@ -1,7 +1,8 @@
-//! The riding Grunty on the field's tasks: `ccPucciguso`
-//! ([`piney_battle::ride`]) and the state around it the battle's tasks read
-//! ([`Riding`]). `ccThPucciguso` (gcmn 0x00510880, priority 49) runs where
-//! `kite::main` would while Kite's and the party's tasks sleep; its world is
+//! The riding Grunty on the battle's tasks, in a field and (from Mutation
+//! on) in a town's Flag Race: `ccPucciguso` ([`piney_battle::ride`]) and the
+//! state around it the battle's tasks read ([`Riding`]). `ccThPucciguso`
+//! (gcmn 0x00510880, priority 49, started after `ccThPlayer`) runs after
+//! `kite::main` while the riders' tasks sleep; its world is
 //! the frame's [`Stage`] ([`RideStage`]), with the ride's two clumps as its
 //! animation players. Sounds and dust go out as [`Show::Ride`]; `pgRideFlag`
 //! ([`Riding::flag`]) turns the enemies home and the party's AI off. The
@@ -15,7 +16,9 @@ use piney_battle::entry::{self, EntryCtrl, Obj};
 use piney_battle::kite::{KiteWorld, Pad};
 use piney_battle::party_ai::Crew;
 use piney_battle::rand::Rand;
-use piney_battle::ride::{self, Globals, Input, Out, Ride, RideAnm, RideTables, RideWorld, SeekEntry, SeekList};
+use piney_battle::ride::{
+    self, Globals, Input, Out, RaceRide, Ride, RideAnm, RideTables, RideWorld, SeekEntry, SeekList,
+};
 use piney_battle::scene::Scene;
 use piney_battle::world::{CharHit, Note, World};
 use piney_desktop::layers::Layers;
@@ -23,8 +26,13 @@ use piney_desktop::layers::Layers;
 use super::spc;
 use super::stage::{Show, Stage};
 use crate::chara::char::{Char, SHADED};
+use crate::chara::party::SpcChars;
 use crate::ee::{F, ONE, V4};
 use crate::town::TownLights;
+
+/// `ccThPucciguso`'s first loop (MUT gcmn 0x0052d5c0): 30 `Main`s, then
+/// one more, before the end is first looked for.
+const FIRST_MAINS: u32 = 31;
 
 /// The ride's body's key in the collision's list (`ccCharHit` +0x170 of
 /// the object; no scene character has it).
@@ -48,6 +56,11 @@ pub struct Riding {
     /// The task started and not yet run: the object is made on its first
     /// frame.
     pub pending: Option<Pending>,
+    /// A town's (from Mutation on): the Flag Race's handling and whether
+    /// the race is over (0x005ff760), as the race's task last left them.
+    pub race: Option<(RaceRide, bool)>,
+    /// The `Main`s the task has run.
+    pub mains: u32,
 }
 
 /// `ccThPucciguso`'s parameter (tcb +0x14, the kind) and what the object
@@ -268,13 +281,13 @@ impl RideWorld for RideStage<'_, '_, '_> {
         })
     }
     fn draw(&mut self, pos: V4, set_transparency: F) -> F {
-        let (t, drawn) = self.stage.char_draw(pos, ride::SIZE, ride::SIZE, set_transparency, true);
+        let f = self.stage.char_draw(pos, ride::SIZE, ride::SIZE, set_transparency, true);
         let k = &mut *self.kite;
         k.pos = pos;
-        k.transparency = t;
-        k.shadow_t = t;
-        k.drawn = drawn;
-        t
+        k.transparency = f.transparency;
+        k.shadow_t = f.shadow;
+        k.drawn = f.drawn;
+        f.transparency
     }
     fn seek_list(&mut self, list: SeekList) -> Vec<SeekEntry> {
         match list {
@@ -301,7 +314,12 @@ impl RideWorld for RideStage<'_, '_, '_> {
                 ch.pos = pos;
                 ch.dirc = rot;
             }
-            Out::Player { pos, rot, pause } => self.player = Some((pos, rot, pause)),
+            // plw written: the fades after it in this Main see him there
+            // (ccTransPosW2P through ccPlayer::W2PPos).
+            Out::Player { pos, rot, pause } => {
+                self.stage.player = pos;
+                self.player = Some((pos, rot, pause));
+            }
             Out::DrawPg { transparency, shadow, shaded, .. } => {
                 let pg = &mut *self.pg;
                 pg.transparency = transparency;
@@ -323,10 +341,12 @@ pub struct RidePad {
     pub pow_r: u8,
 }
 
-/// `ccThPucciguso`'s slot (after `ccThPlayer`): `ccPucciguso::Main` while
-/// [`Riding::main_on`], with Kite's pause in and his place, heading and
-/// pause out (`plw`). Nothing is drawn of the ride on a frame it does not
-/// run.
+/// `ccThPucciguso`'s slot (after `ccThPlayer`; MUT gcmn 0x0052d540):
+/// `ccPucciguso::Main` while [`Riding::main_on`], with Kite's pause in and
+/// his place, heading and pause out (`plw`). In a town (tcb +0x18) the
+/// object starts paused, and from the 32nd frame on the race's end ends
+/// the ride before `Main`: true, `ccPuccigusoExit` is the caller's
+/// ([`exit_town`]). Nothing is drawn of the ride on a frame it does not run.
 #[allow(clippy::too_many_arguments)]
 pub fn frame(
     r: &mut Riding,
@@ -338,8 +358,12 @@ pub fn frame(
     pad: RidePad,
     area: i32,
     seek: &SeekView,
-) {
-    let Riding { obj, g, main_on, pending, .. } = r;
+) -> bool {
+    let Riding { obj, g, main_on, pending, flag, race, mains, .. } = r;
+    let town = area == 0;
+    if town && *mains >= FIRST_MAINS && *flag && race.is_some_and(|(_, end)| end) {
+        return true;
+    }
     // ccThPucciguso's first frame: new ccPucciguso(kind) where plw stands,
     // Kite's riding clump over his own file.
     if let Some(p) = pending.take() {
@@ -348,13 +372,16 @@ pub fn frame(
         let own = stage.cast.get(kite).map(|a| (a.ch.body.clone(), a.swaps.clone()));
         if let Some((kb, swaps)) = own {
             *obj = RideObj::new(p.kind, pos, rot, p.tables, kb, swaps, p.body, stage, rand).map(Box::new);
+            if let Some(o) = obj.as_deref_mut().filter(|_| town) {
+                o.ride.flags |= ride::flag::PAUSE;
+            }
         }
     }
-    let Some(o) = obj.as_deref_mut() else { return };
+    let Some(o) = obj.as_deref_mut() else { return false };
     o.kite.drawn = false;
     o.pg.drawn = false;
     if !*main_on {
-        return;
+        return false;
     }
     let input = Input {
         pad: pad.pad,
@@ -362,14 +389,14 @@ pub fn frame(
         dne: false,
         bounds: stage.bounds,
         area,
-        // The Flag Race rides in towns only.
-        race: None,
+        race: race.map(|(r, _)| r),
         push: pad.push,
         pow_r: pad.pow_r,
     };
     let RideObj { ride: rd, tables, kite: kc, pg, notes, listed } = o;
     let mut w = RideStage { stage, kite: kc, pg, notes, player: None, seek, listed: *listed };
     ride::main(rd, &mut w, &input, g, tables, rand);
+    *mains += 1;
     *listed = w.listed;
     if let Some((pos, rot, pause)) = w.player {
         let ch = &mut scene.chars[kite];
@@ -381,4 +408,52 @@ pub fn frame(
         }
         crew.spc.entry(kite).or_default().dirc = rot;
     }
+    false
+}
+
+/// `ccPuccigusoExit` in a town (MUT gcmn 0x0052d960), from the ride's slot:
+/// the ride's body out of the collision, Kite's back in unless he is down,
+/// `ccSPC::Wakeup(1)` on him alone (act 2, standing, free, on the lists, his
+/// pause off), the object gone and `pgRideFlag`, `pgR` 0; the camera's type
+/// locked through it. Waking his task is the caller's.
+pub fn exit_town(
+    r: &mut Riding,
+    stage: &mut Stage,
+    scene: &mut Scene,
+    crew: &mut Crew,
+    members: &[(i32, usize)],
+    kite: usize,
+) {
+    stage.camera.type_lock = true;
+    if let Some(o) = r.obj.take() {
+        let mut b = spc::to_body(BODY_WHO, None, &o.ride.hit, false);
+        stage.hits.hit_disable(&mut b);
+    }
+    let mut chars = {
+        let cast = &*stage.cast;
+        spc::BattleChars::read(scene, crew, members, Some(kite), &|w| cast.get(w).is_none_or(|a| a.trans_dist))
+    };
+    if let Some(c) = chars.spc(0) {
+        if *c.dead == 0 {
+            stage.hits.hit_enable(c.hit);
+        }
+        *c.skill_status = 0;
+        *c.act = crate::chara::motion::act::IDLE;
+        *c.act_old = -1;
+        *c.restraint = false;
+        *c.stop_flag = true;
+        *c.listed = true;
+    }
+    let cast = &mut *stage.cast;
+    chars.finish(scene, crew, &mut |w, t| {
+        if let Some(a) = cast.get_mut(w) {
+            a.trans_dist = t;
+        }
+    });
+    for &(_, w) in members {
+        piney_battle::fellow::sync_in(scene, crew, w);
+    }
+    scene.chars[kite].spc_char.flags &= !spc_flag::PAUSE;
+    *r = Riding::default();
+    stage.camera.type_lock = false;
 }

@@ -93,9 +93,8 @@ pub fn p2w(pp: V4, player: V4) -> V4 {
 
 /// `ccGetCameraTransparency(pos, width, height, far, fadeLen, &hide)`
 /// (`INF SLUS_202.67:0x001da8b0`) for anyone at `pos`, the player at
-/// `player` and the camera at `cam` with pitch `deg1`: toward 0 as the
-/// camera comes within 1.25 r of it (r the pitch's blend of width and
-/// height, at least 180; `hide` set), and beyond `far`.
+/// `player` and the camera at `cam` with pitch `deg1`: both points through
+/// `ccTransPosW2P`, then the one port ([`piney_battle::geom::camera_transparency`]).
 #[allow(clippy::too_many_arguments)]
 pub fn camera_transparency(
     volume: piney_data::volume::Volume,
@@ -109,29 +108,44 @@ pub fn camera_transparency(
     fade: F,
     hide: &mut bool,
 ) -> F {
-    let p = w2p(pos, player);
-    let c = w2p(cam, player);
-    let d = ee::vsub(c, p);
-    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
-    let t = ee::div(ee::from_int(8192 - i32::from(deg1)), 0x4600_0000);
-    let u = ee::sub(ONE, t);
-    let mut r = ee::add(ee::mul(width, t), ee::mul(height, u));
-    if ee::lt(r, 0x4334_0000) {
-        r = 0x4334_0000;
+    piney_battle::geom::camera_transparency(
+        volume,
+        w2p(pos, player),
+        w2p(cam, player),
+        deg1,
+        width,
+        height,
+        far,
+        fade,
+        hide,
+    )
+}
+
+/// `ccChar::Draw`'s fade (gcmn 0x0056b1c0), one rule for every character:
+/// `transparency` (+0x88) the camera's times `setTransparency` (+0x8c);
+/// not drawn under 0.05 unless the near fade hid it; the shadow's alpha
+/// (drawEnv +0xa4) `setTransparency` while the near fade hides it, else
+/// `transparency` (INF gcmn 0x0056b4e4-0x0056b54c).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CharFade {
+    pub transparency: F,
+    pub shadow: F,
+    pub hide: bool,
+    pub drawn: bool,
+}
+
+impl CharFade {
+    /// The fade of a character at `set_transparency` whose camera
+    /// transparency came out `fade`, `hide` as it left it.
+    pub fn new(set_transparency: F, fade: F, hide: bool) -> CharFade {
+        let transparency = ee::mul(set_transparency, fade);
+        CharFade {
+            transparency,
+            shadow: if hide { set_transparency } else { transparency },
+            hide,
+            drawn: !(ee::lt(transparency, MIN_DRAWN) && !hide),
+        }
     }
-    let r2 = ee::mul(0x3fa0_0000, r);
-    if !*hide && ee::lt(dist, r2) {
-        *hide = true;
-        let near = ee::mul(0x3f4c_cccd, r);
-        let f = ee::sub(dist, near);
-        return if ee::le(f, 0) { 0 } else { ee::div(f, ee::sub(r2, near)) };
-    }
-    *hide = false;
-    if ee::le(far, 0) || ee::le(dist, far) {
-        return ONE;
-    }
-    let over = ee::sub(dist, far);
-    if ee::le(over, fade) { ee::div(ee::sub(fade, over), fade) } else { 0 }
 }
 
 /// Where the camera is, for `ccChar::Draw`'s fade.
@@ -271,6 +285,17 @@ impl Char {
         root(self.pos, self.dirc)
     }
 
+    /// Its feet (`OBJ_t0 l foot`, `OBJ_t0 r foot`) in the world as it
+    /// stands posed now: where `ccEffPawSmoke` puts a running step's dust.
+    pub fn feet(&self) -> Option<[V4; 2]> {
+        let worlds = self.body.worlds(&self.play, self.root());
+        let foot = |name: &str| {
+            let t = worlds.get(&self.body.node(name)?)?.w_axis;
+            Some([t.x.to_bits(), t.y.to_bits(), t.z.to_bits(), ONE])
+        };
+        Some([foot("OBJ_t0 l foot")?, foot("OBJ_t0 r foot")?])
+    }
+
     /// `ccChar::Draw` up to the draw in a town: the camera fade (`+0x90`
     /// on: hidden only in the eye view) into `transparency`; whether it is
     /// drawn.
@@ -288,9 +313,10 @@ impl Char {
             FADE_LEN,
             &mut hide,
         );
-        self.transparency = ee::mul(self.set_transparency, t);
-        self.shadow_t = if hide { self.set_transparency } else { self.transparency };
-        self.drawn = self.disp && !(ee::lt(self.transparency, MIN_DRAWN) && !hide);
+        let f = CharFade::new(self.set_transparency, t, hide);
+        self.transparency = f.transparency;
+        self.shadow_t = f.shadow;
+        self.drawn = self.disp && f.drawn;
         self.blend = self.affect.blend();
         self.drawn
     }

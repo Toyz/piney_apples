@@ -13,6 +13,7 @@ pub mod cast;
 pub mod chat;
 pub mod dust;
 pub mod gate_out;
+pub mod lights;
 pub mod ride;
 pub mod spc;
 pub mod stage;
@@ -48,6 +49,7 @@ use piney_data::save::SaveData;
 
 use crate::camera::{CamPad, Camera};
 use crate::chara::body::Body;
+use crate::chara::char::CharFade;
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::Hits;
 
@@ -75,6 +77,17 @@ impl BattleData {
         let md = MotionData::read_iso(iso, &t)?;
         Ok(BattleData { volume, t, kt: KiteTables::of(volume), mt: MotionTables::of(volume), st, md })
     }
+}
+
+/// Kite (`plw`) as the battle holds him, in every area: his character,
+/// his `ccSpcChar` record, his actor, whether he is on the command list.
+#[derive(Clone, Copy)]
+pub struct KiteRef<'a> {
+    pub who: usize,
+    pub ch: &'a BChar,
+    pub spc: &'a party_ai::Spc,
+    pub actor: Option<&'a Actor>,
+    pub listed: bool,
 }
 
 /// What a frame of the battle's tasks reads of the field around it.
@@ -115,6 +128,10 @@ pub struct Tasks<'a> {
     /// game's globals): a member's remote command 5 leaves it here as in a
     /// town. None where no party is kept (the fights' harnesses).
     pub spcs: Option<&'a mut crate::chara::party::Spcs>,
+    /// The area's own characters, which the effects reach by
+    /// [`crate::world::CharId::Npc`]'s handle (None where the area keeps
+    /// none).
+    pub own: Option<&'a dyn crate::world::cast::Cast>,
 }
 
 /// What the field's effects (`ccThEffect`, `ccThParticle`, which live
@@ -143,6 +160,8 @@ pub struct FxWorld<'a> {
     pub field: i32,
     /// The frame's presentation the effects have not seen yet, in order.
     pub shows: &'a [Show],
+    /// The area's own characters, by [`crate::world::CharId::Npc`]'s handle.
+    pub own: Option<&'a dyn crate::world::cast::Cast>,
     /// In `ccThEffect` and `ccThSkill`'s systems: what the effects' damage
     /// calls act on (None in the passes that make none).
     pub damage: Option<FxDamage<'a>>,
@@ -327,6 +346,26 @@ pub struct AreaEntries {
 /// A box's draw transparency.
 /// `ccCoord::SetMatrix_PosRotZYXScale(pos, rot, scale)` (main
 /// 0x00138120): the scale, the turns (z, y, x), the position.
+/// What the battle's tasks up to `ccThEntryCtrl` (64) hand the rest of
+/// the frame: Kite's index, the frame's first show, the party and the
+/// wipe as the frame began, the skill checks, the enemies' command list
+/// and the kills' experience.
+pub struct EntryDone {
+    kite_i: usize,
+    first_show: usize,
+    party: Party,
+    annihilated: bool,
+    checks: Vec<i32>,
+    ents: Vec<usize>,
+    exps: Vec<i16>,
+}
+
+/// The palette swaps of the gimmick row `who` was made from.
+fn gim_swaps(ctrl: &EntryCtrl, cast: &cast::Cast, who: usize) -> Vec<(u32, u32)> {
+    let row = ctrl.entry_obj(who).map_or(-1, |e| e.gim_id);
+    cast.looks.gimmick(row).map(|g| g.model.clut_swaps()).unwrap_or_default()
+}
+
 fn food_matrix(pos: V4, rot: V4, scale: V4) -> [V4; 4] {
     let m = crate::town::pos_rot_zyx(pos, [rot[0], rot[1], rot[2]]);
     let mut out = m;
@@ -336,13 +375,6 @@ fn food_matrix(pos: V4, rot: V4, scale: V4) -> [V4; 4] {
         }
     }
     out
-}
-
-fn transparency_of(o: &entry::Out) -> F {
-    match *o {
-        entry::Out::GimDraw { transparency, .. } => transparency,
-        _ => ONE,
-    }
 }
 
 /// No effects.
@@ -373,6 +405,13 @@ pub struct Combat {
     pub crew: Crew,
     pub party: Party,
     pub keep: Keep,
+    /// A Root Town's navigation for the members' `ActInTown` (None
+    /// elsewhere).
+    pub town_nav: Option<stage::TownNavData>,
+    /// `ccSpcSleep(1)` to `ccSPC::Wakeup(1)`: Kite's task alone asleep
+    /// while he rides a town's Grunty (the field's ride sleeps the party's
+    /// tasks: `ride.asleep`).
+    pub kite_asleep: bool,
     pub skills: RefCell<Skills>,
     pub ctrl: EntryCtrl,
     pub reg: Register,
@@ -411,7 +450,7 @@ pub struct Combat {
     pub force_side_draws: Option<[i32; 2]>,
     /// The members' `ccUseItemRequest` calls of the frame (their AI's
     /// `UseItem`, the ocarina command), for the runtime to carry out
-    /// ([`crate::field::world::FieldWorld::take_member_items`]).
+    /// ([`crate::world::world::World::take_member_items`]).
     pub member_items: Vec<MemberItem>,
     /// `ccGame`'s battle state (+0x58 `inBattle`, +0x5c `inBattleCnt`,
     /// +0x60 `inBattleDist`), which `ccThGameCtrl` keeps.
@@ -467,16 +506,10 @@ pub struct Combat {
     /// What the object menus ask of Kite from the menu task, played before
     /// his next frame (the menu task runs after the world's here).
     pub kite_menu: Vec<KiteMenuCall>,
-    /// The symbols' omni lights in the group (`ccGimSymbol` +0x704), by
-    /// scene index: place and intensity as their last frame left them.
-    pub symbol_lights: std::collections::BTreeMap<usize, (V4, F)>,
-    /// The spring's two omni lights in the group (`ccGimEtc` +0x260), by
-    /// scene index, as its last frame left them.
-    pub spring_lights: std::collections::BTreeMap<usize, [piney_battle::prim::OmniLight; 2]>,
-    /// The rays' omni lights in the group (`ccPrimRadiate` +0x58: the
-    /// boxes', the idols', the radiator's), by scene index, as their last
-    /// `setLight` left them.
-    pub rad_lights: std::collections::BTreeMap<usize, piney_battle::prim::OmniLight>,
+    /// The gimmicks' lights in the group, as their last frame left them.
+    pub gimmick_lights: lights::GimmickLights,
+    /// What the last walk of the entry control's lists lit its draws by.
+    pub walk_lights: lights::WalkLights,
     /// The symbols' fires drawn by the last frame (`ccSymFire::main`'s
     /// `ccEff::Draw`): place, pattern, scale, colour.
     pub symbol_fires: Vec<(V4, u16, [F; 2], u32)>,
@@ -687,6 +720,8 @@ impl Combat {
             crew: Crew::default(),
             party: Party::default(),
             keep: Keep::default(),
+            town_nav: None,
+            kite_asleep: false,
             // `xnote` is a common file (`cmn/XNOTE.CCS`), resident in
             // every area.
             skills: RefCell::new(Skills { xnote: true, ..Skills::default() }),
@@ -729,9 +764,8 @@ impl Combat {
             blur_statics: Default::default(),
             restore: [None; 18],
             npcs: Vec::new(),
-            symbol_lights: Default::default(),
-            spring_lights: Default::default(),
-            rad_lights: Default::default(),
+            gimmick_lights: Default::default(),
+            walk_lights: Default::default(),
             symbol_fires: Vec::new(),
             ride: ride::Riding::default(),
             kite_menu: Vec::new(),
@@ -1098,6 +1132,26 @@ impl Combat {
         self.members.iter().find(|m| m.0 == id).map(|m| m.1)
     }
 
+    /// The scene index `id` names, when the scene holds it.
+    pub fn scene_of(&self, id: crate::world::CharId) -> Option<usize> {
+        use crate::world::CharId;
+        match id {
+            CharId::Member(m) => self.who(m),
+            CharId::Scene(i) => (i < self.scene.chars.len()).then_some(i),
+            _ => None,
+        }
+    }
+
+    /// The name of the scene's character `who`: a party member by its
+    /// `charTbl` row, anyone else by its index.
+    pub fn char_id(&self, who: usize) -> crate::world::CharId {
+        use crate::world::CharId;
+        match self.scene.chars.get(who) {
+            Some(ch) if ch.is_pc() => CharId::Member(i32::from(ch.id())),
+            _ => CharId::Scene(who),
+        }
+    }
+
     /// `ccThEntryCtrl`'s set-up in a field or dungeon: the control for the
     /// place, `ccRegisterDifficultyEnemy`'s rows (main 0x001b7020), then
     /// the event's entries (`ccEntryEventMng`, main 0x001b62e0): each
@@ -1150,7 +1204,7 @@ impl Combat {
             retarget: Vec::new(),
             kite_act: 0,
             traps: Vec::new(),
-            town: None,
+            town: self.town_nav.as_ref().map(stage::TownNavData::nav),
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
@@ -1338,7 +1392,7 @@ impl Combat {
             retarget: Vec::new(),
             kite_act: 0,
             traps: Vec::new(),
-            town: None,
+            town: self.town_nav.as_ref().map(stage::TownNavData::nav),
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
@@ -1449,7 +1503,27 @@ impl Combat {
     /// One frame of the battle's tasks (see the module's table), after the
     /// camera's.
     pub fn frame(&mut self, x: &mut Tasks, fx: &mut dyn FxTasks) {
-        let Some(kite_i) = self.kite else { return };
+        if let Some(e) = self.frame_to_entry(x) {
+            self.frame_from_entry(x, fx, e);
+            self.particle_task(x, fx);
+        }
+    }
+
+    /// `ccThParticle` (98), after the area's draw (96) whose smoke it
+    /// moves in the same frame; nothing without Kite, as the tasks before.
+    pub fn particle_task(&mut self, x: &mut Tasks, fx: &mut dyn FxTasks) {
+        if self.kite.is_some() {
+            let bounds = Self::bounds(x.scene.area, x.hits);
+            self.fx_call(x, bounds, |fx, w| fx.particle(w), fx, None);
+        }
+    }
+
+    /// The battle's tasks from `ccThSpc` (48) through `ccThEntryCtrl`'s
+    /// walk of its lists (64) and what that walk raised; None without Kite.
+    /// The area's own NPC list ([`crate::world::cast::Cast::entry_slot`])
+    /// ends the slot before [`Combat::frame_from_entry`].
+    pub fn frame_to_entry(&mut self, x: &mut Tasks) -> Option<EntryDone> {
+        let kite_i = self.kite?;
         self.cond_fx_shown = x.effect_sw;
         self.eye_view = x.camera.tcam.kind == crate::camera::kind::EYE;
         self.load_records(x.save);
@@ -1527,7 +1601,7 @@ impl Combat {
             retarget: Vec::new(),
             kite_act: self.scene.chars[kite_i].spc_char.act_num,
             traps: Vec::new(),
-            town: None,
+            town: self.town_nav.as_ref().map(stage::TownNavData::nav),
             spcs: x.spcs.as_deref_mut(),
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
@@ -1541,7 +1615,7 @@ impl Combat {
         // ccThPlayer (49): ccPlayer::Main, after the menu task's calls on
         // him; asleep while the Grunty carries him.
         let asleep = self.ride.asleep;
-        if !asleep {
+        if !asleep && !self.kite_asleep {
             let menu_calls = std::mem::take(&mut self.kite_menu);
             let input = kite::Input {
                 pad: kite::Pad { pow_l: x.pad.pow_l, dirc_l: x.pad.dirc_l },
@@ -1584,7 +1658,9 @@ impl Combat {
             }
             kite::main(&mut cx, kite_i);
         }
-        // ccThPucciguso (49, started after ccThPlayer): the riding Grunty.
+        // ccThPucciguso (49, started after ccThPlayer: ccStartThread appends
+        // to tscbEnd, main 0x00159fd0): the riding Grunty, a field's or a
+        // town's.
         let pad = ride::RidePad {
             pad: kite::Pad { pow_l: x.pad.pow_l, dirc_l: x.pad.dirc_l },
             push: x.pad.push,
@@ -1595,7 +1671,7 @@ impl Combat {
         } else {
             ride::SeekView::default()
         };
-        ride::frame(
+        let dismount = ride::frame(
             &mut self.ride,
             &mut stage,
             &mut self.scene,
@@ -1606,6 +1682,10 @@ impl Combat {
             area,
             &seek,
         );
+        if dismount {
+            ride::exit_town(&mut self.ride, &mut stage, &mut self.scene, &mut self.crew, &self.members, kite_i);
+            self.kite_asleep = false;
+        }
         self.enter |= stage.enter;
         // The lines Kite's frame raised on the party (an affect on a
         // member), and its affects' work on a member's body, as it ends.
@@ -1723,10 +1803,9 @@ impl Combat {
             if let Some(a) = stage.cast.get(m) {
                 let (w, h, td) = (a.ch.width, a.ch.height, a.trans_dist);
                 let disp = c.spc_char.flags & bit::DISP != 0;
-                let (alpha, drawn) = stage.char_draw(c.pos, w, h, s.set_transparency, td);
+                let f = stage.char_draw(c.pos, w, h, s.set_transparency, td);
                 if let Some(a) = stage.cast.get_mut(m) {
-                    a.alpha = alpha;
-                    a.drawn = drawn && disp;
+                    a.set_fade(CharFade { drawn: f.drawn && disp, ..f });
                 }
             }
         }
@@ -1769,6 +1848,9 @@ impl Combat {
         for (c, out) in cleared {
             enemy_cleared(&mut self.cond_fx, stage.shows, c, &out);
         }
+        // The walk's order, which lit its draws (lights.rs).
+        self.walk_lights.enemies = self.ctrl.list(entry::Kind::Enemy);
+        self.walk_lights.drawn.clear();
         let mut outs = Vec::new();
         {
             let words = x.wm.words;
@@ -1840,31 +1922,33 @@ impl Combat {
                 // ccGimSymbol's AddGrp / DelGrp of its light.
                 entry::Out::SymbolLight { who, pos, intensity } => {
                     match pos {
-                        Some(p) => self.symbol_lights.insert(who, (p, intensity)),
-                        None => self.symbol_lights.remove(&who),
+                        Some(p) => self.gimmick_lights.symbols.insert(who, (p, intensity)),
+                        None => self.gimmick_lights.symbols.remove(&who),
                     };
                 }
                 // ccGimEtc's AddGrp / DelGrp of the spring's lights.
                 entry::Out::EtcLights { who, lights } => {
                     match lights {
-                        Some(l) => self.spring_lights.insert(who, l),
-                        None => self.spring_lights.remove(&who),
+                        Some(l) => self.gimmick_lights.springs.insert(who, l),
+                        None => self.gimmick_lights.springs.remove(&who),
                     };
                 }
                 // The spring's ccAnm::Draw at SetMatrix_PosRotZYXScale on
                 // refLayer.
                 entry::Out::EtcDraw { who, pos, dirc, scale } => {
+                    self.walk_lights.drawn.insert(who, self.gimmick_lights.clone());
                     if let Some(a) = stage.cast.get_mut(who) {
                         a.drawn = true;
-                        a.alpha = ONE;
+                        a.set_alpha(ONE);
                         a.matrix =
                             Some(crate::field::ambient::pos_rot_xyz_scale(pos, dirc, [scale[0], scale[1], scale[2]]));
                     }
                 }
                 entry::Out::CircleDraw { who, transparency } => {
+                    self.walk_lights.drawn.insert(who, self.gimmick_lights.clone());
                     if let Some(a) = stage.cast.get_mut(who) {
                         a.drawn = true;
-                        a.alpha = transparency;
+                        a.set_alpha(transparency);
                         a.ch.pos = self.scene.chars[who].pos;
                         if let Some(obj) = self.ctrl.entry_obj(who) {
                             a.ch.dirc = obj.dirc;
@@ -1873,44 +1957,51 @@ impl Combat {
                 }
                 entry::Out::Destroyed { who, .. } => {
                     stage.cast.actors.remove(&who);
-                    self.symbol_lights.remove(&who);
-                    self.spring_lights.remove(&who);
-                    self.rad_lights.remove(&who);
+                    self.gimmick_lights.symbols.remove(&who);
+                    self.gimmick_lights.springs.remove(&who);
+                    self.gimmick_lights.rays.remove(&who);
                     stage.shows.push(Show::Entry(o));
                 }
-                // ccGimBox::main's ccAnm::Draw, ccGimIdol::main's
-                // ccChar::Draw: at the object's place and heading, the box
-                // at its transparency, with its row's palette.
-                entry::Out::GimDraw { who, dirc, .. } | entry::Out::IdolDraw { who, dirc }
-                    if stage.cast.get(who).is_some() =>
-                {
-                    let alpha = match o {
-                        entry::Out::GimDraw { .. } => transparency_of(&o),
-                        _ => ONE,
-                    };
-                    let row = self.ctrl.entry_obj(who).map_or(-1, |e| e.gim_id);
-                    let swaps = stage.cast.looks.gimmick(row).map(|g| g.model.clut_swaps()).unwrap_or_default();
+                // ccGimBox::main's ccAnm::Draw at the object's place and
+                // heading, at its transparency, with its row's palette.
+                entry::Out::GimDraw { who, dirc, transparency, .. } if stage.cast.get(who).is_some() => {
+                    self.walk_lights.drawn.insert(who, self.gimmick_lights.clone());
+                    let swaps = gim_swaps(&self.ctrl, stage.cast, who);
                     if let Some(a) = stage.cast.get_mut(who) {
                         a.drawn = true;
-                        a.alpha = alpha;
+                        a.set_alpha(transparency);
                         a.ch.pos = self.scene.chars[who].pos;
                         a.ch.dirc = dirc;
                         a.swaps = swaps;
                     }
                     stage.shows.push(Show::Entry(o));
                 }
-                // ccGimFood::main's SetMatrix_PosRotZYXScale and
-                // ccChar::Draw: at its place, turn and scale, at the
-                // transparency its fade left.
-                entry::Out::FoodDraw { who, dirc, scale } if stage.cast.get(who).is_some() => {
-                    let alpha = self.ctrl.entry_obj(who).map_or(ONE, |e| e.transparency);
+                // ccGimIdol::main's and symMain's ccChar::Draw (gcmn
+                // 0x00459d2c, 0x0045ae48), ccGimFood::main's after its
+                // SetMatrix_PosRotZYXScale (0x00458dc4): the near fade and
+                // its shadow rule as every character's, from the entry's
+                // setTransparency; the draw writes back its transparency.
+                entry::Out::IdolDraw { who, dirc } | entry::Out::FoodDraw { who, dirc, .. }
+                    if stage.cast.get(who).is_some() =>
+                {
+                    self.walk_lights.drawn.insert(who, self.gimmick_lights.clone());
                     let pos = self.scene.chars[who].pos;
+                    let set_t = self.ctrl.entry_obj(who).map_or(ONE, |e| e.set_transparency);
+                    let f =
+                        stage.cast.get(who).map(|a| stage.char_draw(pos, a.ch.width, a.ch.height, set_t, a.trans_dist));
+                    let Some(f) = f else { continue };
+                    if let Some(e) = self.ctrl.entry_obj_mut(who) {
+                        e.transparency = f.transparency;
+                    }
+                    let swaps = gim_swaps(&self.ctrl, stage.cast, who);
                     if let Some(a) = stage.cast.get_mut(who) {
-                        a.drawn = true;
-                        a.alpha = alpha;
+                        a.set_fade(f);
                         a.ch.pos = pos;
                         a.ch.dirc = dirc;
-                        a.matrix = Some(food_matrix(pos, dirc, scale));
+                        match o {
+                            entry::Out::FoodDraw { scale, .. } => a.matrix = Some(food_matrix(pos, dirc, scale)),
+                            _ => a.swaps = swaps,
+                        }
                     }
                     stage.shows.push(Show::Entry(o));
                 }
@@ -1919,10 +2010,10 @@ impl Combat {
                 }
                 // ccPrimRadiate::setLight's AddGrp, delLight's DelGrp.
                 entry::Out::Radiate { who, out: piney_battle::prim::RadOut::LightOn(l) } => {
-                    self.rad_lights.insert(who, l);
+                    self.gimmick_lights.rays.insert(who, l);
                 }
                 entry::Out::Radiate { who, out: piney_battle::prim::RadOut::LightOff } => {
-                    self.rad_lights.remove(&who);
+                    self.gimmick_lights.rays.remove(&who);
                 }
                 // ccSpcMessageOpenTrapBox: ccAISysMsgSend(name, -1, Kite's
                 // AI, 0xffff, 0, 30).
@@ -2000,6 +2091,19 @@ impl Combat {
             self.consequence(e, x.hits, bounds, x.puppet_show);
         }
         self.drain_chats(t, x.save, &party, &ents);
+        Some(EntryDone { kite_i, first_show, party, annihilated, checks, ents, exps })
+    }
+
+    /// The battle's tasks after `ccThEntryCtrl` (64): `STFROLL_VOL4` and the
+    /// boss (66), `ccThEffect` (80), `ccThSkill` (82), `ccThParticle` (98).
+    pub fn frame_from_entry(&mut self, x: &mut Tasks, fx: &mut dyn FxTasks, e: EntryDone) {
+        let EntryDone { kite_i, first_show, party, annihilated, checks, ents, exps } = e;
+        let d = self.data.clone();
+        let t = &d.t;
+        let env = self.env;
+        let bounds = Self::bounds(x.scene.area, x.hits);
+        let pframe = stage::PlayerFrame { bounds, player: self.scene.chars[kite_i].pos };
+        let chk = |c: usize| checks.get(c).copied().unwrap_or(0);
         // STFROLL_VOL4 (66): the ending's staff roll, while it runs (no
         // boss is in its field). It reads no shows: they stay for the
         // effects' pass.
@@ -2155,8 +2259,6 @@ impl Combat {
         self.drain_chats(t, x.save, &party, &ents);
         // The party's records back into the save (experience, levels).
         self.store_records(x.save);
-        // ccThParticle (98).
-        self.fx_call(x, bounds, |fx, w| fx.particle(w), fx, None);
         // ccThFieldDisp (96) draws the party: the hands the next frame's
         // tasks read.
         for &(_, c) in &self.members {
@@ -2265,6 +2367,7 @@ impl Combat {
             area: (x.scene.area, x.scene.dungeon, x.wm.field_type as i32),
             field: x.scene.field,
             shows: &self.shows[from..],
+            own: x.own,
             damage: damage.map(|(env, ev)| FxDamage { skills: &self.skills, env, ev }),
         };
         run(fx, &mut w);
@@ -2532,6 +2635,8 @@ impl Combat {
         area: i32,
         roster: &Roster,
         positions: &[entry::EvPos],
+        town_marker: &dyn Fn(i16) -> Option<(V4, F)>,
+        npc_pos: &dyn Fn(i32) -> Option<V4>,
         f: impl FnOnce(&mut EvParty) -> R,
     ) -> (R, Vec<entry::Out>) {
         let d = self.data.clone();
@@ -2559,7 +2664,7 @@ impl Combat {
             retarget: Vec::new(),
             kite_act: 0,
             traps: Vec::new(),
-            town: None,
+            town: self.town_nav.as_ref().map(stage::TownNavData::nav),
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
@@ -2567,7 +2672,6 @@ impl Combat {
             item_uses: &mut self.member_items,
         };
         let mut out = Vec::new();
-        let no_town = |_: i16| None;
         let mut p = EvParty {
             scene: &mut self.scene,
             crew: &mut self.crew,
@@ -2577,7 +2681,8 @@ impl Combat {
             world: &mut stage,
             area,
             positions,
-            town_marker: &no_town,
+            town_marker,
+            npc_pos,
             out: &mut out,
         };
         let r = f(&mut p);
@@ -2636,7 +2741,7 @@ impl Combat {
             retarget: Vec::new(),
             kite_act: 0,
             traps: Vec::new(),
-            town: None,
+            town: self.town_nav.as_ref().map(stage::TownNavData::nav),
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
@@ -2830,14 +2935,16 @@ impl Combat {
         }
     }
 
-    /// Kite's position (`plw +0x40`); the origin before he is built.
-    pub fn kite_pos(&self) -> V4 {
-        self.kite.and_then(|k| self.scene.chars.get(k)).map_or([0, 0, 0, 0x3f80_0000], |c| c.pos)
-    }
-
-    /// Kite's act for the draw, and his heading.
-    pub fn kite_dirc(&self) -> V4 {
-        self.kite.and_then(|k| self.crew.spc.get(&k)).map_or([0; 4], |s| s.dirc)
+    /// Kite once `ccSPC::Reboot` built him.
+    pub fn kite_ref(&self) -> Option<KiteRef<'_>> {
+        let who = self.kite?;
+        Some(KiteRef {
+            who,
+            ch: self.scene.chars.get(who)?,
+            spc: self.crew.spc.get(&who)?,
+            actor: self.cast.get(who),
+            listed: self.scene.listed(who),
+        })
     }
 
     /// The characters on the command lists that are the enemies of the

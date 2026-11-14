@@ -510,7 +510,7 @@ its red arrow on it, and line 25's `show_map` sets `mapFlag`.
 ## Unknown
 
 - The entry control's lists come from the battle
-  ([battle](battle.md#how-it-plugs-into-piney-world)): `FieldWorld::map_entries`
+  ([battle](battle.md#how-it-plugs-into-piney-world)): `World::map_entries`
   hands the map its magic portals (`mcHead`) and gimmicks (`gimHead`, the
   fountain among them) and takes the portals' fading alphas back, so the
   Fairy's Orb's "yellow areas" appear once `show_map` sets `mapFlag`.

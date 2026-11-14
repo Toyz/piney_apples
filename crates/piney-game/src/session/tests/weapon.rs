@@ -19,6 +19,9 @@ fn goblin_trail(mut each: impl FnMut(&Session, &piney_draw::Frame, usize)) -> Op
     walk_to_east_portal_frames(&mut s, 900, false, |s, frame| {
         n += 1;
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let c = a.world().combat();
         let pairs: usize = c.trails.iter().map(|t| t.polys.len()).sum();
         if pairs > 0 {
@@ -73,6 +76,9 @@ fn weapon_shots() {
         println!("{path}: {pairs} pairs");
         // The trail's points on the screen, and about them.
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let ws = a.world().camera().world_screen;
         let (sx, sy) = (w as f32 / 512.0, h as f32 / 448.0);
         let pts: Vec<(f32, f32)> = a
@@ -119,6 +125,9 @@ fn orcas_swings_leave_trails() {
     let mut kite_frames = 0;
     let seen = goblin_trail(|s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let c = a.world().combat();
         for (&who, actor) in &c.cast.actors {
             let Some(w) = actor.weapon.as_ref() else { continue };
@@ -161,6 +170,9 @@ fn party_trail_shots() {
     let mut n = 0;
     goblin_trail(|s, frame, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let c = a.world().combat();
         let pts: Vec<piney_world::ee::V4> = c
             .cast
@@ -238,7 +250,7 @@ fn rare_walk(
     }
     let mut s = Session::in_world(iso, archive, None, state, None, scene, wm).unwrap();
     let in_place = |s: &Session| match &s.stage {
-        Stage::World(w) => matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2),
+        Stage::Area(w) if w.in_town() => matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2),
         Stage::Area(a) => matches!(a.world().phase(), piney_world::Phase::Play(f) if f >= 2),
         _ => false,
     };
@@ -347,8 +359,11 @@ fn a_members_rare_weapon_trails_in_town() {
         }
     };
     let ran = rare_walk(None, prepare, invite, |s, frame| {
-        let Stage::World(w) = &s.stage else { return };
-        let orca = w.world().town_party().actor(2).and_then(|a| a.weapon.as_ref());
+        let Stage::Area(w) = &s.stage else { return };
+        if !w.in_town() {
+            return;
+        }
+        let orca = w.world().combat().member_actor(2).and_then(|a| a.weapon.as_ref());
         let sent = orca.is_some_and(|w| !w.strips.is_empty());
         if sent && red_trail_triangles(frame) > 0 {
             frames += 1;

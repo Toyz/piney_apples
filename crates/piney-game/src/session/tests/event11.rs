@@ -3,11 +3,11 @@
 //! address, the call from PERSONAL's Party > Add that brings her into the
 //! party, and the Chaos Gate's Word List to area 15 with her.
 
+use piney_world::world::CharId;
 use std::f32::consts::PI;
 
 use piney_event::ScriptSave;
 use piney_input::{Buttons, Raw};
-use piney_world::event::entry::Kind;
 
 use super::*;
 
@@ -70,17 +70,17 @@ fn stick_toward(cam_z: f32, h: f32) -> Raw {
 
 /// Whether BlackRose's member address has been given
 /// (`partyMemberFlag` bit 15, set by `member_add_msg 15`).
-fn has_address(w: &WorldMode) -> bool {
+fn has_address(w: &AreaMode) -> bool {
     w.world().state().save.member_word(offset::PARTY_MEMBER_FLAG) & (1 << BLACKROSE) != 0
 }
 
-fn joined(w: &WorldMode) -> bool {
+fn joined(w: &AreaMode) -> bool {
     w.world().party().contains(&BLACKROSE)
 }
 
 /// The row of story area `area` in the Word List (`gateOrderList[0]`, the
 /// areas the events gave, in order).
-fn word_list_row(w: &WorldMode, area: i16) -> Option<usize> {
+fn word_list_row(w: &AreaMode, area: i16) -> Option<usize> {
     let save = &w.world().state().save;
     (0..64).map(|k| save.i16(offset::GATE_ORDER_LIST + 2 * k)).filter(|&v| v >= 0).position(|v| v == area)
 }
@@ -89,7 +89,7 @@ fn word_list_row(w: &WorldMode, area: i16) -> Option<usize> {
 /// 24 frames; before her address, Kite walks to the Chaos Gate and speaks
 /// to it; after it, PERSONAL (triangle), Party, Add, BlackRose, OK; with
 /// her in the party, the gate again: Word List, area 15, Warp.
-fn player(w: &WorldMode, f: u64) -> Raw {
+fn player(w: &AreaMode, f: u64) -> Raw {
     let ui = w.ui();
     let c = &ui.ctrl;
     let go_to_item = |item: i16| {
@@ -142,12 +142,12 @@ fn player(w: &WorldMode, f: u64) -> Raw {
     if has_address(w) && !joined(w) {
         return still(if f.is_multiple_of(30) { Buttons::TRIANGLE } else { Buttons::NONE });
     }
-    if world.command_target() == Some((Kind::Gimmick, 16)) {
+    if world.command_target_id() == Some(CharId::Object(16)) {
         return still(if f.is_multiple_of(24) { Buttons::CROSS } else { Buttons::NONE });
     }
-    let Some((gate, _)) = world.char_place(Kind::Gimmick, 16) else { return still(Buttons::NONE) };
+    let Some((gate, _)) = world.char_place(CharId::Object(16)) else { return still(Buttons::NONE) };
     let g = gate.map(f32::from_bits);
-    let p = world.player().body.pos.map(f32::from_bits);
+    let p = world.kite().pos().map(f32::from_bits);
     let cam_z = f32::from_bits(world.camera().rot()[2]);
     stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1])))
 }
@@ -164,20 +164,24 @@ fn event_11_blackrose_joins_in_mac_anu() {
     let mut joined = None;
     for f in 0..20_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && w.world().party().contains(&BLACKROSE)
         {
             joined = Some(f);
             break;
         }
     }
-    let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("left the town: {}", Mode::title(&s))
+    }
     let calls: Vec<&str> = w.calls().iter().map(|(_, c)| c.as_str()).collect();
     assert!(calls.contains(&"stream 7"), "stream 7 did not play: {calls:?}");
     let tail: Vec<String> = w.calls().iter().rev().take(40).rev().map(|(f, c)| format!("{f} {c}")).collect();
@@ -199,7 +203,7 @@ fn event_11_gates_to_area_15_with_blackrose() {
     let mut entered = None;
     for f in 0..30_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => {
+            Stage::Area(w) if w.in_town() => {
                 if joined_at.is_none() && joined(w) {
                     joined_at = Some(f);
                 }
@@ -210,7 +214,9 @@ fn event_11_gates_to_area_15_with_blackrose() {
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if let Stage::Area(a) = &s.stage {
+        if let Stage::Area(a) = &s.stage
+            && !a.in_town()
+        {
             let at = *entered.get_or_insert(f);
             if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 30) {
                 // The set-up's passes are not held by the arrival's talk
@@ -224,6 +230,9 @@ fn event_11_gates_to_area_15_with_blackrose() {
     assert!(joined_at.is_some(), "BlackRose did not join: {}", Mode::title(&s));
     assert!(arrived, "not on the holy ground: {}", Mode::title(&s));
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let w = a.world();
     assert_eq!((w.scene().area, w.scene().field), (1, 15), "{}", Mode::title(&s));
     assert!(w.party().contains(&BLACKROSE), "party {:?}", w.party());
@@ -248,24 +257,25 @@ fn event_11_shots() {
     let mut gate_msg = None;
     for f in 0..30_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         let frame = s.step(&pad);
         s.take_events();
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && gate_msg.is_none()
             && w.calls().iter().any(|(_, c)| c.starts_with("announce GateAddress"))
         {
             gate_msg = Some(f);
         }
         let name = match &s.stage {
-            Stage::World(w) if Mode::archive(w.as_ref()).is_some() && f == 400 => Some("1-stream-7"),
-            Stage::World(_) if gate_msg == Some(f.saturating_sub(20)) => Some("2b-gate-address"),
-            Stage::World(w) if has_address(w) && !taken.contains(&"2-address") => Some("2-address"),
-            Stage::World(w) if joined(w) && !taken.contains(&"3-joined") => Some("3-joined"),
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+            Stage::Area(w) if w.in_town() && Mode::archive(w.as_ref()).is_some() && f == 400 => Some("1-stream-7"),
+            Stage::Area(t) if t.in_town() && gate_msg == Some(f.saturating_sub(20)) => Some("2b-gate-address"),
+            Stage::Area(w) if w.in_town() && has_address(w) && !taken.contains(&"2-address") => Some("2-address"),
+            Stage::Area(w) if w.in_town() && joined(w) && !taken.contains(&"3-joined") => Some("3-joined"),
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
                 let at = *in_area.get_or_insert(f);
                 (f == at + 90).then_some("4-holy-ground")
             }
@@ -302,7 +312,7 @@ fn field_player(a: &crate::area::AreaMode, f: u64, goal: [f32; 2]) -> Raw {
         return still(if f.is_multiple_of(24) { Buttons::CROSS } else { Buttons::NONE });
     }
     let w = a.world();
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let (dx, dy) = (goal[0] - p[0], goal[1] - p[1]);
     if dx * dx + dy * dy < 60.0 * 60.0 {
         return still(Buttons::NONE);
@@ -327,7 +337,9 @@ fn event_11_church_ends_with_blackrose_out() {
     let mut left_party = None;
     let mut book_shown = false;
     for f in 0..60_000u64 {
-        if let Stage::Area(a) = &s.stage {
+        if let Stage::Area(a) = &s.stage
+            && !a.in_town()
+        {
             area_calls = a.calls().to_vec();
             let w = a.world();
             in_area_party.get_or_insert(w.party());
@@ -339,14 +351,14 @@ fn event_11_church_ends_with_blackrose_out() {
             }
         }
         let raw = match &s.stage {
-            Stage::World(_) if arrived.is_some() => break,
-            Stage::World(w) => player(w, f),
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+            Stage::Area(t) if t.in_town() && arrived.is_some() => break,
+            Stage::Area(w) if w.in_town() => player(w, f),
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
                 arrived.get_or_insert(f);
                 field_player(a, f, [95.0, 3800.0])
             }
-            Stage::Area(a) => {
-                field_player(a, f, a.world().player().body.pos.map(f32::from_bits)[..2].try_into().unwrap())
+            Stage::Area(a) if !a.in_town() => {
+                field_player(a, f, a.world().kite().pos().map(f32::from_bits)[..2].try_into().unwrap())
             }
             _ => still(Buttons::NONE),
         };
@@ -354,6 +366,7 @@ fn event_11_church_ends_with_blackrose_out() {
         let frame = s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && matches!(a.world().phase(), piney_world::Phase::Hold(_))
             && a.calls().last().is_some_and(|(_, c)| c.starts_with("message_open 11 24"))
             && frame.cmds.iter().any(|c| matches!(c, piney_draw::Cmd::Prim(p) if p.state.texture.is_some()))
@@ -372,7 +385,10 @@ fn event_11_church_ends_with_blackrose_out() {
     assert!(!party.contains(&BLACKROSE), "still in the party after party_remove: {party:?}");
     assert_eq!(reg, Some(0), "her registry partyFlag");
     assert_eq!(own, Some(-1), "her character's partyFlag (left)");
-    let Stage::World(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("not back in Mac Anu: {}", Mode::title(&s))
+    }
     assert!(!w.world().party().contains(&BLACKROSE), "in Mac Anu's party: {:?}", w.world().party());
     let Some(sp) = &s.spcs else { panic!("the field left no party") };
     assert!(!sp.party().contains(&BLACKROSE), "in the party the field left: {:?}", sp.party());
@@ -394,18 +410,20 @@ fn event_11_church_log() {
     // The last area's calls (the church's field), kept as it is left.
     let mut area_calls: Vec<(u64, String)> = Vec::new();
     for f in 0..60_000u64 {
-        if let Stage::Area(a) = &s.stage {
+        if let Stage::Area(a) = &s.stage
+            && !a.in_town()
+        {
             area_calls = a.calls().to_vec();
         }
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+            Stage::Area(w) if w.in_town() => player(w, f),
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
                 arrived.get_or_insert(f);
                 field_player(a, f, [95.0, 3800.0])
             }
             // A window the set-up's pass opened (the church's block 24).
-            Stage::Area(a) => {
-                field_player(a, f, a.world().player().body.pos.map(f32::from_bits)[..2].try_into().unwrap())
+            Stage::Area(a) if !a.in_town() => {
+                field_player(a, f, a.world().kite().pos().map(f32::from_bits)[..2].try_into().unwrap())
             }
             _ => still(Buttons::NONE),
         };
@@ -454,23 +472,23 @@ fn event_11_church_shots() {
     let every: u64 = std::env::var("PINEY_EVERY").ok().and_then(|v| v.parse().ok()).unwrap_or(30);
     for f in 0..60_000u64 {
         let raw = match &s.stage {
-            Stage::World(_) if church.is_some() => break,
-            Stage::World(w) => player(w, f),
-            Stage::Area(_) if church.is_some() && mash.is_some() => {
+            Stage::Area(t) if t.in_town() && church.is_some() => break,
+            Stage::Area(w) if w.in_town() => player(w, f),
+            Stage::Area(t) if !t.in_town() && church.is_some() && mash.is_some() => {
                 still(if f.is_multiple_of(10) { mash.unwrap() } else { Buttons::NONE })
             }
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
                 arrived.get_or_insert(f);
                 let mut raw = field_player(a, f, [95.0, 3800.0]);
                 // PINEY_ATTACK: X every 8 frames by the door.
-                let y = f32::from_bits(a.world().player().body.pos[1]);
+                let y = f32::from_bits(a.world().kite().pos()[1]);
                 if attack && church.is_none() && y > 3440.0 && f.is_multiple_of(8) {
                     raw.buttons |= Buttons::CROSS;
                 }
                 raw
             }
-            Stage::Area(a) => {
-                field_player(a, f, a.world().player().body.pos.map(f32::from_bits)[..2].try_into().unwrap())
+            Stage::Area(a) if !a.in_town() => {
+                field_player(a, f, a.world().kite().pos().map(f32::from_bits)[..2].try_into().unwrap())
             }
             _ => still(Buttons::NONE),
         };
@@ -478,6 +496,7 @@ fn event_11_church_shots() {
         let frame = s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && church.is_none()
             && a.world().scene().block == 1
         {
@@ -513,15 +532,16 @@ fn event_11_warp_shots() {
     let mut leave = None;
     for f in 0..30_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         let frame = s.step(&pad);
         s.take_events();
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && leave.is_none()
-            && w.world().player().acts.act == 12
+            && w.world().kite().built().map_or(0, |k| k.ch.spc_char.act_num) == 12
         {
             leave = Some(f);
         }
@@ -552,9 +572,9 @@ fn event_11_gate_out_keeps_blackrose() {
     let mut left = false;
     for f in 0..40_000u64 {
         let raw = match &s.stage {
-            Stage::World(_) if left => break,
-            Stage::World(w) => player(w, f),
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+            Stage::Area(t) if t.in_town() && left => break,
+            Stage::Area(w) if w.in_town() => player(w, f),
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
                 if !left && a.world().party().contains(&BLACKROSE) {
                     left = true;
                     s.console("town 0");
@@ -562,8 +582,8 @@ fn event_11_gate_out_keeps_blackrose() {
                 }
                 field_player(a, f, [95.0, 3800.0])
             }
-            Stage::Area(a) => {
-                field_player(a, f, a.world().player().body.pos.map(f32::from_bits)[..2].try_into().unwrap())
+            Stage::Area(a) if !a.in_town() => {
+                field_player(a, f, a.world().kite().pos().map(f32::from_bits)[..2].try_into().unwrap())
             }
             _ => still(Buttons::NONE),
         };
@@ -572,7 +592,10 @@ fn event_11_gate_out_keeps_blackrose() {
         s.take_events();
     }
     assert!(left, "never on the holy ground with BlackRose: {}", Mode::title(&s));
-    let Stage::World(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("not back in Mac Anu: {}", Mode::title(&s))
+    }
     let reg = w.world().spcs().registry.iter().find(|r| r.id == BLACKROSE).map(|r| r.party_flag);
     assert!(w.world().party().contains(&BLACKROSE), "not in Mac Anu's party: {:?}", w.world().party());
     assert_eq!(reg, Some(1), "her registry slot");
@@ -593,8 +616,8 @@ fn event_11_blackrose_spoken_to_on_the_holy_ground() {
     let mut opened = None;
     for f in 0..40_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+            Stage::Area(w) if w.in_town() => player(w, f),
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
                 let w = a.world();
                 let c = w.combat();
                 if a.ui().menu_type() == 21 {
@@ -603,7 +626,7 @@ fn event_11_blackrose_spoken_to_on_the_holy_ground() {
                 }
                 match c.who(BLACKROSE) {
                     Some(k) if w.party().contains(&BLACKROSE) => {
-                        if w.command_target_code() == Some((piney_world::event::entry::Kind::Spc, BLACKROSE)) {
+                        if w.command_target_id() == Some(CharId::Member(BLACKROSE)) {
                             still(if f.is_multiple_of(12) { Buttons::CROSS } else { Buttons::NONE })
                         } else {
                             let q = c.scene.chars[k].pos.map(f32::from_bits);
@@ -613,8 +636,8 @@ fn event_11_blackrose_spoken_to_on_the_holy_ground() {
                     _ => field_player(a, f, [95.0, 3800.0]),
                 }
             }
-            Stage::Area(a) => {
-                field_player(a, f, a.world().player().body.pos.map(f32::from_bits)[..2].try_into().unwrap())
+            Stage::Area(a) if !a.in_town() => {
+                field_player(a, f, a.world().kite().pos().map(f32::from_bits)[..2].try_into().unwrap())
             }
             _ => still(Buttons::NONE),
         };

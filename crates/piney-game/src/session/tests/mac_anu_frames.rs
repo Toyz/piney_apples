@@ -52,14 +52,14 @@ fn mac_anu_frame_times() {
     let mut walk: Option<TownWalker> = None;
     for f in 0..12000u32 {
         let raw = match &s.stage {
-            Stage::World(w) if f > 200 => {
+            Stage::Area(w) if w.in_town() && f > 200 => {
                 let world = w.world();
                 if targets.is_empty() && walk.is_none() {
                     // Round the merchants three times, back to the start.
-                    let p = world.player().body.pos.map(f32::from_bits);
+                    let p = world.kite().pos().map(f32::from_bits);
                     for _ in 0..3 {
                         targets.extend(
-                            world
+                            town_cast(world)
                                 .merchants()
                                 .iter()
                                 .map(|m| [f32::from_bits(m.ch.pos[0]), f32::from_bits(m.ch.pos[1])]),
@@ -103,9 +103,9 @@ fn mac_anu_frame_times() {
         let _ = gs.read_back();
         let draw_ms = t.elapsed().as_secs_f64() * 1000.0;
         let (at, pcs) = match &s.stage {
-            Stage::World(w) => (
-                w.world().player().body.pos.map(|v| f32::from_bits(v) as i32),
-                w.world().pcs().iter().filter(|c| c.disp_sw).count(),
+            Stage::Area(w) if w.in_town() => (
+                w.world().kite().pos().map(|v| f32::from_bits(v) as i32),
+                town_cast(w.world()).pcs().iter().filter(|c| c.disp_sw).count(),
             ),
             _ => ([0; 4], 0),
         };

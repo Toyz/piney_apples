@@ -35,7 +35,8 @@ fn in_town(town: u8) -> Option<Session> {
 fn play_in(s: &mut Session, town: i32) {
     let pad = Pad::default();
     for _ in 0..3000 {
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && w.world().scene().town == town
             && matches!(w.world().phase(), piney_world::Phase::Play(n) if n >= 30)
         {
@@ -49,7 +50,7 @@ fn play_in(s: &mut Session, town: i32) {
 
 fn world(s: &Session) -> &piney_world::World {
     match &s.stage {
-        Stage::World(w) => w.world(),
+        Stage::Area(w) if w.in_town() => w.world(),
         _ => panic!("left the town: {}", Mode::title(s)),
     }
 }
@@ -68,7 +69,8 @@ fn to_town(s: &mut Session, town: i16) {
     for _ in 0..600 {
         s.step(&pad);
         s.take_events();
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && !matches!(w.world().phase(), piney_world::Phase::Play(_))
         {
             break;
@@ -83,17 +85,20 @@ fn the_event_npcs_turned_marker_lasts_while_the_towns_file_does() {
         let Some(mut s) = in_town(town) else { return };
         play_in(&mut s, i32::from(town));
         let turned = piney_world::ee::deg2rad(deg);
-        assert!(world(&s).merchants().iter().any(|m| m.id == row), "the Event NPC {row} stands in town {town}");
+        assert!(
+            town_cast(world(&s)).merchants().iter().any(|m| m.id == row),
+            "the Event NPC {row} stands in town {town}"
+        );
         assert_eq!(heading(&s, marker), turned, "row {row} turns {marker}");
         // Sent away (its status cleared), then the same town set up again:
         // the file is kept, no Event NPC writes the dummy, and it stays
         // turned.
         match &mut s.stage {
-            Stage::World(w) => w.world_mut().state_mut().save.set_u8(ITEM_COMPLETE, 0),
+            Stage::Area(w) if w.in_town() => w.world_mut().state_mut().save.set_u8(ITEM_COMPLETE, 0),
             _ => unreachable!(),
         }
         to_town(&mut s, i16::from(town));
-        assert!(!world(&s).merchants().iter().any(|m| m.id == row), "no Event NPC without the status");
+        assert!(!town_cast(world(&s)).merchants().iter().any(|m| m.id == row), "no Event NPC without the status");
         assert_eq!(heading(&s, marker), turned, "town {town}'s file kept keeps the turned dummy");
         // Mac Anu, then back: the town's file is read again.
         to_town(&mut s, 0);
@@ -117,7 +122,10 @@ fn sound_to_town(s: &mut Session, town: i16) -> Vec<crate::mode::Event> {
                 matches!(e, Event::SoundFadeOut | Event::AllSoundOff | Event::VoiceStop | Event::SqLoad(_))
             }),
         );
-        let Stage::World(w) = &s.stage else { continue };
+        let Stage::Area(w) = &s.stage else { continue };
+        if !w.in_town() {
+            continue;
+        }
         set_up |= !matches!(w.world().phase(), piney_world::Phase::Play(_));
         if set_up
             && w.world().scene().town == i32::from(town)
@@ -160,13 +168,13 @@ fn a_towns_characters_effects_and_sounds_are_taken_in_their_frame() {
         for _ in 0..400 {
             s.step(&pad);
             s.take_events();
-            let Stage::World(w) = &mut s.stage else { panic!("left town {town}") };
+            let Stage::Area(w) = &mut s.stage else { panic!("left town {town}") };
+            if !w.in_town() {
+                panic!("left town {town}")
+            }
             let f = w.world().phase();
-            let w = w.world_mut();
-            assert!(w.take_pc_events().is_empty(), "town {town} at {f:?}: the walking PCs' events wait");
-            assert!(w.take_dog_events().is_empty(), "town {town} at {f:?}: the dogs' events wait");
-            assert!(w.take_grunty_events().is_empty(), "town {town} at {f:?}: the Grunties' events wait");
-            assert!(w.take_town_events().is_empty(), "town {town} at {f:?}: the town's own events wait");
+            let shows = &w.world().combat().shows;
+            assert!(shows.is_empty(), "town {town} at {f:?}: the characters' outputs wait: {shows:?}");
         }
     }
 }

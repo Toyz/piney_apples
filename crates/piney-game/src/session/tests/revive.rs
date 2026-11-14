@@ -34,6 +34,7 @@ pub(super) fn field_with_mia_and_elk() -> Option<Session> {
     })?;
     for _ in 0..1200 {
         if let Stage::Area(a) = &mut s.stage
+            && !a.in_town()
             && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 60)
             && a.world().combat().who(MIA).is_some()
         {
@@ -58,7 +59,7 @@ pub(super) fn step(s: &mut Session, n: u32) {
 
 pub(super) fn area(s: &mut Session) -> &mut crate::area::AreaMode {
     match &mut s.stage {
-        Stage::Area(a) => a,
+        Stage::Area(a) if !a.in_town() => a,
         _ => panic!("left the field"),
     }
 }

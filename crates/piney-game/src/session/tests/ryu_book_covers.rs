@@ -15,7 +15,7 @@ use super::*;
 use crate::stream::tests::work_iso;
 
 fn in_town(s: &Session) -> bool {
-    matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30))
+    matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30))
 }
 
 /// A new game's town on `v`, playing.
@@ -106,7 +106,8 @@ fn ryu_book_cover_shots() {
         let Some(mut s) = town(Volume::Mut) else { return };
         let mut shot = None;
         read_ryu_book(&mut s, book, in_town, |s, frame| {
-            if let Stage::World(w) = &s.stage
+            if let Stage::Area(w) = &s.stage
+                && w.in_town()
                 && shot.is_none()
                 && w.stream_frame() == Some(90)
             {

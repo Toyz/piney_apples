@@ -411,7 +411,7 @@ else the room's anm: the first object matching "OBJ_w_0g10_*" (a gate
 A `Rz(rotate[floor][block])` matrix is built on the way and not used.
 `mapHideFlag` 2 paints the map again without opening it (DrawMap skips its
 `mapStatus = 1`), so the map stays closed until something opens it. The
-port: `DungeonArea::room_select`, `FieldWorld::room_select` (which asks
+port: `DungeonArea::room_select`, `World::room_select` (which asks
 for the change of scene the way a door does), and the area host's `room`.
 It leaves out `bgColor` (the change's fade covers those frames).
 
@@ -459,7 +459,7 @@ state for each room, so the kept objects come back at new scene indices
 with their bodies and animation players (`EntryCtrl::keep`,
 `restore_kept`; `DungeonArea.kept_entries`, `kept_actors`,
 `gimmicks_placed`); a box's or an idol's rays follow its new index.
-`FieldWorld::keep_entries` keeps only when `Scene::changed()` is false;
+`World::keep_entries` keeps only when `Scene::changed()` is false;
 `a_lake_keeps_both_its_dungeons` finds the lake's 3 portals and 10
 gimmicks again, not doubled, after the second dungeon.
 
@@ -862,7 +862,7 @@ type 34), and 67 has no branch.
 
 `-255` goes to `WORLD_MAN::Enter`'s `ChangeArea(1, n)`
 ([above](#entering-and-walking-a-dungeon)). Area 27's is field 1, whose
-arena `FieldWorld` builds.
+arena `World` builds.
 
 **The ban block.** `SetDoor`'s tail (0x005c8370) deletes the block
 (`~ccClump`, +0xd3880). With `game.field` not 0 it then asks
@@ -898,7 +898,7 @@ before `RoomSelect` and `MoveDoor`.
 **`specialRoom`** 0 hides the minimap: `DrawMap` returns while it is not
 -1. It also makes `ccSndSQLoad` on a dungeon's room change load the story
 area's bank (`sqDataEvent`): `piney_audio::setup_context`, fed by
-`FieldWorld::special_room`.
+`World::special_room`.
 
 ## The doors and the events
 
@@ -948,7 +948,7 @@ event 4's trap room (block 6) runs `open_door`, one frame, `close_door`,
 and the leaves come down from open over the animation's 46 frames
 (6.4 a frame, 294 in all, from 290 to about the shut -9) as the camera
 watches, with no jump at `SetDoor`. The port runs the set-up on the
-frame of `Phase::Play(0)` (`FieldWorld::entry_setup`), a frame before the
+frame of `Phase::Play(0)` (`World::entry_setup`), a frame before the
 event's first play pass; when it ran in the entry control's first loop
 frame after that pass, the doors were made shut again after `open_door`
 and `close_door` sank the leaves from shut into the floor, to jump back up
@@ -958,7 +958,7 @@ at `SetDoor`.
 from two jump tables by `DUNGEON.type` (+0x10), @8659 for the opening and
 @8664 for the closing, which agree: 45, 46, 47, 51 for types 0-3 and again
 for 4-7, 48 for 8 and 9. The port plays them as the field's weather sounds
-are played (`DungeonArea::door_se`, `FieldWorld`'s ambient calls);
+are played (`DungeonArea::door_se`, `World`'s ambient calls);
 `the_doors_sound_as_they_open` hears area 26's (type 3: 51) on the walk to
 event 29's room.
 

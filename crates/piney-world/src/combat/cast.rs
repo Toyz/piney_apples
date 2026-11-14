@@ -16,7 +16,7 @@ use piney_battle::world::{AnmSlot, Note};
 use piney_desktop::assets::SceneFile;
 
 use crate::chara::body::Body;
-use crate::chara::char::Char;
+use crate::chara::char::{Char, CharFade};
 use crate::ee::{F, ONE, V4};
 
 /// Who an actor is.
@@ -61,6 +61,10 @@ pub struct Actor {
     pub second_draw: Option<(M4, F)>,
     pub drawn: bool,
     pub alpha: F,
+    /// The shadow's alpha (drawEnv +0xa4): `alpha`, or `setTransparency`
+    /// while `ccChar::Draw`'s near fade hides the character
+    /// ([`CharFade`]).
+    pub shadow: F,
     /// `ccChar` +0x90 `transDist`: the near fade on.
     pub trans_dist: bool,
     /// The clut swaps to draw with (Kite before the bracelet).
@@ -80,6 +84,20 @@ pub struct Actor {
 }
 
 impl Actor {
+    /// `ccChar::Draw`'s fade this frame: drawn, its transparency, its
+    /// shadow's.
+    pub fn set_fade(&mut self, f: CharFade) {
+        self.drawn = f.drawn;
+        self.alpha = f.transparency;
+        self.shadow = f.shadow;
+    }
+
+    /// A draw at `alpha` with no near fade (its shadow at the same).
+    pub fn set_alpha(&mut self, alpha: F) {
+        self.alpha = alpha;
+        self.shadow = alpha;
+    }
+
     pub fn new(body: Rc<Body>, clip: &str, look: Look, pos: V4, dirc: V4, height: F, width: F) -> Option<Actor> {
         let ch = match Char::new(body.clone(), clip, pos, dirc, height, width) {
             Some(c) => c,
@@ -101,6 +119,7 @@ impl Actor {
             matrix: None,
             drawn: false,
             alpha: ONE,
+            shadow: ONE,
             trans_dist: true,
             swaps: Vec::new(),
             arms: None,

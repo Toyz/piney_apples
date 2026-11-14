@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 use std::io::BufRead;
 
+use piney_battle::rand::Genrand;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_effect::draw::{Camera, DrawRec};
@@ -18,7 +19,6 @@ use piney_effect::effect::{Effect, Obj};
 use piney_effect::portal::{CircleEvent, CircleInput, MagicCircle};
 use piney_effect::{CharRef, Effects, Event, Host, ONE, V4, VecRef, dmath, drain, space};
 use piney_world::Rand;
-use piney_world::mt::Mt;
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -37,7 +37,7 @@ struct Probe {
     listed: HashMap<CharRef, bool>,
     dead: HashMap<CharRef, i16>,
     size: HashMap<CharRef, i32>,
-    mt: Mt,
+    mt: Genrand,
 }
 
 impl Probe {
@@ -51,7 +51,7 @@ impl Probe {
             listed: HashMap::new(),
             dead: HashMap::new(),
             size: HashMap::new(),
-            mt: Mt::default(),
+            mt: Genrand::default(),
         }
     }
 }
@@ -91,7 +91,7 @@ impl Host for Probe {
         self.size.get(&c).copied().unwrap_or(0)
     }
     fn genrand(&mut self) -> u32 {
-        self.mt.genrand()
+        self.mt.next_u32()
     }
 }
 
@@ -426,7 +426,7 @@ fn main() {
             }
             "mt" => {
                 for _ in 0..n(1) {
-                    host.mt.genrand();
+                    host.mt.next_u32();
                 }
                 println!("{{}}");
             }

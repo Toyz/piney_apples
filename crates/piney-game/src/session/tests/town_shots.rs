@@ -5,6 +5,7 @@
 //! `/mnt/data/claude/scratch/towns/shots`).
 
 use piney_input::{Buttons, Raw};
+use piney_world::world::CharId;
 
 use super::*;
 
@@ -40,7 +41,7 @@ fn town_shots() {
         f
     };
     let placed = |s: &Session| match &s.stage {
-        Stage::World(w) => matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2),
+        Stage::Area(w) if w.in_town() => matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2),
         _ => false,
     };
     while !placed(&s) {
@@ -51,7 +52,10 @@ fn town_shots() {
     }
     for k in 0..8i32 {
         {
-            let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+            let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             let dirc = (k * 8192 - 32768) as i16;
             assert!(w.world_mut().pc_command(PcCommand::Turn { pc: 0, dirc, chg: 0 }));
         }
@@ -70,8 +74,8 @@ fn town_shots() {
 }
 
 /// A walking PC's menu (`PcMenu`, 22: Talk / Trade) in Mac Anu, shot
-/// headless once it is up: Kite walks to the nearest walking PC until it
-/// is the command target and presses the action button. Compare with a
+/// headless once it is up: Kite walks to the nearest PC standing in a
+/// chat group until it is the command target and presses the action button. Compare with a
 /// PS2 capture of the same menu (the name frame at y 96, the list under
 /// it from y 114, no HP or SP, the target cursor still on the PC).
 /// `PINEY_SHOTS=DIR cargo test --release -p piney-game pc_menu_shot --
@@ -79,7 +83,7 @@ fn town_shots() {
 #[test]
 #[ignore]
 fn pc_menu_shot() {
-    use piney_world::event::entry::{Kind, Npc};
+    use piney_world::event::entry::Npc;
     let disc = std::env::var("PINEY_DISC").unwrap_or_else(|_| "infection".into());
     let iso = crate::check_image(&disc);
     if !iso.exists() {
@@ -100,22 +104,28 @@ fn pc_menu_shot() {
     let mut frame = None;
     for f in 0..3000u32 {
         let raw = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let Stage::Area(w) = &s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             let world = w.world();
             let ui = &w.ui().ctrl;
             if ui.menu == 22 && ui.menu_status == 2 {
                 opened = true;
             }
             let placed = matches!(world.phase(), piney_world::Phase::Play(n) if n >= 60);
-            let kite = world.player().body.pos.map(f32::from_bits);
-            let near = world
+            let kite = world.kite().pos().map(f32::from_bits);
+            // A PC standing in a chat group (thinkType 1): a walking one
+            // goes on along its route as Kite comes, and the target flickers.
+            let near = town_cast(world)
                 .pcs()
                 .iter()
+                .filter(|p| p.think_type == 1)
                 .map(|p| (p.code(), p.char.pos.map(f32::from_bits)))
                 .min_by_key(|(_, q)| ((q[0] - kite[0]).powi(2) + (q[1] - kite[1]).powi(2)) as i64);
             match near {
                 _ if !placed || opened => still(Buttons::NONE),
-                Some((code, _)) if world.command_target() == Some((Kind::Npc, code)) => {
+                Some((code, _)) if world.command_target_id() == Some(CharId::Npc(code)) => {
                     still(if f % 20 == 0 { Buttons::CROSS } else { Buttons::NONE })
                 }
                 Some((_, q)) => {

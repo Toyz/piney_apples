@@ -12,7 +12,7 @@ use super::*;
 
 fn map_flag(s: &Session) -> bool {
     match &s.stage {
-        Stage::Area(a) => match a.world().area().kind() {
+        Stage::Area(a) if !a.in_town() => match a.world().area().kind() {
             MapKind::Field(f) => f.map.as_ref().is_some_and(|m| m.map_flag),
             _ => false,
         },
@@ -34,6 +34,9 @@ fn a_fairys_orb_shows_the_portals() {
         // Kite's first item: one Fairy's Orb (id 2, TOOL, 1).
         if ready && !given {
             let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            if a.in_town() {
+                unreachable!()
+            }
             let save = &mut a.world_mut().state_mut().save;
             save.set_i16(offset::ITEM_LIST, 2);
             save.set_u8(offset::ITEM_LIST + 2, 13);
@@ -90,6 +93,9 @@ fn an_epitaph_reads_its_pages() {
         };
         if ready && !given {
             let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            if a.in_town() {
+                unreachable!()
+            }
             a.world_mut().state_mut().save.set_u8(offset::IMP_ITEM_LIST + 42, 1);
             given = true;
         }
@@ -165,6 +171,7 @@ fn fight_then_back(orb: bool) -> Option<(Vec<Held>, bool)> {
     for f in 0..4000u64 {
         if to.is_none()
             && let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && let MapKind::Dungeon(d) = a.world().area().kind()
         {
             to = Some((0, d.floors[0].down));
@@ -178,6 +185,9 @@ fn fight_then_back(orb: bool) -> Option<(Vec<Held>, bool)> {
                 if !opened {
                     // Kite's first item: one Fairy's Orb, in both runs.
                     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+                    if a.in_town() {
+                        unreachable!()
+                    }
                     let save = &mut a.world_mut().state_mut().save;
                     save.set_i16(offset::ITEM_LIST, 2);
                     save.set_u8(offset::ITEM_LIST + 2, 13);
@@ -268,6 +278,9 @@ fn a_speed_charm_on_kite_ends() {
         };
         if ready && !given {
             let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            if a.in_town() {
+                unreachable!()
+            }
             // Kite's only item: one Speed Charm.
             let save = &mut a.world_mut().state_mut().save;
             for k in 0..40 {
@@ -314,8 +327,8 @@ fn a_speed_charm_on_kite_ends() {
 /// The menus and the save of the town or the area `s` is in.
 pub(super) fn menus(s: &Session) -> Option<&piney_fieldui::FieldUi> {
     match &s.stage {
-        Stage::Area(a) => Some(a.ui()),
-        Stage::World(w) => Some(w.ui()),
+        Stage::Area(a) if !a.in_town() => Some(a.ui()),
+        Stage::Area(w) if w.in_town() => Some(w.ui()),
         _ => None,
     }
 }
@@ -323,7 +336,6 @@ pub(super) fn menus(s: &Session) -> Option<&piney_fieldui::FieldUi> {
 fn save_mut(s: &mut Session) -> Option<&mut piney_data::save::SaveData> {
     match &mut s.stage {
         Stage::Area(a) => Some(&mut a.world_mut().state_mut().save),
-        Stage::World(w) => Some(&mut w.world_mut().state_mut().save),
         _ => None,
     }
 }
@@ -382,7 +394,7 @@ fn the_book_of_law_warns_in_town() {
     use crate::session::area15::{disc, hold, start};
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
-    let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    let in_town = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
     hold(&mut s, 128, 128, 900, in_town);
     assert_eq!(read_the_book_of_law(&mut s, in_town), (true, true), "(the window, the sound)");
 }
@@ -408,7 +420,7 @@ fn a_book_read_in_town_raises_the_stat() {
     use piney_battle::param::{SpcParam, elm};
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
-    let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    let in_town = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
     hold(&mut s, 128, 128, 900, in_town);
     let save = save_mut(&mut s).expect("the town");
     let before = SpcParam::from_save(save, 0).elm[elm::P_ATK];
@@ -506,11 +518,13 @@ pub(super) fn read_ryu_book(
             given = true;
         }
         cover |= match &s.stage {
-            Stage::World(w) => w.streaming(),
-            Stage::Area(a) => a.movie_playing(),
+            Stage::Area(w) if w.in_town() => w.streaming(),
+            Stage::Area(a) if !a.in_town() => a.movie_playing(),
             _ => false,
         };
-        if let Stage::World(w) = &s.stage {
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
+        {
             if let Some(n) = w.stream_num().filter(|n| played.last() != Some(n)) {
                 played.push(n);
             }
@@ -561,7 +575,7 @@ fn a_ryu_book_opens_in_town() {
     use crate::session::area15::{disc, hold, start};
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
-    let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    let in_town = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
     hold(&mut s, 128, 128, 900, in_town);
     assert_eq!(read_a_ryu_book(&mut s, 0, in_town), (true, true), "(the cover, the pages)");
 }
@@ -576,7 +590,7 @@ fn the_later_ryu_books_open_and_close() {
     let Some((iso, archive)) = disc() else { return };
     for book in 3..8 {
         let mut s = start(&iso, &archive, None);
-        let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+        let in_town = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
         hold(&mut s, 128, 128, 900, in_town);
         assert_eq!(read_a_ryu_book(&mut s, book, in_town), (true, true), "book {}: (the cover, the pages)", book + 1);
         let mut pad = Pad::default();

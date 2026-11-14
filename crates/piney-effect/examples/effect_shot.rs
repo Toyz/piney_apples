@@ -235,11 +235,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut circle: Option<MagicCircle> = None;
     let mut spell: Option<i16> = None;
     let save = new_game(&mut iso)?;
-    let mut world = World::enter(&mut iso, archive.clone(), save)?;
+    let mut world = World::log_in(&mut iso, archive.clone(), save)?;
     let mut rand = Rand(1);
     let mut next = || rand.rand();
-    let mut mt = piney_world::mt::Mt::seeded(1);
-    let mut mt_next = || mt.genrand();
+    let mut mt = piney_battle::rand::Genrand::seeded(1);
+    let mut mt_next = || mt.next_u32();
     let mut pad = Pad::default();
     let last = shots.iter().copied().max().unwrap_or(0);
     let mut started: Option<u32> = None;
@@ -249,17 +249,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pad.read(&Raw::default());
         let mut ctx = Ctx::new(View::default());
         world.step_into(&pad, &mut ctx);
-        let transfer = world.take_requests().contains(&Request::Transfer);
-        let p = world.player();
+        let transfer = world.take_requests().contains(&piney_world::world::Request::Game(Request::Transfer));
         let camera = Camera::from_field(world.camera());
-        let kite = CharState::player(KITE, p);
+        let kite = CharState::kite(KITE, &world);
+        let (pos, dirc) = (world.kite().pos(), world.kite().dirc());
         // The foe: 150 in front of Kite (his heading 0 faces -y).
-        let (s, c) = (ee::f(p.body.dirc[2]).sin(), ee::f(p.body.dirc[2]).cos());
-        let at = |d: f32| -> V4 {
-            [ee::k(ee::f(p.body.pos[0]) + d * s), ee::k(ee::f(p.body.pos[1]) - d * c), p.body.pos[2], ONE]
-        };
+        let (s, c) = (ee::f(dirc[2]).sin(), ee::f(dirc[2]).cos());
+        let at = |d: f32| -> V4 { [ee::k(ee::f(pos[0]) + d * s), ee::k(ee::f(pos[1]) - d * c), pos[2], ONE] };
         let foe = CharState { id: FOE, pos: at(150.0), dirc: [0; 4], height: ee::k(120.0), width: ee::k(45.0) };
-        let (player_pos, circle_at) = (p.body.pos, at(400.0));
+        let (player_pos, circle_at) = (pos, at(400.0));
         let mut host = Simple::new(&mut next, player_pos, camera);
         host.genrand = Some(&mut mt_next);
         host.chars.push(kite);
@@ -303,6 +301,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         fx.step_particles(&mut host);
         fx.draw(&mut ctx.layers, &camera);
+        fx.draw_particles(&mut ctx.layers, &camera);
         if let Some(c) = circle.as_mut() {
             let d = ee::vsub(circle_at, player_pos);
             let input = CircleInput {

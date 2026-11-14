@@ -8,7 +8,7 @@
 //! waits for [`crate::World::close_menu`] (docs/engine/field-game.md).
 
 use crate::ee::{self, F, V4};
-use crate::event::entry::Kind;
+use crate::world::CharId;
 
 /// Base type flags of a character (`ccCharBaseParam::type`).
 pub mod flags {
@@ -74,9 +74,8 @@ impl Cond {
 /// One character on a command list, as the targeting reads it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cmnd {
-    /// Who it is, for the caller (an event's type and code).
-    pub kind: Kind,
-    pub code: i32,
+    /// Who it is ([`CharId`]: the game's `ccChar` pointer).
+    pub who: CharId,
     /// The base parameters' type flags (+0x08) and width (+0x1c). The
     /// flags choose its list, as `ccEntryCmnd` does: the party's for & 7,
     /// else the enemies' for & 0xe0, else the others'.
@@ -100,8 +99,8 @@ pub struct Cmnd {
 
 impl Cmnd {
     /// A standing character with no conditions, id 0 and act 0.
-    pub fn new(kind: Kind, code: i32, flags: u32, width: F, pos_p: V4) -> Cmnd {
-        Cmnd { kind, code, flags, width, id: 0, pos_p, cond: Cond::default(), act: 0, dist: 0, dirc: 0 }
+    pub fn new(who: CharId, flags: u32, width: F, pos_p: V4) -> Cmnd {
+        Cmnd { who, flags, width, id: 0, pos_p, cond: Cond::default(), act: 0, dist: 0, dirc: 0 }
     }
 
     /// The list `ccEntryCmnd` puts it on: 0 the party's, 1 the enemies',
@@ -589,8 +588,8 @@ impl<T: Copy> RecoveryReqs<T> {
 pub struct Targeting {
     /// `cmndTarget` (an index into the last frame's candidates, with who it
     /// is), `cmndTargetPrev`, `cmndTargetPriNum`, `cmndTargetFix`.
-    pub target: Option<(Kind, i32)>,
-    pub prev: Option<(Kind, i32)>,
+    pub target: Option<CharId>,
+    pub prev: Option<CharId>,
     pub pri: i32,
     pub fix: bool,
     /// The left stick's power last frame.
@@ -600,9 +599,9 @@ pub struct Targeting {
     /// States 1-5: a menu was asked for; waiting for it to close.
     pub in_menu: bool,
     /// `cmndSortRoot`'s chain as the last frame's `ccSortCmnd` left it:
-    /// each listed character within 3000 (kind, code, `cmndDist`,
-    /// `cmndDirc`), nearest first.
-    pub sorted: Vec<(Kind, i32, F, F)>,
+    /// each listed character within 3000 (who, `cmndDist`, `cmndDirc`),
+    /// nearest first.
+    pub sorted: Vec<(CharId, F, F)>,
     /// `menuClrWait` (gcmn 0x00378c78): frames the task waits after the
     /// events' `menu_clear` (`ccEvent::MenuClr` sets 2).
     pub menu_clr_wait: i32,
@@ -619,14 +618,13 @@ pub struct Targeting {
     /// The last target's base flags, from when it was chosen: the action
     /// button reads `cmndTarget->base->type` even once the target has left
     /// the lists (it is not re-checked while the leader is off them).
-    seen: Option<((Kind, i32), u32)>,
+    seen: Option<(CharId, u32)>,
 }
 
 /// What the action button did this frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Action {
-    pub kind: Kind,
-    pub code: i32,
+    pub who: CharId,
     pub flags: u32,
     /// `ccMenu.type`.
     pub menu: u16,
@@ -647,11 +645,6 @@ pub struct Input {
     pub personal: bool,
     pub chat: bool,
     pub option: bool,
-    /// `ccPlayerMenuCheck()` (gcmn 0x0059cd70: the party not wiped out,
-    /// `ccSkillCheck(plw) < 2`, the player's act neither 12 nor 13) and
-    /// `ccLoadDispCheck()` 0. [`Targeting::frame`] works these out itself
-    /// and reads this as `ccLoadDispCheck() == 0` only.
-    pub player_ok: bool,
     /// `ccMenu`: `CheckMenuType() == -1` and `openReqNum & 0xfff != 74`.
     pub menu_idle: bool,
     /// `ccMenu` +0xfe `forbid` (the events' `menu_ban`) and +0x100
@@ -660,44 +653,11 @@ pub struct Input {
     pub forbid_chat_except: bool,
     /// `ccMenu` +0xf4 `plAttack`.
     pub pl_attack: bool,
-    /// The player's condition: sleep, paralysis, confusion or charm
-    /// (+0x1a, +0x24, +0x1c, +0x1e); dead (+0x08). Only [`Targeting::step`]
-    /// reads these; [`Targeting::frame`] takes [`LeaderState::cond`].
-    pub held: bool,
-    pub dead: bool,
-    /// `ccSkillCheck(plw) == 1`. Only [`Targeting::step`] reads it;
-    /// [`Targeting::frame`] asks [`Host::skill_check`].
-    pub skill_one: bool,
     /// `game.area` (+0x14: 0 town, 1 field, 2 dungeon), `game.field`
     /// (+0x24), `WORLD_MAN::GetDungeonType()`.
     pub area: i32,
     pub field: i32,
     pub dungeon_type: i32,
-}
-
-impl Input {
-    /// A town frame with no menu open and nothing holding the player.
-    pub fn town(pow_l: u8, action: bool, eye: bool) -> Input {
-        Input {
-            pow_l,
-            eye,
-            action,
-            personal: false,
-            chat: false,
-            option: false,
-            player_ok: true,
-            menu_idle: true,
-            forbid: false,
-            forbid_chat_except: false,
-            pl_attack: false,
-            held: false,
-            dead: false,
-            skill_one: false,
-            area: 0,
-            field: 0,
-            dungeon_type: 0,
-        }
-    }
 }
 
 /// What [`Targeting::frame`] reads besides [`Leader`], the candidates and
@@ -722,21 +682,6 @@ pub struct Battle {
     pub compulsion_game_over: bool,
 }
 
-impl Battle {
-    /// Kite alone and standing, no menu, nothing loading.
-    pub fn alone(leader: &Leader) -> Battle {
-        Battle {
-            kite: LeaderState::default(),
-            party: Party::alone(leader, 0),
-            menu: -1,
-            menu_closed: true,
-            load_disp: false,
-            gt_hack: false,
-            compulsion_game_over: false,
-        }
-    }
-}
-
 /// What the task calls outside the command lists, at the point in the
 /// frame the game calls it.
 pub trait Host {
@@ -751,7 +696,7 @@ pub trait Host {
     /// attack on the target - piney-battle's `flow::Skills::request(..,
     /// kite, Some(target), 1, 0, ..)`. The next `skill_check` of the frame
     /// must see it.
-    fn skill_request(&mut self, kind: Kind, code: i32);
+    fn skill_request(&mut self, who: CharId);
     /// `ccCtrlRecoveryReq()`: [`RecoveryReqs::ctrl`], where the game runs
     /// it. Nothing by default.
     fn recovery(&mut self) {}
@@ -770,7 +715,7 @@ pub enum Ctrl {
     /// The action button on an enemy with no skill running: the normal
     /// attack was requested ([`Host::skill_request`]) and
     /// `cmndTargetFix` set; [`Out::pl_attack`] carries `plAttack`.
-    Attack { kind: Kind, code: i32 },
+    Attack { who: CharId },
     /// The party is wiped out (or `compulsionGameOver`): the task leaves
     /// its loop for the game over (0x0051791c on), which the caller runs.
     GameOver,
@@ -820,53 +765,7 @@ fn personal_menu(input: &Input, host: &mut dyn Host) -> i16 {
     }
 }
 
-/// The town's [`Host`]: `ccEvent::CheckOperate` through a closure and a
-/// fixed `ccSkillCheck`.
-struct Town<'a> {
-    check: &'a mut dyn FnMut(i32) -> bool,
-    skill: i32,
-}
-
-impl Host for Town<'_> {
-    fn check_operate(&mut self, n: i32) -> bool {
-        (self.check)(n)
-    }
-    fn skill_check(&mut self) -> i32 {
-        self.skill
-    }
-    fn skill_request(&mut self, _: Kind, _: i32) {}
-}
-
 impl Targeting {
-    /// One frame of `ccThGameCtrl` (gcmn 0x00517800) in its play states: sort,
-    /// select the command target, then chat (only chat under `menu_ban`),
-    /// option, personal, and the action button on the target. `check` is
-    /// `ccEvent::CheckOperate(n, 0)`: 10 chat, 12 option, 11 personal, 14 the
-    /// personal menu's field case, 9 action. The town's call of
-    /// [`Targeting::frame`]; a menu's wait ends with [`Targeting::close_menu`].
-    pub fn step(
-        &mut self,
-        leader: &Leader,
-        cands: &mut [Cmnd],
-        input: &Input,
-        check: &mut dyn FnMut(i32) -> bool,
-    ) -> Option<Step> {
-        let mut b = Battle::alone(leader);
-        b.kite.cond.dead = i16::from(input.dead);
-        b.kite.cond.sleep = i16::from(input.held);
-        b.menu_closed = false;
-        b.load_disp = !input.player_ok;
-        let mut game = InBattle::default();
-        let mut host = Town { check, skill: i32::from(input.skill_one) };
-        let out = self.frame(leader, cands, input, &b, &mut game, &mut host);
-        match out.step {
-            Some(Ctrl::Open(m)) => Some(Step::Open(m)),
-            Some(Ctrl::Action(a)) => Some(Step::Action(a)),
-            _ if input.pl_attack && !out.pl_attack => Some(Step::ClearAttack),
-            _ => None,
-        }
-    }
-
     /// One frame of `ccThGameCtrl`'s loop (gcmn 0x005178f0-0x00518a98), in the
     /// game's order: the game over ([`Ctrl::GameOver`] once); [`Host::recovery`],
     /// [`sort`]; [`InBattle::set`] of [`battle_now`] unless `ccMenu.menu` is 66;
@@ -903,7 +802,7 @@ impl Targeting {
         }
         host.recovery();
         let sorted = sort(leader, cands);
-        self.sorted = sorted.iter().map(|&i| (cands[i].kind, cands[i].code, cands[i].dist, cands[i].dirc)).collect();
+        self.sorted = sorted.iter().map(|&i| (cands[i].who, cands[i].dist, cands[i].dirc)).collect();
         if b.menu != 66 {
             if type_id_listed(&b.kite, cands, b.kite.flags, b.kite.id) {
                 game.set(battle_now(leader, &b.kite, &b.party, cands, input.field, game.dist));
@@ -943,7 +842,7 @@ impl Targeting {
         if !input.menu_idle {
             return out;
         }
-        let listed = |t: Option<(Kind, i32)>| t.and_then(|t| cands.iter().position(|c| (c.kind, c.code) == t));
+        let listed = |t: Option<CharId>| t.and_then(|t| cands.iter().position(|c| c.who == t));
         let prev_pow = self.pow_l_prev;
         self.pow_l_prev = input.pow_l;
         if !self.fix {
@@ -958,7 +857,7 @@ impl Targeting {
                 };
                 let scope = Scope { eye: input.eye, in_battle: game.in_battle != 0, field: input.field };
                 let t = select_target(leader, &b.kite, cands, &sorted, mode, &mut self.pri, scope);
-                self.change(t.map(|i| (cands[i].kind, cands[i].code)), cands);
+                self.change(t.map(|i| cands[i].who), cands);
             }
         } else if self.target.is_some() {
             self.pri = 0;
@@ -1006,16 +905,15 @@ impl Targeting {
             // the lists.
             let seen = self.seen.filter(|&(w, _)| w == t).map(|(_, f)| f);
             if let Some(f) = listed(Some(t)).map(|i| cands[i].flags).or(seen) {
-                let (kind, code) = t;
                 if let Some(menu) = menu_for(f) {
                     self.in_menu = true;
                     out.pause = Some(true);
-                    out.step = Some(Ctrl::Action(Action { kind, code, flags: f, menu }));
+                    out.step = Some(Ctrl::Action(Action { who: t, flags: f, menu }));
                 } else if f & flags::ENEMY != 0 && host.skill_check() == 0 {
-                    host.skill_request(kind, code);
+                    host.skill_request(t);
                     out.pl_attack = true;
                     self.fix = true;
-                    out.step = Some(Ctrl::Attack { kind, code });
+                    out.step = Some(Ctrl::Attack { who: t });
                 }
             }
         }
@@ -1037,29 +935,29 @@ impl Targeting {
 
     /// `ccChangeCmndTarget(t)`: `t` if it is listed (`ccCheckTarget`),
     /// else none.
-    fn change(&mut self, t: Option<(Kind, i32)>, cands: &[Cmnd]) {
+    fn change(&mut self, t: Option<CharId>, cands: &[Cmnd]) {
         if t == self.target {
             return;
         }
         self.prev = self.target;
-        let found = t.and_then(|t| cands.iter().find(|c| (c.kind, c.code) == t));
-        self.target = found.map(|c| (c.kind, c.code));
+        let found = t.and_then(|t| cands.iter().find(|c| c.who == t));
+        self.target = found.map(|c| c.who);
         if let Some(c) = found {
-            self.seen = Some(((c.kind, c.code), c.flags));
+            self.seen = Some((c.who, c.flags));
         }
     }
 
     /// `ccChangeCmndTarget(t)` as the field's menus call it: the target
     /// becomes `cmndTargetPrev` and `t` the target.
-    pub fn set_target(&mut self, t: Option<(Kind, i32)>) {
+    pub fn set_target(&mut self, t: Option<CharId>) {
         if t != self.target {
             self.prev = self.target;
             self.target = t;
         }
     }
 
-    /// `ccMenuCtrl::CheckMenuType() == -1`: the menu closed; back to state
-    /// 0 ([`Targeting::step`]'s callers; [`Targeting::frame`] reads
+    /// `ccMenuCtrl::CheckMenuType() == -1` after the menu task: the menu
+    /// closed; back to state 0 ([`Targeting::frame`] also reads
     /// [`Battle::menu_closed`] itself).
     pub fn close_menu(&mut self) {
         self.in_menu = false;
@@ -1070,18 +968,6 @@ impl Targeting {
     pub fn menu_clear(&mut self) {
         self.menu_clr_wait = 2;
     }
-}
-
-/// What a frame of [`Targeting::step`] asks of the field's menus.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Step {
-    /// The action button on the command target (state 5).
-    Action(Action),
-    /// A button asked for a menu: `openReqNum = menu`, `mode = 0`,
-    /// `firstTime = 1` (states 1 personal, 2 chat, 3 option).
-    Open(i16),
-    /// `ccMenu.plAttack` and `cmndTargetFix` cleared.
-    ClearAttack,
 }
 
 /// What the action button asks the field's menus for.
@@ -1096,13 +982,13 @@ pub enum TalkRequest {
     /// `base->msg[game.server]` (`ccMessage::Open` with the merchant's
     /// name): `msg` the table, `line` the server.
     Shop { npc: i32, shop: Shop, msg: u32, line: i32 },
-    /// Any other target: `ccMenu` type `menu` for the character
-    /// `kind`/`code` (the Chaos Gate's 28, a party member's 21, an
-    /// administrator's 23, ...).
-    Menu { menu: u16, kind: Kind, code: i32 },
+    /// Any other target: `ccMenu` type `menu` for the character `who`
+    /// (the Chaos Gate's 28, a party member's 21, an administrator's 23,
+    /// ...).
+    Menu { menu: u16, who: CharId },
     /// Talking to a character an event took over (`add_target`): the event
     /// runs instead of a menu (`ccEvent::CheckOperate(9)`).
-    Event { kind: Kind, code: i32 },
+    Event { who: CharId },
     /// A button asked for menu `menu` (`openReqNum`), `mode` 0 and
     /// `firstTime` 1: PERSONAL (0-2), CHAT (3) or OPTION (12).
     Open { menu: i16 },
@@ -1163,6 +1049,90 @@ impl Shop {
 mod tests {
     use super::*;
 
+    /// What a test frame asks of the menus.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Step {
+        Action(Action),
+        Open(i16),
+        ClearAttack,
+    }
+
+    /// No menu open, nothing holding the player.
+    fn town_input(pow_l: u8, action: bool, eye: bool) -> Input {
+        Input {
+            pow_l,
+            eye,
+            action,
+            personal: false,
+            chat: false,
+            option: false,
+            menu_idle: true,
+            forbid: false,
+            forbid_chat_except: false,
+            pl_attack: false,
+            area: 0,
+            field: 0,
+            dungeon_type: 0,
+        }
+    }
+
+    /// Kite alone and standing, no menu, nothing loading.
+    fn alone(leader: &Leader) -> Battle {
+        Battle {
+            kite: LeaderState::default(),
+            party: Party::alone(leader, 0),
+            menu: -1,
+            menu_closed: true,
+            load_disp: false,
+            gt_hack: false,
+            compulsion_game_over: false,
+        }
+    }
+
+    /// `ccEvent::CheckOperate` through a closure, no skill running.
+    struct Check<'a>(&'a mut dyn FnMut(i32) -> bool);
+
+    impl Host for Check<'_> {
+        fn check_operate(&mut self, n: i32) -> bool {
+            (self.0)(n)
+        }
+        fn skill_check(&mut self) -> i32 {
+            0
+        }
+        fn skill_request(&mut self, _: CharId) {}
+    }
+
+    /// A frame with Kite alone and standing (`kite` his state), the menu
+    /// ended only by `close_menu`, `load_disp` as given.
+    fn frame_with(
+        t: &mut Targeting,
+        leader: &Leader,
+        cands: &mut [Cmnd],
+        input: &Input,
+        check: &mut dyn FnMut(i32) -> bool,
+        kite: LeaderState,
+        load_disp: bool,
+    ) -> Option<Step> {
+        let b = Battle { kite, menu_closed: false, load_disp, ..alone(leader) };
+        let out = t.frame(leader, cands, input, &b, &mut InBattle::default(), &mut Check(check));
+        match out.step {
+            Some(Ctrl::Open(m)) => Some(Step::Open(m)),
+            Some(Ctrl::Action(a)) => Some(Step::Action(a)),
+            _ if input.pl_attack && !out.pl_attack => Some(Step::ClearAttack),
+            _ => None,
+        }
+    }
+
+    fn step(
+        t: &mut Targeting,
+        leader: &Leader,
+        cands: &mut [Cmnd],
+        input: &Input,
+        check: &mut dyn FnMut(i32) -> bool,
+    ) -> Option<Step> {
+        frame_with(t, leader, cands, input, check, LeaderState::default(), false)
+    }
+
     #[test]
     fn menus_by_flags() {
         assert_eq!(menu_for(flags::PC), Some(22));
@@ -1186,7 +1156,7 @@ mod tests {
         let v = |x: f32, y: f32| [x.to_bits(), y.to_bits(), 0, ee::ONE];
         let dist = |volume| {
             let leader = Leader { volume, pos_p: v(0.0, 0.0), dirc: [0; 4], width: 45f32.to_bits() };
-            let mut cands = vec![Cmnd::new(Kind::Npc, 1, flags::PC, 45f32.to_bits(), v(1.0, 2.0))];
+            let mut cands = vec![Cmnd::new(CharId::Npc(1), flags::PC, 45f32.to_bits(), v(1.0, 2.0))];
             sort(&leader, &mut cands);
             cands[0].dist
         };
@@ -1206,24 +1176,24 @@ mod tests {
         let w = 45f32.to_bits();
         // Heading 0 faces -y: one ahead, one behind, one far ahead.
         let mut cands = vec![
-            Cmnd::new(Kind::Npc, 1, flags::PC, w, v(0.0, 250.0)),
-            Cmnd::new(Kind::Npc, 2, flags::PC, w, v(0.0, -250.0)),
-            Cmnd::new(Kind::Npc, 3, flags::PC, w, v(0.0, -2000.0)),
+            Cmnd::new(CharId::Npc(1), flags::PC, w, v(0.0, 250.0)),
+            Cmnd::new(CharId::Npc(2), flags::PC, w, v(0.0, -250.0)),
+            Cmnd::new(CharId::Npc(3), flags::PC, w, v(0.0, -2000.0)),
         ];
         let sorted = sort(&leader, &mut cands);
         assert_eq!(sorted, [0, 1, 2]);
         let mut pri = 0;
         assert_eq!(select(&leader, &cands, &sorted, 1, &mut pri, false, false), Some(1));
         let mut t = Targeting::default();
-        let input = Input::town(0, true, false);
+        let input = town_input(0, true, false);
         let mut ok = |_| true;
         for _ in 0..5 {
-            assert_eq!(t.step(&leader, &mut cands, &input, &mut ok), None);
+            assert_eq!(step(&mut t, &leader, &mut cands, &input, &mut ok), None);
         }
-        let Some(Step::Action(a)) = t.step(&leader, &mut cands, &input, &mut ok) else { panic!() };
-        assert_eq!((a.code, a.menu), (2, 22));
+        let Some(Step::Action(a)) = step(&mut t, &leader, &mut cands, &input, &mut ok) else { panic!() };
+        assert_eq!((a.who, a.menu), (CharId::Npc(2), 22));
         assert!(t.in_menu);
-        assert_eq!(t.step(&leader, &mut cands, &input, &mut ok), None);
+        assert_eq!(step(&mut t, &leader, &mut cands, &input, &mut ok), None);
         t.close_menu();
         assert!(!t.in_menu);
     }
@@ -1240,14 +1210,14 @@ mod tests {
             width: 45f32.to_bits(),
         };
         let mut t = Targeting::default();
-        let input = Input::town(0, true, false);
+        let input = town_input(0, true, false);
         let mut ok = |_| true;
         let mut seen = Vec::new();
         for f in 0..5 {
             if f == 1 {
                 t.menu_clear();
             }
-            t.step(&leader, &mut [], &input, &mut ok);
+            step(&mut t, &leader, &mut [], &input, &mut ok);
             seen.push(t.map_test);
         }
         assert_eq!(seen, [true, false, false, true, true]);
@@ -1264,12 +1234,17 @@ mod tests {
         let mut t = Targeting { frames: 5, ..Targeting::default() };
         let mut ok = |_| true;
         let step = |t: &mut Targeting, input: &Input, check: &mut dyn FnMut(i32) -> bool| {
-            let r = t.step(&leader, &mut [], input, check);
+            let r = step(t, &leader, &mut [], input, check);
+            t.close_menu();
+            r
+        };
+        let step_with = |t: &mut Targeting, input: &Input, kite: LeaderState, load_disp: bool| {
+            let r = frame_with(t, &leader, &mut [], input, &mut |_| true, kite, load_disp);
             t.close_menu();
             r
         };
         // Chat wins over option, personal and action pushed together.
-        let all = Input { chat: true, option: true, personal: true, ..Input::town(0, true, false) };
+        let all = Input { chat: true, option: true, personal: true, ..town_input(0, true, false) };
         assert_eq!(step(&mut t, &all, &mut ok), Some(Step::Open(3)));
         // Under menu_ban only chat, and only with forbidChatExcept.
         let banned = Input { forbid: true, ..all };
@@ -1282,7 +1257,7 @@ mod tests {
         let mut no_chat = |n| n != 10;
         assert_eq!(step(&mut t, &all, &mut no_chat), Some(Step::Open(12)));
         // Personal by area.
-        let personal = Input { personal: true, ..Input::town(0, false, false) };
+        let personal = Input { personal: true, ..town_input(0, false, false) };
         assert_eq!(step(&mut t, &personal, &mut ok), Some(Step::Open(0)));
         let field = |f| Input { area: 1, field: f, ..personal };
         assert_eq!(step(&mut t, &field(5), &mut ok), Some(Step::Open(2)));
@@ -1295,11 +1270,12 @@ mod tests {
         assert_eq!(step(&mut t, &dungeon(9), &mut ok), Some(Step::Open(1)));
         assert_eq!(step(&mut t, &dungeon(0), &mut ok), Some(Step::Open(2)));
         // Asleep or paralysed: no personal menu, the attack flag cleared.
-        let held = Input { held: true, pl_attack: true, ..personal };
-        assert_eq!(step(&mut t, &held, &mut ok), Some(Step::ClearAttack));
+        let asleep = LeaderState { cond: Cond { sleep: 1, ..Cond::default() }, ..LeaderState::default() };
+        let held = Input { pl_attack: true, ..personal };
+        assert_eq!(step_with(&mut t, &held, asleep, false), Some(Step::ClearAttack));
         // Nothing while a menu is open or the player cannot act.
         assert_eq!(step(&mut t, &Input { menu_idle: false, ..all }, &mut ok), None);
-        assert_eq!(step(&mut t, &Input { player_ok: false, ..all }, &mut ok), None);
+        assert_eq!(step_with(&mut t, &all, LeaderState::default(), true), None);
     }
 
     #[test]
@@ -1323,7 +1299,7 @@ mod tests {
     /// A host with a normal attack that goes through.
     struct Fight {
         skill: i32,
-        asked: Vec<(Kind, i32)>,
+        asked: Vec<CharId>,
     }
 
     impl Host for Fight {
@@ -1333,8 +1309,8 @@ mod tests {
         fn skill_check(&mut self) -> i32 {
             self.skill
         }
-        fn skill_request(&mut self, kind: Kind, code: i32) {
-            self.asked.push((kind, code));
+        fn skill_request(&mut self, who: CharId) {
+            self.asked.push(who);
             self.skill = 1;
         }
     }
@@ -1351,23 +1327,23 @@ mod tests {
         let w = 45f32.to_bits();
         // A goblin 100 ahead, Orca beside him; another goblin 2000 off.
         let mut cands = vec![
-            Cmnd::new(Kind::Spc, 2, 6, w, v(80.0, 0.0)),
-            Cmnd::new(Kind::Enemy, 7, 0x20, w, v(0.0, -100.0)),
-            Cmnd::new(Kind::Enemy, 8, 0x20, w, v(0.0, -2000.0)),
+            Cmnd::new(CharId::Member(2), 6, w, v(80.0, 0.0)),
+            Cmnd::new(CharId::Scene(7), 0x20, w, v(0.0, -100.0)),
+            Cmnd::new(CharId::Scene(8), 0x20, w, v(0.0, -2000.0)),
         ];
-        let mut b = Battle::alone(&leader);
+        let mut b = alone(&leader);
         b.party.slots[1] = Some(Member { pos_p: cands[0].pos_p, dead: 0, who: Who::Cand(0) });
         b.party.num = 2;
         let mut game = InBattle::default();
         let mut t = Targeting { frames: 5, ..Targeting::default() };
         let mut host = Fight { skill: 0, asked: vec![] };
-        let input = Input { area: 1, field: 14, ..Input::town(0, true, false) };
+        let input = Input { area: 1, field: 14, ..town_input(0, true, false) };
         let out = t.frame(&leader, &mut cands, &input, &b, &mut game, &mut host);
         assert_eq!((game.in_battle, game.cnt), (1, 60));
-        assert_eq!(t.target, Some((Kind::Enemy, 7)));
-        assert_eq!(out.step, Some(Ctrl::Attack { kind: Kind::Enemy, code: 7 }));
+        assert_eq!(t.target, Some(CharId::Scene(7)));
+        assert_eq!(out.step, Some(Ctrl::Attack { who: CharId::Scene(7) }));
         assert!(out.pl_attack && t.fix);
-        assert_eq!(host.asked, [(Kind::Enemy, 7)]);
+        assert_eq!(host.asked, [CharId::Scene(7)]);
         // The attack over, plAttack and the fix go.
         host.skill = 0;
         let input = Input { pl_attack: true, action: false, ..input };

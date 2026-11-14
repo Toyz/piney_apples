@@ -1,7 +1,7 @@
 //! `ccMenuCtrl` (0x240 bytes) and its task `ccThMenu` (gcmn 0x005280d0):
 //! the state, opening and closing menus, and the list cursor.
 
-use piney_battle::rand::{Rand, Rng as _};
+use piney_battle::rand::Rand;
 use piney_desktop::SaveState;
 use piney_desktop::kanji::Fonts;
 use piney_desktop::message::{MsgDraw, MsgWindow};

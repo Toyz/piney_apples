@@ -29,12 +29,17 @@ impl Rand {
     pub fn new(state: u64) -> Self {
         Rand(state)
     }
+
+    /// The next value, 0 to 0x7fffffff.
+    pub fn rand(&mut self) -> i32 {
+        self.0 = self.0.wrapping_mul(Self::MUL).wrapping_add(1);
+        ((self.0 >> 32) & 0x7fff_ffff) as i32
+    }
 }
 
 impl Rng for Rand {
     fn rand(&mut self) -> i32 {
-        self.0 = self.0.wrapping_mul(Self::MUL).wrapping_add(1);
-        ((self.0 >> 32) & 0x7fff_ffff) as i32
+        Rand::rand(self)
     }
 }
 

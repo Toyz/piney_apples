@@ -3,7 +3,6 @@
 //! characters an effect may name) and lends its `rand()`.
 
 use piney_world::camera::Camera as FieldCamera;
-use piney_world::chara::player::Player;
 
 use crate::draw::Camera;
 use crate::ee::{F, ONE, V4};
@@ -23,8 +22,9 @@ pub struct CharState {
 
 impl CharState {
     /// Kite as the field's player: `plw`.
-    pub fn player(id: CharRef, p: &Player) -> CharState {
-        CharState { id, pos: p.body.pos, dirc: p.body.dirc, height: p.height, width: p.width }
+    pub fn kite(id: CharRef, w: &piney_world::world::World) -> CharState {
+        let (height, width) = w.kite().built().map_or((0, 0), |k| (k.ch.base().height, k.ch.base().width));
+        CharState { id, pos: w.kite().pos(), dirc: w.kite().dirc(), height, width }
     }
 }
 

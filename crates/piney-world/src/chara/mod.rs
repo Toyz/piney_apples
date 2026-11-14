@@ -13,6 +13,4 @@ pub mod motion;
 pub mod navi;
 pub mod npc;
 pub mod party;
-#[doc(alias = "ccPlayer")]
-pub mod player;
 pub mod pose;

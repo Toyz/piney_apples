@@ -31,6 +31,9 @@ fn area_27() -> Option<Session> {
     scene.change_scene(1, 1, 27, -1, -1, -1, &mut state.save);
     let mut s = Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap();
     let Stage::Area(a) = &mut s.stage else { panic!("not in area 27") };
+    if a.in_town() {
+        panic!("not in area 27")
+    }
     let sp = a.world_mut().spcs_mut();
     let i = sp.entry_spc(BLACK_ROSE) as usize;
     sp.registry[i].party_flag = 1;
@@ -64,6 +67,9 @@ fn play(mut each: impl FnMut(&Session, u32, &Look, &Frame)) -> Option<Session> {
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         let w = a.world();
         let c = w.combat();
         let hand = c.kite.and_then(|k| c.cast.get(k)).and_then(|a| a.hand_now()).map(|m| m[3]);
@@ -78,7 +84,7 @@ fn play(mut each: impl FnMut(&Session, u32, &Look, &Frame)) -> Option<Session> {
         }
         let look = Look {
             rays: c.rays.iter().map(Vec::len).sum(),
-            lit: !c.rad_lights.is_empty(),
+            lit: !c.gimmick_lights.rays.is_empty(),
             hand: hand.map(|p| [p[0], p[1], p[2]].map(f32::from_bits)),
             ray0: c
                 .rays
@@ -121,6 +127,9 @@ fn the_bracelet_shines_in_chosen_hopeless_nothingness() {
         return;
     };
     let Stage::Area(a) = &s.stage else { panic!("left the area: {}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("left the area: {}", Mode::title(&s))
+    }
     let calls: Vec<&str> = a.calls().iter().map(|(_, c)| c.as_str()).collect();
     println!("shining {shining} frames, {with_window} with the window, lit {lit}");
     assert!(calls.iter().any(|c| c.starts_with("gimmick Radiator")), "no radiator: {calls:?}");
@@ -143,7 +152,9 @@ fn bracelet_shots() {
         let on = look.rays > 0;
         if on != was {
             println!("frame {f}: rays {} (window {})", look.rays, look.window);
-            if let Stage::Area(a) = &s.stage {
+            if let Stage::Area(a) = &s.stage
+                && !a.in_town()
+            {
                 for (n, c) in a.calls().iter().rev().take(12).rev() {
                     println!("  {n}: {c}");
                 }

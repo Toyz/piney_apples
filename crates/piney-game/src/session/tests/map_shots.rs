@@ -50,7 +50,7 @@ fn shoot(s: &mut Session, dir: &str, name: &str, frames: u32, walk: u32, at: &[u
         gs.set_overlay(Mode::archive(s));
         gs.render(&frame);
         let play = match &s.stage {
-            Stage::Area(a) => a.world().phase(),
+            Stage::Area(a) if !a.in_town() => a.world().phase(),
             _ => continue,
         };
         if let piney_world::Phase::Play(p) = play

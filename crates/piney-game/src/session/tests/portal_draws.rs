@@ -33,8 +33,8 @@ fn in_giants_dungeon(before: u32) -> Option<Session> {
 /// The world's phase as the next step begins, in a field or a town.
 fn phase(s: &Session) -> Option<Phase> {
     match &s.stage {
-        Stage::Area(a) => Some(a.world().phase()),
-        Stage::World(w) => Some(w.world().phase()),
+        Stage::Area(a) if !a.in_town() => Some(a.world().phase()),
+        Stage::Area(w) if w.in_town() => Some(w.world().phase()),
         _ => None,
     }
 }
@@ -75,6 +75,9 @@ enum Gift {
 /// The rows of the enemies standing in the dungeon.
 fn foes(s: &Session) -> Vec<i32> {
     let Stage::Area(a) = &s.stage else { return vec![] };
+    if a.in_town() {
+        return vec![];
+    }
     let c = a.world().combat();
     c.ctrl.list(Kind::Enemy).into_iter().filter_map(|i| c.foes.get(i)?.as_ref()).map(|e| e.ent.id).collect()
 }
@@ -82,6 +85,9 @@ fn foes(s: &Session) -> Vec<i32> {
 /// The gimmicks on the entry control's list: (object, row).
 fn gimmicks(s: &Session) -> Vec<(usize, i32)> {
     let Stage::Area(a) = &s.stage else { return vec![] };
+    if a.in_town() {
+        return vec![];
+    }
     let c = a.world().combat();
     let gims = c.ctrl.list(Kind::Gimmick).into_iter();
     gims.filter_map(|i| Some((i, c.ctrl.entry_obj(i)?.ent.id))).collect()
@@ -93,10 +99,16 @@ fn giants_portal(before: u32, stand: u32) -> Option<Gift> {
     let mut s = in_giants_dungeon(before)?;
     play_in(&mut s, (0, 0));
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     assert!(a.world_mut().room_select(ROOM.0, ROOM.1));
     play_in(&mut s, ROOM);
     wait(&mut s, stand);
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let c = a.world().combat();
     let at = c
         .ctrl
@@ -108,11 +120,17 @@ fn giants_portal(before: u32, stand: u32) -> Option<Gift> {
     let tenth = |v: u32| (f32::from_bits(v) / 10.0).round() as i16;
     let before = gimmicks(&s);
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     a.world_mut().pc_command(PcCommand::Put { pc: 0, x: tenth(at[0]), y: tenth(at[1]), z: tenth(at[2]) });
     // ccMagicCircle::main: acts 1 and 2 take 52 frames to the gift.
     for _ in 0..200 {
         wait(&mut s, 1);
         let Stage::Area(a) = &s.stage else { unreachable!() };
+        if a.in_town() {
+            unreachable!()
+        }
         let c = a.world().combat();
         let open = c.ctrl.list(Kind::Circle).into_iter().all(|i| c.ctrl.entry_obj(i).is_none_or(|o| !o.obj_flag));
         if open || !foes(&s).is_empty() {
@@ -157,6 +175,9 @@ fn each_set_up_seeds_ccrand_from_the_frames_at_its_step() {
     let at = step_to_init_rand(&mut s);
     play_in(&mut s, (0, 0));
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     assert_eq!(a.world().rand_count(), at, "the first arrival");
     let mut rnds = 0;
     piney_battle::rand::init_rand(at, &mut rnds);
@@ -170,9 +191,15 @@ fn each_set_up_seeds_ccrand_from_the_frames_at_its_step() {
     let at = step_to_init_rand(&mut s);
     play_in(&mut s, ROOM);
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     assert_eq!(a.world().rand_count(), at, "through a door");
     s.console("town 0");
     let at = step_to_init_rand(&mut s);
-    let Stage::World(w) = &s.stage else { panic!("not in Mac Anu: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("not in Mac Anu: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("not in Mac Anu: {}", Mode::title(&s))
+    }
     assert_eq!(w.world().rand_count(), at, "in Mac Anu");
 }

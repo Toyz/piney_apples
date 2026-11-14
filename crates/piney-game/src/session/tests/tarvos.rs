@@ -5,6 +5,7 @@
 
 use piney_battle::boss::tarvos::act;
 use piney_battle::boss::{Boss, defs};
+use piney_world::world::CharId;
 
 use super::arena::{EVENT_310, arena_session, god_shots, play};
 use super::*;
@@ -90,7 +91,7 @@ fn tarvos_drained_plays_its_own_movie() {
     for i in 0..30000u64 {
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         let press = |b: Buttons| if i.is_multiple_of(8) { Raw { buttons: b, ..still } } else { still };
-        if !matches!(s.stage, Stage::Area(_)) {
+        if !matches!(s.stage, Stage::Area(ref t) if !t.in_town()) {
             pad.read(&press(Buttons::CROSS));
             s.step(&pad);
             s.take_events();
@@ -98,6 +99,9 @@ fn tarvos_drained_plays_its_own_movie() {
         }
         let raw = {
             let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            if a.in_town() {
+                unreachable!()
+            }
             if !prepared {
                 let save = &mut a.world_mut().state_mut().save;
                 let has = (0..20).any(|k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) == 2);
@@ -165,11 +169,7 @@ fn tarvos_drained_plays_its_own_movie() {
                 (0..=2, _) => press(go_to(m.list().items.iter().position(|&x| x == 4).unwrap_or(0))),
                 (4, _) if m.list().page < 5 => press(Buttons::RIGHT),
                 (4, _) => press(go_to(0)),
-                (65, Some((me, _)))
-                    if w.targeting().target != Some((piney_world::event::entry::Kind::Enemy, me as i32)) =>
-                {
-                    press(Buttons::DOWN)
-                }
+                (65, Some((me, _))) if w.targeting().target != Some(CharId::Scene(me)) => press(Buttons::DOWN),
                 _ => press(Buttons::CROSS),
             }
         };
@@ -178,6 +178,9 @@ fn tarvos_drained_plays_its_own_movie() {
         s.take_events();
     }
     let Stage::Area(a) = &s.stage else { panic!("not in the arena: {}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("not in the arena: {}", Mode::title(&s))
+    }
     let calls: Vec<&str> = a.calls().iter().map(|(_, c)| c.as_str()).collect();
     assert!(drain_menu, "menu 66 never ran");
     assert!(guard_at_menu.is_some_and(|d| d < 2), "Tarvos was not guarding at the drain: {guard_at_menu:?}");

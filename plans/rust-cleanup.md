@@ -192,7 +192,7 @@ fragment's later, are definitions; a new kind of behaviour is one system.
 
 Where the code does by hand, per kind, what a system should do once:
 
-- [ ] **One world, one area system.** The game has one `WORLD_MAN` whose
+- [x] **One world, one area system.** The game has one `WORLD_MAN` whose
       `GO(0/1/2)` makes a town, a story map, a field or a dungeon. The port
       has two worlds: `piney_world::World` (towns, `lib.rs`) and
       `FieldWorld` (fields, dungeons, story maps, `field/world.rs`, 4,311
@@ -206,23 +206,18 @@ Where the code does by hand, per kind, what a system should do once:
       map, field, dungeon behind the `AreaMap` trait, made by the registries
       as `WORLD_MAN::GO` does), one mode, one host, one effect host. The
       `AreaMap` and `EvHost` items below are steps toward this.
-      Done so far: the two modes' behaviour settled from the game's code
-      (worklog 574: a town's tasks run beside a script's stream; 575: a
-      town's set-up goes by `CheckSceneReplace` for its sound; 576: a
-      town's characters' effects and sounds taken in their frame), and the
-      Root Town an `AreaMap` the town's world holds as `Box<dyn AreaMap>`
-      (worklog 577: start, clear, put, disp, marker file, minimap; `written`
-      in `AreaCore`). Left: one `World` (the field world's core with
-      `Combat` for every area, a town's its party, and a `Cast` holding
-      what truly differs: Kite run as `chara::player` in a town and as the
-      battle's character elsewhere, characters addressed by kind and code
-      or by scene index, the town's merchants, dogs, Grunties, walking PCs,
-      Gate, Flag Race and ride against the battle's entry control, and the
-      town's own `rand()` stream against `combat.rand`); the town's
-      per-character outputs (`PcEvent`, `DogEvent`, `GruntyEvent`,
-      `SysopEvent`, gate sounds, steps, dust, race events) as generic
-      shows the one effect host (`fx.rs`'s `AreaFx` taking `TownFx`'s
-      starts) and the one mode consume; then one mode and one `HostWorld`.
+      (worklog 574-577, then the relay 578-590 on branch `one-world`: one
+      `piney_world::World` for every area, made by `World::enter` as
+      `GO(0/1/2)` makes it, holding `Combat` everywhere (a town's its
+      party) and a `Cast` (`TownCast`, `BattleCast`) for what truly differs;
+      one Kite, the battle's `ccPlayer`; one `ccRand`; `CharId` naming a
+      character in every area; one frame, `Combat::frame_to_entry`,
+      `Cast::entry_slot`, `Combat::frame_from_entry`; one `ccThGameCtrl`,
+      one `ccSys.count`, one effect host (`AreaFx`), one `HostWorld` and
+      `EvHost`, one mode (`AreaMode`, `Stage::Area`); the façade,
+      `FieldWorld`, `WorldMode`, `TownFx` and the town's `Player` gone.
+      Each difference settled from the game's code; the last leg lit each
+      draw by the group as the tasks before it left it.)
 - [ ] **An NPC system.** Walking PCs (`town/pc.rs` `RtownPc`), merchants
       (`town/merchant.rs`), dogs (`town/dog.rs`), Grunties (`grunty/`),
       event NPCs (`event/entry.rs`, `Box<dyn entry::Npc>`) and field NPCs

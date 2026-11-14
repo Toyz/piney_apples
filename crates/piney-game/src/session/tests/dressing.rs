@@ -117,6 +117,7 @@ fn walk_dressed(
         let mut to = None;
         for _ in 0..600 {
             if let Stage::Area(a) = &s.stage
+                && !a.in_town()
                 && let MapKind::Dungeon(d) = a.world().area().kind()
             {
                 to = Some((0, d.floors[0].down));
@@ -128,7 +129,7 @@ fn walk_dressed(
         }
         let to = to.expect("in the dungeon");
         let mut targets: Vec<(usize, usize)> = match &s.stage {
-            Stage::Area(a) => match a.world().area().kind() {
+            Stage::Area(a) if !a.in_town() => match a.world().area().kind() {
                 MapKind::Dungeon(d) => pick(d),
                 _ => Vec::new(),
             },
@@ -139,6 +140,9 @@ fn walk_dressed(
             walk_to(&mut s, to, frames, |s, _, frame| {
                 each(s, frame, words);
                 let Stage::Area(a) = &s.stage else { return };
+                if a.in_town() {
+                    return;
+                }
                 let w = a.world();
                 let sc = w.scene();
                 let MapKind::Dungeon(d) = w.area().kind() else { return };
@@ -263,6 +267,9 @@ fn dressed_room_shots() {
             gs.set_overlay(Mode::archive(s));
             gs.render(frame);
             let Stage::Area(a) = &s.stage else { return };
+            if a.in_town() {
+                return;
+            }
             let w = a.world();
             let sc = w.scene();
             let MapKind::Dungeon(d) = w.area().kind() else { return };
@@ -327,6 +334,9 @@ fn a_lake_by_night_has_its_sky_and_fireflies() {
     }
     let lake_of = |s: &Session| -> (F, Vec<V4>) {
         let Stage::Area(a) = &s.stage else { panic!("in an area") };
+        if a.in_town() {
+            panic!("in an area")
+        }
         let MapKind::Dungeon(d) = a.world().area().kind() else { panic!("in the dungeon") };
         let v = d.systems().get::<LakeSky>().expect("a lake's sky").v;
         let flies =
@@ -342,6 +352,9 @@ fn a_lake_by_night_has_its_sky_and_fireflies() {
         assert_ne!(a, b, "each firefly flies");
     }
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let MapKind::Dungeon(d) = a.world().area().kind() else { unreachable!() };
     let sky: Vec<u32> = ["bac_l", "bac_m", "clo_l", "clo_m"]
         .iter()
@@ -371,12 +384,17 @@ fn the_spring_of_myst_takes_an_item() {
     let Some(mut s) = in_random_dungeon(0, words) else { return };
     // Into room 8.
     walk_to(&mut s, (0, 8), 8000, |_, _, _| {});
-    if let Stage::Area(a) = &s.stage {
+    if let Stage::Area(a) = &s.stage
+        && !a.in_town()
+    {
         let sc = a.world().scene();
         assert_eq!((sc.area, sc.floor, sc.block), (kind::DUNGEON, 0, 8), "Kite in room 8");
     }
     let spring = |s: &Session| -> Option<usize> {
         let Stage::Area(a) = &s.stage else { return None };
+        if a.in_town() {
+            return None;
+        }
         let c = a.world().combat();
         c.ctrl
             .list(piney_battle::entry::Kind::Gimmick)
@@ -386,6 +404,9 @@ fn the_spring_of_myst_takes_an_item() {
     assert!(spring(&s).is_some(), "the spring stands in room 8");
     let bag = |s: &Session| -> Vec<i32> {
         let Stage::Area(a) = &s.stage else { return Vec::new() };
+        if a.in_town() {
+            return Vec::new();
+        }
         let b = a.world().state().save.bytes().to_vec();
         (0..40)
             .map(|k| 0x30 + 4 * k)
@@ -396,7 +417,9 @@ fn the_spring_of_myst_takes_an_item() {
     // Event 25's bag holds nothing the spring takes (categories 0-9): a
     // blade of category 0, id 1 (feTbl[0]'s second row, within server 0's
     // five), into the first empty slot.
-    if let Stage::Area(a) = &mut s.stage {
+    if let Stage::Area(a) = &mut s.stage
+        && !a.in_town()
+    {
         let save = &mut a.world_mut().state_mut().save;
         if let Some(k) = (0..40).find(|&k| save.u8(0x30 + 4 * k + 2) == 0xff) {
             let at = 0x30 + 4 * k;
@@ -413,6 +436,9 @@ fn the_spring_of_myst_takes_an_item() {
     for f in 0..4000u64 {
         let raw = {
             let Stage::Area(a) = &s.stage else { break };
+            if a.in_town() {
+                break;
+            }
             let w = a.world();
             let c = w.combat();
             let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
@@ -454,6 +480,9 @@ fn the_spring_of_myst_takes_an_item() {
     }
     assert!(gone_at.is_some(), "the spring went");
     let Stage::Area(a) = &s.stage else { panic!("still in the area") };
+    if a.in_town() {
+        panic!("still in the area")
+    }
     let save = &a.world().state().save;
     let code = words[0] * 1_000_000 + words[1] * 1000 + words[2];
     assert!(piney_battle::entry::check_fountain(save, 0, code), "SetFountain(area's code)");
@@ -508,6 +537,7 @@ fn many_dungeons_walk() {
         let mut to = None;
         for _ in 0..600 {
             if let Stage::Area(a) = &s.stage
+                && !a.in_town()
                 && let MapKind::Dungeon(d) = a.world().area().kind()
             {
                 to = Some((0, d.floors[0].down));
@@ -521,6 +551,9 @@ fn many_dungeons_walk() {
         let mut rooms = BTreeSet::new();
         walk_to(&mut s, to, 6000, |s, _, _| {
             let Stage::Area(a) = &s.stage else { return };
+            if a.in_town() {
+                return;
+            }
             let w = a.world();
             let sc = w.scene();
             rooms.insert((sc.floor, sc.block));
@@ -553,6 +586,9 @@ fn members_stand_in_a_dungeon() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world().combat();
         for &(_, who) in &c.members {
             seen.insert(c.scene.chars[who].spc_char.act_num);

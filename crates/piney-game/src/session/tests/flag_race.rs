@@ -5,7 +5,7 @@
 //! and mail 324, which tells of the race, has been read.
 
 use piney_input::{Buttons, Raw};
-use piney_world::event::entry::Kind;
+use piney_world::world::CharId;
 
 use super::*;
 
@@ -74,16 +74,19 @@ fn speak_to_breeder(s: &mut impl Frames) -> Option<piney_draw::Frame> {
     let mut walk = None;
     for f in 0..4000u32 {
         let (raw, open) = {
-            let Stage::World(w) = &s.session().stage else { panic!("left the town") };
+            let Stage::Area(w) = &s.session().stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             let world = w.world();
             let ui = &w.ui().ctrl;
             let open = ui.menu == BREEDER_MENU && ui.menu_status == 2;
             let placed = matches!(world.phase(), piney_world::Phase::Play(n) if n >= 60);
-            let kite = world.player().body.pos.map(f32::from_bits);
-            let breeder = world.merchants().iter().find(|m| m.flags & BREEDER != 0);
+            let kite = world.kite().pos().map(f32::from_bits);
+            let breeder = town_cast(world).merchants().iter().find(|m| m.flags & BREEDER != 0);
             let raw = match breeder {
                 _ if !placed || open => still(Buttons::NONE),
-                Some(m) if world.command_target() == Some((Kind::Npc, m.id)) => {
+                Some(m) if world.command_target_id() == Some(CharId::Npc(m.id)) => {
                     still(if f % 20 == 0 { Buttons::CROSS } else { Buttons::NONE })
                 }
                 Some(m) => {
@@ -110,14 +113,20 @@ fn speak_to_breeder(s: &mut impl Frames) -> Option<piney_draw::Frame> {
         s.frame(&pad);
     }
     let s = s.session();
-    if let Stage::World(w) = &s.stage {
+    if let Stage::Area(w) = &s.stage
+        && w.in_town()
+    {
         let world = w.world();
         eprintln!(
             "phase {:?} merchants {:?} target {:?} kite {:?} menu {}",
             world.phase(),
-            world.merchants().iter().map(|m| (m.id, m.flags, m.ch.pos.map(f32::from_bits))).collect::<Vec<_>>(),
+            town_cast(world)
+                .merchants()
+                .iter()
+                .map(|m| (m.id, m.flags, m.ch.pos.map(f32::from_bits)))
+                .collect::<Vec<_>>(),
             world.command_target(),
-            world.player().body.pos.map(f32::from_bits),
+            world.kite().pos().map(f32::from_bits),
             w.ui().ctrl.menu
         );
     } else {
@@ -128,7 +137,10 @@ fn speak_to_breeder(s: &mut impl Frames) -> Option<piney_draw::Frame> {
 
 /// The breeder's list as it is drawn: its rows' text (`menuKanji`).
 fn breeder_rows(s: &Session) -> String {
-    let Stage::World(w) = &s.stage else { panic!("left the town") };
+    let Stage::Area(w) = &s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
     String::from_utf8_lossy(&w.ui().ctrl.kanji_text).split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -141,7 +153,10 @@ fn mutations_breeder_offers_the_flag_race() {
         let Some(mut s) = dun_loireag(pens, mail) else { return };
         assert!(speak_to_breeder(&mut s).is_some(), "the breeder's list did not open");
         let rows = breeder_rows(&s);
-        let Stage::World(w) = &s.stage else { unreachable!() };
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
         assert_eq!(w.ui().ctrl.pg_adult_num, pens as i16, "the pens counted");
         let want = if race { "Talk Flag Race Rankings" } else { "Talk About Grunties About Food About Breeding" };
         assert_eq!(rows, want, "pens {pens} mail {mail}");
@@ -156,7 +171,7 @@ fn mutations_rankings_open_and_close() {
     speak_to_breeder(&mut s).expect("the breeder's list did not open");
     to_rankings(&mut s);
     let menu = |s: &Session| match &s.stage {
-        Stage::World(w) => (w.ui().menu_type(), w.ui().ctrl.exception_disp),
+        Stage::Area(w) if w.in_town() => (w.ui().menu_type(), w.ui().ctrl.exception_disp),
         _ => (-1, 0),
     };
     assert_eq!(menu(&s), (RANKINGS, 1), "Rankings is not up");
@@ -173,14 +188,17 @@ fn mutations_rankings_open_and_close() {
 fn mutations_rankings_show_the_towns_racers() {
     for own in [None, Some((400, 146))] {
         let Some(mut s) = dun_loireag(3, 4) else { return };
-        if let (Stage::World(w), Some((time, row))) = (&mut s.stage, own) {
+        if let (Stage::Area(w), Some((time, row))) = (&mut s.stage, own) {
             let save = &mut w.world_mut().state_mut().save;
             save.set_i16(piney_world::grunty::race::RACE_RECORDS, time);
             save.set_i16(piney_world::grunty::race::RACE_RECORDS + 2, row);
         }
         speak_to_breeder(&mut s).expect("the breeder's list did not open");
         to_rankings(&mut s);
-        let Stage::World(w) = &s.stage else { unreachable!() };
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
         let kite = String::from_utf8_lossy(w.world().state().save.name()).into_owned();
         let names: Vec<String> = w.ui().ctrl.setting_text[1..4]
             .iter()
@@ -245,9 +263,12 @@ const FLAG_RACE: i16 = 88;
 /// The menu task's (menu, proccess) and the race's (state, running) when
 /// it lives.
 fn status(s: &Session) -> ((i16, i16), Option<(i8, bool)>) {
-    let Stage::World(w) = &s.stage else { panic!("left the town") };
+    let Stage::Area(w) = &s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
     let c = &w.ui().ctrl;
-    ((c.menu, c.proccess), w.world().race().map(|r| (r.state, r.running)))
+    ((c.menu, c.proccess), town_cast(w.world()).race().map(|r| (r.state, r.running)))
 }
 
 /// Frames of `raw` (`b` pressed every `every` frames) until `done`; false
@@ -292,18 +313,26 @@ fn start_race(s: &mut impl Frames) {
 #[test]
 fn mutations_flag_race_runs_and_quits() {
     let Some(mut s) = dun_loireag(3, 4) else { return };
-    if let Stage::World(w) = &mut s.stage {
+    if let Stage::Area(w) = &mut s.stage
+        && w.in_town()
+    {
         w.world_mut().state_mut().save.set_i32(GOLD, 1000);
     }
     speak_to_breeder(&mut s).expect("the breeder's list did not open");
     start_race(&mut s);
     {
-        let Stage::World(w) = &s.stage else { unreachable!() };
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
         let world = w.world();
         assert_eq!(world.state().save.i32(GOLD), 900, "100 GP paid");
-        assert!(world.town_riding(), "Kite rides");
-        assert_eq!(world.flags().len(), 3, "the three flags");
-        assert!(world.flags().iter().all(|f| f.state == piney_world::grunty::race::FlagState::Out), "the flags out");
+        assert!(world.pg_ride(), "Kite rides");
+        assert_eq!(town_cast(world).flags().len(), 3, "the three flags");
+        assert!(
+            town_cast(world).flags().iter().all(|f| f.state == piney_world::grunty::race::FlagState::Out),
+            "the flags out"
+        );
     }
     let t0 = s_race_time(&s);
     press(&mut s, Buttons::NONE, 30);
@@ -327,18 +356,24 @@ fn mutations_flag_race_runs_and_quits() {
         "the race did not end: {:?}",
         status(&s)
     );
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     let world = w.world();
-    assert!(!world.town_riding(), "still riding");
+    assert!(!world.pg_ride(), "still riding");
     assert_eq!(w.ui().ctrl.forbid, 0, "the menu's ban lifted");
     let end = piney_data::tables::race::of(piney_data::volume::Volume::Mut).end_pos[1];
-    let kite = world.player().body.pos.map(f32::from_bits);
+    let kite = world.kite().pos().map(f32::from_bits);
     assert!((kite[0] - end[0]).abs() < 1.0 && (kite[1] - end[1]).abs() < 1.0, "Kite at {kite:?}, not {end:?}");
 }
 
 fn s_race_time(s: &Session) -> i16 {
-    let Stage::World(w) = &s.stage else { panic!("left the town") };
-    w.world().race().map_or(-1, |r| r.time)
+    let Stage::Area(w) = &s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
+    town_cast(w.world()).race().map_or(-1, |r| r.time)
 }
 
 /// Kite rides to each flag still out, the nearest first, as a player
@@ -350,13 +385,16 @@ fn ride_to_flags(s: &mut impl Frames, max: u32) -> Option<u32> {
     let mut ride: Option<(usize, super::town_walk::TownWalker)> = None;
     for f in 0..max {
         let raw = {
-            let Stage::World(w) = &s.session().stage else { panic!("left the town") };
+            let Stage::Area(w) = &s.session().stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             let world = w.world();
-            if world.race().is_some_and(|r| r.taken == 3) {
+            if town_cast(world).race().is_some_and(|r| r.taken == 3) {
                 return Some(f);
             }
-            let kite = world.player().body.pos.map(f32::from_bits);
-            let near = world
+            let kite = world.kite().pos().map(f32::from_bits);
+            let near = town_cast(world)
                 .flags()
                 .iter()
                 .filter(|fl| fl.state == piney_world::grunty::race::FlagState::Out)
@@ -395,7 +433,9 @@ const RIDE_WIDE: f32 = 85.0;
 #[test]
 fn mutations_flag_race_won() {
     let Some(mut s) = dun_loireag(3, 4) else { return };
-    if let Stage::World(w) = &mut s.stage {
+    if let Stage::Area(w) = &mut s.stage
+        && w.in_town()
+    {
         let save = &mut w.world_mut().state_mut().save;
         save.set_i32(GOLD, 1000);
         // Dun Loireag's three ranks: 5:00, 5:00, 5:00 by Grunty 146.
@@ -408,26 +448,38 @@ fn mutations_flag_race_won() {
     start_race(&mut s);
     let took = ride_to_flags(&mut s, 9000);
     let flags = {
-        let Stage::World(w) = &s.stage else { unreachable!() };
-        w.world().flags().iter().map(|f| (f.state, f.pos.map(f32::from_bits))).collect::<Vec<_>>()
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
+        town_cast(w.world()).flags().iter().map(|f| (f.state, f.pos.map(f32::from_bits))).collect::<Vec<_>>()
     };
     let took = took.unwrap_or_else(|| panic!("the flags were not all taken: {flags:?} {:?}", status(&s)));
     assert!(until(&mut s, 900, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 31)), "no time word: {:?}", status(&s));
     let (time, rank) = {
-        let Stage::World(w) = &s.stage else { unreachable!() };
-        let r = w.world().race().expect("the race");
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
+        let r = town_cast(w.world()).race().expect("the race");
         (r.time, r.rank)
     };
     assert_eq!(rank, 1, "first in {time} frames ({took} riding)");
     {
-        let Stage::World(w) = &s.stage else { unreachable!() };
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
         let save = &w.world().state().save;
         assert_eq!(save.i16(piney_world::grunty::race::RACE_RECORDS), time, "the time first in the save");
         assert_eq!(save.i16(piney_world::grunty::race::RACE_RECORDS + 4), 9000, "the old first moved down");
     }
     // The time's word, then the Rankings page.
     assert!(until(&mut s, 300, Buttons::CROSS, 15, |s| status(s).0 == (FLAG_RACE, 32)), "no ranks: {:?}", status(&s));
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(w.ui().ctrl.exception_disp, 2, "the Rankings page with the blink");
     // Through the words, the wallpaper and the prize to the end.
     assert!(
@@ -435,7 +487,10 @@ fn mutations_flag_race_won() {
         "the race did not end: {:?}",
         status(&s)
     );
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     let save = &w.world().state().save;
     let t = piney_data::tables::race::of(piney_data::volume::Volume::Mut);
     let wp = i32::from(t.wallpapers[1]) - 1;
@@ -451,15 +506,20 @@ fn mutations_flag_race_won() {
 #[test]
 fn mutations_flag_race_against_the_towns_racers() {
     let Some(mut s) = dun_loireag(3, 4) else { return };
-    if let Stage::World(w) = &mut s.stage {
+    if let Stage::Area(w) = &mut s.stage
+        && w.in_town()
+    {
         w.world_mut().state_mut().save.set_i32(GOLD, 1000);
     }
     speak_to_breeder(&mut s).expect("the breeder's list did not open");
     start_race(&mut s);
     let took = ride_to_flags(&mut s, 9000).expect("the flags were not all taken");
     assert!(until(&mut s, 900, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 31)), "no time word: {:?}", status(&s));
-    let Stage::World(w) = &s.stage else { unreachable!() };
-    let r = w.world().race().expect("the race");
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
+    let r = town_cast(w.world()).race().expect("the race");
     let racers: Vec<i16> =
         piney_data::tables::fieldui::of(piney_data::volume::Volume::Mut).race_ranks[0].iter().map(|k| k.time).collect();
     let want = match racers.iter().position(|&t| r.time < t) {
@@ -487,7 +547,9 @@ fn flag_race_shots() {
     std::fs::create_dir_all(&dir).unwrap();
     // A new save's ranks: the town's racers (no record of the player's).
     let Some(mut s) = dun_loireag(3, 4) else { return };
-    if let Stage::World(w) = &mut s.stage {
+    if let Stage::Area(w) = &mut s.stage
+        && w.in_town()
+    {
         w.world_mut().state_mut().save.set_i32(GOLD, 1000);
     }
     speak_to_breeder(&mut s).expect("the breeder's list did not open");
@@ -519,8 +581,11 @@ fn flag_race_shots() {
     press(&mut s, Buttons::CROSS, 2);
     // The countdown's "2".
     assert!(until(&mut s, 2000, Buttons::NONE, 0, |s| {
-        let Stage::World(w) = &s.stage else { return false };
-        w.world().race().is_some_and(|r| r.phase == 0 && r.count == 2 && r.tick == 10)
+        let Stage::Area(w) = &s.stage else { return false };
+        if !w.in_town() {
+            return false;
+        }
+        town_cast(w.world()).race().is_some_and(|r| r.phase == 0 && r.count == 2 && r.tick == 10)
     }));
     let f = step(&mut s, Buttons::NONE);
     shot(&f, "mut-race-countdown.png");
@@ -529,8 +594,11 @@ fn flag_race_shots() {
     shot(&f, "mut-race-riding.png");
     ride_to_flags(&mut s, 9000).expect("the flags");
     assert!(until(&mut s, 400, Buttons::NONE, 0, |s| {
-        let Stage::World(w) = &s.stage else { return false };
-        w.world().race().is_some_and(|r| matches!(r.sub, 2..=4) && r.cnt == 60)
+        let Stage::Area(w) = &s.stage else { return false };
+        if !w.in_town() {
+            return false;
+        }
+        town_cast(w.world()).race().is_some_and(|r| matches!(r.sub, 2..=4) && r.cnt == 60)
     }));
     let f = step(&mut s, Buttons::NONE);
     shot(&f, "mut-race-result.png");
@@ -589,7 +657,7 @@ impl Frames for Ear {
         self.at += n as u64 / 2;
         let menu = status(&self.s).0;
         let race = match &self.s.stage {
-            Stage::World(w) => w.world().race().map(|r| (r.rank, r.done)),
+            Stage::Area(w) if w.in_town() => town_cast(w.world()).race().map(|r| (r.rank, r.done)),
             _ => None,
         };
         self.log.push(Heard { menu, race, play, stop, voice_stop, streaming: self.audio.bgm_streaming(), at: self.at });
@@ -612,7 +680,9 @@ fn mutations_race_music_lasts_the_results() {
         let Some(s) = dun_loireag(3, 4) else { return };
         let audio = piney_audio::Audio::headless(&iso).unwrap();
         let mut e = Ear { s, audio, log: Vec::new(), at: 0 };
-        if let Stage::World(w) = &mut e.s.stage {
+        if let Stage::Area(w) = &mut e.s.stage
+            && w.in_town()
+        {
             w.world_mut().state_mut().save.set_i32(GOLD, 1000);
         }
         speak_to_breeder(&mut e).expect("the breeder's list did not open");
@@ -621,8 +691,10 @@ fn mutations_race_music_lasts_the_results() {
         // Dun Loireag's three records against the time, before the finish
         // enters it (main 0x0017a860): ahead of the third for 3, within
         // 30 of it for 4, far ahead of it for none.
-        if let Stage::World(w) = &mut e.s.stage {
-            let t = w.world().race().expect("the race").time;
+        if let Stage::Area(w) = &mut e.s.stage
+            && w.in_town()
+        {
+            let t = town_cast(w.world()).race().expect("the race").time;
             let records = match want {
                 1 => [t + 300, t + 400, t + 500],
                 3 => [t - 200, t - 100, t + 100],

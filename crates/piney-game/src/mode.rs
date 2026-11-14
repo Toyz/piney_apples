@@ -244,14 +244,6 @@ pub enum Event {
     /// `ChangeRequest(6, 7)`: `ccSetupGameCtrl` for this scene, after the
     /// fade out over the one that asked.
     ChangeScene(piney_world::area::Scene),
-    /// The same from a mode that does not hold the scene (the town's
-    /// menus, the event instructions): the call, which the session makes on
-    /// its scene.
-    Go(piney_data::area::Go),
-    /// The gate hack's OK (`GtHackMenu`): `ccGame.setupMode = 1` and
-    /// `ccSetGtHack()` (`gtHackFlag`), which the next scene's set-up reads;
-    /// [`Event::GoToArea`] follows.
-    GateHacked,
     /// `WORLD_MAN::SetGenerateCode(a, b, c)` (the Chaos Gate's warp): the
     /// area the three word IDs make, and the change of scene to its field
     /// or dungeon.
@@ -285,6 +277,11 @@ pub trait Mode {
     /// Not the game's: the HUD drawn at `k` of its size (0.5 to 1), each
     /// part toward its corner (`piney_fieldui::FieldUi::hud_scale`).
     fn set_hud_scale(&mut self, _k: f32) {}
+
+    /// `ccSys.count` (+0x358) for this frame: the frames since power-on,
+    /// which `ccSystem::Ctrl` (main 0x0010a6bc) counts once a frame for
+    /// every mode, handed down by the session.
+    fn set_sys_frames(&mut self, _frames: u32) {}
 
     /// A test hook by name (`--press F:NAME` for the ones that are not
     /// buttons: `gateout`, `gofield`): true when the mode took it.

@@ -787,7 +787,15 @@ impl Effects {
     /// The draws of the last steps into `layers`, through `camera`'s view:
     /// the effects', then the particles'.
     pub fn draw(&self, layers: &mut Layers, camera: &Camera) {
-        for d in self.boss_draws.iter().chain(&self.draws).chain(&self.particle_draws) {
+        for d in self.boss_draws.iter().chain(&self.draws) {
+            d.render(&self.assets, layers, camera);
+        }
+    }
+
+    /// The last particle step's draws (`ccThParticle`'s), sent after the
+    /// area's draw as the task runs after it.
+    pub fn draw_particles(&self, layers: &mut Layers, camera: &Camera) {
+        for d in &self.particle_draws {
             d.render(&self.assets, layers, camera);
         }
     }

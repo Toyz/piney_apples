@@ -116,7 +116,7 @@ pub(super) fn raw(buttons: Buttons, ly: u8) -> Raw {
 
 pub(super) fn area(s: &Session) -> &crate::area::AreaMode {
     match &s.stage {
-        Stage::Area(a) => a,
+        Stage::Area(a) if !a.in_town() => a,
         _ => panic!("not in the field: {}", Mode::title(s)),
     }
 }
@@ -138,6 +138,9 @@ struct Look {
 
 fn look(s: &Session) -> Look {
     let Stage::Area(a) = &s.stage else { return Look::default() };
+    if a.in_town() {
+        return Look::default();
+    }
     let w = a.world();
     let c = w.combat();
     let Some(k) = c.kite else { return Look::default() };
@@ -323,7 +326,7 @@ fn ride_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/ride/shots".into());
     std::fs::create_dir_all(&dir).unwrap();
     let archive = match &s.stage {
-        Stage::Area(_) | Stage::World(_) => Mode::archive(&s),
+        Stage::Area(t) if !t.in_town() => Mode::archive(&s),
         _ => None,
     };
     let iso = crate::check_image("infection");

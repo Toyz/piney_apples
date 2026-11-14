@@ -2,12 +2,12 @@
 //! Gate's Word List to the protected area 19 (Closed Oblivious Twin Hills,
 //! two of virus core M), the cores put in, OK, and the area.
 
+use piney_world::world::CharId;
 use std::f32::consts::PI;
 
 use piney_fieldui::ctrl::After;
 use piney_fieldui::menus::hack::Resume;
 use piney_input::{Buttons, Raw};
-use piney_world::event::entry::Kind;
 
 use super::*;
 
@@ -65,7 +65,7 @@ fn stick_toward(cam_z: f32, h: f32) -> Raw {
 }
 
 /// Where the gate hack's own frames are, if it is running them.
-fn resume(w: &WorldMode) -> Option<Resume> {
+fn resume(w: &AreaMode) -> Option<Resume> {
     match w.ui().ctrl.cont.map(|c| c.after) {
         Some(After::Hack(r)) => Some(r),
         _ => None,
@@ -75,7 +75,7 @@ fn resume(w: &WorldMode) -> Option<Resume> {
 /// The player: to the Chaos Gate and speak to it; Word List, area 19,
 /// Warp; at the cores' slots, up twice (two M in) and OK. Windows closed
 /// every 24 frames.
-fn player(w: &WorldMode, f: u64) -> Raw {
+fn player(w: &AreaMode, f: u64) -> Raw {
     let ui = w.ui();
     let c = &ui.ctrl;
     if resume(w) == Some(Resume::Select) {
@@ -130,12 +130,12 @@ fn player(w: &WorldMode, f: u64) -> Raw {
         return still(if f.is_multiple_of(24) { Buttons::CROSS } else { Buttons::NONE });
     }
     let world = w.world();
-    if world.command_target() == Some((Kind::Gimmick, 16)) {
+    if world.command_target_id() == Some(CharId::Object(16)) {
         return still(if f.is_multiple_of(24) { Buttons::CROSS } else { Buttons::NONE });
     }
-    let Some((gate, _)) = world.char_place(Kind::Gimmick, 16) else { return still(Buttons::NONE) };
+    let Some((gate, _)) = world.char_place(CharId::Object(16)) else { return still(Buttons::NONE) };
     let g = gate.map(f32::from_bits);
-    let p = world.player().body.pos.map(f32::from_bits);
+    let p = world.kite().pos().map(f32::from_bits);
     let cam_z = f32::from_bits(world.camera().rot()[2]);
     stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1])))
 }
@@ -151,7 +151,7 @@ fn gate_hack_opens_area_19() {
     let mut arrived = false;
     for f in 0..20_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => {
+            Stage::Area(w) if w.in_town() => {
                 selected |= resume(w) == Some(Resume::Select);
                 player(w, f)
             }
@@ -161,6 +161,7 @@ fn gate_hack_opens_area_19() {
         s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 30)
         {
             arrived = true;
@@ -170,6 +171,9 @@ fn gate_hack_opens_area_19() {
     assert!(selected, "the hack's slots never came: {}", Mode::title(&s));
     assert!(arrived, "not in area 19: {}", Mode::title(&s));
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let w = a.world();
     assert_eq!((w.scene().area, w.scene().field), (1, i32::from(AREA)), "{}", Mode::title(&s));
     let save = &w.state().save;
@@ -194,18 +198,24 @@ fn gate_hack_shots() {
     let mut noisy = None;
     for f in 0..20_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         let frame = s.step(&pad);
         s.take_events();
-        let Stage::World(w) = &s.stage else {
+        let Stage::Area(w) = &s.stage else {
             if !taken.is_empty() {
                 break;
             }
             continue;
         };
+        if !w.in_town() {
+            if !taken.is_empty() {
+                break;
+            }
+            continue;
+        }
         let r = resume(w);
         let c = &w.ui().ctrl;
         if one_in.is_none() && c.hack.as_ref().is_some_and(|h| h.set_num[0] == 1) {
@@ -263,13 +273,16 @@ fn gate_hack_arrives_hacking_out() {
     let mut built_at = None;
     for f in 0..30_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         if !joined {
             joined = true;
             let sp = a.world_mut().spcs_mut();
@@ -326,6 +339,9 @@ fn gate_hack_arrives_hacking_out() {
     }
     assert_eq!(scenes, ["str7100", "str7200", "str7300", "str7404"], "the gate's movie");
     let Stage::Area(a) = &s.stage else { panic!("not in area 19: {}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("not in area 19: {}", Mode::title(&s))
+    }
     let calls: Vec<&str> = a.calls().iter().map(|(_, c)| c.as_str()).collect();
     assert!(calls.contains(&"clear_gate_hack (gtHackFlag 1)"), "{calls:?}");
     assert!(gho_seen, "ghoFlag never set; acts {acts:?}");
@@ -355,13 +371,16 @@ fn gate_hack_arrival_shots() {
     let mut seen: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
     for f in 0..30_000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let key = match a.stream_scene() {
             Some(sc) => sc,
             None => {
@@ -444,27 +463,27 @@ fn gate_hack_silences_the_town_s_music() {
     let mut playing_at_slots = None;
     for f in 0..20_000u64 {
         let phase = match &s.stage {
-            Stage::World(w) if cancelled => {
+            Stage::Area(w) if w.in_town() && cancelled => {
                 let open = w.ui().ctrl.menu == 62 || resume(w).is_some();
                 after += u32::from(!open);
                 (after > 120).then_some(2)
             }
-            Stage::World(w) if resume(w) == Some(Resume::Select) => {
+            Stage::Area(w) if w.in_town() && resume(w) == Some(Resume::Select) => {
                 selecting += 1;
                 (selecting > 30).then_some(1)
             }
-            Stage::World(w) if w.ui().menu_type() == -1 && f > 300 => Some(0),
+            Stage::Area(w) if w.in_town() && w.ui().menu_type() == -1 && f > 300 => Some(0),
             _ => None,
         };
         let raw = match &s.stage {
-            Stage::World(_) if cancelled => still(Buttons::NONE),
-            Stage::World(w) if resume(w) == Some(Resume::Select) && selecting >= 90 => {
+            Stage::Area(t) if t.in_town() && cancelled => still(Buttons::NONE),
+            Stage::Area(w) if w.in_town() && resume(w) == Some(Resume::Select) && selecting >= 90 => {
                 playing_at_slots.get_or_insert_with(|| audio.with_engine(|e| e.driver.sq_status));
                 cancelled = true;
                 still(Buttons::CIRCLE)
             }
-            Stage::World(w) if resume(w) == Some(Resume::Select) => still(Buttons::NONE),
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() && resume(w) == Some(Resume::Select) => still(Buttons::NONE),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);

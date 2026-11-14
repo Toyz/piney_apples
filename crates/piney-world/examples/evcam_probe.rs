@@ -1,7 +1,7 @@
 //! Answers `tools/test_evcam_rs.py` (`evcam_probe ISO < requests`): the event
 //! camera (camera/evcam.rs) and the field's tasks around it - the event's camera
-//! instructions, then each frame `CamCtrl`, `cameraMain` and
-//! `ccPlayer::Main` - printing the state (`ccEvCamCtrl` as the game lays it
+//! instructions, then each frame `CamCtrl`, `cameraMain` and the battle's
+//! tasks with Kite's `ccPlayer::Main` - printing the state (`ccEvCamCtrl` as the game lays it
 //! out, the three cameras, Kite) as one JSON line. Requests: `start`, `char`,
 //! `kite`, `unchar`, `mark`, `markerpos`, `cmd`, `teach`, `ban`, `pad`;
 //! numbers hex, floats their bits, the fields the harness's.
@@ -15,13 +15,14 @@ use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
 use piney_event::host::CameraCommand;
+use piney_world::camera::Cam;
 use piney_world::camera::evcam::{Camz, EvCamCtrl, EventCam, Input, Scene};
-use piney_world::camera::{Cam, CamPad, Camera, Scheme};
-use piney_world::chara::motion::PLAYER_ANIM_TBL;
-use piney_world::chara::player::Player;
 use piney_world::ee::{self, V4};
 use piney_world::hit::{HitModel, Hits};
-use piney_world::{Rand, tasks};
+
+#[path = "common/kite_run.rs"]
+mod kite_run;
+use kite_run::{KiteRun, Start};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -79,10 +80,7 @@ enum Who {
 
 struct Run {
     hits: Hits,
-    player: Player,
-    camera: Camera,
-    rand: Rand,
-    mode: i8,
+    kite: KiteRun,
     ev: EventCam,
     chars: HashMap<(i32, i32), Who>,
     marks: HashMap<i16, V4>,
@@ -90,7 +88,8 @@ struct Run {
 
 /// The scene the camera sees: the table the test set, Kite as leader.
 struct Look<'a> {
-    player: &'a Player,
+    /// Kite's position and heading.
+    kite: (V4, V4),
     chars: &'a HashMap<(i32, i32), Who>,
     marks: &'a HashMap<i16, V4>,
 }
@@ -99,17 +98,17 @@ impl Scene for Look<'_> {
     fn char_pos(&self, ty: i32, code: i32) -> Option<V4> {
         self.chars.get(&(ty, code)).map(|w| match w {
             Who::At(p) => *p,
-            Who::Kite => self.player.body.pos,
+            Who::Kite => self.kite.0,
         })
     }
     fn leader_pos(&self) -> V4 {
-        self.player.body.pos
+        self.kite.0
     }
     fn marker_pos(&self, marker: i16) -> Option<V4> {
         self.marks.get(&marker).copied()
     }
     fn player_dirc(&self) -> V4 {
-        self.player.body.dirc
+        self.kite.1
     }
 }
 
@@ -147,47 +146,26 @@ fn command(op: u32, a: &[i16]) -> CameraCommand {
 }
 
 fn state(r: &Run) -> String {
-    let (p, b, a, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
-    format!(
-        concat!(
-            "{{\"ctrl\": {}, \"running\": {}, \"cam_id\": {}, \"normal\": {}, \"puppet\": {}, ",
-            "\"tcam\": {}, \"ecam\": {}, \"bcam\": {}, \"resetting\": {}, \"mem_dirc_z\": {}, \"mode\": {}, ",
-            "\"world_view\": {}, \"world_screen\": {}, ",
-            "\"pos\": {}, \"dirc\": {}, \"move\": {}, \"now_speed\": {}, \"speed_rate\": {}, ",
-            "\"move_flag\": {}, \"run_flag\": {}, \"restraint\": {}, \"act\": {}, \"act_cnt\": {}, ",
-            "\"cloak\": {}, \"transparency\": {}, \"drawn\": {}, \"angle\": {}, \"target_count\": {}, ",
-            "\"attribute\": {}}}"
-        ),
-        list(&ctrl_words(&r.ev.ctrl)),
-        u8::from(r.ev.running()),
-        c.cam_id,
-        r.ev.normal_cam_id,
-        u8::from(r.camera.puppet_show),
-        list(&cam_words(&c.tcam)),
-        list(&cam_words(&c.ecam)),
-        list(&cam_words(&c.bcam)),
-        u8::from(c.resetting),
-        c.mem_dirc_z,
-        r.mode,
-        list(&c.world_view.iter().flatten().copied().collect::<Vec<_>>()),
-        list(&c.world_screen.iter().flatten().copied().collect::<Vec<_>>()),
-        list(&b.pos),
-        list(&b.dirc),
-        list(&b.move_pos),
-        b.now_speed,
-        b.speed_rate,
-        u8::from(b.move_flag),
-        u8::from(b.run_flag),
-        u8::from(b.restraint),
-        a.act,
-        a.act_cnt,
-        a.cloak,
-        p.transparency,
-        u8::from(p.drawn),
-        list(&p.angle),
-        b.target_count,
-        p.hit_attribute,
-    )
+    let c = &r.kite.camera;
+    let words = |m: &[[u32; 4]; 4]| list(&m.iter().flatten().copied().collect::<Vec<_>>());
+    let mut kv = vec![
+        ("ctrl", list(&ctrl_words(&r.ev.ctrl))),
+        ("running", u8::from(r.ev.running()).to_string()),
+        ("cam_id", c.cam_id.to_string()),
+        ("normal", r.ev.normal_cam_id.to_string()),
+        ("puppet", u8::from(c.puppet_show).to_string()),
+        ("tcam", list(&cam_words(&c.tcam))),
+        ("ecam", list(&cam_words(&c.ecam))),
+        ("bcam", list(&cam_words(&c.bcam))),
+        ("resetting", u8::from(c.resetting).to_string()),
+        ("mem_dirc_z", c.mem_dirc_z.to_string()),
+        ("mode", r.kite.mode.to_string()),
+        ("world_view", words(&c.world_view)),
+        ("world_screen", words(&c.world_screen)),
+    ];
+    kv.extend(r.kite.fields());
+    let body: Vec<String> = kv.iter().map(|(k, v)| format!("\"{k}\": {v}")).collect();
+    format!("{{{}}}", body.join(", "))
 }
 
 fn main() {
@@ -195,10 +173,8 @@ fn main() {
     let mut iso = Iso::open(&iso_path).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let volume = iso.volume().unwrap();
-    let kite = SceneFile::read(&archive, "ctu1body").unwrap();
+    let (data, body) = (kite_run::data(&mut iso), kite_run::body(&archive));
     let town = SceneFile::read(&archive, "town01").unwrap();
-    let anims: Vec<&piney_data::anim::Animation> =
-        PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
     let models = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let mut run: Option<Run> = None;
     let stdin = std::io::stdin();
@@ -209,19 +185,18 @@ fn main() {
         let s = |i: usize| hex(w[i]) as i32;
         match w.first().copied() {
             Some("start") => {
-                let pos = [n(1), n(2), n(3), ee::ONE];
-                let dirc = [0, 0, n(4), 0];
-                let mode = n(6) as i8;
-                run = Some(Run {
-                    hits: Hits::new(volume, models.clone()),
-                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(volume, pos, dirc, mode, Scheme::new(n(5) as i32)),
-                    rand: Rand(u64::from(n(7))),
-                    mode,
-                    ev: EventCam::new(),
-                    chars: HashMap::new(),
-                    marks: HashMap::new(),
-                });
+                let mut hits = Hits::new(volume, models.clone());
+                let start = Start {
+                    pos: [n(1), n(2), n(3), ee::ONE],
+                    dirc_z: n(4),
+                    scheme: n(5) as i32,
+                    mode: n(6) as i8,
+                    seed: n(7),
+                    area: 0,
+                    arriving: true,
+                };
+                let kite = KiteRun::new(&data, &body, &mut hits, &start);
+                run = Some(Run { hits, kite, ev: EventCam::new(), chars: HashMap::new(), marks: HashMap::new() });
                 println!("{}", state(run.as_ref().unwrap()));
             }
             Some("char") => {
@@ -251,8 +226,8 @@ fn main() {
                 let r = run.as_mut().unwrap();
                 let args: Vec<i16> = (2..w.len()).map(|i| s(i) as i16).collect();
                 let c = command(n(1), &args);
-                let look = Look { player: &r.player, chars: &r.chars, marks: &r.marks };
-                r.ev.command(c, &mut r.camera, &look);
+                let look = Look { kite: (r.kite.pos(), r.kite.dirc()), chars: &r.chars, marks: &r.marks };
+                r.ev.command(c, &mut r.kite.camera, &look);
                 println!("{}", state(r));
             }
             Some("teach") => {
@@ -262,30 +237,18 @@ fn main() {
             }
             Some("ban") => {
                 let r = run.as_mut().unwrap();
-                r.ev.menu_ban(n(1) != 0, &mut r.camera);
+                r.ev.menu_ban(n(1) != 0, &mut r.kite.camera);
                 println!("{}", state(r));
             }
             Some("pad") => {
                 let r = run.as_mut().unwrap();
-                let mut pow = [0u8; 12];
-                for (k, p) in pow.iter_mut().enumerate() {
-                    *p = n(7 + k) as u8;
-                }
-                let pad = CamPad {
-                    direct: n(1),
-                    push: n(2),
-                    pow_l: n(3) as u8,
-                    dirc_l: n(4),
-                    pow_r: n(5) as u8,
-                    dirc_r: n(6),
-                    pow,
-                };
+                let pad = kite_run::pad_at(&w, 1);
                 let input = Input { pad, zoom: [n(19) as u16, n(20) as u16] };
                 // ccThCameraExecute (33), then ccThCamera (40) and
                 // ccThPlayer (49).
-                let look = Look { player: &r.player, chars: &r.chars, marks: &r.marks };
-                r.ev.frame(&mut r.camera, &look, &input);
-                tasks(&mut r.camera, &mut r.player, &mut r.hits, &anims, &mut r.rand, &pad, &mut r.mode);
+                let look = Look { kite: (r.kite.pos(), r.kite.dirc()), chars: &r.chars, marks: &r.marks };
+                r.ev.frame(&mut r.kite.camera, &look, &input);
+                r.kite.frame(pad, &mut r.hits);
                 println!("{}", state(r));
             }
             _ => {}

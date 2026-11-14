@@ -1,35 +1,17 @@
-//! Modes 5 and 6, The World itself (`ccSetupNewGame` loading `GCMN.PRG`, then
-//! `ccSetupGameCtrl`): the Root Towns (`piney-world`) with the field's menus and
-//! HUD (`piney-fieldui`) and the event scripts ([`crate::field_host`]). A frame
-//! runs `ccThEvent` (32), the world's tasks (`ccThGameCtrl` 33 ... the town 96),
-//! then `ccThMenu` (34); a button's menu reaches the camera and player a frame
-//! later than in the game. The set-up's passes (0, 2, then 4 at F0) are in
-//! docs/engine/event-vm.md.
+//! Mode 5, `ccSetupNewGame` (loading `GCMN.PRG`): the new game's save and
+//! event task, and what every scene of mode 6 shares with it: where
+//! `ccSetupGameCtrl` is with the event task ([`Setup`]; the passes 0, 2, then
+//! 4 at F0 are in docs/engine/event-vm.md) and what `ccThGameCtrl` reads of
+//! `ccMenu`. Mode 6 itself, a Root Town as a field or a dungeon, is
+//! [`crate::area::AreaMode`].
 
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-
-use piney_data::archive::Archive;
 use piney_data::iso::Iso;
-use piney_data::save::offset;
 use piney_desktop::SaveState;
-use piney_desktop::anm::Ctx;
-use piney_desktop::view::View;
-use piney_draw::Frame;
 use piney_event::host::LogHost;
 use piney_event::state::ScriptSave as _;
 use piney_event::vm::Vm;
 use piney_fieldui::FieldUi;
-use piney_input::Pad;
-use piney_world::event::entry::Kind;
-use piney_world::event::talk::{self, Shop, TalkRequest};
-use piney_world::{Phase, Request, World};
-
-use crate::ev_host::{EvHost, EvStream, HostWorld};
-use crate::field_host::{FieldState, MENU_LAYER, SceneChange};
-use crate::mode::{Event, Mode};
-use piney_data::store::Table;
+use piney_world::event::talk;
 
 /// Where `ccSetupGameCtrl` is with the event task.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,857 +118,6 @@ pub fn new_game_events(disc: &mut Iso) -> Result<(SaveState, Vm), String> {
     Ok((state, vm))
 }
 
-pub struct WorldMode {
-    world: Box<World>,
-    /// `ccThMenu`: the HUD, the menus and the event windows.
-    ui: Box<FieldUi>,
-    /// The event task.
-    vm: Option<Vm>,
-    /// What the scripts see of the field besides the world and the UI.
-    st: FieldState,
-    /// The scripts' streams and a Ryu Book's cover.
-    stream: EvStream,
-    setup: Setup,
-    frames: u64,
-    /// `ccSys.count`.
-    count: u32,
-    /// What the menus asked of the sound since the last take.
-    events: Vec<Event>,
-    /// The last menu the port closed at once (unported).
-    unported: Option<i16>,
-    /// The gate hack's screen is up: the world, asleep with its layers
-    /// flipping again, draws nothing (`piney_fieldui::Request::WorldHidden`).
-    hack_screen: bool,
-    /// `ccGame.areaLevel`, which the Chaos Gate's keyword screen writes.
-    area_level: i32,
-    /// A Ryu Book's cover stream plays (`ccThBook`'s `ccThExecuteStream`).
-    book_stream: bool,
-    /// The palette a Ryu Book last put on the resident `str8800e`'s
-    /// backdrop, kept while the town's files are (Book I sets none).
-    cover_palette: Option<piney_fieldui::book::CoverPalette>,
-    /// The words entered at the Chaos Gate (`ccEvent.areaCodeSet`), for the
-    /// events.
-    area_code_set: Option<[i16; 3]>,
-    /// Where the Chaos Gate asked to go (`WORLD_MAN::SetGenerateCode` or
-    /// `ChangeArea`), for the title.
-    leaving: Option<String>,
-    /// What `WORLD_MAN` keeps of the minimap (the map is the area's).
-    map_st: piney_world::map::MapState,
-    /// The effects that draw the town's own sprites (Dun Loireag's).
-    town_fx: Option<Box<crate::town_fx::TownFx>>,
-}
-
-impl WorldMode {
-    /// `ccSetupNewGame` and `ccSetupGameCtrl` in town `town` on `state`.
-    #[cfg(test)]
-    pub fn enter(
-        iso: &Path,
-        archive: &Arc<Archive>,
-        mut state: SaveState,
-        vm: Option<Vm>,
-    ) -> Result<WorldMode, String> {
-        let scene = piney_world::area::Scene::log_in(&mut state.save);
-        WorldMode::enter_after(iso, archive, state, vm, scene, ([0; 4], [0; 4]))
-    }
-
-    /// [`WorldMode::enter`] for `scene` after a scene whose set-up left
-    /// `StartPos` at `before` ([`piney_world::World::enter_after`]).
-    pub fn enter_after(
-        iso: &Path,
-        archive: &Arc<Archive>,
-        mut state: SaveState,
-        vm: Option<Vm>,
-        scene: piney_world::area::Scene,
-        before: ([u32; 4], [u32; 4]),
-    ) -> Result<WorldMode, String> {
-        repair_buttons(&mut state);
-        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
-        let mut ui = FieldUi::new(&mut disc, &archive.clone()).map_err(|e| format!("the field's menus: {e}"))?;
-        // The constructor's faces (ccCheckMenuFaceNameParty, gcmn
-        // 0x0056a930): party slot 0 is member 0, Kite, with the bracelet's
-        // colours (saveData+0x6771) or without.
-        ui.set_menu_face(0, 0, state.save.u8(offset::PLCOL) != 0);
-        let stories = if vm.is_some() {
-            crate::story::from_tables(piney_data::area::AreaTables::of(disc.volume().map_err(|e| e.to_string())?))
-        } else {
-            HashMap::new()
-        };
-        let mut st = FieldState::new(&state.save, stories);
-        st.announcements = crate::desktop::announcements(iso);
-        let mut world = World::enter_after(&mut disc, archive.clone(), state, scene, before)
-            .map_err(|e| format!("The World: {e}"))?;
-        let town_fx = Some(crate::town_fx::TownFx::new(archive, disc.volume().map_err(|e| e.to_string())?))
-            .and_then(|f| f.map_err(|e| tracing::warn!("the town's effects: {e}")).ok())
-            .map(Box::new);
-        let map_st = piney_world::map::MapState::new(world.state());
-        let setup = if vm.is_some() { Setup::Before } else { Setup::Off };
-        world.set_loading(vm.is_some());
-        let mut events = Vec::new();
-        {
-            let s = &world.state().save;
-            events.push(crate::mode::voice_options(s));
-            events.push(Event::GameArea(0));
-        }
-        Ok(WorldMode {
-            world: Box::new(world),
-            ui: Box::new(ui),
-            vm,
-            st,
-            stream: EvStream { iso: Some(iso.to_path_buf()), data: Some(archive.clone()), ..EvStream::default() },
-            setup,
-            frames: 0,
-            count: 0,
-            events,
-            unported: None,
-            hack_screen: false,
-            area_level: 0,
-            book_stream: false,
-            cover_palette: None,
-            area_code_set: None,
-            leaving: None,
-            map_st,
-            town_fx,
-        })
-    }
-
-    /// Where the set-up is with the event task.
-    pub fn setup(&self) -> Setup {
-        self.setup
-    }
-
-    /// Every host call the scripts made, with its frame.
-    #[cfg(test)]
-    pub fn calls(&self) -> &[(u64, String)] {
-        &self.st.calls
-    }
-
-    /// Whether the scripts play a stream.
-    #[cfg(test)]
-    pub fn streaming(&self) -> bool {
-        self.stream.player.is_some()
-    }
-
-    /// The playing stream's number.
-    #[cfg(test)]
-    pub fn stream_num(&self) -> Option<usize> {
-        self.stream.player.as_ref().map(|p| p.num())
-    }
-
-    /// The playing stream's frame (`ccGetStreamFrame`), once it has
-    /// stepped.
-    #[cfg(test)]
-    pub fn stream_frame(&self) -> Option<u32> {
-        self.stream.player.as_ref().and_then(|p| match p.frame() {
-            (f, true) => Some(f),
-            _ => None,
-        })
-    }
-
-    /// `game.server`: the server of the town the player is in.
-    #[cfg(test)]
-    pub fn server(&self) -> i32 {
-        self.st.game.server
-    }
-
-    /// `game.town`: the town the player is in.
-    #[cfg(test)]
-    pub fn town_number(&self) -> i32 {
-        self.st.game.town
-    }
-
-    /// The area the scripts sent the player to, once they did.
-    pub fn scene_change(&self) -> Option<&SceneChange> {
-        self.st.change.as_ref()
-    }
-
-    /// The event task, for tests.
-    #[cfg(test)]
-    pub fn vm(&self) -> Option<&Vm> {
-        self.vm.as_ref()
-    }
-
-    /// The world.
-    pub fn world(&self) -> &World {
-        &self.world
-    }
-
-    /// The world: the session hands it the party the last area left; tests
-    /// place the player.
-    /// `ccGame::ChangeArea(area, n)` from the town (a menu's, or the
-    /// console's `town`): `ChangeRequest`'s `ccDisableThEvent`, then the
-    /// session's change of scene.
-    pub fn change_area(&mut self, area: i32, n: i32) {
-        self.leaving = Some(format!("ChangeArea({area}, {n})"));
-        if let Some(vm) = &mut self.vm {
-            vm.disable();
-        }
-        self.events.push(Event::Go(piney_data::area::Go::ChangeArea(area, n)));
-    }
-
-    pub fn world_mut(&mut self) -> &mut World {
-        &mut self.world
-    }
-
-    /// The party the last area left (`ccSpcManager`, `ccPartyManager`), and
-    /// each slot's menu face from it: `ccCheckMenuFaceNameParty` (gcmn
-    /// 0x0056a930) reads `memberID[slot]` whenever it is asked.
-    pub fn set_spcs(&mut self, spcs: piney_world::chara::party::Spcs) {
-        self.world.set_spcs(spcs);
-        let plcol = self.world.state().save.u8(offset::PLCOL) != 0;
-        for (slot, &id) in self.world.party().iter().enumerate() {
-            if id >= 0 {
-                self.ui.set_menu_face(slot, id, plcol);
-            }
-        }
-    }
-
-    /// Party slot `slot`'s menu face for member `id`, as the Party menu
-    /// sets it once `ccThPartyAdd` is done (the console's `invite_party`).
-    pub fn set_menu_face(&mut self, slot: usize, id: i32) {
-        let plcol = self.world.state().save.u8(offset::PLCOL) != 0;
-        self.ui.set_menu_face(slot, id, plcol);
-    }
-
-    /// The field UI.
-    pub fn ui(&self) -> &FieldUi {
-        &self.ui
-    }
-
-    pub fn ui_mut(&mut self) -> &mut FieldUi {
-        &mut self.ui
-    }
-
-    /// One frame of the event task (`ccThEvent`, priority 32), before the
-    /// world's tasks; then `ccSetupGameCtrl`'s side of the passes.
-    fn event_frame(&mut self) {
-        let Some(vm) = &mut self.vm else { return };
-        if self.setup == Setup::Left {
-            return;
-        }
-        // F0: ccSetupGameCtrl's ccEnableThEvent(4), after GO and the start
-        // positions, before the frame's Breath.
-        if self.setup == Setup::Start && self.world.phase() == Phase::Play(0) {
-            vm.enable(4);
-            self.setup = Setup::Play;
-        }
-        // The operation the field recorded last frame (CheckOperate), which
-        // the task sees and then clears for this one.
-        vm.set_operate_set(self.world.state().operate_set);
-        // From Mutation on the event task idles while the Flag Race runs
-        // (MUT main 0x001cb154).
-        if self.setup == Setup::Play && self.world.racing() {
-            return;
-        }
-        {
-            let mut h = EvHost {
-                world: &mut *self.world,
-                ui: &mut self.ui,
-                st: &mut self.st,
-                teach: None,
-                reset: std::cell::Cell::new(false),
-                stream: &mut self.stream,
-            };
-            vm.frame(&mut h);
-        }
-        let s = self.world.state_mut();
-        s.operate = vm.operate();
-        s.operate_set = vm.operate_set();
-        self.world.set_event_targets(&vm.mng.targets);
-        self.events.append(&mut self.st.events);
-        if self.st.change.is_some() {
-            // ChangeRequest(6, 7): ccDisableThEvent, and every task asleep
-            // (the task itself inside the instruction).
-            vm.disable();
-            self.setup = Setup::Left;
-            self.world.set_asleep(true);
-            return;
-        }
-        match self.setup {
-            // The fade out and hold are over: ccInitRand, ccStartThEvent,
-            // WORLD_MAN::SetEventData, ccEnableThEvent(0).
-            Setup::Before if self.world.phase() == Phase::Hold(piney_world::HOLD_FRAMES - 1) => {
-                let mut h = EvHost {
-                    world: &mut *self.world,
-                    ui: &mut self.ui,
-                    st: &mut self.st,
-                    teach: None,
-                    reset: std::cell::Cell::new(false),
-                    stream: &mut self.stream,
-                };
-                vm.start_thread(&mut h);
-                vm.enable(0);
-                self.setup = Setup::Pass(0);
-            }
-            Setup::Pass(p) => {
-                // `ccEnableThEvent` breathes until the pass settles, however
-                // long its streams and waits run (QUA main 0x001c8620).
-                if !vm.enable_settled(p) {
-                    return;
-                }
-                // A pass that asked for another mode (ChangeRequest's
-                // ccDisableThEvent): ccSetupGameCtrl reads game+4 and
-                // returns (0x00168ca8, 0x00168fa4).
-                if vm.mng.enable_phase < 0 {
-                    self.setup = Setup::Left;
-                    return;
-                }
-                if p == 0 {
-                    // ccSetFileListTown's ccRegisterEventMng(0), between the
-                    // passes: the count the walking PCs' draw reserves.
-                    self.world.set_regist_npc_num(vm.mng.register_npcs());
-                    vm.enable(2);
-                    self.setup = Setup::Pass(2);
-                } else {
-                    // ccEntryEventMng, at the entry control's set-up: the
-                    // entries the passes registered go to the world before
-                    // its merchants and walking PCs.
-                    let entries: Vec<[i16; 4]> = vm.mng.entries.iter().copied().filter(|e| e[0] >= 0).collect();
-                    for [ty, code, marker, param] in entries {
-                        if !self.world.entry(ty, code, marker, param) {
-                            tracing::warn!("events: entry {ty} {code} at marker {marker} not placed");
-                        }
-                    }
-                    self.world.set_loading(false);
-                    self.setup = Setup::Start;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Leave The World: the save and the event task, for the next mode.
-    pub fn leave(self) -> (SaveState, Option<Vm>) {
-        (self.world.state_out(), self.vm)
-    }
-
-    /// The set-up's `ccInitRand` with `ccSys+0x358` at `count`
-    /// ([`piney_world::World::init_rand`]).
-    pub fn init_rand(&mut self, count: u32) {
-        self.world.init_rand(count);
-    }
-
-    /// The memory card the Recorder saves to (the directory standing for
-    /// slot 1, as the desktop's Data screen uses it) and where `ccSaveSys`
-    /// was left (`port`, `fileNum`).
-    pub fn set_card(&mut self, dir: Option<&Path>, (port, file): (i32, i32)) {
-        if let Some(dir) = dir {
-            self.ui.set_card(Box::new(piney_desktop::card::FilesCard::slot1(self.world.volume(), dir)));
-        }
-        self.ui.set_card_position(port, file);
-    }
-
-    /// Back from a field or dungeon: its scene drew the fade out
-    /// (`World::skip_fade_out`).
-    pub fn skip_fade_out(&mut self) {
-        self.world.skip_fade_out();
-    }
-
-    /// What `ccThGameCtrl` asked the menus for.
-    /// `ccChar::CalcReal(1)` as `ccPlayer::Main` (gcmn 0x005983c8) and
-    /// `ccFellow::Main` (0x0041b6e8) run it each frame on the party: each
-    /// member's `real` and `tune` into the save, which Status reads.
-    fn calc_real_party(&mut self) {
-        let ids: Vec<i32> = self.world.party().iter().copied().filter(|&c| c >= 0).collect();
-        for code in ids {
-            let at = piney_data::save::by_id::spc_param(code as usize);
-            let mut m = member(self.world.state(), at, Vec::new(), handle(Kind::Spc, code));
-            self.ui.calc_real(self.world.state_mut(), &mut m);
-        }
-    }
-
-    fn talk(&mut self, t: TalkRequest) {
-        // The talk and shop menus read the character spoken to (cmndTarget,
-        // its npcTbl row) from before the step that opens them.
-        use piney_fieldui::talk::{Speaker, TalkTarget};
-        let spoken_to = match t {
-            TalkRequest::Talk { npc, .. } | TalkRequest::Shop { npc, .. } => Some((Kind::Npc, npc)),
-            // A party member (21), an administrator (23), a Grunty breeder
-            // (27), a dog (44), a Grunty (45 grown, 46 young).
-            TalkRequest::Menu { menu: 21 | 23 | 27 | 44 | 45 | 46, kind, code } => Some((kind, code)),
-            _ => None,
-        };
-        if let Some((kind, code)) = spoken_to {
-            let who = if kind == Kind::Spc { Speaker::Spc(code) } else { Speaker::Npc(code) };
-            self.ui.talk_to(Some(TalkTarget { handle: handle(kind, code), who }));
-        }
-        // openReqNum, mode, firstTime.
-        let c = &mut self.ui.ctrl;
-        let mut open = |menu: i16, mode: i16| {
-            c.open_req = menu;
-            c.mode = mode;
-            c.first_time = 1;
-        };
-        match t {
-            TalkRequest::Open { menu } => open(menu, 0),
-            TalkRequest::ClearAttack => c.pl_attack = 0,
-            TalkRequest::Talk { .. } => open(22, 1),
-            TalkRequest::Shop { shop, .. } => open(
-                match shop {
-                    Shop::Recorder => 25,
-                    Shop::Fairy => 26,
-                    Shop::Weapon | Shop::Item | Shop::Magic => 24,
-                },
-                1,
-            ),
-            TalkRequest::Menu { menu, .. } => open(menu as i16, talk::action_mode(menu, 0)),
-            // CheckOperate(9) refused it: no menu; the event task sees the
-            // operation and the character next frame (operateSet,
-            // operateTarget), as it sees ccThGameCtrl's call after its own
-            // Breath.
-            TalkRequest::Event { .. } => {
-                if let Some(vm) = &mut self.vm {
-                    vm.mng.operate_target = self.world.command_target_ref();
-                }
-                self.world.close_menu();
-            }
-        }
-    }
-
-    /// The Grunties' events of the frame ([`piney_world::grunty::
-    /// GruntyEvent`]): sounds at the listener, effects to start, voices
-    /// (a grown kind's through `ccCheckVoiceGrp` of its row) and the chat
-    /// balloon over the Grunty.
-    fn grunty_events(&mut self, names: &piney_desktop::kanji::Names, starts: &mut Vec<crate::town_fx::Start>) {
-        use crate::town_fx::Start;
-        use piney_world::grunty::GruntyEvent as E;
-        let events = self.world.take_grunty_events();
-        if events.is_empty() {
-            return;
-        }
-        let cam = self.world.camera().active();
-        let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-        for (code, e) in events {
-            let c = 4 << 24 | (code as u32 & 0xff_ffff);
-            match e {
-                E::Note { param, pos, attribute } => {
-                    if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
-                        self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
-                    }
-                }
-                E::Se3d { n, pos } => {
-                    if let Ok(n) = usize::try_from(n) {
-                        self.events.push(Event::Se3d { n, pos, note: None, ear });
-                    }
-                }
-                E::Smoke { pos, v, scale, life, kind } => starts.push(Start::Puff { pos, v, scale, life, kind }),
-                E::Evolve { .. } => starts.push(Start::Evolve(c)),
-                E::Grow { pos, height } => starts.push(Start::Grow(pos, height)),
-                E::Voice { grp, n } => {
-                    let grp = if grp >= 141 {
-                        piney_data::tables::fieldui::of(self.ui.texts().volume)
-                            .voice_groups
-                            .get((grp - 141) as usize)
-                            .copied()
-                            .unwrap_or(-1)
-                    } else {
-                        grp
-                    };
-                    let save = &self.world.state().save;
-                    self.events.push(crate::mode::voice_options(save));
-                    self.events.push(Event::Voice { event: grp, msg: n });
-                }
-                E::VoiceStop => self.events.push(Event::VoiceStop),
-                E::Chat(k) => {
-                    let text = self.world.grunty_chat_text(k);
-                    self.ui.open_chat(handle(Kind::Npc, code), &text, names);
-                }
-                E::ChatClose => self.ui.close_chat(),
-                // Carried out by the world; off the lists (its own flag).
-                E::Camera(_) | E::CamPos(_) | E::CamView(_) | E::Player { .. } | E::Dropped | E::Debug(_) => {}
-            }
-        }
-    }
-
-    /// What the menus asked of the rest of the game.
-    /// `ccThMenu` (34), after `ccThGameCtrl` and before the camera, the
-    /// party and the entries (`ccSetupGameCtrl`'s priorities): the book's
-    /// stream, the menus and their requests, which the town acts on this
-    /// same frame.
-    fn menu_task(&mut self, pad: &Pad, ctx: &mut Ctx) {
-        let mut w = ui_world(&self.world, self.vm.as_ref(), self.area_level);
-        // The balloons up, and the party's: CHAT's town orders open Kite's
-        // line and shut the menu with `Disp` in the same pass (issue #68).
-        let party: Vec<u32> = w.party.iter().flatten().map(|c| c.handle).collect();
-        w.chat_at = self
-            .ui
-            .chat_speakers()
-            .into_iter()
-            .chain(party)
-            .collect::<std::collections::BTreeSet<u32>>()
-            .into_iter()
-            .filter_map(|h| {
-                let (kind, code) = unhandle(h)?;
-                let (listed, at) = self.world.chat_point(kind, code)?;
-                Some(piney_fieldui::chat_msg::ChatAt { who: h, listed, at })
-            })
-            .collect();
-        // The book's cover stream, a frame a menu frame until it ends.
-        if self.book_stream
-            && let Some(p) = &mut self.stream.player
-        {
-            match p.step(&self.st.pad, &mut self.events) {
-                Some(f) => self.stream.frame = Some(f),
-                None => {
-                    self.world.set_rand(p.rand());
-                    self.stream.player = None;
-                    self.book_stream = false;
-                    self.ui.book_stream_done();
-                }
-            }
-        }
-        // The menus draw from the game's one rand(), as the world left it.
-        let (ui, count) = (&mut self.ui, self.count);
-        self.world.with_live_state(|s| ui.step_into(pad, &w, s, count, ctx));
-        // The menu task stops in ccUseItemRequest (a book, a key item):
-        // the use's rules on the town's party, and its steps back to the
-        // task, which goes on this frame.
-        loop {
-            let mut asked = None;
-            for r in self.ui.take_requests() {
-                match r {
-                    piney_fieldui::Request::UseItem { target, code } if self.ui.item_asked() => {
-                        asked = Some((target, code, 0));
-                    }
-                    piney_fieldui::Request::UseItemArg { target, code, arg } if self.ui.item_asked() => {
-                        asked = Some((target, code, arg));
-                    }
-                    r => self.menu_request(r),
-                }
-            }
-            let Some((target, code, arg)) = asked else { break };
-            let steps = self.world.use_item(unhandle(target), code, arg);
-            let (ui, count) = (&mut self.ui, self.count);
-            self.world.with_live_state(|s| ui.answer_item(steps, pad, s, count, Some(ctx)));
-        }
-        // ccThGameCtrl's states 1-5 end when CheckMenuType() is -1.
-        if self.world.targeting().in_menu && self.ui.menu_type() == -1 {
-            self.world.close_menu();
-        }
-    }
-
-    /// The Flag Race's asks of the frame (piney_world::grunty::race::RaceEvent):
-    /// its sounds and music, the menu's panels, map and ban, its effects
-    /// (the flags' sparks, the ride's dust) into `starts`.
-    fn race_events(&mut self, starts: &mut Vec<crate::town_fx::Start>) {
-        use piney_world::grunty::race::RaceEvent as R;
-        let cam = self.world.camera().active();
-        let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-        for e in self.world.take_race_events() {
-            match e {
-                R::Se(n) => self.events.push(Event::Se(n)),
-                R::Se3d(n, pos) => {
-                    if let Ok(n) = usize::try_from(n) {
-                        self.events.push(Event::Se3d { n, pos, note: None, ear });
-                    }
-                }
-                R::OpenBox(pos) => starts.push(crate::town_fx::Start::OpenBox(pos)),
-                R::Bgm(n) => {
-                    if let Ok(n) = usize::try_from(n) {
-                        self.events.push(Event::BgmStream(n));
-                    }
-                }
-                R::BgmStop => self.events.push(Event::BgmStreamStop),
-                R::PgBgmInit => self.events.push(Event::PgBgm(piney_audio::PgBgm::InitTown)),
-                R::PgBgmEnd => self.events.push(Event::PgBgm(piney_audio::PgBgm::RaceEnd)),
-                R::RideSound { param, attribute, pos } => {
-                    if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
-                        self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
-                    }
-                }
-                R::RideSmoke { pos, v, s, life, t } => {
-                    starts.push(crate::town_fx::Start::Puff { pos, v, scale: s, life, kind: t })
-                }
-                R::Panel(n) => self.ui.ctrl.panel_status = n,
-                R::Map(n) => self.ui.ctrl.map_status = n,
-                R::Forbid(n) => self.ui.ctrl.forbid = n,
-            }
-        }
-    }
-
-    fn menu_request(&mut self, r: piney_fieldui::Request) {
-        use piney_fieldui::Request as R;
-        use piney_fieldui::talk::TalkReq;
-        match r {
-            R::Se(n) => self.events.push(Event::Se(n)),
-            R::SeNote { n, note } => self.events.push(Event::SeNote { n: n.max(0) as usize, note: note as i8 }),
-            R::CameraShake { power, cycle, time, dirc } => self.world.camera_shake([power, cycle, time, dirc]),
-            // No drain in a town (the Skills menu refuses it); a movie asked
-            // anyway ends at once rather than hold the menu.
-            R::DrainMovie(_) => self.ui.drain_movie_done(),
-            // No boss in a town: menu 74 is never opened there.
-            R::StreamMenu(_) => self.ui.stream_menu_done(),
-            // ccThBook's cover over the town, on the palette the town's
-            // str8800e last took; a stream that cannot start counts as
-            // played.
-            R::BookStream(Some(cover)) => {
-                let save = self.world.state_out();
-                self.cover_palette = cover.palette.or(self.cover_palette);
-                let num = cover.stream;
-                let started = match (self.stream.iso.clone(), self.stream.data.clone()) {
-                    (Some(iso), Some(data)) => usize::try_from(num)
-                        .map_err(|_| format!("stream {num}"))
-                        .and_then(|n| {
-                            crate::stream::StreamPlayer::cover(&iso, &data, n, &save, self.cover_palette, &mut self.events)
-                        }),
-                    _ => Err("no disc for the book's stream".into()),
-                };
-                match started {
-                    Ok(p) => {
-                        self.stream.player = Some(p);
-                        self.book_stream = true;
-                    }
-                    Err(e) => {
-                        tracing::warn!("the book's stream: {e}; counted as played");
-                        self.ui.book_stream_done();
-                    }
-                }
-            }
-            R::BookStream(None) => {
-                if std::mem::take(&mut self.book_stream)
-                    && let Some(p) = self.stream.player.take()
-                {
-                    self.world.set_rand(p.rand());
-                }
-            }
-            R::StrParty(_) => {}
-            R::SleepAll => self.world.set_asleep(true),
-            R::WakeAll => self.world.set_asleep(false),
-            R::VoiceStop => self.events.push(Event::VoiceStop),
-            R::VoiceRequest { grp, msg } => {
-                let save = &self.world.state().save;
-                self.events.push(crate::mode::voice_options(save));
-                self.events.push(Event::Voice { event: grp, msg });
-            }
-            R::Unported(n) => self.unported = Some(n),
-            // EntryAffect on the gate (the circle) or a character.
-            R::Affect { target, kind } => {
-                if let Some((k, code)) = unhandle(target) {
-                    self.world.affect(k, code, kind);
-                }
-            }
-            // ccParty::AddMember (from ccThPartyAdd): the party is the
-            // world's (ccPartyManager), whose panels the UI reads from the
-            // next frame.
-            R::AddMember(id) => {
-                self.world.party_add(i32::from(id));
-            }
-            R::AreaLevel(v) => self.area_level = v,
-            // The Flag Race: started (its task runs from this frame's slot),
-            // quit from its pause, done with (its end begins).
-            R::RaceStart(kind) => {
-                if !self.world.race_start(kind) {
-                    tracing::warn!("the flag race did not start");
-                }
-            }
-            R::RaceQuit => {
-                if let Some(r) = self.world.race_mut() {
-                    r.quit();
-                }
-            }
-            R::RaceDone => {
-                if let Some(r) = self.world.race_mut() {
-                    r.done = true;
-                }
-            }
-            // CheckAreaCode's record: the words entered at the gate, which
-            // the event task's next pass reads (areaCodeSet, cleared at its
-            // top).
-            R::AreaCodeSet(words) => {
-                self.area_code_set = Some(words);
-                if let Some(vm) = &mut self.vm {
-                    vm.mng.area_code_set = words;
-                }
-            }
-            // ccSpcChar::TransferOut: a party member warps out.
-            R::TransferOut(h) => {
-                if let Some((Kind::Spc, code)) = unhandle(h) {
-                    self.world.transfer_out(code);
-                }
-            }
-            // ccChangeCmndTarget and cmndTargetFix from the menus (the shop
-            // pages drop the target and give it back).
-            R::TargetClear => self.world.change_command_target(None),
-            R::Target(h) => self.world.change_command_target(unhandle(h)),
-            R::TargetFix(on) => self.world.set_target_fix(on),
-            // The session changes the scene (`area.rs`, the fields).
-            // ccGame::ChangeArea goes through ChangeRequest, which calls
-            // ccDisableThEvent: the event task idles until the next set-up
-            // enables it. Left running, its play pass would start the next
-            // area's phase-4 blocks during the hold, before the set-up's
-            // passes, and hold them (event 11's talk on the holy ground).
-            // The gate menu's SimGenerateCode reseeds fieldrand.
-            R::FieldSeed(seed) => self.world.set_field_seed(seed),
-            R::GoToArea(words) => {
-                let [a, b, c] = words;
-                self.leaving = Some(format!("to the area of words {a} {b} {c}"));
-                if let Some(vm) = &mut self.vm {
-                    vm.disable();
-                }
-                self.events.push(Event::GoToArea(words));
-            }
-            R::ChangeArea { area, n } => self.change_area(area, n),
-            // Log Out (4, 7) and OPTION's Title Screen (1, 7):
-            // ccGame::ChangeRequest, for the session.
-            R::ChangeMode { num, sf } => self.events.push(Event::ChangeMode { num, sf }),
-            // ccSaveData::SetSoundEnv from OPTION's Sound page (the save
-            // already holds them; the output mode is not modelled).
-            R::SoundEnv { main, bgm, se, output } => self.events.push(Event::Volumes { main, se, bgm, output }),
-            // ccParty::DelMember(slot): Remove and Disband.
-            R::DelMember(slot) => self.world.party_remove(-slot),
-            R::CameraType(t) => self.world.set_camera_type(t),
-            // Switched on, the pad buzzes once.
-            R::Vibration { on } => {
-                if on {
-                    self.events.push(Event::Actuate { small: true, power: 160, ms: 200 });
-                }
-            }
-            // The shop's camera on the merchant spoken to (SetMerchantCamera:
-            // changeCamera(3), ecam filled) and back (changeCamera(1)).
-            R::Talk(t) => match t {
-                TalkReq::MerchantCamera => {
-                    if let Some((k, code)) = self.world.command_target() {
-                        self.world.set_merchant_camera(k, code, self.st.game.server);
-                    }
-                }
-                TalkReq::Camera(n) => self.world.change_camera(n as i16),
-                // Give Food: EntryAffect(grunty, plw, 19, food, num, 0).
-                TalkReq::Feed { target, food, num } => {
-                    if let Some((Kind::Npc, code)) = unhandle(target) {
-                        self.world.grunty_affect(code, 19, food as i16, num as i16);
-                    }
-                }
-                // The menus' writes to the Grunty (growthNum, foodMode,
-                // chatFlag).
-                TalkReq::GruntyGrowth { target, growth } => {
-                    if let Some(g) = unhandle(target).and_then(|(_, code)| self.world.grunty_mut(code)) {
-                        g.growth_num = growth;
-                    }
-                }
-                // AddSpcItem's ccUseItemRequest(spc, spc, code, 0): a book
-                // given in a trade or as a present is read at once; what
-                // lasts is the member's record.
-                TalkReq::SpcUseItem { spc, code } => {
-                    if let Some((Kind::Spc, id)) = unhandle(spc)
-                        && code >> 16 == piney_battle::item::category::BOOK
-                        && let Ok(i) = usize::try_from(id)
-                    {
-                        let volume = self.world.volume();
-                        let save = &mut self.world.state_mut().save;
-                        let mut p = piney_battle::param::SpcParam::from_save(save, i);
-                        piney_battle::item::book_on_record(&mut p, code & 0xffff, volume);
-                        p.store(save, i);
-                    }
-                }
-                // ccSpcMessagePresentOtherFellow: the third member remarks.
-                TalkReq::PresentOther(c) => {
-                    if let Some((Kind::Spc, id)) = unhandle(c) {
-                        self.world.present_other(id);
-                    }
-                }
-                TalkReq::GruntyFood { target, food_mode, chat_flag } => {
-                    if let Some(g) = unhandle(target).and_then(|(_, code)| self.world.grunty_mut(code)) {
-                        g.food_mode = food_mode;
-                        if let Some(c) = chat_flag {
-                            g.chat_flag = c;
-                        }
-                    }
-                }
-                // The talk menus' other requests.
-                #[allow(unreachable_patterns)]
-                _ => {}
-            },
-            // WORLD_MAN::SetMapAlpha: the minimap's fade.
-            R::MapAlpha(a) => self.map_st.set_alpha(a),
-            R::Flash => self.ui.gate_flash(),
-            // The frozen layers: asleep, the world draws everyone where
-            // they stand. Skills and items belong to the battle; the
-            // party's warps are not ported here.
-            R::Still(_)
-            | R::KeepLayers
-            | R::DeleteNoPartyMember
-            | R::Skill { .. }
-            | R::UseItem { .. }
-            | R::DrainAffect(_)
-            | R::PlayerSp(_)
-            | R::OpenChat(_)
-            // Not carried out yet: the Grunty Flute's use, the way back
-            // to a field (86) and Adjust Screen's offset. A member's
-            // CalcReal runs every frame
-            // (calc_real_party).
-            | R::UseItemArg { .. }
-            | R::SpcMessageOpenTreasureBox
-            // No breakables in a town.
-            | R::BreakSomething
-            | R::AttackCancel
-            | R::GoField
-            | R::CalcReal { .. }
-            // Data Drain is the fields' (area.rs).
-            | R::DataDrain { .. }
-            | R::DrainEnemy(_)
-            | R::DrainSideEffect
-            | R::DrainLevelDown
-            | R::TargetsCleared
-            | R::GameOver => {}
-            // An item use's step on the town, as the menu task reaches it.
-            R::ItemStep(st) => {
-                if !self.world.item_step(&st) {
-                    tracing::warn!("item step not carried out in town: {st:?}");
-                }
-            }
-            R::WorldHidden(on) => self.hack_screen = on,
-            // ccSPC::ChangeEquip: the new weapon on the model.
-            R::ChangeEquip { target, cat, .. } => {
-                if let Some((Kind::Spc, code)) = unhandle(target) {
-                    self.world.change_equip(code, cat);
-                }
-            }
-            // The CHAT menu's orders and the event menus' manual switches
-            // on a party member (the battle's AI: ActInTown reads 9 and 12).
-            R::ChatCmd { member, cmd } => {
-                if let Some((Kind::Spc, code)) = unhandle(member) {
-                    self.world.chat_cmd(code, cmd, None, 0);
-                }
-            }
-            R::DisplayOffset { x, y } => self.events.push(Event::DisplayOffset { x, y }),
-            R::ChangeEquipReport { member, n } => {
-                if let Some((Kind::Spc, code)) = unhandle(member) {
-                    self.world.equip_report(code, n);
-                }
-            }
-            R::ChatOrder { member, cmd, target, skill } => {
-                if let Some((Kind::Spc, code)) = unhandle(member) {
-                    let t = match unhandle(target) {
-                        Some((Kind::Spc, c)) => Some(c),
-                        _ => None,
-                    };
-                    self.world.chat_cmd(code, cmd, t, skill);
-                }
-            }
-            R::ManualOff(member) => {
-                if let Some((Kind::Spc, code)) = unhandle(member) {
-                    self.world.manual_off(code);
-                }
-            }
-            R::ManualModeAi { member, ev } => {
-                if let Some((Kind::Spc, code)) = unhandle(member) {
-                    self.world.manual_mode_ai(code, ev);
-                }
-            }
-            R::RemoteCmd { member, cmd } => {
-                if let Some((Kind::Spc, code)) = unhandle(member) {
-                    self.world.remote_cmd(code, cmd);
-                }
-            }
-            // GtHackMenu's OK: setupMode 1 and gtHackFlag, for the next
-            // scene's set-up (the session carries them).
-            R::GateHacked => self.events.push(Event::GateHacked),
-            // ccSndGateHack: the town's music out under the menu and
-            // stopped, back if the hack is cancelled.
-            R::GateHackSound(n) => self.events.push(Event::GateHackSound(n)),
-        }
-    }
-}
-
 /// `saveData.assignPAD` from +0x8404 as `ccSaveData::Init` (0x001743d0)
 /// writes it: action cross, personal triangle, chat square, option start,
 /// map select, ok cross, cancel circle, camera R1, R2, L1, L2.
@@ -997,7 +128,7 @@ const INIT_BUTTONS: [u16; 11] = [0x40, 0x10, 0x80, 0x800, 0x100, 0x40, 0x20, 0x0
 /// matches an assignment of 0, so triangle cannot open the Party
 /// tutorial's menu. The game never writes such a save; it gets `Init`'s
 /// assignment.
-fn repair_buttons(state: &mut SaveState) {
+pub(crate) fn repair_buttons(state: &mut SaveState) {
     let at = |k: usize| piney_desktop::save::ASSIGN_PAD + 2 * k;
     let s = &mut state.save;
     let others_zero = (0..11).filter(|&k| k != 5 && k != 6).all(|k| s.i16(at(k)) == 0);
@@ -1008,215 +139,8 @@ fn repair_buttons(state: &mut SaveState) {
     }
 }
 
-/// `ccCharBaseParam`'s and `ccSpcParam`'s fields from the record's start.
-mod spc {
-    pub const TYPE: usize = 0x08;
-    pub const ID: usize = 0x0c;
-    pub const HEIGHT: usize = 0x18;
-    pub const WIDTH: usize = 0x1c;
-    pub const MAX_HP: usize = 0x24;
-    pub const MAX_SP: usize = 0x26;
-}
-
-/// A character's identity in the field UI (a pointer in the game).
-pub(crate) fn handle(kind: Kind, code: i32) -> u32 {
-    let k = match kind {
-        Kind::Spc => 1,
-        Kind::Npc => 2,
-        Kind::Enemy => 3,
-        Kind::Gimmick => 4,
-    };
-    (k << 24) | (code as u32 & 0x00ff_ffff)
-}
-
-/// The character a [`handle`] names.
-fn unhandle(h: u32) -> Option<(Kind, i32)> {
-    let kind = match h >> 24 {
-        1 => Kind::Spc,
-        2 => Kind::Npc,
-        3 => Kind::Enemy,
-        4 => Kind::Gimmick,
-        _ => return None,
-    };
-    Some((kind, (h & 0x00ff_ffff) as i32))
-}
-
-/// A party member from its `saveData.spcParam` record, at full HP and SP
-/// (the save keeps no current HP; a character is made at its maximum).
-fn member(save: &SaveState, at: usize, name: Vec<u8>, handle: u32) -> piney_fieldui::CharInfo {
-    let s = &save.save;
-    let f = |o: usize| f32::from_bits(s.i32(at + o) as u32);
-    piney_fieldui::CharInfo {
-        handle,
-        types: s.i32(at + spc::TYPE) as u32,
-        id: s.i16(at + spc::ID),
-        name,
-        height: f(spc::HEIGHT),
-        width: f(spc::WIDTH),
-        hp: s.i16(at + spc::MAX_HP),
-        sp: s.i16(at + spc::MAX_SP),
-        max_hp: s.i16(at + spc::MAX_HP),
-        max_sp: s.i16(at + spc::MAX_SP),
-        attribute: -1,
-        in_view: true,
-        ..Default::default()
-    }
-}
-
-/// A character of the town as the HUD's target window reads it.
-fn char_info(world: &World, kind: Kind, code: i32) -> Option<piney_fieldui::CharInfo> {
-    let c = world.char_info(kind, code)?;
-    let h = handle(kind, code);
-    let mut info = match c.spc_param {
-        Some(at) => member(world.state(), at, c.name, h),
-        None => piney_fieldui::CharInfo {
-            handle: h,
-            types: c.flags,
-            id: code as i16,
-            name: c.name,
-            attribute: -1,
-            in_view: true,
-            ..Default::default()
-        },
-    };
-    info.height = f32::from_bits(c.height);
-    // The cursor over the character (ccCalcTagPosChar at 0.45 of its
-    // height, mode 0: 1 on screen).
-    info.tag = world.tag_pos(kind, code, 0.45, 0).filter(|t| t.2 != 0).map(|t| (t.0, t.1));
-    if let Some(&(_, _, dist, _)) = world.command_sorted().iter().find(|s| (s.0, s.1) == (kind, code)) {
-        info.cmnd_dist = f32::from_bits(dist);
-    }
-    Some(info)
-}
-
-/// The town's `game.server`: ChangeScene's server by town (0x00306dc0):
-/// Mac Anu's is 0, Dun Loireag's 1.
-fn town_server(s: &piney_data::save::SaveData) -> i32 {
-    piney_world::area::SERVER_OF_TOWN.get(usize::from(s.u8(offset::LAST_TOWN))).copied().unwrap_or(0)
-}
-
-/// The field UI's view of the town (`ccGame`, `ccPartyManager`,
-/// `cmndTarget`, `cmndSortRoot`, and the event manager's `status` and
-/// `areaCode[16]`): status 5, area 0, the party's slots from `spcParam`
-/// (Kite's named by the save's `plName`, the others by `charTbl`).
-pub(crate) fn ui_world(world: &World, vm: Option<&Vm>, area_level: i32) -> piney_fieldui::World {
-    let save = world.state();
-    let s = &save.save;
-    let ids = world.party();
-    let mut party: [Option<piney_fieldui::CharInfo>; 3] = [None, None, None];
-    let mut party_id = [-1i32; 3];
-    for (slot, &code) in ids.iter().enumerate() {
-        if code < 0 {
-            continue;
-        }
-        let at = piney_data::save::by_id::spc_param(code as usize);
-        let name = if code == 0 {
-            s.name().to_vec()
-        } else {
-            world.char_info(Kind::Spc, code).map(|c| c.name).unwrap_or_default()
-        };
-        let mut m = member(save, at, name, handle(Kind::Spc, code));
-        // The Status menu reads the character's conditions: its CalcReal's
-        // ConditionBattleEffect puts the equipment's added effects there.
-        if let Some(ch) = world.town_party().char(code) {
-            m.condition = ch.cond.v;
-            m.speed_value = f32::from_bits(ch.cond.speed_value);
-        }
-        if let Some((pos, _)) = world.char_pos(2, code as i16) {
-            m.pos_p = pos.map(f32::from_bits)[..3].try_into().unwrap_or_default();
-        }
-        party[slot] = Some(m);
-        party_id[slot] = code;
-    }
-    let t = world.targeting();
-    let info = |c: Option<(Kind, i32)>| c.and_then(|(k, n)| char_info(world, k, n));
-    let sorted: Vec<_> = world.command_sorted().iter().filter_map(|s| char_info(world, s.0, s.1)).collect();
-    piney_fieldui::World {
-        game: piney_fieldui::Game {
-            status: 5,
-            area: 0,
-            town: i32::from(s.u8(offset::LAST_TOWN) as i8),
-            server: town_server(s),
-            area_level,
-            ..Default::default()
-        },
-        party,
-        party_id,
-        // The story areas the events bar at the gate (none without them).
-        area_codes: vm.map_or([(-1, -1); 16], |vm| vm.mng.area_codes),
-        event_status: vm.map_or(0, |vm| vm.mng.status),
-        target: info(t.target),
-        target_prev: info(t.prev),
-        // The Grunty the menus read (cmndTargetPrev's, else cmndTarget's).
-        grunty: [t.prev, t.target].into_iter().flatten().find_map(|(k, code)| {
-            let g = world.grunty(code).filter(|_| k == Kind::Npc)?;
-            Some(piney_fieldui::menus::breeder::Grunty {
-                handle: handle(k, code),
-                row: i32::from(g.row.id),
-                growth: g.growth_num,
-                msg: g.msg_num,
-                exist: g.exist,
-                level: g.grow.level,
-                size: g.grow.size,
-                food_num: g.grow.food_num,
-                chat_flag: g.chat_flag,
-                food_mode: g.food_mode,
-            })
-        }),
-        obj_chain: sorted.iter().filter(|c| !c.is(0x07)).cloned().collect(),
-        sorted,
-        boss_entry: -1,
-        // ccSpcManager.registry[registryNum]: PartyInMenu calls a member
-        // only while fewer than five are loaded or when it is one of them
-        // (CheckSpc), and greets by its bootParam.
-        spc: {
-            let r = world.spcs();
-            r.registry[..r.registry_num.clamp(0, r.registry.len() as i32) as usize]
-                .iter()
-                .map(|e| (e.id, e.boot_param))
-                .collect()
-        },
-        // g_entCtrl's NPC list (each entParam.id, its npcTbl row): who is
-        // in town today, Ryu Book III's "Online".
-        npcs: world.all_npcs().map(|n| n.code()).collect(),
-        race: world.race().map(|r| piney_fieldui::menus::flag_race::RaceView {
-            state: r.state,
-            rank: r.rank,
-            running: r.running,
-            time: r.time,
-        }),
-        ..Default::default()
-    }
-}
-
-/// `ccMenu.menuFade` as the Flag Race fades on it.
-struct MenuFader<'a>(&'a mut piney_demo::fade::ScFade);
-
-impl piney_world::grunty::race::RaceHost for MenuFader<'_> {
-    fn entry_fade(&mut self, n: i16, col1: u32) -> i32 {
-        self.0.entry_fade(n, 0, col1)
-    }
-    fn continue_fade(&mut self, i: i32, n: i16, col1: u32) {
-        if let Some(e) = usize::try_from(i).ok().and_then(|i| self.0.elm.get_mut(i)) {
-            e.status = piney_demo::fade::DRAW;
-            e.tcnt = n;
-            e.cnt = 0;
-            e.col0 = e.col1;
-            e.col1 = col1;
-        }
-    }
-    fn check_fade(&mut self, i: i32) -> bool {
-        usize::try_from(i).is_ok_and(|i| self.0.check(i))
-    }
-    fn delete_fade(&mut self, i: i32) {
-        if let Some(e) = usize::try_from(i).ok().and_then(|i| self.0.elm.get_mut(i)) {
-            e.status = 0;
-        }
-    }
-}
-
 /// What `ccThGameCtrl` reads of `ccMenu`.
-fn menu_view(ui: &FieldUi) -> talk::MenuView {
+pub(crate) fn menu_view(ui: &FieldUi) -> talk::MenuView {
     let c = &ui.ctrl;
     talk::MenuView {
         idle: ui.menu_type() == -1 && c.open_req & 0xfff != 74,
@@ -1226,543 +150,34 @@ fn menu_view(ui: &FieldUi) -> talk::MenuView {
     }
 }
 
-impl Mode for WorldMode {
-    fn step(&mut self, pad: &Pad) -> Frame {
-        self.frames += 1;
-        self.count = self.count.wrapping_add(1);
-        self.st.pad = *pad;
-        self.st.frame = self.frames;
-        // ccThEvent (32) first.
-        self.event_frame();
-        // A stream the scripts play runs inside the event task's call,
-        // which breathes a frame at a time with no task asleep
-        // (ccEventStream): the town's tasks go on, its frame is what shows.
-        let stream_frame = self.stream.frame.take();
-        let mut ctx = Ctx::new(View::default());
-        self.world.set_menu_view(menu_view(&self.ui));
-        // ccThGameCtrl (33): the command target and the buttons; the map
-        // button where its test came (past ghoFlag and menuClrWait).
-        self.world.step_game_ctrl(pad);
-        if self.world.map_test() {
-            self.map_st.button(self.world.state_mut(), piney_world::area::kind::TOWN, pad.push.bits());
-        }
-        for t in self.world.take_talk() {
-            self.talk(t);
-        }
-        // Each scene's ccSetupGameCtrl makes the menu task, and its menu,
-        // anew once the passes are made, before the entries (worklog 384).
-        if self.world.tasks_start() {
-            let (ui, party) = (&mut self.ui, self.world.party());
-            let server = town_server(&self.world.state().save);
-            self.world.with_live_state(|s| ui.menu_task_started(s, party, Some(server)));
-        }
-        // ccThMenu (34), before the town's other tasks: what it asks for is
-        // acted on, and heard, this frame (worklog 336). A menu that asked
-        // for another area (the gate's SetGenerateCode, ChangeArea) sleeps
-        // in ChangeRequest: it does not run through the leave's fade, where
-        // the gate counted the area once a frame (#22). Its party check is
-        // F0's, its first Disp F1's (worklog 384).
-        if let Phase::Play(_) = self.world.phase()
-            && self.setup != Setup::Left
-            && self.leaving.is_none()
-        {
-            self.menu_task(pad, &mut ctx);
-        }
-        // A Ryu Book's cover stream (ccThBook's), stepped by the menu task:
-        // its frame shows now, as the scripts' streams' do. Kept for the
-        // next frame's check, it showed every other frame, with the town's
-        // frame between, and half the presses never reached it (#21).
-        if let Some(f) = self.stream.frame.take() {
-            self.events.append(&mut self.st.events);
-            return f;
-        }
-        // ccThCamera (40) on, and the town's own sprites (ccEff::Draw
-        // inside its Draw); with the gate hack's screen, only that, over
-        // black.
-        let mut hidden = Ctx::new(View::default());
-        let wctx = if self.hack_screen { &mut hidden } else { &mut ctx };
-        {
-            let mut fader = MenuFader(&mut self.ui.ctrl.menu_fade);
-            self.world.step_into_with(pad, wctx, &mut fader);
-        }
-        let sprites = self.world.take_town_sprites();
-        if let Some(fx) = &mut self.town_fx {
-            fx.draw(&sprites, self.world.camera(), self.world.fog(), wctx);
-        }
-        if matches!(self.world.phase(), Phase::Play(f) if f >= 1) && !self.world.asleep() {
-            self.calc_real_party();
-        }
-        let mut pc_starts = Vec::new();
-        self.race_events(&mut pc_starts);
-        // What the characters' tasks started this frame, in it: their
-        // effects, sounds and chat lines (the effects are the frame's
-        // ccThEffect's, as a field's are).
-        {
-            // The walking PCs' chat lines this frame (ccRtownPC's OpenChat)
-            // and their effTransfers.
-            let names = self.world.state().names();
-            for (code, e) in self.world.take_pc_events() {
-                match e {
-                    piney_world::town::pc::PcEvent::Chat(text) => {
-                        let text = piney_data::tables::sjis::encode(text);
-                        self.ui.open_chat(handle(Kind::Npc, code), &text, &names);
-                    }
-                    piney_world::town::pc::PcEvent::Transfer => {
-                        pc_starts.push(crate::town_fx::Start::Transfer(2 << 24 | (code as u32 & 0xff_ffff)));
-                    }
-                    piney_world::town::pc::PcEvent::Vanish { pos, crystal } => {
-                        pc_starts.push(crate::town_fx::Start::OpenBox(pos));
-                        if crystal {
-                            pc_starts.push(crate::town_fx::Start::VirusCrystal(pos));
-                            let cam = self.world.camera().active();
-                            let ear =
-                                Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-                            self.events.push(Event::Se3d { n: 167, pos, note: Some(40), ear });
-                        }
-                    }
-                    piney_world::town::pc::PcEvent::Drained { pos } => {
-                        self.events.push(Event::Se(79));
-                        pc_starts.push(crate::town_fx::Start::AfterDrain(2 << 24 | (code as u32 & 0xff_ffff)));
-                        self.events.push(Event::Se(60));
-                        pc_starts.push(crate::town_fx::Start::VirusCrystal(pos));
-                        pc_starts.push(crate::town_fx::Start::RemoveTrap(pos, 103, 121));
-                    }
-                    piney_world::town::pc::PcEvent::Step { param, ccs_type, pos, attribute, feet, dirc_z, speed } => {
-                        if let Some(se) = piney_audio::se3d::pc_note(param, ccs_type, attribute) {
-                            let cam = self.world.camera().active();
-                            let ear =
-                                Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-                            self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
-                        }
-                        if let Some(feet) = feet {
-                            pc_starts.push(crate::town_fx::Start::PawSmoke(feet, dirc_z, speed));
-                        }
-                    }
-                }
-            }
-            // Dun Loireag's dogs: inuCheckNote's ccSeSetParamInu and
-            // ccDog::effect's effSmoke.
-            for (_, e) in self.world.take_dog_events() {
-                match e {
-                    piney_world::town::dog::DogEvent::Note { param, pos, attribute } => {
-                        if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
-                            let cam = self.world.camera().active();
-                            let ear =
-                                Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-                            self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
-                        }
-                    }
-                    piney_world::town::dog::DogEvent::Smoke { pos, v } => {
-                        pc_starts.push(crate::town_fx::Start::Smoke(pos, v));
-                    }
-                }
-            }
-            // Dun Loireag's Grunties: inuCheckNote's ccSeSetParamInu, their
-            // ccSeOn3Ds, smoke and growing up's effects, voices and lines.
-            self.grunty_events(&names, &mut pc_starts);
-            // Carmina Gade's airship: its chimneys' effSmokeN and ccSeOn3D.
-            for e in self.world.take_town_events() {
-                match e {
-                    piney_world::systems::MapEvent::SmokeN { pos, v, scale, life, kind, fade } => {
-                        pc_starts.push(crate::town_fx::Start::PuffN { pos, v, scale, life, kind, fade });
-                    }
-                    piney_world::systems::MapEvent::Se3d { n, pos } => {
-                        if let Ok(n) = usize::try_from(n) {
-                            let cam = self.world.camera().active();
-                            let ear =
-                                Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-                            self.events.push(Event::Se3d { n, pos, note: None, ear });
-                        }
-                    }
-                    // A town's systems start none of a field's.
-                    _ => {}
-                }
-            }
-            // ccSoundMain's scene sounds: the canals of the town type it
-            // tests, the breeder's tune by DMY_merchant6.
-            let file = &self.world.area().core().file;
-            let breeder = file.ccs.find_object("DMY_merchant6").and_then(|o| file.scene.dummies.get(&o));
-            let scene_sound = piney_audio::scene::SceneInput {
-                camera: Some(self.world.camera().active().pos),
-                kite: self.world.player().body.pos,
-                block: 0,
-                town: Some(self.world.scene().town),
-                breeder: breeder.map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), 0x3f80_0000]),
-            };
-            self.events.push(Event::SceneSound(scene_sound));
-            // The party members' lines (ccAI::ChatMessageSender's OpenChat).
-            for (id, text) in self.world.take_party_chats() {
-                self.ui.open_chat(handle(Kind::Spc, id), &text, &names);
-            }
-        }
-        // ccThFieldDisp's ROOTTOWN01::Draw -> DrawMap from the tasks' second
-        // frame, after ccThMenu has set this frame's alpha.
-        if let Phase::Play(f) = self.world.phase()
-            && f >= 2
-            && self.setup != Setup::Left
-            && !self.hack_screen
-        {
-            let p = self.world.player();
-            let (pos, dirc) = (p.body.pos, p.body.dirc);
-            self.map_st.hud_scale = self.ui.hud_scale;
-            let race = self.world.map_racers();
-            let scene = self.world.scene();
-            let awake = !self.world.asleep();
-            let mut ents = piney_world::map::Entries::default();
-            let mut f = piney_world::area::MapFrame {
-                st: &mut self.map_st,
-                scene: &scene,
-                pos,
-                dirc,
-                awake,
-                in_battle: false,
-                fonts: None,
-                ents: &mut ents,
-                race,
-                ctx: &mut ctx,
-            };
-            piney_world::map::area_frame(self.world.area_mut(), &mut f);
-        }
-        // ccThEffect (80) and ccThParticle (98): Kite's, the members' and
-        // the walking PCs' transfers started, the effects stepped (not
-        // while the tasks sleep) and drawn.
-        if let Some(fx) = &mut self.town_fx {
-            use crate::town_fx::Start;
-            let mut starts: Vec<Start> = Vec::new();
-            for warp in self.world.take_kite_transfers() {
-                starts.push(if warp { Start::WarpTransfer(0) } else { Start::Transfer(0) });
-            }
-            for (id, warp) in self.world.take_member_transfers() {
-                let c = 1 << 24 | (id as u32 & 0xff_ffff);
-                starts.push(if warp { Start::WarpTransfer(c) } else { Start::Transfer(c) });
-            }
-            // The Administrator (ccMerchan::sysopeAct).
-            for (id, e) in self.world.take_merchant_events() {
-                use piney_world::town::merchant::SysopEvent;
-                let c = 3 << 24 | (id as u32 & 0xff_ffff);
-                match e {
-                    SysopEvent::Transfer => starts.push(Start::Transfer(c)),
-                    SysopEvent::Vanish => {
-                        self.events.push(Event::Se(217));
-                        starts.push(Start::Vanish(c));
-                    }
-                    SysopEvent::Noise => self.ui.noise(2),
-                }
-            }
-            starts.extend(pc_starts);
-            // Kite's running steps' dust (CheckNote's ccEffPawSmoke).
-            for (feet, dz, speed) in self.world.take_paw_smokes() {
-                starts.push(Start::PawSmoke(feet, dz, speed));
-            }
-            let camera = self.world.camera().clone();
-            // Kite's footsteps (ccPlayer::CheckNote's ccSeSetParamSPC, by
-            // the ground under him), as the fields play them.
-            let steps = self.world.take_steps();
-            if !steps.is_empty() {
-                let cam = camera.active();
-                let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-                for (param, pos, attribute) in steps {
-                    if let Some(se) = piney_audio::se3d::spc_note(self.world.volume(), param, 0, attribute) {
-                        self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
-                    }
-                }
-            }
-            // The Chaos Gate's circle opening (71) and closing (72).
-            let gate = self.world.take_gate_sounds();
-            if !gate.is_empty() {
-                let cam = camera.active();
-                let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-                for (n, pos) in gate {
-                    if let Ok(n) = usize::try_from(n) {
-                        self.events.push(Event::Se3d { n, pos, note: None, ear });
-                    }
-                }
-            }
-            if !self.world.asleep() {
-                let chars = self.world.fx_chars();
-                let player = self.world.player().body.pos;
-                let sounds = fx.frame(&starts, &chars, player, &camera, self.world.rand_state());
-                let cam = camera.active();
-                let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-                for (n, pos) in sounds {
-                    if let Ok(n) = usize::try_from(n) {
-                        self.events.push(Event::Se3d { n, pos, note: None, ear });
-                    }
-                }
-            }
-            if !self.hack_screen {
-                fx.draw_effects(&camera, self.world.fog(), &mut ctx);
-            }
-        }
-        // ccMenu's fader, sent last by Disp (so drawn first on its layer).
-        if self.setup != Setup::Left {
-            self.st.fade.send(&mut ctx, MENU_LAYER);
-            // scFadeDef: the screen's own flashes.
-            self.st.fade_def.send(&mut ctx, piney_desktop::layers::FONT_LAYER);
-        }
-        let mut frame = ctx.finish();
-        // ccSys.bgColor, which the town's constructor set.
-        if let Some([r, g, b]) = self.world.clear_colour() {
-            frame.clear = piney_draw::Rgba([r, g, b, 0x80]);
-        }
-        stream_frame.unwrap_or(frame)
-    }
-
-    fn take_events(&mut self) -> Vec<Event> {
-        let scene = self.world.scene();
-        let save = &self.world.state().save;
-        let town = save.u8(offset::LAST_TOWN);
-        let crisis = save.u8(offset::CRISIS) as i8 != 0;
-        let crisis_one = save.u8(offset::CRISIS) == 1;
-        let dt_bgm = i32::from(save.u8(offset::DT_BGM) as i8);
-        let mut out: Vec<Event> = self
-            .world
-            .take_requests()
-            .into_iter()
-            .filter_map(|r| match r {
-                Request::SoundFadeOut => Some(Event::SoundFadeOut),
-                Request::AllSoundOff => Some(Event::AllSoundOff),
-                Request::EvVoiceStop => Some(Event::VoiceStop),
-                // `ccSndSQLoad(2)` for a replaced scene, as ccSetupGameCtrl
-                // picks it: `sqDataTown[townType]`, or its crisis row
-                // (`piney_audio::driver::town_row`).
-                Request::SqLoad(_) => piney_audio::setup_context(&piney_audio::AreaMusic {
-                    area: scene.area,
-                    scene_replaced: scene.changed(),
-                    town,
-                    crisis,
-                    ..piney_audio::AreaMusic::default()
-                })
-                .map(Event::SqLoad),
-                // `ccSndBgmCtrl`'s town case (0x0017b064, `bgm_plan`): Mac
-                // Anu in the crisis and Dun Loireag with a third sequence
-                // start sequence 2, then every town sequence 0; Mac Anu's
-                // +0x105 and canals' flag reset.
-                Request::BgmCtrl => Some(Event::BgmCtrl(piney_audio::BgmWorld {
-                    scene_replaced: scene.changed(),
-                    town: i32::from(town),
-                    crisis: crisis_one,
-                    dt_bgm,
-                })),
-                Request::GameStart => Some(Event::GameStart),
-                // Soft reset is not modelled; the transfers went to the
-                // effects in the frame.
-                Request::EnableReset(_) | Request::Transfer | Request::WarpTransfer => None,
-            })
-            .collect();
-        out.append(&mut self.events);
-        out
-    }
-
-    fn frame_rate(&self) -> u32 {
-        self.st.frame_rate.unwrap_or_else(|| self.world.frame_rate())
-    }
-
-    /// While the scripts play a stream, its archive (the stream's pictures).
-    fn archive(&self) -> Option<Arc<Archive>> {
-        self.stream.player.as_ref().map(crate::stream::StreamPlayer::archive)
-    }
-
-    fn title(&self) -> String {
-        let phase = match self.world.phase() {
-            Phase::FadeOut(n) => format!("fade out {n}"),
-            Phase::Hold(n) => format!("loading {n}"),
-            Phase::Play(n) => format!("play {n}"),
-        };
-        // Positions and speeds are EE float bits.
-        let pl = self.world.player();
-        let p = pl.body.pos.map(f32::from_bits);
-        let target = match self.world.command_target() {
-            Some((k, n)) => format!(" - target {k:?} {n}"),
-            None => String::new(),
-        };
-        let leaving = match &self.leaving {
-            Some(to) => format!(" - the gate asks to go {to}"),
-            None => String::new(),
-        };
-        let menu = match (self.ui.menu_type(), self.unported) {
-            (-1, Some(n)) => format!(" - menu {n} not ported"),
-            (-1, None) => String::new(),
-            (m, _) => format!(" - menu {m}"),
-        };
-        let events = match (&self.vm, self.scene_change()) {
-            (_, Some(c)) => {
-                let [a, t, f, d, fl, b] = c.scene;
-                let area = c.area.map_or(String::new(), |(n, w)| format!(" (area {n}, words {w:?})"));
-                format!(" - ChangeScene({a}, {t}, {f}, {d}, {fl}, {b}){area}: the next area is not ported")
-            }
-            (Some(vm), None) => match (self.setup(), vm.playing()) {
-                (Setup::Pass(p), _) => format!(" - events: the pass at phase {p}"),
-                (_, Some((e, b))) => format!(" - event {e} block {b}"),
-                _ => format!(" - events phase {}", vm.phase()),
-            },
-            (None, None) => String::new(),
-        };
-        let fade = self.st.fade.alpha().map_or(String::new(), |a| format!(" - fade {a}"));
-        let town = piney_world::town::TownDef::of(self.world.scene().town, self.world.volume()).map_or("", |d| d.name);
-        format!(
-            "The World - {town} - {phase} - Kite at ({:.0}, {:.0}, {:.0}) act {} speed {:.1}{target}{menu}{leaving}{events}{fade}",
-            p[0],
-            p[1],
-            p[2],
-            pl.acts.act,
-            f32::from_bits(pl.body.speed)
-        )
-    }
-}
-
-/// The scripts' instructions as a Root Town answers them; what it has
-/// none of (an enemy list, a boss, a dungeon's rooms) keeps
-/// [`HostWorld`]'s nothing-here answers.
-impl HostWorld for World {
-    fn state(&self) -> &SaveState {
-        World::state(self)
-    }
-
-    fn state_mut(&mut self) -> &mut SaveState {
-        World::state_mut(self)
-    }
-
-    fn state_out(&self) -> SaveState {
-        World::state_out(self)
-    }
-
-    /// `ccGame`: status 5 and the scene the town's set-up left.
-    fn game(&self, st: &FieldState) -> piney_event::host::Game {
-        st.game.view()
-    }
-
-    /// `ccGame::ChangeArea` goes to the session, which changes the scene.
-    fn change_area(&mut self, st: &mut FieldState, a: i32, n: i32) {
-        st.events.push(Event::ChangeArea { area: a, town: n });
-    }
-
-    /// `ccGame::ChangeScene` on the town's `ccGame` (`lastTown` follows the
-    /// town).
-    fn change_scene(&mut self, st: &mut FieldState, scene: [i16; 6]) {
-        st.game.change_scene(&mut World::state_mut(self).save, scene.map(i32::from));
-    }
-
-    /// `ccGame` status 5 and this field for `ccSndStreamCtrl`, the town's
-    /// file list.
-    fn stream_game(&self, st: &FieldState) -> (piney_audio::stream::StreamGame, crate::stream::FileList) {
-        (
-            piney_audio::stream::StreamGame { status: st.game.status, field: st.game.field },
-            crate::stream::FileList::Town,
-        )
-    }
-
-    fn set_rand(&mut self, rand: u64) {
-        World::set_rand(self, rand);
-    }
-
-    fn server(&self) -> i32 {
-        town_server(&World::state(self).save)
-    }
-
-    /// A town keeps `GO`'s `hackFlag` 3 in the crisis.
-    fn menu_noise(&self) -> bool {
-        World::state(self).save.u8(offset::CRISIS) != 0
-    }
-
-    fn party(&self) -> [i32; 3] {
-        World::party(self)
-    }
-
-    fn char_pos(&self, ty: i16, code: i16) -> Option<[u32; 4]> {
-        World::char_pos(self, ty, code).map(|(p, _)| p)
-    }
-
-    /// `charTbl[pc].name`, which `spcParam[pc].base.name` points at.
-    fn char_name(&self, ui: &FieldUi, pc: i16) -> Vec<u8> {
-        usize::try_from(pc).ok().and_then(|i| ui.texts().char_names.get(i)).cloned().unwrap_or_default()
-    }
-
-    fn marker(&self, marker: i16) -> Option<piney_event::host::Marker> {
-        World::marker(self, marker)
-    }
-
-    fn command_target(&self) -> Option<piney_event::host::CharRef> {
-        self.command_target_ref()
-    }
-
-    fn target_alive(&self, target: &piney_event::host::CharRef) -> bool {
-        World::target_alive(self, target)
-    }
-
-    fn player_distance(&self, pos: [u32; 4]) -> u32 {
-        World::player_distance(self, pos)
-    }
-
-    fn camera_type(&self) -> Option<i32> {
-        None
-    }
-
-    fn teach_camera(&mut self, part: u8) {
-        World::teach_camera(self, part);
-    }
-
-    fn event_camera(&mut self, c: piney_event::host::CameraCommand) -> bool {
-        World::event_camera(self, c)
-    }
-
-    fn npc_command(&mut self, c: piney_event::host::NpcCommand) -> bool {
-        World::npc_command(self, c)
-    }
-
-    fn pc_command(&mut self, c: piney_event::host::PcCommand) -> bool {
-        World::pc_command(self, c)
-    }
-
-    fn set_trans(&mut self, ty: i16, code: i16, on: bool) -> bool {
-        World::set_trans(self, ty, code, on)
-    }
-
-    fn set_affect_colour(&mut self, code: i32, fix: i16, rate: i16, colour: u32) -> bool {
-        World::set_affect_colour(self, code, fix, rate, colour)
-    }
-
-    fn spc_loaded(&self, code: i32) -> bool {
-        World::spc_loaded(self, code)
-    }
-
-    fn menu_ban(&mut self, on: bool) {
-        self.menu_ban_camera(on);
-        self.menu_ban_party(on);
-    }
-
-    fn party_add(&mut self, pc: i32) -> i32 {
-        World::party_add(self, pc)
-    }
-
-    fn party_remove(&mut self, pc: i32) {
-        World::party_remove(self, pc);
-    }
-
-    fn remove(&mut self, ty: i16, code: i16) -> bool {
-        World::remove(self, ty, code);
-        true
-    }
-
-    /// The town's view for the menu, the member's handle.
-    fn spc_item(&self, code: i32) -> Option<(piney_fieldui::World, u32)> {
-        self.town_party().member(code)?;
-        Some((ui_world(self, None, 0), handle(Kind::Spc, code)))
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
-    use piney_input::{Buttons, Raw};
+    use std::path::Path;
+    use std::sync::Arc;
+
+    use piney_data::archive::Archive;
+    use piney_data::save::offset;
+    use piney_input::{Buttons, Pad, Raw};
+    use piney_world::World;
 
     use super::*;
+    use crate::area::AreaMode;
+    use crate::mode::{Event, Mode};
+
+    /// `ccSetupNewGame` and `ccSetupGameCtrl` in the town the save logs in
+    /// to, the mode over it.
+    fn enter(iso: &Path, archive: &Arc<Archive>, state: SaveState, vm: Option<Vm>) -> AreaMode {
+        let mut disc = Iso::open(iso).unwrap();
+        let world = World::log_in(&mut disc, archive.clone(), state).unwrap();
+        AreaMode::enter(iso, archive, world, vm).unwrap()
+    }
 
     /// A player for event 2's windows and menus: CROSS to type out and
     /// close each line; in the tutorials TRIANGLE for PERSONAL and the
     /// cursor to the one row that goes on (Party, Add, New Keyword), CROSS
     /// for the rest.
-    fn player(mode: &WorldMode, f: u64) -> Buttons {
+    fn player(mode: &AreaMode, f: u64) -> Buttons {
         let ui = mode.ui();
         let c = &ui.ctrl;
         let go_to = |row: i16| match c.list().select {
@@ -1797,7 +212,7 @@ mod tests {
     /// headless, the pad scripted by [`player`]: the mode at the end, the
     /// frames, the sound asked for, and the presses (frame, buttons).
     #[allow(clippy::type_complexity)]
-    fn play_event_2() -> Option<(WorldMode, u64, Vec<Event>, Vec<(u64, Buttons)>)> {
+    fn play_event_2() -> Option<(AreaMode, u64, Vec<Event>, Vec<(u64, Buttons)>)> {
         let iso = crate::check_image("infection");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
@@ -1806,7 +221,7 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let (state, vm) = new_game_events(&mut disc).unwrap();
-        let mut mode = WorldMode::enter(&iso, &archive, state, Some(vm)).unwrap();
+        let mut mode = enter(&iso, &archive, state, Some(vm));
         let mut pad = Pad::default();
         let (mut f, mut events, mut presses) = (0u64, Vec::new(), Vec::new());
         while mode.scene_change().is_none() {
@@ -1870,7 +285,7 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let state = new_game_state(&mut disc).unwrap();
-        let mut mode = WorldMode::enter(&iso, &archive, state, None).unwrap();
+        let mut mode = enter(&iso, &archive, state, None);
         let pad = Pad::default();
         let mut events = Vec::new();
         for _ in 0..40 {
@@ -1898,20 +313,20 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let state = new_game_state(&mut disc).unwrap();
-        let mut mode = WorldMode::enter(&iso, &archive, state, None).unwrap();
+        let mut mode = enter(&iso, &archive, state, None);
         let t = piney_battle::tables::Tables::read(&mut disc).unwrap();
-        let (now, _) = piney_world::chara::body::weapon_of(&t, &mode.world.state().save, 0).expect("Kite's blades");
+        let (now, _) = piney_world::chara::body::weapon_of(&t, &mode.world().state().save, 0).expect("Kite's blades");
         let (i, other) = (0..64)
             .find_map(|i| {
                 let n = String::from_utf8(t.job_weapon(0, i)?.ccsname.clone()).ok()?;
                 (!n.is_empty() && n != now).then_some((i, n))
             })
             .expect("another blade");
-        let mut k = SpcParam::from_save(&mode.world.state().save, 0);
+        let mut k = SpcParam::from_save(&mode.world().state().save, 0);
         k.equipment[4] = i as i16;
-        k.store(&mut mode.world.state_mut().save, 0);
-        mode.world.change_equip(0, 0);
-        let kite = mode.world.kite();
+        k.store(&mut mode.world_mut().state_mut().save, 0);
+        mode.world_mut().change_equip(0, 0);
+        let kite = mode.world().kite_model();
         let w = &kite.weapon.as_ref().expect("the blades' file").ccs;
         let hung: Vec<&str> = kite.hands().iter().filter_map(|&(_, m)| w.object_name(m)).collect();
         assert_eq!(hung, [format!("MDL_{other}r"), format!("MDL_{other}l")]);
@@ -1937,11 +352,11 @@ mod tests {
         let mut k = SpcParam::from_save(&state.save, 0);
         k.equipment[4] = i as i16;
         k.store(&mut state.save, 0);
-        let mut mode = WorldMode::enter(&iso, &archive, state, None).unwrap();
+        let mut mode = enter(&iso, &archive, state, None);
         for _ in 0..40 {
             mode.step(&Pad::default());
         }
-        let w = ui_world(&mode.world, None, 0);
+        let w = mode.menu_world();
         let kite = w.party[0].as_ref().expect("Kite in slot 0");
         assert_eq!(kite.condition[cond::CRITICAL], crit);
     }
@@ -1994,7 +409,7 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let (state, vm) = new_game_events(&mut disc).unwrap();
-        let mut mode = WorldMode::enter(&iso, &archive, state, Some(vm)).unwrap();
+        let mut mode = enter(&iso, &archive, state, Some(vm));
         let mut pad = Pad::default();
         let mut f = 0u64;
         while mode.scene_change().is_none() && f < 20_000 {
@@ -2003,11 +418,8 @@ mod tests {
             mode.step(&pad);
             mode.take_events();
             let at = mode.world().phase();
-            let w = mode.world_mut();
-            assert!(w.take_pc_events().is_empty(), "frame {f} ({at:?}): the walking PCs' events wait");
-            assert!(w.take_dog_events().is_empty(), "frame {f} ({at:?}): the dogs' events wait");
-            assert!(w.take_grunty_events().is_empty(), "frame {f} ({at:?}): the Grunties' events wait");
-            assert!(w.take_party_chats().is_empty(), "frame {f} ({at:?}): the party's lines wait");
+            let shows = &mode.world().combat().shows;
+            assert!(shows.is_empty(), "frame {f} ({at:?}): the characters' outputs wait: {shows:?}");
         }
     }
 
@@ -2029,8 +441,9 @@ mod tests {
             })
             .collect();
         let want: Vec<(u64, &str)> = vec![
-            (12, "clear_gate_hack"),
+            (12, "clear_gate_hack (gtHackFlag 0)"),
             (13, "pc Mode { pc: -3, param: 6 }"),
+            (15, "entry 2 2 3 5"),
             (17, "menu_ban true"),
             (17, "pc Face { pc: 2, ty: 2, code: 0, chg: 0 }"),
             (17, "camera ZSet { v: [-2, 574, 102], c: [-3, 537, 68] }"),
@@ -2124,7 +537,7 @@ mod tests {
         assert_ne!(s.member_word(offset::PARTY_MEMBER_FLAG) & 4, 0);
         assert_ne!(s.member_word(offset::PARTY_MEMBER_EXP) & 4, 0);
         // Orca at marker 3 and, after the tutorial, in party slot 1.
-        assert!(mode.world().town_party().member(2).is_some());
+        assert!(mode.world().combat().who(2).is_some());
         assert_eq!(mode.world().party(), [0, 2, -1]);
         // Each line's voice, as its window opens: messages 0-11; the party
         // tutorial's 12-19 (menus 75-77); 21-29; the gate tutorial's 30-33
@@ -2150,20 +563,14 @@ mod tests {
         use piney_battle::item::get_item_num;
         use piney_event::host::Host;
         let Some((mut mode, _, _, _)) = play_event_2() else { return };
-        let job = mode.world.state().save.i16(offset::SPC_PARAM + offset::SPC_PARAM_SIZE * 2 + 0xd8);
+        let job = mode.world().state().save.i16(offset::SPC_PARAM + offset::SPC_PARAM_SIZE * 2 + 0xd8);
         let cat = i32::from((job + 1).rem_euclid(6));
-        let before = mode.world.state().save.clone();
-        let mut h = EvHost {
-            world: &mut *mode.world,
-            ui: &mut mode.ui,
-            st: &mut mode.st,
-            teach: None,
-            reset: std::cell::Cell::new(false),
-            stream: &mut mode.stream,
-        };
-        assert!(h.add_spc_item(2, cat as i16, 3, 2), "Orca is in the town");
-        assert!(!h.add_spc_item(8, cat as i16, 3, 1), "Piros is not");
-        let s = &mode.world.state().save;
+        let before = mode.world().state().save.clone();
+        mode.with_host(|h| {
+            assert!(h.add_spc_item(2, cat as i16, 3, 2), "Orca is in the town");
+            assert!(!h.add_spc_item(8, cat as i16, 3, 1), "Piros is not");
+        });
+        let s = &mode.world().state().save;
         assert_eq!(get_item_num(s, 2, cat, 3), get_item_num(&before, 2, cat, 3) + 2);
         assert_eq!(get_item_num(s, 0, cat, 3), get_item_num(&before, 0, cat, 3));
         assert_eq!(get_item_num(s, 8, cat, 3), get_item_num(&before, 8, cat, 3));
@@ -2184,25 +591,5 @@ mod tests {
         own.save.set_i16(at(1), 0x80);
         repair_buttons(&mut own);
         assert_eq!(own.save.i16(at(1)), 0x80);
-    }
-
-    #[test]
-    fn handles_are_distinct_and_never_zero() {
-        let hs = [handle(Kind::Spc, 0), handle(Kind::Npc, 0), handle(Kind::Npc, 29), handle(Kind::Gimmick, 16)];
-        assert!(hs.iter().all(|&h| h != 0));
-        assert_eq!(unhandle(handle(Kind::Gimmick, 16)), Some((Kind::Gimmick, 16)));
-        assert_eq!(unhandle(handle(Kind::Npc, 62)), Some((Kind::Npc, 62)));
-        assert_eq!(unhandle(0), None);
-        for (i, a) in hs.iter().enumerate() {
-            assert!(hs[i + 1..].iter().all(|b| a != b));
-        }
-    }
-
-    #[test]
-    fn kite_from_the_new_game_save() {
-        let save = SaveState::fresh();
-        let k = member(&save, offset::SPC_PARAM, b"Kite".to_vec(), 1);
-        assert_eq!((k.hp, k.max_hp, k.sp, k.max_sp), (k.max_hp, k.max_hp, k.max_sp, k.max_sp));
-        assert_eq!(k.name, b"Kite");
     }
 }

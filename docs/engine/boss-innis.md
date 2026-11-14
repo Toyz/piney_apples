@@ -368,7 +368,7 @@ while the missiles fly). `innis::start` starts the generators;
 -1)`. The mirrors' shards are drawn by the field (`Output::clumps`
 as `Picture::Clump`, x21's `CMP_ex21ef*`). Until worklog 411 none of these was drawn.
 
-In the field, `FieldWorld::start_boss(code)` reads the event's entry code.
+In the field, `World::start_boss(code)` reads the event's entry code.
 It loads x21's `CMP_trall` and clips, the images' `CMP_ex21mon1`-`3` and
 the cinema's names, then makes Innis. Its images are actors while drawn.
 The area host answers `present/absent 7 1` from the task's exit.

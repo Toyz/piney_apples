@@ -186,7 +186,7 @@ impl MapState {
 pub(crate) fn town_minimap(map: &mut town::TownMap, f: &mut crate::area::MapFrame) {
     let st = &mut *f.st;
     if f.awake {
-        let input = town::Input { mode: st.modes.town, alpha: st.alpha, pos: f.pos, dirc: f.dirc, race: f.race };
+        let input = town::Input { mode: st.modes.town, alpha: st.alpha, pos: f.pos, dirc: f.dirc, race: f.ents.racers };
         st.last = map.draw(&input);
     }
     let place = |spr: u8| map.place(spr).cloned();
@@ -247,6 +247,8 @@ pub struct Entries {
     pub dungeon_circles: Vec<dungeon::Ent>,
     pub gims: Vec<dungeon::Ent>,
     pub event_hold: bool,
+    /// The Flag Race's riders on a town's map (`DrawMap`'s race marks).
+    pub racers: Option<[Option<town::Racer>; 3]>,
 }
 
 /// `WORLD_MAN::ShowMap`'s field case: `WORLD::ShowMap` (gcmn 0x005ad990,
@@ -354,7 +356,6 @@ mod tests {
                 in_battle: false,
                 fonts: None,
                 ents: &mut ents,
-                race: None,
                 ctx: &mut ctx,
             };
             area_frame(&mut town, &mut f);

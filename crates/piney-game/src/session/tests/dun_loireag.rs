@@ -3,11 +3,11 @@
 //! story:22`, where the story sends the player there: the board, Log in to
 //! Mac Anu, the gate, and event 22's block for Dun Loireag.
 
+use piney_world::world::CharId;
 use std::f32::consts::PI;
 use std::path::PathBuf;
 
 use piney_input::{Buttons, Raw};
-use piney_world::event::entry::Kind;
 
 use super::*;
 
@@ -53,8 +53,14 @@ fn stick_toward(cam_z: f32, h: f32) -> Raw {
 
 /// The town the session's World stands in, once its tasks run.
 fn town_of(s: &Session) -> Option<i32> {
+    // ChangeArea writes ccGame at once: the town left already reads the
+    // next one's number, until the session sets that one up.
     match &s.stage {
-        Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2) => {
+        Stage::Area(w)
+            if w.in_town()
+                && s.leaving.is_none()
+                && matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2) =>
+        {
             Some(w.world().scene().town)
         }
         _ => None,
@@ -65,7 +71,7 @@ fn town_of(s: &Session) -> Option<i32> {
 /// waiting window closed every 24 frames; in the gate's menu, Other
 /// Servers, the town, Warp; otherwise walking to the gate and speaking to
 /// it once it is the command target.
-fn to_the_gate(w: &WorldMode, f: u64, to: i32) -> Raw {
+fn to_the_gate(w: &AreaMode, f: u64, to: i32) -> Raw {
     let ui = w.ui();
     let c = &ui.ctrl;
     if ui.menu_type() != -1 {
@@ -114,12 +120,12 @@ fn to_the_gate(w: &WorldMode, f: u64, to: i32) -> Raw {
         return still(if f.is_multiple_of(24) { Buttons::CROSS } else { Buttons::NONE });
     }
     let world = w.world();
-    if world.command_target() == Some((Kind::Gimmick, 16)) {
+    if world.command_target_id() == Some(CharId::Object(16)) {
         return still(if f.is_multiple_of(24) { Buttons::CROSS } else { Buttons::NONE });
     }
-    let Some((gate, _)) = world.char_place(Kind::Gimmick, 16) else { return still(Buttons::NONE) };
+    let Some((gate, _)) = world.char_place(CharId::Object(16)) else { return still(Buttons::NONE) };
     let g = gate.map(f32::from_bits);
-    let p = world.player().body.pos.map(f32::from_bits);
+    let p = world.kite().pos().map(f32::from_bits);
     let cam_z = f32::from_bits(world.camera().rot()[2]);
     stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1])))
 }
@@ -133,7 +139,7 @@ fn warp(s: &mut Session, to: i32, max: u64) -> Option<u64> {
             return Some(f);
         }
         let raw = match &s.stage {
-            Stage::World(w) if town_of(s).is_some() => to_the_gate(w, f, to),
+            Stage::Area(w) if w.in_town() && town_of(s).is_some() => to_the_gate(w, f, to),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -158,11 +164,14 @@ fn the_gate_warps_to_dun_loireag_and_back() {
     let f = warp(&mut s, 1, 4000).unwrap_or_else(|| panic!("not in Dun Loireag: {}", Mode::title(&s)));
     eprintln!("Dun Loireag after {f} frames: {}", Mode::title(&s));
     assert_eq!((s.scene.area, s.scene.town, s.scene.server), (0, 1, 1));
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert!(Mode::title(w.as_ref()).contains("Dun Loireag"));
     let save = &w.world().state().save;
     assert_eq!(save.u8(offset::LAST_TOWN), 1);
-    let p = w.world().player().body.pos.map(f32::from_bits);
+    let p = w.world().kite().pos().map(f32::from_bits);
     assert_eq!((p[0], p[1]), (0.0, 3500.0));
     let f = warp(&mut s, 0, 4000).unwrap_or_else(|| panic!("not back in Mac Anu: {}", Mode::title(&s)));
     eprintln!("Mac Anu after {f} frames: {}", Mode::title(&s));
@@ -183,13 +192,16 @@ fn the_gate_menu_flashes() {
     let mut pad = Pad::default();
     for f in 0..4000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => to_the_gate(w, f, 1),
+            Stage::Area(w) if w.in_town() => to_the_gate(w, f, 1),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        let Stage::World(w) = &s.stage else { continue };
+        let Stage::Area(w) = &s.stage else { continue };
+        if !w.in_town() {
+            continue;
+        }
         if w.ui().menu_type() == GATE_MENU {
             let flash = w.ui().ctrl.menu_fade.elm.iter().find(|e| e.col0 == 0x3040_c0c0);
             assert!(flash.is_some_and(|e| e.tcnt == 8), "no flash: {:?}", w.ui().ctrl.menu_fade.elm);
@@ -214,7 +226,7 @@ fn story_22_reaches_dun_loireag() {
     let mut pad = Pad::default();
     // The board: past its opening to the menu, then LOG IN.
     let mut n = 0;
-    while !matches!(s.stage, Stage::World(_)) {
+    while !matches!(s.stage, Stage::Area(ref t) if t.in_town()) {
         let b = match n {
             200 => Buttons::CIRCLE,
             n if n > 240 && n % 30 == 0 => Buttons::CROSS,
@@ -233,7 +245,10 @@ fn story_22_reaches_dun_loireag() {
         s.step(&pad);
         s.take_events();
     }
-    let Stage::World(w) = std::mem::replace(&mut s.stage, Stage::Gone) else { panic!("left the town") };
+    let Stage::Area(w) = std::mem::replace(&mut s.stage, Stage::Gone) else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
     assert_eq!(w.world().scene().town, 1);
     let vm = w.leave().1.unwrap();
     let played: Vec<(i32, i32)> = vm
@@ -298,7 +313,10 @@ fn dun_loireag_shots() {
     ];
     for (name, x, y, z, dirc) in views {
         {
-            let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+            let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             let world = w.world_mut();
             assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
             assert!(world.pc_command(PcCommand::Turn { pc: 0, dirc, chg: 0 }));
@@ -341,8 +359,11 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
         step(&mut s, Buttons::NONE);
     }
     let dogs = |s: &Session| -> Vec<(i32, [f32; 4], usize, i32)> {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
-        w.world()
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
+        town_cast(w.world())
             .dogs()
             .iter()
             .map(|d| (piney_world::event::entry::Npc::code(d), d.ch.pos.map(f32::from_bits), d.cur, d.act))
@@ -367,15 +388,18 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
     // Kite 120 south of dog 143, facing north, until it is the target.
     let mut opened = false;
     for f in 0..600u64 {
-        let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         if w.ui().menu_type() == 44 {
             opened = true;
             break;
         }
-        let target = w.world().command_target();
-        let b = if target == Some((Kind::Npc, 143)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
-        if target != Some((Kind::Npc, 143)) {
-            let p = w.world().dogs()[2].ch.pos.map(f32::from_bits);
+        let target = w.world().command_target_id();
+        let b = if target == Some(CharId::Npc(143)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
+        if target != Some(CharId::Npc(143)) {
+            let p = town_cast(w.world()).dogs()[2].ch.pos.map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
             let world = w.world_mut();
             assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
@@ -392,7 +416,10 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
     step(&mut s, Buttons::CROSS);
     let mut talked = false;
     for f in 0..600u64 {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let t = w.ui().menu_type();
         talked |= t == 47;
         if talked && t == 44 {
@@ -408,7 +435,10 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
     for _ in 0..30 {
         step(&mut s, Buttons::NONE);
     }
-    let Stage::World(w) = &s.stage else { panic!("left the town") };
+    let Stage::Area(w) = &s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
     assert_eq!(w.ui().menu_type(), -1);
     assert_eq!(dogs(&s)[2].3, 4, "the dog did not walk on");
 }
@@ -436,18 +466,21 @@ fn a_dogs_talk_line_draws_the_towns_ccrand() {
         step(&mut s, Buttons::NONE);
     }
     let town_cc = |s: &Session| match &s.stage {
-        Stage::World(w) => w.world().cc().expect("the town's ccRand"),
+        Stage::Area(w) if w.in_town() => w.world().combat().cc.clone(),
         _ => panic!("left the town"),
     };
     // Kite south of dog 143 until NorainuMenu (44) opens: its first step
     // draws the line over a mark.
     for f in 0..600u64 {
-        let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         w.ui_mut().ctrl.talk.talk_num = -7;
-        let target = w.world().command_target();
-        let b = if target == Some((Kind::Npc, 143)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
-        if target != Some((Kind::Npc, 143)) {
-            let p = w.world().dogs()[2].ch.pos.map(f32::from_bits);
+        let target = w.world().command_target_id();
+        let b = if target == Some(CharId::Npc(143)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
+        if target != Some(CharId::Npc(143)) {
+            let p = town_cast(w.world()).dogs()[2].ch.pos.map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
             let world = w.world_mut();
             assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
@@ -455,11 +488,14 @@ fn a_dogs_talk_line_draws_the_towns_ccrand() {
         }
         let mut cc = town_cc(&s);
         step(&mut s, b);
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let talk_num = w.ui().ctrl.talk.talk_num;
         if talk_num != -7 {
             assert_eq!(w.ui().menu_type(), 44);
-            let r = match cc.rand() & 3 {
+            let r = match piney_battle::rand::Rng::rand(&mut cc) & 3 {
                 3 => 0,
                 r => r,
             };
@@ -472,8 +508,11 @@ fn a_dogs_talk_line_draws_the_towns_ccrand() {
 
 /// The young Grunty's state: (code, pos, act, growthNum, dmylevel).
 fn grunties(s: &Session) -> Vec<(i32, [f32; 4], i32, i8, i16)> {
-    let Stage::World(w) = &s.stage else { panic!("left the town") };
-    w.world()
+    let Stage::Area(w) = &s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
+    town_cast(w.world())
         .grunties()
         .iter()
         .map(|g| (g.code, g.ch.pos.map(f32::from_bits), g.act, g.growth_num, g.dmylevel))
@@ -486,14 +525,17 @@ fn grunties(s: &Session) -> Vec<(i32, [f32; 4], i32, i8, i16)> {
 fn open_grunty(s: &mut Session, pad: &mut Pad, code: i32, menu: i32) -> Option<u64> {
     use piney_event::host::PcCommand;
     for f in 0..600u64 {
-        let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         if w.ui().menu_type() == menu {
             return Some(f);
         }
-        let target = w.world().command_target();
-        let b = if target == Some((Kind::Npc, code)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
-        if target != Some((Kind::Npc, code)) {
-            let g = w.world().grunty(code).expect("the Grunty");
+        let target = w.world().command_target_id();
+        let b = if target == Some(CharId::Npc(code)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
+        if target != Some(CharId::Npc(code)) {
+            let g = town_cast(w.world()).grunty(code).expect("the Grunty");
             let p = g.ch.pos.map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 15, (p[2] / 10.0) as i16);
             let world = w.world_mut();
@@ -545,7 +587,10 @@ fn the_grunty_eats_and_grows() {
     // The fade, the fixed camera, the greeting: proccess 5, the list.
     let mut listed = false;
     for _ in 0..120 {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         if w.ui().menu_type() == 46 && w.ui().ctrl.proccess == 5 {
             listed = true;
             break;
@@ -554,7 +599,10 @@ fn the_grunty_eats_and_grows() {
     }
     assert!(listed, "InuMenu's list did not come up");
     {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         assert_eq!(w.world().camera().cam_id, 3, "not the fixed camera");
     }
     assert_eq!(grunties(&s)[0].2, 0, "the Grunty did not sit");
@@ -567,7 +615,10 @@ fn the_grunty_eats_and_grows() {
     let mut evolved = false;
     for f in 0..3000u64 {
         let (menu, proccess) = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let Stage::Area(w) = &s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             (w.ui().menu_type(), w.ui().ctrl.proccess)
         };
         let g = grunties(&s)[0];
@@ -578,7 +629,10 @@ fn the_grunty_eats_and_grows() {
         }
         let b = match (menu, proccess) {
             (56, 2) if f.is_multiple_of(12) && !fed => {
-                let Stage::World(w) = &s.stage else { unreachable!() };
+                let Stage::Area(w) = &s.stage else { unreachable!() };
+                if !w.in_town() {
+                    unreachable!()
+                }
                 if w.ui().ctrl.wait_count < 3 { Buttons::UP } else { Buttons::CROSS }
             }
             _ if f.is_multiple_of(24) => Buttons::CROSS,
@@ -591,12 +645,15 @@ fn the_grunty_eats_and_grows() {
     assert!(grew, "the Grunty did not grow");
     assert!(evolved, "no growing voice");
     {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let g = piney_world::grunty::Growth::read(&w.world().state().save, 1);
         eprintln!("record: {g:?}");
         assert_eq!((g.level, g.size), (1, 6));
         assert_eq!(w.world().state().save.u8(0x0cfc + 26), 0, "the food was not taken");
-        assert_eq!(w.world().grunty(154).unwrap().row.id, 155);
+        assert_eq!(town_cast(w.world()).grunty(154).unwrap().row.id, 155);
     }
     // Talk (the first row): its food line, then the list again.
     step(&mut s, &mut pad, Buttons::UP);
@@ -604,7 +661,10 @@ fn the_grunty_eats_and_grows() {
     step(&mut s, &mut pad, Buttons::CROSS);
     let mut talked = false;
     for f in 0..600u64 {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let (t, p) = (w.ui().menu_type(), w.ui().ctrl.proccess);
         talked |= t == 47;
         if talked && t == 46 && p == 5 {
@@ -619,7 +679,10 @@ fn the_grunty_eats_and_grows() {
     for _ in 0..60 {
         step(&mut s, &mut pad, Buttons::NONE);
     }
-    let Stage::World(w) = &s.stage else { panic!("left the town") };
+    let Stage::Area(w) = &s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
     assert_eq!(w.ui().menu_type(), -1);
     assert_eq!(w.world().camera().cam_id, 1);
     assert_eq!(grunties(&s)[0].2, 3, "the Grunty did not walk on");
@@ -660,8 +723,11 @@ fn a_grown_grunty_talks_and_trades_as_its_kind() {
     let mut fed = false;
     for f in 0..6000u64 {
         let (menu, proccess, row) = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
-            (w.ui().menu_type(), w.ui().ctrl.proccess, w.world().grunty(code).map(|g| g.row.id))
+            let Stage::Area(w) = &s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
+            (w.ui().menu_type(), w.ui().ctrl.proccess, town_cast(w.world()).grunty(code).map(|g| g.row.id))
         };
         if row == Some(145) && menu == -1 {
             break;
@@ -678,8 +744,11 @@ fn a_grown_grunty_talks_and_trades_as_its_kind() {
         step(&mut s, &mut pad, b);
     }
     {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
-        let g = w.world().grunty(code).expect("the grown one stays (a new kind)");
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
+        let g = town_cast(w.world()).grunty(code).expect("the grown one stays (a new kind)");
         assert_eq!(g.row.id, 145, "it did not grow up");
         assert_eq!(w.ui().menu_type(), -1);
     }
@@ -690,7 +759,10 @@ fn a_grown_grunty_talks_and_trades_as_its_kind() {
     open_grunty(&mut s, &mut pad, code, 45).expect("OtonainuMenu did not open");
     let noble = piney_fieldui::talk::Base::npc(volume, 145).unwrap().name;
     {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let chain = w.ui().ctrl.talk.chain.as_ref().expect("its greeting");
         assert_eq!(chain.name, noble, "the greeting's speaker");
     }
@@ -698,7 +770,10 @@ fn a_grown_grunty_talks_and_trades_as_its_kind() {
     let mut traded = None;
     for f in 0..600u64 {
         let (menu, proccess) = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let Stage::Area(w) = &s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             (w.ui().menu_type(), w.ui().ctrl.proccess)
         };
         if menu == 48 && proccess != 0 {
@@ -707,7 +782,10 @@ fn a_grown_grunty_talks_and_trades_as_its_kind() {
         }
         let b = match (menu, proccess) {
             (45, 1) => {
-                let Stage::World(w) = &s.stage else { unreachable!() };
+                let Stage::Area(w) = &s.stage else { unreachable!() };
+                if !w.in_town() {
+                    unreachable!()
+                }
                 if w.ui().ctrl.list().select == 0 { Buttons::DOWN } else { Buttons::CROSS }
             }
             _ if f.is_multiple_of(24) => Buttons::CROSS,
@@ -768,8 +846,11 @@ fn grunty_shots() {
     }
     // Kite 250 ahead of it (it walks east), facing it.
     {
-        let Stage::World(w) = &mut s.stage else { panic!("left the town") };
-        let p = w.world().grunty(154).unwrap().ch.pos.map(f32::from_bits);
+        let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
+        let p = town_cast(w.world()).grunty(154).unwrap().ch.pos.map(f32::from_bits);
         let (x, y, z) = ((p[0] / 10.0) as i16 + 25, (p[1] / 10.0) as i16 + 5, (p[2] / 10.0) as i16);
         let world = w.world_mut();
         assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
@@ -783,7 +864,10 @@ fn grunty_shots() {
     shot(&s, &frame, "1-walking");
     open_grunty(&mut s, &mut pad, 154, 46).expect("InuMenu did not open");
     loop {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         if w.ui().menu_type() == 46 && w.ui().ctrl.proccess == 5 {
             break;
         }
@@ -800,7 +884,10 @@ fn grunty_shots() {
     let mut grown = false;
     for f in 0..3000u64 {
         let (menu, proccess, wc) = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let Stage::Area(w) = &s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             (w.ui().menu_type(), w.ui().ctrl.proccess, w.ui().ctrl.wait_count)
         };
         if grown && menu == 46 && proccess == 5 {
@@ -870,7 +957,10 @@ fn the_grown_grunty_talks() {
     let all = grunties(&s);
     assert_eq!(all.iter().map(|g| (g.0, g.4)).collect::<Vec<_>>(), [(145, 4), (154, 0)]);
     {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let rec = piney_world::grunty::Growth::read(&w.world().state().save, 1);
         assert_eq!((rec.level, rec.size, rec.ty), (0, 0, [1, 0, 0]), "the record did not start over");
     }
@@ -879,13 +969,19 @@ fn the_grown_grunty_talks() {
         step(&mut s, &mut pad, Buttons::NONE);
     }
     {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
-        assert_eq!(w.world().grunty(145).unwrap().msg_num, 7);
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
+        assert_eq!(town_cast(w.world()).grunty(145).unwrap().msg_num, 7);
     }
     step(&mut s, &mut pad, Buttons::CROSS);
     let mut talked = false;
     for f in 0..600u64 {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let t = w.ui().menu_type();
         talked |= t == 47;
         if talked && t == 45 {
@@ -901,7 +997,10 @@ fn the_grown_grunty_talks() {
     for _ in 0..30 {
         step(&mut s, &mut pad, Buttons::NONE);
     }
-    let Stage::World(w) = &s.stage else { panic!("left the town") };
+    let Stage::Area(w) = &s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
     assert_eq!(w.ui().menu_type(), -1);
 }
 
@@ -927,8 +1026,10 @@ fn a_walker_stands_through_its_talk() {
     let mut code = None;
     for _ in 0..3000 {
         step(&mut s, Buttons::NONE);
-        if let Stage::World(w) = &s.stage {
-            code = w.world().pcs().iter().find(|n| n.think_type == 0 && n.act_num == 3).map(|n| n.code());
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
+        {
+            code = town_cast(w.world()).pcs().iter().find(|n| n.think_type == 0 && n.act_num == 3).map(|n| n.code());
             if code.is_some() {
                 break;
             }
@@ -936,21 +1037,27 @@ fn a_walker_stands_through_its_talk() {
     }
     let code = code.expect("no walker out");
     let pc = |s: &Session| {
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
-        let n = w.world().pcs().iter().find(|n| n.code() == code).expect("the walker");
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
+        let n = town_cast(w.world()).pcs().iter().find(|n| n.code() == code).expect("the walker");
         (n.act_num, n.char.pos.map(|v| f32::from_bits(v) as i32), w.ui().menu_type())
     };
     let mut opened = false;
     for f in 0..900u64 {
-        let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         if w.ui().menu_type() == 22 {
             opened = true;
             break;
         }
-        let target = w.world().command_target();
-        let on = target == Some((Kind::Npc, code));
+        let target = w.world().command_target_id();
+        let on = target == Some(CharId::Npc(code));
         if !on {
-            let p = w.world().pcs().iter().find(|n| n.code() == code).unwrap().char.pos.map(f32::from_bits);
+            let p = town_cast(w.world()).pcs().iter().find(|n| n.code() == code).unwrap().char.pos.map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
             let world = w.world_mut();
             world.pc_command(PcCommand::Put { pc: 0, x, y, z });
@@ -994,12 +1101,14 @@ fn a_random_warp_counts_one_area() {
     let mut s = Session::in_world(iso, archive, None, state, None, scene, None).unwrap();
     let mut pad = Pad::default();
     for f in 0..8000u64 {
-        if let Stage::Area(a) = &s.stage {
+        if let Stage::Area(a) = &s.stage
+            && !a.in_town()
+        {
             assert_eq!(a.world().state().save.i16(0x6862), 1, "areas counted on one trip");
             return;
         }
         let raw = match &s.stage {
-            Stage::World(w) => {
+            Stage::Area(w) if w.in_town() => {
                 let ui = w.ui();
                 let c = &ui.ctrl;
                 match (ui.menu_type(), c.proccess) {

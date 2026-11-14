@@ -27,9 +27,9 @@ use crate::chara::pose::Play;
 use crate::ee::{self, F, ONE, V4, add, cosf, from_int, le, lt, mul, sinf, sub};
 use crate::event::entry::Npc;
 use crate::hit::{self, UNIT};
-use crate::mt::Mt;
 use crate::town::merchant::EntryObj;
 use crate::town::pc::{get_dirc, get_dirc_chg, get_dirc0, get_dist3d, set_dirc};
+use piney_battle::rand::{Genrand, Rng as _};
 
 /// `npcTbl`'s grown Grunties (145-153) and young ones (154-157).
 pub const ROW_ADULT: i32 = 145;
@@ -1257,7 +1257,7 @@ impl Grunty {
 
     /// `dogAction2` (gcmn 0x0050f720), a grown one's: 15 a line from its
     /// row's four (`ccRand() & 3`), 14 line 7; the rest nothing.
-    pub fn dog_action2(&mut self, cmd: i16, mt: &mut Mt) {
+    pub fn dog_action2(&mut self, cmd: i16, mt: &mut Genrand) {
         let later = self.later;
         self.affect_type = cmd;
         match cmd {
@@ -1281,7 +1281,7 @@ impl Grunty {
     /// `dogActionAdult` (gcmn 0x0050f9d0), a new grown one's: 15 (not act
     /// 8) sits up with a line of its kind's four, 14 sits (line 7), 0 walks
     /// on, 11 as `dogAction`'s.
-    pub fn dog_action_adult(&mut self, cmd: i16, mt: &mut Mt, player_dirc: V4) {
+    pub fn dog_action_adult(&mut self, cmd: i16, mt: &mut Genrand, player_dirc: V4) {
         self.affect_type = cmd;
         match cmd {
             15 if self.act != 8 => {
@@ -1306,7 +1306,7 @@ impl Grunty {
     }
 
     /// The Grunty's `affectFunc` for the menu's command.
-    pub fn affect(&mut self, cmd: i16, arg1: i16, arg2: i16, mt: &mut Mt, player_dirc: V4) {
+    pub fn affect(&mut self, cmd: i16, arg1: i16, arg2: i16, mt: &mut Genrand, player_dirc: V4) {
         match self.affect_fn {
             AffectFn::Young => self.dog_action(cmd, arg1, arg2, player_dirc),
             AffectFn::Grown => self.dog_action2(cmd, mt),
@@ -1336,7 +1336,7 @@ impl Grunty {
     }
 
     /// `ccPGuso::evoEff` (gcmn 0x005100e0): smoke round it as it grows.
-    fn evo_eff(&mut self, mt: &mut Mt) {
+    fn evo_eff(&mut self, mt: &mut Genrand) {
         let m = crate::camera::evcam::rot_z(&UNIT, self.ch.dirc[2]);
         let (y, z): (F, F) = match self.grow.level {
             0 => (0xc2c8_0000, 0x41c8_0000),
@@ -1515,7 +1515,7 @@ impl Grunty {
                     self.stretch(t, K002, K001);
                     let t = self.frame_a();
                     if t >= 36 && t.is_multiple_of(3) {
-                        self.evo_eff(ctx.mt);
+                        self.evo_eff(ctx.cc);
                     }
                     if self.frame_a() == 30 {
                         self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.ch.height });
@@ -1606,7 +1606,7 @@ impl Grunty {
                     self.stretch(t, K004, K002);
                     let t = if young { self.frame_a() } else { self.frame_b() };
                     if t >= 31 && t & 1 != 0 {
-                        self.evo_eff(ctx.mt);
+                        self.evo_eff(ctx.cc);
                     }
                     let t = if young { self.frame_a() } else { self.frame_b() };
                     if t == 30 {
@@ -1644,7 +1644,7 @@ impl Grunty {
                     }
                     let t = self.frame_a();
                     if t >= 31 && t & 1 != 0 {
-                        self.evo_eff(ctx.mt);
+                        self.evo_eff(ctx.cc);
                     }
                     if self.frame_a() == 30 {
                         self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.ch.height });
@@ -2152,7 +2152,7 @@ impl Npc for Grunty {
 
 /// `ccRandF(x, clamp)` (main 0x001d9b20): `x * ccRand() / 2^31` in double
 /// precision, kept within `clamp` either way.
-pub fn rand_f(mt: &mut Mt, x: F, clamp: F) -> F {
+pub fn rand_f(mt: &mut Genrand, x: F, clamp: F) -> F {
     let r = f64::from(mt.rand());
     let v = ((f64::from(f32::from_bits(x)) * (r / 2_147_483_648.0)) as f32).to_bits();
     if lt(v, 0) {
@@ -2193,7 +2193,7 @@ pub struct GruntyCtx<'a> {
     pub hits: &'a mut hit::Hits,
     /// newlib's `rand()` and the game's `ccRand`.
     pub rand: &'a mut crate::Rand,
-    pub mt: &'a mut Mt,
+    pub cc: &'a mut Genrand,
     pub save: &'a mut SaveData,
     /// From Mutation on, while the Flag Race runs in the town (0x005ff790).
     pub race: Option<RaceLink<'a>>,

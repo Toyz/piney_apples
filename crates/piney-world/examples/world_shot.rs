@@ -90,18 +90,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut iso = Iso::open(&iso_path)?;
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN")?)?);
     let save = new_game(&mut iso)?;
-    let mut world = World::enter(&mut iso, archive.clone(), save)?;
+    let mut world = World::log_in(&mut iso, archive.clone(), save)?;
     for [t, c, m, p] in entries {
-        if !world.entry(t, c, m, p) {
+        if !world.event_entry([t, c, m, p]) {
             eprintln!("entry {t} {c} {m} {p}: not placed");
         }
     }
     if info {
-        let party = world.town_party();
-        for (code, _) in party.members() {
-            let Some((pos, dirc)) = party.place(code) else { continue };
+        let party = world.combat();
+        for (code, _) in party.party_members() {
+            let Some((pos, dirc)) = party.member_place(code) else { continue };
             let (p, d) = (pos.map(ee::f), ee::f(dirc[2]));
-            let anim = party.actor(code).and_then(|a| a.ch.anim_name().map(str::to_string));
+            let anim = party.member_actor(code).and_then(|a| a.ch.anim_name().map(str::to_string));
             println!("fellow {code} at ({:.1}, {:.1}, {:.1}) dirc {d:.3} anim {anim:?}", p[0], p[1], p[2]);
         }
     }
@@ -135,18 +135,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             world.close_menu();
         }
         if info && (i % 10 == 0 || i == frames) {
-            let p = world.player();
+            let (p, s) = (world.kite().pos(), world.kite().built().map(|k| *k.spc).unwrap_or_default());
             let c = world.camera();
             println!(
                 "{i:4} {:?} mv {:?} spd {} act {:2} pos ({:.1}, {:.1}, {:.1}) dirc {:.3} cam ({:.1}, {:.1}, {:.1}) deg {:?} dist {:.1} cmds {}",
                 world.phase(),
-                p.body.move_pos.map(ee::f),
-                ee::f(p.body.now_speed),
-                p.acts.act,
-                ee::f(p.body.pos[0]),
-                ee::f(p.body.pos[1]),
-                ee::f(p.body.pos[2]),
-                ee::f(p.body.dirc[2]),
+                s.move_pos.map(ee::f),
+                ee::f(s.now_speed),
+                world.kite().built().map_or(0, |k| k.ch.spc_char.act_num),
+                ee::f(p[0]),
+                ee::f(p[1]),
+                ee::f(p[2]),
+                ee::f(s.dirc[2]),
                 ee::f(c.tcam.pos[0]),
                 ee::f(c.tcam.pos[1]),
                 ee::f(c.tcam.pos[2]),

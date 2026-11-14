@@ -44,6 +44,9 @@ type Loose = (i32, [f32; 3], Option<[f32; 3]>);
 /// they stand.
 fn loose_boxes(s: &Session) -> Vec<Loose> {
     let Stage::Area(a) = &s.stage else { return Vec::new() };
+    if a.in_town() {
+        return Vec::new();
+    }
     let w = a.world();
     let MapKind::Dungeon(d) = w.area().kind() else { return Vec::new() };
     let c = w.combat();
@@ -75,6 +78,7 @@ fn area_18_s_boxes_stand_in_the_way() {
     let mut rooms = Vec::new();
     for _ in 0..600 {
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && let MapKind::Dungeon(d) = a.world().area().kind()
         {
             rooms = (0..d.floors.len())
@@ -93,6 +97,9 @@ fn area_18_s_boxes_stand_in_the_way() {
     for to in rooms {
         walk_to(&mut s, to, 3000, |s, _, _| {
             let Stage::Area(a) = &s.stage else { return };
+            if a.in_town() {
+                return;
+            }
             let w = a.world();
             if !matches!(w.phase(), piney_world::Phase::Play(n) if n > 2) {
                 return;
@@ -142,11 +149,14 @@ fn kite_stops_at_the_story_box(mut s: Session, (floor, room): (i32, i32)) {
     hold_until(
         &mut s,
         600,
-        |s| matches!(&s.stage, Stage::Area(a) if matches!(a.world().area().kind(), MapKind::Dungeon(_))),
+        |s| matches!(&s.stage, Stage::Area(a) if !a.in_town() && matches!(a.world().area().kind(), MapKind::Dungeon(_))),
     );
     walk_to(&mut s, (floor as usize, room as usize), 30000, |_, _, _| {});
     let the_box = |s: &Session| {
         let Stage::Area(a) = &s.stage else { return None };
+        if a.in_town() {
+            return None;
+        }
         let c = a.world().combat();
         c.ctrl.list(Kind::Gimmick).into_iter().find_map(|g| {
             let o = c.ctrl.entry_obj(g)?;
@@ -161,6 +171,9 @@ fn kite_stops_at_the_story_box(mut s: Session, (floor, room): (i32, i32)) {
     let mut nearest = f32::MAX;
     for _ in 0..400 {
         let Stage::Area(a) = &s.stage else { panic!("left the area") };
+        if a.in_town() {
+            panic!("left the area")
+        }
         let w = a.world();
         let c = w.combat();
         let p = c.scene.chars[c.kite.unwrap()].pos.map(f32::from_bits);
@@ -202,11 +215,14 @@ fn chest_cursor_shots() {
     hold_until(
         &mut s,
         600,
-        |s| matches!(&s.stage, Stage::Area(a) if matches!(a.world().area().kind(), MapKind::Dungeon(_))),
+        |s| matches!(&s.stage, Stage::Area(a) if !a.in_town() && matches!(a.world().area().kind(), MapKind::Dungeon(_))),
     );
     walk_to(&mut s, (1, 4), 30000, |_, _, _| {});
     let the_box = |s: &Session| {
         let Stage::Area(a) = &s.stage else { return None };
+        if a.in_town() {
+            return None;
+        }
         let c = a.world().combat();
         c.ctrl.list(Kind::Gimmick).into_iter().find(|&g| {
             c.ctrl.entry_obj(g).is_some_and(|o| o.obj_flag && o.gim_id == 0 && o.ent.floor == 1 && o.ent.block == 4)
@@ -217,6 +233,9 @@ fn chest_cursor_shots() {
     let mut pad = Pad::default();
     for _ in 0..400 {
         let Stage::Area(a) = &s.stage else { panic!("left the area") };
+        if a.in_town() {
+            panic!("left the area")
+        }
         let w = a.world();
         if w.command_target() == Some(g) {
             break;

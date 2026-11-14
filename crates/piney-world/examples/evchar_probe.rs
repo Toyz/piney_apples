@@ -1,8 +1,8 @@
 //! Answers `tools/test_evchar_rs.py` (`evchar_probe ISO < requests`): the
 //! characters' event commands - Kite built with a registry `bootParam`, a
 //! party member placed by an event, the party instructions and the frames
-//! that follow (`cameraMain`, `ccPlayer::Main`, each member's
-//! `ccFellow::Main`) - as JSON lines. Requests: `start`, `marker`, `fellow`,
+//! that follow (`cameraMain`, then the battle's tasks as every area runs
+//! them: `ccPlayer::Main`, each member's `ccFellow::Main`) - as JSON lines. Requests: `start`, `marker`, `fellow`,
 //! `act`, `mode`, `turn`, `face`, `ban`, `add`, `remove`, `talk`, `pad`;
 //! numbers hex, floats their bits, the fields the harness's.
 
@@ -13,16 +13,13 @@ use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_data::save::{SaveData, offset};
-use piney_desktop::assets::SceneFile;
 use piney_world::Rand;
 use piney_world::camera::{CamPad, Camera, Scheme};
-use piney_world::chara::motion::{ActEvent, PLAYER_ANIM_TBL};
-use piney_world::chara::party::{self, FaceTarget, SpcChars, Spcs};
-use piney_world::chara::player::Player;
+use piney_world::chara::party::{self, SpcChars, Spcs};
 use piney_world::combat::spc::SpcRec;
+use piney_world::combat::{Combat, NoFx, Tasks};
 use piney_world::ee::{self, V4};
 use piney_world::hit::{HitModel, Hits};
-use piney_world::town::party::{TownFrame, TownParty};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -48,8 +45,7 @@ fn b(v: bool) -> String {
 
 struct Run {
     hits: Hits,
-    player: Player,
-    party: TownParty,
+    combat: Combat,
     spcs: Spcs,
     save: SaveData,
     camera: Camera,
@@ -78,47 +74,48 @@ fn ai_json(ai: Option<&piney_world::chara::ai::Ai>) -> String {
     ])
 }
 
+/// Kite (the battle's character, as in every area) and the camera.
 fn kite_json(r: &Run) -> String {
-    let (p, bd, a, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
-    let t = &c.tcam;
-    obj(&[
-        ("pos", list(&bd.pos)),
-        ("dirc", list(&bd.dirc)),
-        ("move", list(&bd.move_pos)),
-        ("now_speed", bd.now_speed.to_string()),
-        ("speed_rate", bd.speed_rate.to_string()),
-        ("move_flag", b(bd.move_flag)),
-        ("run_flag", b(bd.run_flag)),
-        ("stop_flag", b(a.stop_flag)),
-        ("restraint", b(a.restraint)),
-        ("pause", b(a.pause)),
-        ("act", a.act.to_string()),
-        ("act_old", a.act_old.to_string()),
-        ("act_cnt", a.act_cnt.to_string()),
-        ("anm_flag", a.anm_flag.to_string()),
-        ("react_cnt", a.react_cnt.to_string()),
-        ("transfer_lag", a.transfer_lag.to_string()),
-        ("walk_run_cnt", a.walk_run_cnt.to_string()),
-        ("cloak", a.cloak.to_string()),
-        ("transparency", p.transparency.to_string()),
-        ("set_transparency", p.set_transparency.to_string()),
-        ("frame_spd", a.frame_spd.to_string()),
-        ("time", a.time.to_string()),
-        ("attribute", p.hit_attribute.to_string()),
-        ("stop_cnt", p.stop_cnt.to_string()),
-        ("drawn", b(p.drawn)),
-        ("disp", b(p.disp)),
-        ("trans_dist", b(p.trans_dist)),
-        ("no_death", b(p.no_death)),
-        ("party_flag", p.party_flag.to_string()),
-        ("listed", b(p.listed)),
-        ("hitsw", b(p.hit_body.sw)),
-        ("ai", ai_json(p.ai.as_ref())),
+    let c = &r.combat;
+    let k = c.kite.expect("built at start");
+    let t = &r.camera.tcam;
+    let kite = fellow_json(c, 0, k);
+    let cam = obj(&[
         ("cam_pos", list(&t.pos)),
         ("cam_view", list(&t.view)),
         ("cam_deg", format!("[{}, {}]", t.deg[0], t.deg[1])),
-        ("world_screen", mat(&c.world_screen)),
-    ])
+        ("world_screen", mat(&r.camera.world_screen)),
+    ]);
+    format!("{}, {}", &kite[..kite.len() - 1], &cam[1..])
+}
+
+/// The registry's characters (Kite and the members, the battle's) lent to
+/// `f` with the collision, written back after, as the world lends them.
+fn with_chars<R>(r: &mut Run, f: impl FnOnce(&mut Spcs, &mut dyn SpcChars, &mut Hits) -> R) -> R {
+    let c = &r.combat;
+    let td = |w: usize| c.cast.get(w).is_none_or(|a| a.trans_dist);
+    let mut chars = piney_world::combat::spc::BattleChars::read(&c.scene, &c.crew, &c.members, c.kite, &td);
+    let out = f(&mut r.spcs, &mut chars, &mut r.hits);
+    let cast = &mut r.combat.cast;
+    chars.finish(&mut r.combat.scene, &mut r.combat.crew, &mut |w, t| {
+        if let Some(a) = cast.get_mut(w) {
+            a.trans_dist = t;
+        }
+    });
+    for &(_, w) in &r.combat.members {
+        piney_battle::fellow::sync_in(&r.combat.scene, &mut r.combat.crew, w);
+    }
+    r.combat.set_party(r.spcs.party());
+    out
+}
+
+/// `f` on the event's party instructions ([`piney_battle::evparty::EvParty`])
+/// in the town (area 0), the registry's characters its roster.
+fn ev_party<R>(r: &mut Run, f: impl FnOnce(&mut piney_battle::evparty::EvParty) -> R) -> R {
+    let ids = std::array::from_fn(|i| r.spcs.registry[i].id);
+    let roster = r.combat.roster(ids);
+    let (out, _) = r.combat.with_ev_party(&mut r.hits, &mut r.camera, 0, &roster, &[], &|_| None, &|_| None, f);
+    out
 }
 
 /// Bit `n` of `ccSpcChar` +0xe0 (`pauseFlag` bit 0, `exitFlag` 10).
@@ -127,8 +124,7 @@ fn bit(w: u32, n: u32) -> String {
 }
 
 /// Member `code` (scene index `w`) of the town's party.
-fn fellow_json(party: &TownParty, code: i32, w: usize) -> String {
-    let c = &party.combat;
+fn fellow_json(c: &Combat, code: i32, w: usize) -> String {
     let ch = &c.scene.chars[w];
     let s = c.crew.spc.get(&w).copied().unwrap_or_default();
     let a = c.cast.get(w);
@@ -201,9 +197,9 @@ fn main() {
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let volume = iso.volume().unwrap();
     let char_tbl = piney_world::load_char_tbl(&mut iso).unwrap();
-    let kite = SceneFile::read(&archive, "ctu1body").unwrap();
-    let anims: Vec<&piney_data::anim::Animation> =
-        PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
+    let kite = std::rc::Rc::new(
+        piney_world::chara::body::Body::read(&archive, "ctu1body", piney_world::chara::body::TRALL).unwrap(),
+    );
     let town = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let dummies = piney_desktop::assets::SceneFile::read(&archive, "town01").unwrap();
     let mut run: Option<Run> = None;
@@ -224,17 +220,19 @@ fn main() {
                 // height 160, width 45, velocity 27.5.
                 let mut save = SaveData::new();
                 spc_row(&mut save, 0, 7, None, 0x4320_0000, 0x4234_0000, 0x41dc_0000);
-                let player = Player::build(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000, boot, &mut hits);
                 let mut spcs = Spcs::new_game();
                 spcs.registry[0].boot_param = boot;
                 spcs.set_party();
-                let mut party = TownParty::new(&mut iso, 0, &dummies).unwrap();
-                party.combat.add_leader(&save, boot, player.party_flag);
-                party.combat.mirror_leader(&player);
+                let data = std::rc::Rc::new(piney_world::combat::BattleData::read(&mut iso).unwrap());
+                let mut combat = Combat::new(data, 1);
+                combat.town_nav =
+                    Some(piney_world::combat::stage::TownNavData::read(volume, 0, &dummies, &mut combat.keep).unwrap());
+                // ccSPC::Reboot's Kite, arriving in the town (area 0).
+                combat.add_kite(&save, pos, dirc[2], true, boot, 1, kite.clone(), Vec::new(), &mut hits, 0);
+                combat.set_party(spcs.party());
                 run = Some(Run {
                     hits,
-                    player,
-                    party,
+                    combat,
                     spcs,
                     save,
                     camera: Camera::new(volume, pos, dirc, mode, Scheme::new(n(5) as i32)),
@@ -267,25 +265,23 @@ fn main() {
                 let file = &char_tbl[code as usize].1;
                 // ccSPC::Reboot's build, at StartPos (the origin: not in
                 // the party); the draws as the test scripts them.
-                let keep = r.rand.0;
-                let who = r
-                    .party
-                    .build(&archive, &r.save, code, file, ee::VF0, 0, boot, pf, i, &mut r.hits, &mut r.rand)
-                    .unwrap();
-                r.rand.0 = keep;
-                if let Some(s) = r.party.combat.crew.spc.get_mut(&who) {
+                let keep = r.combat.rand.0;
+                let who =
+                    r.combat.build_member(&archive, &r.save, code, file, ee::VF0, 0, boot, pf, i, &mut r.hits).unwrap();
+                r.combat.rand.0 = keep;
+                if let Some(s) = r.combat.crew.spc.get_mut(&who) {
                     s.cycle = 0;
                     s.atk_dellay = 0;
                     s.transfer_lag = lag;
                 }
-                if let Some(a) = r.party.combat.crew.ais.get_mut(&who) {
+                if let Some(a) = r.combat.crew.ais.get_mut(&who) {
                     a.count = 0;
                     a.atk_msg_cnt = 0;
                     a.dmg_msg_cnt = 7;
                 }
                 r.spcs.set_party();
                 // ccEntryEventMng's step for the entry.
-                r.party.with_chars(&mut r.player, &mut r.spcs, &mut r.hits, |_, chars, _| {
+                with_chars(r, |_, chars, _| {
                     let mut c = chars.spc(code).unwrap();
                     *c.pos = pos;
                     c.set_dirc_z(dd);
@@ -310,49 +306,61 @@ fn main() {
                     dirc_r: n(6),
                     pow,
                 };
-                // piney_world::tasks, with cameraMain's menu_idle clear while
-                // menu_ban holds (eventMng +0x78c).
-                r.camera.main(&pad, r.player.body.dirc[2], !r.banned, false, &mut r.mode);
-                {
-                    let rand = &mut r.rand;
-                    let mut next = || rand.rand();
-                    let mut f = piney_world::chara::player::Frame {
-                        pad: &pad,
-                        camera: &mut r.camera,
-                        hits: &mut r.hits,
-                        anims: &anims,
-                        rand: &mut next,
-                        cmnd_target: false,
-                        annihilated: false,
-                    };
-                    r.player.main(&mut f);
-                }
-                if r.player.events.contains(&ActEvent::Arrived) {
-                    r.hits.hit_enable(&mut r.player.hit_body);
-                }
-                if let Some(how) = r.player.leave.take() {
-                    r.party.with_chars(&mut r.player, &mut r.spcs, &mut r.hits, |spcs, chars, _| {
-                        spcs.leave(0, how, chars)
+                // cameraMain, with its menu_idle clear while menu_ban holds
+                // (eventMng +0x78c), then the battle's tasks as the world
+                // runs them in every area.
+                // A leaver's task wakes to its exit and ends (World::fellows_gone).
+                let exit = piney_battle::fellow::flag::EXIT;
+                let gone: Vec<(i32, usize)> = (r.combat.members.iter().copied())
+                    .filter(|&(id, w)| id != 0 && r.combat.scene.chars[w].spc_char.flags & exit != 0)
+                    .collect();
+                for (id, w) in gone {
+                    let pf = (((r.combat.scene.chars[w].party_flag & 7) << 5) as i8) >> 5;
+                    with_chars(r, |spcs, chars, _| {
+                        if let Some(l) = spcs.find(id) {
+                            spcs.expulsion(l, pf, chars);
+                        }
                     });
+                    r.combat.drop_member(w, &mut r.hits);
+                    r.combat.set_party(r.spcs.party());
                 }
-                // ccThFellowNN as the World runs them.
-                let mut x = TownFrame {
-                    hits: &mut r.hits,
-                    camera: &mut r.camera,
-                    save: &mut r.save,
-                    rand: &mut r.rand,
-                    menu_type: -1,
-                    menu_forbid: false,
-                    server: 0,
-                };
-                r.party.frame(&mut r.player, &mut r.spcs, &mut x);
-                let fellows: Vec<String> = r.party.members().map(|(id, w)| fellow_json(&r.party, id, w)).collect();
+                let heading = r.combat.kite_ref().map_or(0, |k| k.spc.dirc[2]);
+                r.camera.main(&pad, heading, !r.banned, false, &mut r.mode);
+                r.combat.rand = r.rand;
+                {
+                    let mut x = Tasks {
+                        hits: &mut r.hits,
+                        camera: &mut r.camera,
+                        pad,
+                        save: &mut r.save,
+                        scene: piney_world::area::Scene::init(),
+                        wm: piney_world::area::WorldMan::default(),
+                        menu_type: -1,
+                        menu_forbid: false,
+                        puppet_show: false,
+                        cmnd_target: false,
+                        count: 0,
+                        event_area: false,
+                        dungeon: [0; 4],
+                        map2d: Vec::new(),
+                        map2d_info: [0; 3],
+                        path_map: false,
+                        effect_sw: true,
+                        spcs: Some(&mut r.spcs),
+                        own: None,
+                    };
+                    r.combat.frame(&mut x, &mut NoFx);
+                }
+                r.combat.shows.clear();
+                r.rand = r.combat.rand;
+                let fellows: Vec<String> =
+                    r.combat.party_members().map(|(id, w)| fellow_json(&r.combat, id, w)).collect();
                 // The character list's bodies: Kite 0, a member 0x40 + its
                 // charTbl row (as the test names them).
                 let body_of = |id: u32| {
-                    r.party
-                        .members()
-                        .find(|&(_, w)| piney_world::combat::spc::body_id(w, r.party.combat.kite) == id)
+                    r.combat
+                        .party_members()
+                        .find(|&(_, w)| piney_world::combat::spc::body_id(w, r.combat.kite) == id)
                         .map_or(id, |m| 0x40 + m.0 as u32)
                 };
                 println!(
@@ -365,26 +373,28 @@ fn main() {
                     ])
                 );
             }
+            // pc_turn and pc_face: the event's party instructions as every
+            // area runs them (EvParty over the battle's characters).
+            Some(op @ ("turn" | "face")) => {
+                let r = run.as_mut().unwrap();
+                let (pc, x, y) = (s16(1), s16(2), s16(3));
+                let ok = ev_party(r, |p| match op {
+                    "turn" => p.pc_turn(pc, x, y),
+                    _ => p.pc_face(pc, x, y, s16(4)),
+                });
+                println!("{}", obj(&[("ok", b(ok))]));
+            }
             Some(op) => {
                 let r = run.as_mut().unwrap();
-                let banned = &mut r.banned;
-                let ok = r.party.with_chars(&mut r.player, &mut r.spcs, &mut r.hits, |spcs, chars, hits| match op {
+                let mut ban = None;
+                let ok = with_chars(r, |spcs, chars, hits| match op {
                     "act" => party::pc_act(spcs, chars, hits, i32::from(s16(1)), i32::from(s16(2))),
                     "mode" => {
                         spcs.pc_mode(i32::from(s16(1)), i32::from(s16(2)));
                         true
                     }
-                    "turn" => party::pc_turn(spcs, chars, i32::from(s16(1)), s16(2), s16(3)),
-                    "face" => match FaceTarget::of(s16(2), s16(3)) {
-                        FaceTarget::Spc(code) => match spcs.get_spc(code).and_then(|id| chars.pos(id)) {
-                            Some(to) => party::pc_face(spcs, chars, i32::from(s16(1)), to, s16(4)),
-                            None => false,
-                        },
-                        FaceTarget::None => true,
-                        _ => false,
-                    },
                     "ban" => {
-                        *banned = n(1) != 0;
+                        ban = Some(n(1) != 0);
                         if n(1) != 0 {
                             party::menu_ban(spcs, chars, hits);
                         } else {
@@ -407,6 +417,9 @@ fn main() {
                     }
                     _ => panic!("unknown request {line}"),
                 });
+                if let Some(on) = ban {
+                    r.banned = on;
+                }
                 println!("{}", obj(&[("ok", b(ok))]));
             }
             None => {}

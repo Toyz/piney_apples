@@ -10,11 +10,11 @@ use std::collections::HashMap;
 use std::io::BufRead;
 
 use piney_world::ee::{self, V4};
-use piney_world::event::entry::Kind;
 use piney_world::event::talk::{
     self, Battle, Cmnd, Cond, Ctrl, Host, InBattle, Input, Leader, LeaderState, Member, Party, RecoveryReqs, Scope,
     Targeting, Who,
 };
+use piney_world::world::CharId;
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -52,12 +52,16 @@ impl Args<'_> {
     }
 }
 
-/// The kind a candidate's list gives it.
-fn kind_of(flags: u32) -> Kind {
-    match Cmnd::new(Kind::Npc, 0, flags, 0, ee::VF0).list() {
-        0 => Kind::Spc,
-        1 => Kind::Enemy,
-        _ => Kind::Npc,
+/// The test's candidate `k` (its index, or the game's idx).
+fn cand(k: i32) -> CharId {
+    CharId::Scene(k as u32 as usize)
+}
+
+/// The index a [`cand`] names.
+fn code(who: CharId) -> i32 {
+    match who {
+        CharId::Scene(k) => k as u32 as i32,
+        _ => -1,
     }
 }
 
@@ -81,8 +85,8 @@ impl Host for Plan<'_> {
     fn skill_check(&mut self) -> i32 {
         self.skill
     }
-    fn skill_request(&mut self, _: Kind, code: i32) {
-        self.attacks.push(i64::from(code));
+    fn skill_request(&mut self, who: CharId) {
+        self.attacks.push(i64::from(code(who)));
         self.skill = self.after;
     }
     fn recovery(&mut self) {
@@ -126,7 +130,7 @@ fn main() {
                 let cands: Vec<Cmnd> = (0..n)
                     .map(|k| {
                         let (flags, id, dead) = (a.u(), a.s(), a.s());
-                        let mut c = Cmnd::new(kind_of(flags), k as i32, flags, 0, a.v3());
+                        let mut c = Cmnd::new(cand(k as i32), flags, 0, a.v3());
                         c.id = id;
                         c.cond.dead = dead;
                         c
@@ -150,7 +154,7 @@ fn main() {
                 let mut cands: Vec<Cmnd> = (0..n)
                     .map(|k| {
                         let (flags, width) = (a.u(), a.u());
-                        let mut c = Cmnd::new(kind_of(flags), k as i32, flags, width, a.v3());
+                        let mut c = Cmnd::new(cand(k as i32), flags, width, a.v3());
                         c.cond = a.cond();
                         c.act = a.s();
                         c
@@ -221,7 +225,7 @@ fn ctrl_frame(task: &mut Task, a: &mut Args) {
     let mut cands: Vec<Cmnd> = (0..n)
         .map(|_| {
             let (idx, flags, id, width) = (a.i(), a.u(), a.s(), a.u());
-            let mut c = Cmnd::new(kind_of(flags), idx, flags, width, a.v3());
+            let mut c = Cmnd::new(cand(idx), flags, width, a.v3());
             c.id = id;
             c.cond = a.cond();
             c.act = a.s();
@@ -233,7 +237,7 @@ fn ctrl_frame(task: &mut Task, a: &mut Args) {
             slots[k].map(|(idx, pos_p, dead)| Member {
                 pos_p,
                 dead,
-                who: match cands.iter().position(|c| c.code == idx) {
+                who: match cands.iter().position(|c| code(c.who) == idx) {
                     _ if idx == 0 => Who::Leader,
                     Some(i) => Who::Cand(i),
                     None => Who::Unlisted,
@@ -249,14 +253,10 @@ fn ctrl_frame(task: &mut Task, a: &mut Args) {
         personal: push & 2 != 0,
         chat: push & 4 != 0,
         option: push & 8 != 0,
-        player_ok: true,
         menu_idle,
         forbid,
         forbid_chat_except: fce,
         pl_attack,
-        held: false,
-        dead: false,
-        skill_one: false,
         area,
         field,
         dungeon_type,
@@ -266,11 +266,11 @@ fn ctrl_frame(task: &mut Task, a: &mut Args) {
         task.t.menu_clear();
     }
     task.game.dist = dist;
-    let mut alive: HashMap<i32, bool> = cands.iter().map(|c| (c.code, c.cond.dead == 0)).collect();
+    let mut alive: HashMap<i32, bool> = cands.iter().map(|c| (code(c.who), c.cond.dead == 0)).collect();
     alive.insert(0, kite.listed && kite.cond.dead == 0);
     let mut host = Plan { mask, skill, after, attacks: vec![], reqs: &mut task.reqs, alive, heals: vec![] };
     let out = task.t.frame(&leader, &mut cands, &input, &b, &mut task.game, &mut host);
-    let who = |t: Option<(Kind, i32)>| t.map_or(-1, |(_, c)| i64::from(c));
+    let who = |t: Option<CharId>| t.map_or(-1, |c| i64::from(code(c)));
     let req = match out.step {
         Some(Ctrl::Open(m)) => vec![i64::from(m), 0],
         Some(Ctrl::Action(x)) => vec![i64::from(x.menu), i64::from(talk::action_mode(x.menu, area))],
@@ -294,6 +294,6 @@ fn ctrl_frame(task: &mut Task, a: &mut Args) {
         list(&host.attacks),
         heals.join(", "),
         u8::from(out.step == Some(Ctrl::GameOver)),
-        list(&t.sorted.iter().map(|&(_, c, _, _)| i64::from(c)).collect::<Vec<_>>()),
+        list(&t.sorted.iter().map(|&(c, _, _)| i64::from(code(c))).collect::<Vec<_>>()),
     );
 }

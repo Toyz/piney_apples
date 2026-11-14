@@ -19,7 +19,9 @@ fn event_301_goes_through_town_5() {
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if let Stage::World(w) = &s.stage {
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
+        {
             let t = w.world().scene().town;
             if towns.last() != Some(&t) {
                 towns.push(t);

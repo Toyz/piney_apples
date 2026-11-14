@@ -9,6 +9,7 @@
 
 #[doc(alias = "ROOTTOWN03")]
 pub mod carmina_gadelica;
+pub mod cast;
 #[doc(alias = "ccDog")]
 pub mod dog;
 #[doc(alias = "ROOTTOWN02")]
@@ -27,7 +28,6 @@ pub mod party;
 pub mod pc;
 #[doc(alias = "ROOTTOWN06")]
 pub mod relic_city;
-pub mod ride;
 
 use std::collections::HashMap;
 use std::sync::Arc;

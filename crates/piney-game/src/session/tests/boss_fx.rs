@@ -38,11 +38,15 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Combat, usize, 
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let (mut came, mut seen) = (None, Vec::new());
     for n in 0..frames + 3000 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
@@ -200,11 +204,15 @@ fn gorres_brothers_show_the_protect_break_and_return() {
     let mut brothers = Vec::new();
     let mut gorre = None;
     for n in 0..9000u32 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
@@ -397,11 +405,15 @@ fn innis_unforced(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let (mut came, mut casts, mut flying) = (None, Vec::<Cast>::new(), false);
     for n in 0..frames + 3000 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
             c.scene.chars[k].max_hp = 9999;
@@ -518,11 +530,15 @@ fn innis_shots() {
     let (mut came, mut casts) = (None, 0);
     let mut drawn: BTreeMap<String, u32> = BTreeMap::new();
     for n in 0..9000u32 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
@@ -599,11 +615,15 @@ fn shield_fight(
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let mut came = None;
     for n in 0..frames + 3000 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let shields = a.world().fx().census().shields;
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
@@ -640,6 +660,9 @@ fn gorres_brothers_show_their_stretched_shields() {
     let mut bad = Vec::new();
     shield_fight(&mut s, 3000, |s, _, _, on| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let c = a.world().combat();
         for &(t, scale, offset) in on {
             let base = c.scene.chars[t as usize].base();
@@ -699,11 +722,15 @@ fn gorre_kerse_shots() {
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let mut gs: Option<piney_gs::Gs> = None;
     for n in 0..15000u32 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let draws = a.world().fx().census().boss_draws;
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
@@ -767,11 +794,15 @@ fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let (mut came, mut seen) = (None, Vec::new());
     for n in 0..frames + 3000 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let boss_cam = a.world().camera().cam_id == 2;
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
@@ -812,6 +843,9 @@ fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
             })
             .collect();
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let drew = frame.cmds.iter().any(|c| matches!(c, piney_draw::Cmd::Model(_)));
         let world = drew && !a.streaming() && !a.movie_playing();
         each(s, &frame, i);
@@ -893,11 +927,13 @@ fn gorre_brothers_model_shots() {
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let mut arena = None;
     for n in 0..3000u32 {
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && a.world().combat().boss_char().is_some()
         {
             arena = Some(a.world().area().core().lights.clone());

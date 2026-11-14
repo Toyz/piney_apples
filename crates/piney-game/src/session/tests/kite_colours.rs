@@ -55,10 +55,13 @@ fn kite_wears_the_bracelet_s_colours_in_a_later_volume_s_town() {
         let mut state = crate::world::new_game_state(&mut d).unwrap();
         let scene = piney_world::area::Scene::log_in(&mut state.save);
         let s = Session::in_world(iso, archive, None, state, None, scene, None).unwrap();
-        let Stage::World(w) = &s.stage else { panic!("{disc}: not in the town") };
+        let Stage::Area(w) = &s.stage else { panic!("{disc}: not in the town") };
+        if !w.in_town() {
+            panic!("{disc}: not in the town")
+        }
         let bracelet = w.world().state().save.u8(offset::PLCOL) != 0;
         assert_eq!(bracelet, disc != "infection", "{disc}: plcol");
-        assert_eq!(w.world().kite().swaps(bracelet).is_empty(), bracelet, "{disc}: CLT_ctu1bodyc1");
+        assert_eq!(w.world().kite_model().swaps(bracelet).is_empty(), bracelet, "{disc}: CLT_ctu1bodyc1");
         assert_eq!(w.ui().ctrl.face_tex[0], if bracelet { 0 } else { 18 }, "{disc}: Kite's face");
     }
 }

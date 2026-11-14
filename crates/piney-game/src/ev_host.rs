@@ -110,7 +110,7 @@ pub trait HostWorld {
 
     /// The area's own instructions: the trap's effect and affect, the
     /// doors and rays, `room`, `ShowMap`, the event positions, `enemy_put`,
-    /// `hold`, `battle_ready`; false where the area has nothing of them.
+    /// `battle_ready`; false where the area has nothing of them.
     fn remove_trap(&mut self) -> bool {
         false
     }
@@ -128,9 +128,8 @@ pub trait HostWorld {
     fn enemy_put(&mut self, _enemy: i16, _pos: [u32; 4]) -> bool {
         false
     }
-    fn hold(&mut self, _target: Option<(i16, i16)>) -> bool {
-        false
-    }
+    /// `hold type code` / `hold_end`: every area runs `ccThEvHold`.
+    fn hold(&mut self, target: Option<(i16, i16)>) -> bool;
     fn battle_ready(&mut self) -> bool {
         false
     }

@@ -35,8 +35,7 @@ fn the_show(hold: u64, mut each: impl FnMut(&Session, &Frame, u64)) -> Option<Ve
     let mut shots = Vec::new();
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     play_with("mutation", &iso, case, 12000, true, &mut |s, _, _| {
-        let playing =
-            |s: &Session| matches!(&s.stage, Stage::Area(a) if a.vm().and_then(|v| v.playing()) == Some((155, 10)));
+        let playing = |s: &Session| matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().and_then(|v| v.playing()) == Some((155, 10)));
         if !shots.is_empty() || !playing(s) {
             return;
         }
@@ -48,6 +47,9 @@ fn the_show(hold: u64, mut each: impl FnMut(&Session, &Frame, u64)) -> Option<Ve
             let frame = s.step(&pad);
             s.take_events();
             let Stage::Area(a) = &s.stage else { break };
+            if a.in_town() {
+                break;
+            }
             let c = a.world().combat();
             let Some(nuke) = c.who(NUKE).map(|n| c.scene.chars[n].pos.map(f32::from_bits)) else { break };
             let cam = a.world().camera().active();

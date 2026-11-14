@@ -54,7 +54,7 @@ number at 0x001b582c. A field 1-13 has a row of model 1 on every volume.
 `GO` alone makes the number: a dungeon's way out (`WORLD_MAN::Enter`'s
 -255, `ChangeArea(1, n)`) keeps the area's `WORLD_MAN`, so area 47's last
 door reaches field 9 with area 47's number, and `GO(1)` makes it 9 and the
-disc. The port's `FieldWorld::enter` does the same
+disc. The port's `World::enter` does the same
 (`WorldMan::with_event_number(game.field)`) before choosing the map. It
 took the model from the `WORLD_MAN` it was handed until worklog 423, so
 Kyvia's fight from area 47's door played in area 47's generated field
@@ -792,7 +792,7 @@ data, `disc::Path`), with its own `Disc`, `Rocks` and field 12's
 `Bodies` systems; its tests (`the_disc_of_field_9`,
 `the_disc_rides_to_its_end`, `the_later_discs_stop_at_their_stages`)
 hold the pieces, the light, the hits, the rocks' cells and the ride.
-`FieldWorld` hands Kyvia the disc each frame from the map's `Report`
+`World` hands Kyvia the disc each frame from the map's `Report`
 (`IsMove`, `discPrevPos`, `DMY_marker01`) and carries out `Move` and the
 gates as `Signal`s (`DiscMove`, `BodyHit`).
 

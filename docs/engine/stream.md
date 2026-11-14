@@ -133,7 +133,7 @@ From the second book on, once the stream is set up, `ccThBook` puts
 (`mat->tex.clutChunk`), the book's cover model. The town's `str8800e`
 stays loaded, so the palette stays: Book I read after Book III draws in
 Book III's colours until the town's files go. The port keeps it per
-town visit (`WorldMode::cover_palette`, `StreamFile::change_clut`).
+town visit (`AreaMode`'s `cover_palette`, `StreamFile::change_clut`).
 
 The port: `piney_game::stream::FileList` (`Town`, `Field`, `Desktop`)
 gives `Stream::with_resident` the list's `DATA.BIN` files for the

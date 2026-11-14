@@ -1,6 +1,6 @@
 //! The field's effects (piney-effect's `ccThEffect` and `ccThParticle`) over a
 //! field's or dungeon's battle, installed into the world
-//! ([`piney_world::field::world::FieldFx`]) and run at their places in the frame
+//! ([`piney_world::world::FieldFx`]) and run at their places in the frame
 //! (`ccThEffect` 80, `ccThParticle` 98). Each task first starts what the tasks
 //! before it asked for ([`Show`], Kite's arrival, a level up, a kill's
 //! experience); here the starters run in a batch at the next effect task, so
@@ -23,9 +23,9 @@ use piney_effect::eff::Eff;
 use piney_effect::portal::{CircleFrame, MagicCircle};
 use piney_effect::{CharRef, Effects, Host, ONE, V4, flyfont, vu};
 use piney_world::combat::{FxTasks, FxWorld, Look, Show, SpellDamage, SpellOut, SpellRun};
-use piney_world::field::world::{FieldFx, FxView};
 use piney_world::sprite::EffSprite;
 use piney_world::town::merchant::SysopEvent;
+use piney_world::world::{CharId, FieldFx, FxView};
 
 /// The effects of an area and what they draw with.
 pub struct AreaFx {
@@ -42,7 +42,7 @@ pub struct AreaFx {
     /// the weather's, a dungeon's, a breath's), and the weather's smoke
     /// puffs waiting for the next effect task ([`ambient`]).
     sprites: sprites::EffSprites,
-    ambient_smoke: Vec<piney_world::systems::Smoke>,
+    ambient_smoke: Vec<piney_world::systems::MapEvent>,
     archive: Arc<Archive>,
     /// Each character's condition effect (`ccChar` +0x2c), by scene index.
     conditions: std::collections::HashMap<usize, piney_effect::particle::ConditionEffect>,
@@ -70,13 +70,13 @@ struct Ending {
     /// The last frame's draws, and what it asked since the world last took
     /// them.
     draws: Vec<piney_effect::stfroll::Draw>,
-    asks: Vec<piney_world::field::world::EndingAsk>,
+    asks: Vec<piney_world::world::EndingAsk>,
 }
 
 impl Ending {
     fn ask(&mut self, asks: Vec<piney_effect::stfroll::Ask>) {
         use piney_effect::stfroll::Ask;
-        use piney_world::field::world::EndingAsk;
+        use piney_world::world::EndingAsk;
         self.asks.extend(asks.into_iter().map(|a| match a {
             Ask::Camera { pos, view } => EndingAsk::Camera { pos, view },
             Ask::Bgm(n) => EndingAsk::Bgm(n),
@@ -371,12 +371,12 @@ impl FieldFx for AreaFx {
         self.ending_asked.is_some() || self.ending.as_ref().is_some_and(|e| !e.roll.done)
     }
 
-    fn take_ending_asks(&mut self) -> Vec<piney_world::field::world::EndingAsk> {
+    fn take_ending_asks(&mut self) -> Vec<piney_world::world::EndingAsk> {
         self.ending.as_mut().map(|e| std::mem::take(&mut e.asks)).unwrap_or_default()
     }
 
-    fn census(&self) -> piney_world::field::world::FxCensus {
-        piney_world::field::world::FxCensus {
+    fn census(&self) -> piney_world::world::FxCensus {
+        piney_world::world::FxCensus {
             effects: self.fx.ctrl.effects.iter().filter(|e| e.status != 0).map(|e| e.id).collect(),
             effect_targets: (self.fx.ctrl.effects.iter()).filter(|e| e.status != 0).map(|e| (e.id, e.target)).collect(),
             effects_unseen: (self.fx.ctrl.effects.iter())
@@ -528,7 +528,12 @@ impl FieldFx for AreaFx {
         self.sprites.draw(&mut self.fx.assets, &self.archive, sprites, &cam, &mut ctx.layers);
     }
 
-    fn smoke(&mut self, smoke: &[piney_world::systems::Smoke]) {
+    fn draw_particles(&mut self, view: &FxView, ctx: &mut Ctx) {
+        let camera = FxCamera::from_field(view.camera).fogged(self.fog);
+        self.fx.draw_particles(&mut ctx.layers, &camera);
+    }
+
+    fn smoke(&mut self, smoke: &[piney_world::systems::MapEvent]) {
         self.ambient_smoke.extend_from_slice(smoke);
     }
 }
@@ -631,16 +636,10 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         // ccEffPawSmoke(this, speed): Kite's and the members' running dust,
         // at the lower of the feet as the actor stands posed now.
         Show::Kite(k, kite::Out::PawSmoke { speed }) | Show::Member(k, fellow::Out::PawSmoke { speed }) => {
-            if let Some(a) = h.w.cast.get(*k) {
-                let worlds = a.ch.body.worlds(&a.ch.play, a.ch.root());
-                let foot = |name: &str| {
-                    let t = worlds.get(&a.ch.body.node(name)?)?.w_axis;
-                    Some([t.x.to_bits(), t.y.to_bits(), t.z.to_bits(), ONE])
-                };
-                if let (Some(l), Some(r)) = (foot("OBJ_t0 l foot"), foot("OBJ_t0 r foot")) {
-                    let dz = a.ch.dirc[2];
-                    fx.paw_smoke(h, [l, r], dz, *speed);
-                }
+            if let Some(a) = h.w.cast.get(*k)
+                && let Some(feet) = a.ch.feet()
+            {
+                fx.paw_smoke(h, feet, a.ch.dirc[2], *speed);
             }
         }
         Show::Member(m, fellow::Out::Rule(e)) => event(fx, h, Some(*m), e),
@@ -809,12 +808,68 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         }
         Show::Npc(who, SysopEvent::Vanish) => {
             let c = cref(*who);
-            let pos = char_pos(h.w.scene, c);
+            let pos = h.char_pos(c);
             let (ctrl, mut cx) = fx.split(h);
             piney_effect::skillstart::eff_skill_exec_force_ring(ctrl, &mut cx, c, 4, 1);
             piney_effect::skillstart::eff_skill_exec_force_ring2(ctrl, &mut cx, c, 4, 1);
             piney_effect::tornado::eff_skill_tornade_rings_pos(ctrl, &mut cx, pos, 4, 3);
         }
+        Show::Cast(o) => cast_start(fx, h, o),
+        _ => {}
+    }
+}
+
+/// The starters a town's own characters called at the entry control's
+/// slot, on each by its handle: a flag's `effOpenBox`, a dog's dust
+/// (`ccDog::effect`'s effSmoke), a Grunty's puffs and growing up
+/// (`burpEff`, `evoEff`, `effect`, `pgDead`), a walking PC's
+/// `effTransfer`, box, crystal, drain and running dust (ccRtownPC).
+fn cast_start(fx: &mut Effects, h: &mut BattleHost, o: &piney_world::world::cast::Out) {
+    use piney_world::grunty::GruntyEvent as G;
+    use piney_world::grunty::race::RaceEvent;
+    use piney_world::town::dog::DogEvent;
+    use piney_world::town::pc::PcEvent;
+    use piney_world::world::cast::Out;
+    let own_ref = |code: i32| CharId::Npc(code).handle();
+    match *o {
+        Out::Race(RaceEvent::OpenBox(pos)) => {
+            fx.open_box(h, pos);
+        }
+        Out::Dog { e: DogEvent::Smoke { pos, v }, .. } => {
+            fx.smoke(h, pos, v, 0x4040_0000, 10, 1, 512, 32);
+        }
+        Out::Grunty { code, ref e } => match *e {
+            G::Smoke { pos, v, scale, life, kind } => {
+                fx.smoke(h, pos, v, scale, life, kind, 512, 32);
+            }
+            G::Evolve { .. } => {
+                fx.evolve_pg(h, own_ref(code));
+            }
+            G::Grow { pos, height } => {
+                fx.grow_pg(h, pos, height);
+            }
+            _ => {}
+        },
+        Out::Pc { code, ref e } => match *e {
+            PcEvent::Transfer => {
+                fx.transfer(h, own_ref(code));
+            }
+            PcEvent::Vanish { pos, crystal } => {
+                fx.open_box(h, pos);
+                if crystal {
+                    fx.virus_crystal(h, pos);
+                }
+            }
+            PcEvent::Drained { pos } => {
+                fx.after_drain(h, own_ref(code), 0);
+                fx.virus_crystal(h, pos);
+                fx.remove_trap(h, pos, 103, 121);
+            }
+            PcEvent::Step { feet: Some(feet), dirc_z, speed, .. } => {
+                fx.paw_smoke(h, feet, dirc_z, speed);
+            }
+            _ => {}
+        },
         _ => {}
     }
 }
@@ -978,6 +1033,15 @@ fn char_pos(scene: &Scene, c: CharRef) -> V4 {
     scene.chars.get(c as usize).map_or([0, 0, 0, ONE], |ch| ch.pos)
 }
 
+/// The area's own character `c` names ([`CharId::Npc`]'s handle),
+/// `ccEvent::GetNpc`'s.
+fn npc<'a>(w: &'a FxWorld, c: CharRef) -> Option<&'a dyn piney_world::event::entry::Npc> {
+    match CharId::from_handle(c)? {
+        CharId::Npc(code) => w.own?.npc(code),
+        _ => None,
+    }
+}
+
 /// The battle as [`Host`]: the scene's characters by index, the game's
 /// two generators, the camera, the map's bounds and the ground.
 struct BattleHost<'a, 'w> {
@@ -1017,7 +1081,10 @@ impl Host for BattleHost<'_, '_> {
         self.camera
     }
     fn char_pos(&self, c: CharRef) -> V4 {
-        char_pos(self.w.scene, c)
+        match npc(self.w, c) {
+            Some(n) => n.char().pos,
+            None => char_pos(self.w.scene, c),
+        }
     }
     fn char_dirc(&self, c: CharRef) -> V4 {
         let i = c as usize;
@@ -1027,13 +1094,19 @@ impl Host for BattleHost<'_, '_> {
         self.w.cast.get(i).map_or([0; 4], |a| a.ch.dirc)
     }
     fn char_height(&self, c: CharRef) -> u32 {
+        if let Some(n) = npc(self.w, c) {
+            return n.char().height;
+        }
         self.w.scene.chars.get(c as usize).map_or(0, |ch| ch.base().height)
     }
     fn char_width(&self, c: CharRef) -> u32 {
         self.w.scene.chars.get(c as usize).map_or(0, |ch| ch.base().width)
     }
     fn check_target(&self, c: CharRef) -> bool {
-        self.w.scene.listed(c as usize)
+        match npc(self.w, c) {
+            Some(n) => n.listed(),
+            None => self.w.scene.listed(c as usize),
+        }
     }
     fn char_type(&self, c: CharRef) -> i32 {
         self.w.scene.chars.get(c as usize).map_or(0, |ch| ch.ty())

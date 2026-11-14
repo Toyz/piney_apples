@@ -11,15 +11,14 @@ use piney_battle::chara::spc_flag;
 use piney_battle::event::{Event, Who};
 use piney_battle::ride::{self, RideTables};
 
-use super::{FieldWorld, tasks};
+use super::{World, tasks};
 use crate::camera::CamPad;
 use crate::chara::body::{Body, TRALL};
-use crate::chara::party::SpcChars;
 use crate::combat::Show;
 use crate::combat::ride::{BODY_WHO, Pending};
 use crate::combat::spc;
 
-impl FieldWorld {
+impl World {
     /// `pgRideFlag`: riding (from the flute's call to the end of the
     /// dismount).
     pub fn pg_ride(&self) -> bool {
@@ -44,12 +43,14 @@ impl FieldWorld {
     }
 
     /// `ccPuccigusoStart(kind)`'s first slice (gcmn 0x005109c0): nothing
-    /// outside a field (`game.area` 1) or while riding (`pgR`); else
-    /// `pgRideFlag` 1, `pgR` 1, `pgDIN` 0 and the camera's type locked. The
-    /// menu's ban and panels, `ccPgBgmInit` and the fade are the caller's.
+    /// outside a field (`game.area` 1; from Mutation on a town too, MUT gcmn
+    /// 0x0052d718) or while riding (`pgR`); else `pgRideFlag` 1, `pgR` 1,
+    /// `pgDIN` 0 and the camera's type locked. The menu's ban and panels,
+    /// `ccPgBgmInit` and the fade (a field's) are the caller's.
     pub fn ride_start(&mut self) -> bool {
+        let town = self.scene.area == 0 && self.volume != piney_data::volume::Volume::Inf;
         let r = &mut self.combat.ride;
-        if self.scene.area != 1 || r.g.pg_r != 0 {
+        if (self.scene.area != 1 && !town) || r.g.pg_r != 0 {
             return false;
         }
         r.flag = true;
@@ -108,7 +109,48 @@ impl FieldWorld {
         let body = Body::read(&self.archive, &file, TRALL).map_err(|e| format!("{file}: {e}"))?;
         self.combat.ride.pending = Some(Pending { kind, tables, body: Rc::new(body) });
         self.combat.ride.main_on = true;
+        self.combat.ride.mains = 0;
         Ok(())
+    }
+
+    /// `ccPuccigusoStart(kind)` in a town (MUT gcmn 0x0052d6f0): no music
+    /// and no fade; `ccSpcSleep(1)` (0x005cbb40), Kite alone standing, off
+    /// the lists and asleep, his body out of the collision and his
+    /// condition effect cleared (the loop over the registry's first one);
+    /// the kind's file read and the task started; the camera's type free.
+    /// False when refused (riding, Infection) or the file is missing.
+    pub(crate) fn ride_start_town(&mut self, kind: i32) -> bool {
+        if self.combat.ride.g.pg_r != 0 {
+            return false;
+        }
+        if let Err(e) = self.ride_create(kind) {
+            tracing::warn!("the Grunty {e}");
+            return false;
+        }
+        if !self.ride_start() {
+            self.combat.ride = Default::default();
+            return false;
+        }
+        let kite = self.with_party(|_, chars, hits| {
+            let c = chars.spc(0)?;
+            *c.stop_flag = true;
+            *c.listed = false;
+            (*c.party_flag == 1).then(|| hits.hit_disable(c.hit))
+        });
+        self.combat.kite_asleep = true;
+        if let (Some(()), Some(w)) = (kite, self.combat.who(0)) {
+            self.combat.shows.push(Show::Rule(Event::ClearConditionEffect(Who::Char(w))));
+        }
+        self.ride_start_done();
+        true
+    }
+
+    /// 0x005310b0(pos, rot): the ride set down there, when there is one.
+    pub(crate) fn ride_place(&mut self, pos: crate::ee::V4, rot: crate::ee::V4) {
+        if let Some(o) = self.combat.ride.obj.as_deref_mut() {
+            o.ride.pos = pos;
+            o.ride.rot = rot;
+        }
     }
 
     /// `ccPuccigusoStart`'s end: the camera's type free again.

@@ -1,8 +1,8 @@
 //! Answers `tools/test_world_rs.py` (`world_probe ISO < requests`): the
-//! field's logic tasks - `cameraMain`, then `ccPlayer::Main` - on the pads it
-//! is sent, and the town's pieces around them, one JSON line a request, as
+//! field's logic tasks - `cameraMain`, then the battle's tasks with Kite's
+//! `ccPlayer::Main`, as every area runs them - on the pads it is sent, and the town's pieces around them, one JSON line a request, as
 //! the game's code does in eemu. Requests: `start`, `pad`, `libm`, `avoid`,
-//! `move`, `land`, `weapon`, `lights`, `tagpos`, `party`, the town's (`town`,
+//! `land`, `weapon`, `lights`, `tagpos`, `party`, the town's (`town`,
 //! `gate`), the merchants' (`merch`), the walking PCs' (`pc*`) and `gho`;
 //! numbers hex, floats their bits, the fields the harness's.
 
@@ -13,12 +13,14 @@ use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
-use piney_world::camera::{Cam, CamPad, Camera, CameraHits, Scheme, avoid_obstacle};
-use piney_world::chara::motion::PLAYER_ANIM_TBL;
-use piney_world::chara::player::{Body, MoveInput, Player, control_move};
+use piney_world::camera::{Cam, Camera, CameraHits, Scheme, avoid_obstacle};
 use piney_world::ee::V4;
 use piney_world::hit::{self, HitModel, Hits};
-use piney_world::{Rand, ee, tasks};
+use piney_world::{Rand, ee};
+
+#[path = "common/kite_run.rs"]
+mod kite_run;
+use kite_run::{KiteRun, Start};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -34,10 +36,7 @@ fn mat(m: &[[u32; 4]; 4]) -> String {
 
 struct Run {
     hits: Hits,
-    player: Player,
-    camera: Camera,
-    rand: Rand,
-    mode: i8,
+    kite: KiteRun,
 }
 
 fn main() {
@@ -45,9 +44,7 @@ fn main() {
     let mut iso = Iso::open(&iso_path).unwrap();
     let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-    let kite = SceneFile::read(&archive, "ctu1body").unwrap();
-    let anims: Vec<&piney_data::anim::Animation> =
-        PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
+    let (data, body) = (kite_run::data(&mut iso), kite_run::body(&archive));
     let mut towns: Vec<Option<Vec<HitModel>>> = vec![None, None];
     let mut run: Option<Run> = None;
     let mut props = Props::default();
@@ -91,55 +88,24 @@ fn main() {
                 let out = avoid_obstacle(volume, tp, cp, &cam, &mut Plane([n(9), n(10), n(11)]));
                 println!("{}", list(&out));
             }
-            Some("move") => {
-                let mut body = Body {
-                    dirc: [0, 0, n(8), 0],
-                    speed_value: n(9),
-                    speed: n(10),
-                    target_count: n(11) as i16,
-                    inactive: n(12) != 0,
-                    ..Body::default()
-                };
-                let input = MoveInput {
-                    pow_l: n(1) as u8,
-                    dirc_l: n(2),
-                    cmnd_target: n(3) != 0,
-                    cam_reset_dirc: n(5),
-                    cam_rot_z: n(6),
-                    cam_type: n(7) as i32,
-                };
-                let mut reset = n(4) != 0;
-                control_move(&mut body, &input, &mut reset);
-                println!(
-                    "[{}, {}, {}, {}, {}, {}, {}, {}, {}]",
-                    body.dirc[2],
-                    body.move_pos[0],
-                    body.move_pos[1],
-                    body.speed_rate,
-                    body.now_speed,
-                    u8::from(body.move_flag),
-                    u8::from(body.run_flag),
-                    body.target_count,
-                    u8::from(reset)
-                );
-            }
             Some("start") => {
                 let t = n(1) as usize;
                 let models = towns[t].get_or_insert_with(|| {
                     let stem = if t == 0 { "town01" } else { "town01d" };
                     HitModel::read(volume, &Ccs::parse(archive.inflate_named(stem).unwrap()).unwrap()).unwrap()
                 });
-                let pos = [n(2), n(3), n(4), ee::ONE];
-                let dirc = [0, 0, n(5), 0];
-                let scheme = Scheme::new(n(6) as i32);
-                let mode = n(7) as i8;
-                run = Some(Run {
-                    hits: Hits::new(volume, models.clone()),
-                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(volume, pos, dirc, mode, scheme),
-                    rand: Rand(u64::from(n(8))),
-                    mode,
-                });
+                let mut hits = Hits::new(volume, models.clone());
+                let start = Start {
+                    pos: [n(2), n(3), n(4), ee::ONE],
+                    dirc_z: n(5),
+                    scheme: n(6) as i32,
+                    mode: n(7) as i8,
+                    seed: n(8),
+                    area: 0,
+                    arriving: true,
+                };
+                let kite = KiteRun::new(&data, &body, &mut hits, &start);
+                run = Some(Run { hits, kite });
                 println!("{{}}");
             }
             Some("sphere") => {
@@ -157,82 +123,8 @@ fn main() {
             }
             Some("pad") => {
                 let r = run.as_mut().unwrap();
-                let mut pow = [0u8; 12];
-                for (k, p) in pow.iter_mut().enumerate() {
-                    *p = n(7 + k) as u8;
-                }
-                let pad = CamPad {
-                    direct: n(1),
-                    push: n(2),
-                    pow_l: n(3) as u8,
-                    dirc_l: n(4),
-                    pow_r: n(5) as u8,
-                    dirc_r: n(6),
-                    pow,
-                };
-                tasks(&mut r.camera, &mut r.player, &mut r.hits, &anims, &mut r.rand, &pad, &mut r.mode);
-                let (p, b, a, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
-                let t = &c.tcam;
-                println!(
-                    concat!(
-                        "{{\"pos\": {}, \"dirc\": {}, \"move\": {}, \"now_speed\": {}, \"speed_rate\": {}, ",
-                        "\"move_flag\": {}, \"run_flag\": {}, \"stop_flag\": {}, \"restraint\": {}, ",
-                        "\"act\": {}, \"act_old\": {}, \"act_cnt\": {}, \"anm_flag\": {}, \"react_cnt\": {}, ",
-                        "\"transfer_lag\": {}, \"walk_run_cnt\": {}, \"cloak\": {}, \"transparency\": {}, ",
-                        "\"frame_spd\": {}, \"time\": {}, \"attribute\": {}, \"stop_cnt\": {}, \"drawn\": {}, ",
-                        "\"arms\": {:?}, \"target_count\": {}, \"angle\": {}, ",
-                        "\"cam_pos\": {}, \"cam_view\": {}, \"cam_rot\": {}, \"cam_rot2\": {}, \"cam_rot3\": {}, ",
-                        "\"cam_dist\": {}, \"cam_deg\": [{}, {}], \"cam_type\": {}, \"cam_reset_flag\": {}, ",
-                        "\"cam_reset_dirc\": {}, \"resetting\": {}, \"mem_dirc_z\": {}, \"mode\": {}, ",
-                        "\"world_view\": {}, \"world_screen\": {}}}"
-                    ),
-                    list(&b.pos),
-                    list(&b.dirc),
-                    list(&b.move_pos),
-                    b.now_speed,
-                    b.speed_rate,
-                    u8::from(b.move_flag),
-                    u8::from(b.run_flag),
-                    u8::from(a.stop_flag),
-                    u8::from(a.restraint),
-                    a.act,
-                    a.act_old,
-                    a.act_cnt,
-                    a.anm_flag,
-                    a.react_cnt,
-                    a.transfer_lag,
-                    a.walk_run_cnt,
-                    a.cloak,
-                    p.transparency,
-                    a.frame_spd,
-                    a.time,
-                    p.hit_attribute,
-                    p.stop_cnt,
-                    u8::from(p.drawn),
-                    match p.arms {
-                        Some(piney_world::chara::arms::ArmsCall::Effect) => "effect",
-                        Some(piney_world::chara::arms::ArmsCall::Clear) => "clear",
-                        None => "none",
-                    },
-                    b.target_count,
-                    list(&p.angle),
-                    list(&t.pos),
-                    list(&t.view),
-                    list(&t.rot),
-                    list(&t.rot2),
-                    list(&t.rot3),
-                    t.dist,
-                    t.deg[0],
-                    t.deg[1],
-                    t.kind,
-                    u8::from(t.reset_flag),
-                    t.reset_dirc,
-                    u8::from(c.resetting),
-                    c.mem_dirc_z,
-                    r.mode,
-                    mat(&c.world_view),
-                    mat(&c.world_screen),
-                );
+                r.kite.frame(kite_run::pad_at(&w, 1), &mut r.hits);
+                println!("{}", r.kite.json(&[]));
             }
             // `weapon`: the weapons' matrices, for test_weapon.
             Some("weapon") => {
@@ -262,15 +154,15 @@ fn main() {
             // the candidates' [dist, dirc], the sorted order, each one's
             // range, the target index (-1 none) and cmndTargetPriNum after.
             Some("target") => {
-                use piney_world::event::entry::Kind;
                 use piney_world::event::talk::{Cmnd, Leader, check_range, select, sort};
+                use piney_world::world::CharId;
                 let leader = Leader { volume, pos_p: [n(1), n(2), n(3), ee::ONE], dirc: [0, 0, n(4), 0], width: n(5) };
                 let (eye, mode, mut pri) = (n(6) != 0, n(7) as i32, n(8) as i32);
                 let count = n(9) as usize;
                 let mut cands: Vec<Cmnd> = (0..count)
                     .map(|k| {
                         let b = 10 + 5 * k;
-                        Cmnd::new(Kind::Npc, k as i32, n(b), n(b + 1), [n(b + 2), n(b + 3), n(b + 4), ee::ONE])
+                        Cmnd::new(CharId::Npc(k as i32), n(b), n(b + 1), [n(b + 2), n(b + 3), n(b + 4), ee::ONE])
                     })
                     .collect();
                 let sorted = sort(&leader, &mut cands);
@@ -593,7 +485,8 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
             ms.kite.radius = 0x4234_0000;
             hits.set_hit_sw(&mut ms.kite, kite_hit);
             hits.sync(&ms.kite);
-            let mut ctx = NpcCtx { player, player_dirc: [0; 4], view, cam: &cam, hits, rand: &mut rand };
+            let mut cc = piney_battle::rand::Genrand::default();
+            let mut ctx = NpcCtx { player, player_dirc: [0; 4], view, cam: &cam, hits, rand: &mut rand, cc: &mut cc };
             for m in &mut ms.list {
                 m.status_on = ms.status;
             }
@@ -670,10 +563,9 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
 
 struct PcRun {
     hits: Hits,
-    player: Player,
-    camera: Camera,
-    rand: Rand,
-    mode: i8,
+    kite: KiteRun,
+    /// The one `ccRand`.
+    cc: piney_battle::rand::Genrand,
     town: std::rc::Rc<std::cell::RefCell<piney_world::town::pc::TownPcs>>,
     pcs: Vec<piney_world::town::pc::RtownPc>,
     kite_char: u32,
@@ -683,6 +575,9 @@ struct PcRun {
 struct Pcs {
     town01: Option<SceneFile>,
     models: Option<Vec<HitModel>>,
+    /// The battle's tables and Kite's body, for his `ccPlayer`.
+    data: Option<std::rc::Rc<piney_world::combat::BattleData>>,
+    body: Option<std::rc::Rc<piney_world::chara::body::Body>>,
     run: Option<PcRun>,
 }
 
@@ -698,7 +593,11 @@ fn pc_pool(volume: piney_data::volume::Volume, server: u32, done: u32) -> piney_
     Pool::with(&Tables::of(volume), server as i32, bit)
 }
 
-fn pcs_json(town: &piney_world::town::pc::TownPcs, pcs: &[piney_world::town::pc::RtownPc]) -> String {
+fn pcs_json(
+    town: &piney_world::town::pc::TownPcs,
+    cc: &piney_battle::rand::Genrand,
+    pcs: &[piney_world::town::pc::RtownPc],
+) -> String {
     use piney_world::town::pc::PcEvent;
     let t = format!(
         "{{\"shown\": {}, \"chatnum\": {}, \"chatcnt\": {}, \"chatmes\": {}, \"talk\": {}, \"mti\": {}}}",
@@ -707,7 +606,7 @@ fn pcs_json(town: &piney_world::town::pc::TownPcs, pcs: &[piney_world::town::pc:
         list(&town.chat_cnt.map(|c| c as u32)),
         town.chat_mes,
         u8::from(town.talk_flag),
-        town.mt.mti
+        cc.mti
     );
     let p: Vec<String> = pcs
         .iter()
@@ -803,61 +702,11 @@ fn later(pc: &piney_world::town::pc::RtownPc) -> String {
 }
 
 fn kite_json(r: &PcRun) -> String {
-    let (p, b, a, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
-    let t = &c.tcam;
-    format!(
-        concat!(
-            "{{\"pos\": {}, \"dirc\": {}, \"move\": {}, \"now_speed\": {}, \"speed_rate\": {}, ",
-            "\"move_flag\": {}, \"run_flag\": {}, \"stop_flag\": {}, \"restraint\": {}, ",
-            "\"act\": {}, \"act_old\": {}, \"act_cnt\": {}, \"anm_flag\": {}, \"react_cnt\": {}, ",
-            "\"transfer_lag\": {}, \"walk_run_cnt\": {}, \"cloak\": {}, \"transparency\": {}, ",
-            "\"frame_spd\": {}, \"time\": {}, \"attribute\": {}, \"stop_cnt\": {}, \"drawn\": {}, ",
-            "\"target_count\": {}, \"angle\": {}, \"stress\": {}, \"hitpos\": {}, \"hitsw\": {}, ",
-            "\"cam_pos\": {}, \"cam_view\": {}, \"cam_rot\": {}, \"cam_dist\": {}, \"cam_deg\": [{}, {}], ",
-            "\"cam_type\": {}, \"kitechar\": {}}}"
-        ),
-        list(&b.pos),
-        list(&b.dirc),
-        list(&b.move_pos),
-        b.now_speed,
-        b.speed_rate,
-        u8::from(b.move_flag),
-        u8::from(b.run_flag),
-        u8::from(a.stop_flag),
-        u8::from(a.restraint),
-        a.act,
-        a.act_old,
-        a.act_cnt,
-        a.anm_flag,
-        a.react_cnt,
-        a.transfer_lag,
-        a.walk_run_cnt,
-        a.cloak,
-        p.transparency,
-        a.frame_spd,
-        a.time,
-        p.hit_attribute,
-        p.stop_cnt,
-        u8::from(p.drawn),
-        b.target_count,
-        list(&p.angle),
-        p.stress,
-        list(&p.hit_body.pos),
-        u8::from(p.hit_body.sw),
-        list(&t.pos),
-        list(&t.view),
-        list(&t.rot),
-        t.dist,
-        t.deg[0],
-        t.deg[1],
-        t.kind,
-        r.kite_char,
-    )
+    r.kite.json(&[("kitechar", r.kite_char.to_string())])
 }
 
 fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs: &mut Pcs) -> bool {
     use piney_world::chara::navi::{Navi, NaviMap};
-    use piney_world::mt::Mt;
     use piney_world::town::pc;
     let n = |i: usize| hex(w[i]);
     let ours = ["pcsel", "pcreserve", "pcroute", "pcstart", "pcpad", "pchit", "pcinfl", "pcadd", "pcev", "pcpos"];
@@ -869,14 +718,16 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
         pcs.town01 = Some(SceneFile::read(archive, "town01").unwrap());
         let c = Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap();
         pcs.models = Some(HitModel::read(volume, &c).unwrap());
+        pcs.data = Some(kite_run::data(iso));
+        pcs.body = Some(kite_run::body(archive));
     }
     let town01 = pcs.town01.as_ref().unwrap();
     match cmd {
         "pcsel" => {
-            let mut mt = Mt::init(n(1));
+            let mut mt = piney_battle::rand::init_rand(n(1), &mut 0);
             let pool = if w.len() > 4 { pc_pool(volume, n(3), n(4)) } else { pc::Pool::default() };
             let rows = pc::register_random_npc(&mut mt, n(2) as i32, &pool);
-            let next = mt.rand();
+            let next = piney_battle::rand::Rng::rand(&mut mt);
             println!("{{\"rows\": {}, \"next\": {}}}", list(&rows.map(|r| i32::from(r) as u32)), next as u32);
         }
         // `pcreserve REGIST REGISTRY T0..T15`: what `ccRegisterEventMng`
@@ -918,17 +769,18 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
         }
         "pcstart" => {
             let pos = [n(3), n(4), n(5), ee::ONE];
-            let dirc = [0, 0, n(6), 0];
             let mode = n(8) as i8;
             let mut hits = Hits::new(volume, pcs.models.clone().unwrap());
-            let mut player = Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
-            player.hit_body.manual = w.len() > 10 && n(10) != 0;
-            let camera = Camera::new(volume, pos, dirc, mode, Scheme::new(n(7) as i32));
+            let start = Start { pos, dirc_z: n(6), scheme: n(7) as i32, mode, seed: n(9), area: 0, arriving: true };
+            let mut kite = KiteRun::new(pcs.data.as_ref().unwrap(), pcs.body.as_ref().unwrap(), &mut hits, &start);
+            kite.set_manual(w.len() > 10 && n(10) != 0);
             let pool = if w.len() > 12 { pc_pool(volume, n(11), n(12)) } else { pc::Pool::default() };
             let (count, reserved) = (n(1), n(2) as i32);
-            let (town, list_) = pc::enter(archive, volume, town01, 0, count, reserved, &pool, pos, &mut hits).unwrap();
-            let r = PcRun { hits, player, camera, rand: Rand(u64::from(n(9))), mode, town, pcs: list_, kite_char: 0 };
-            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.pcs));
+            let mut cc = piney_battle::rand::init_rand(count, &mut 0);
+            let (town, list_) =
+                pc::enter(archive, volume, town01, 0, &mut cc, reserved, &pool, pos, &mut hits).unwrap();
+            let r = PcRun { hits, kite, cc, town, pcs: list_, kite_char: 0 };
+            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
             pcs.run = Some(r);
         }
         "pchit" => {
@@ -976,10 +828,10 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
                 let mut files = pc::Files::new();
                 pc::load_model(archive, &mut files, &t.tables, &row).unwrap()
             };
-            let pos = r.player.body.pos;
-            let pc = pc::RtownPc::place(&r.town, &row, &model, n(2) as i32, pos, &mut r.hits);
+            let pos = r.kite.pos();
+            let pc = pc::RtownPc::place(&r.town, &row, &model, n(2) as i32, pos, &mut r.hits, &mut r.cc);
             r.pcs.push(pc);
-            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.pcs));
+            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
         }
         "pcsearch" => {
             let r = pcs.run.as_mut().unwrap();
@@ -991,23 +843,24 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
                 let mut files = pc::Files::new();
                 pc::load_model(archive, &mut files, &t.tables, &row).unwrap()
             };
-            let (pos, origin) = (r.player.body.pos, pc::Origin::Search(set_up));
-            let pc = pc::RtownPc::place_as(&r.town, &row, &model, origin, pos, &mut r.hits);
+            let (pos, origin) = (r.kite.pos(), pc::Origin::Search(set_up));
+            let pc = pc::RtownPc::place_as(&r.town, &row, &model, origin, pos, &mut r.hits, &mut r.cc);
             r.pcs.push(pc);
-            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.pcs));
+            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
         }
         "pcsearchat" => {
             // The SEARCH set-up alone in town TOWN, Kite at (0, 0, 0, 0).
             let (no, code, stage) = (n(1) as i32, n(2) as i32, n(3) as i16);
             let mut town = piney_world::town::Town::open(archive, volume, no, false).unwrap();
-            let t = pc::TownPcs::new(volume, no, &town.core.file, Mt::init(0)).unwrap();
+            let t = pc::TownPcs::new(volume, no, &town.core.file).unwrap();
+            let mut cc = piney_battle::rand::init_rand(0, &mut 0);
             let t = std::rc::Rc::new(std::cell::RefCell::new(t));
             let set_up = pc::Search::set_up(&t.borrow(), &town.core.file, code, stage).unwrap();
             let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
             let model = pc::load_model(archive, &mut pc::Files::new(), &t.borrow().tables, &row).unwrap();
             let origin = pc::Origin::Search(set_up);
-            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.core.hits);
-            println!("{{{}}}", pcs_json(&t.borrow(), &[pc]));
+            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.core.hits, &mut cc);
+            println!("{{{}}}", pcs_json(&t.borrow(), &cc, &[pc]));
         }
         "pcrace" => {
             pcs.run.as_mut().unwrap().town.borrow_mut().race_hold = n(1) != 0;
@@ -1034,55 +887,33 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
         "pcpad" => {
             use piney_world::event::entry::{Npc, NpcCtx};
             let r = pcs.run.as_mut().unwrap();
-            let mut pow = [0u8; 12];
-            for (k, p) in pow.iter_mut().enumerate() {
-                *p = n(7 + k) as u8;
-            }
-            let pad = CamPad {
-                direct: n(1),
-                push: n(2),
-                pow_l: n(3) as u8,
-                dirc_l: n(4),
-                pow_r: n(5) as u8,
-                dirc_r: n(6),
-                pow,
-            };
-            tasks(&mut r.camera, &mut r.player, &mut r.hits, &anims_of(archive), &mut r.rand, &pad, &mut r.mode);
+            r.kite.frame(kite_run::pad_at(w, 1), &mut r.hits);
             r.kite_char = r.hits.char_type;
-            if r.player.events.contains(&piney_world::chara::motion::ActEvent::Arrived) {
-                r.hits.hit_enable(&mut r.player.hit_body);
-            }
-            let t = r.camera.tcam.clone();
+            let t = r.kite.camera.tcam.clone();
+            let (kite_pos, kite_dirc) = (r.kite.pos(), r.kite.dirc());
             let view = piney_world::chara::char::View {
-                player: r.player.body.pos,
+                player: kite_pos,
                 cam: t.pos,
                 deg1: t.deg[1],
                 eye: t.kind == piney_world::camera::kind::EYE,
             };
             for pc in r.pcs.iter_mut() {
                 let mut ctx = NpcCtx {
-                    player: r.player.body.pos,
-                    player_dirc: r.player.body.dirc,
+                    player: kite_pos,
+                    player_dirc: kite_dirc,
                     view,
                     cam: &t,
                     hits: &mut r.hits,
-                    rand: &mut r.rand,
+                    rand: &mut r.kite.combat.rand,
+                    cc: &mut r.cc,
                 };
                 pc.step(&mut ctx);
             }
-            println!("{{\"kite\": {}, {}}}", kite_json(r), pcs_json(&r.town.borrow(), &r.pcs));
+            println!("{{\"kite\": {}, {}}}", kite_json(r), pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
         }
         _ => return false,
     }
     true
-}
-
-/// Kite's animations by act, read once.
-fn anims_of(archive: &Arc<Archive>) -> Vec<&'static piney_data::anim::Animation> {
-    use std::sync::OnceLock;
-    static KITE: OnceLock<SceneFile> = OnceLock::new();
-    let kite = KITE.get_or_init(|| SceneFile::read(archive, "ctu1body").unwrap());
-    PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect()
 }
 
 /// The `party` request ([`piney_world::chara::party::Spcs`] against `ccParty` and

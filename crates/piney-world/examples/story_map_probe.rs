@@ -12,10 +12,6 @@ use std::sync::Arc;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::statics::DrawPass;
-use piney_desktop::assets::SceneFile;
-use piney_world::camera::{CamPad, Camera, Scheme};
-use piney_world::chara::motion::PLAYER_ANIM_TBL;
-use piney_world::chara::player::Player;
 use piney_world::draw::Fogging;
 use piney_world::ee::{self, V4};
 use piney_world::hit;
@@ -30,7 +26,10 @@ use piney_world::systems::scrolls::Scrolls;
 use piney_world::systems::sky::Sky;
 use piney_world::systems::statics::{StaticModels, StaticObjects};
 use piney_world::systems::{Drawn, Kind, Piece, Request};
-use piney_world::{Rand, tasks};
+
+#[path = "common/kite_run.rs"]
+mod kite_run;
+use kite_run::{KiteRun, Start};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -186,24 +185,15 @@ fn pieces(a: &StoryArea) -> Vec<(Kind, Piece, Option<i16>, bool)> {
     out
 }
 
-struct Run {
-    player: Player,
-    camera: Camera,
-    rand: Rand,
-    mode: i8,
-}
-
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
     let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-    let kite = SceneFile::read(&archive, "ctu1body").unwrap();
-    let anims: Vec<&piney_data::anim::Animation> =
-        PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
+    let (data, body) = (kite_run::data(&mut iso), kite_run::body(&archive));
     let mut area: Option<StoryArea> = None;
     let mut arena: Option<StoryArea> = None;
-    let mut run: Option<Run> = None;
+    let mut run: Option<KiteRun> = None;
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
@@ -329,109 +319,31 @@ fn main() {
             Some("start") => {
                 let a = area.as_mut().unwrap();
                 let pos = [n(1), n(2), n(3), ee::ONE];
-                let dirc = [0, 0, n(4), 0];
-                let scheme = Scheme::new(n(5) as i32);
-                let mode = n(6) as i8;
                 a.core.hits.center = [pos[0], pos[1]];
                 a.core.hits.chars.clear();
-                // The disc's square roots (sqrt.s from Outbreak on), as the
-                // world probe's player and camera take them.
-                run = Some(Run {
-                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(volume, pos, dirc, mode, scheme),
-                    rand: Rand(u64::from(n(7))),
-                    mode,
-                });
+                // A story map's Kite (game.area 1: GO(1)), arriving.
+                let start = Start {
+                    pos,
+                    dirc_z: n(4),
+                    scheme: n(5) as i32,
+                    mode: n(6) as i8,
+                    seed: n(7),
+                    area: 1,
+                    arriving: true,
+                };
+                run = Some(KiteRun::new(&data, &body, &mut a.core.hits, &start));
                 println!("{{}}");
             }
             Some("pad") => {
                 let a = area.as_mut().unwrap();
                 let r = run.as_mut().unwrap();
-                let mut pow = [0u8; 12];
-                for (k, p) in pow.iter_mut().enumerate() {
-                    *p = n(7 + k) as u8;
-                }
-                let pad = CamPad {
-                    direct: n(1),
-                    push: n(2),
-                    pow_l: n(3) as u8,
-                    dirc_l: n(4),
-                    pow_r: n(5) as u8,
-                    dirc_r: n(6),
-                    pow,
-                };
-                tasks(&mut r.camera, &mut r.player, &mut a.core.hits, &anims, &mut r.rand, &pad, &mut r.mode);
-                if r.player.events.contains(&piney_world::chara::motion::ActEvent::Arrived) {
-                    a.core.hits.hit_enable(&mut r.player.hit_body);
-                }
-                let (p, b, s, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
-                let t = &c.tcam;
-                println!(
-                    concat!(
-                        "{{\"pos\": {}, \"dirc\": {}, \"move\": {}, \"now_speed\": {}, \"speed_rate\": {}, ",
-                        "\"move_flag\": {}, \"run_flag\": {}, \"stop_flag\": {}, \"restraint\": {}, ",
-                        "\"act\": {}, \"act_old\": {}, \"act_cnt\": {}, \"anm_flag\": {}, \"react_cnt\": {}, ",
-                        "\"transfer_lag\": {}, \"walk_run_cnt\": {}, \"cloak\": {}, \"transparency\": {}, ",
-                        "\"frame_spd\": {}, \"time\": {}, \"attribute\": {}, \"stop_cnt\": {}, \"drawn\": {}, ",
-                        "\"arms\": {:?}, \"target_count\": {}, \"angle\": {}, ",
-                        "\"cam_pos\": {}, \"cam_view\": {}, \"cam_rot\": {}, \"cam_rot2\": {}, \"cam_rot3\": {}, ",
-                        "\"cam_dist\": {}, \"cam_deg\": [{}, {}], \"cam_type\": {}, \"cam_reset_flag\": {}, ",
-                        "\"cam_reset_dirc\": {}, \"resetting\": {}, \"mem_dirc_z\": {}, \"mode\": {}, ",
-                        "\"world_view\": {}, \"world_screen\": {}, \"enter\": {}, \"center\": {}, ",
-                        "\"qualified\": {}}}"
-                    ),
-                    list(b.pos),
-                    list(b.dirc),
-                    list(b.move_pos),
-                    b.now_speed,
-                    b.speed_rate,
-                    u8::from(b.move_flag),
-                    u8::from(b.run_flag),
-                    u8::from(s.stop_flag),
-                    u8::from(s.restraint),
-                    s.act,
-                    s.act_old,
-                    s.act_cnt,
-                    s.anm_flag,
-                    s.react_cnt,
-                    s.transfer_lag,
-                    s.walk_run_cnt,
-                    s.cloak,
-                    p.transparency,
-                    s.frame_spd,
-                    s.time,
-                    p.hit_attribute,
-                    p.stop_cnt,
-                    u8::from(p.drawn),
-                    // ArmsEffect / ClearArmsEffect from ccPlayer::Main, as
-                    // the world harness reports them (worklog 378).
-                    match p.arms {
-                        Some(piney_world::chara::arms::ArmsCall::Effect) => "effect",
-                        Some(piney_world::chara::arms::ArmsCall::Clear) => "clear",
-                        None => "none",
-                    },
-                    b.target_count,
-                    list(p.angle),
-                    list(t.pos),
-                    list(t.view),
-                    list(t.rot),
-                    list(t.rot2),
-                    list(t.rot3),
-                    t.dist,
-                    t.deg[0],
-                    t.deg[1],
-                    t.kind,
-                    u8::from(t.reset_flag),
-                    t.reset_dirc,
-                    u8::from(c.resetting),
-                    c.mem_dirc_z,
-                    r.mode,
-                    mat(&c.world_view),
-                    mat(&c.world_screen),
-                    u8::from(p.enter),
-                    list(a.core.hits.center),
-                    u8::from(p.attribute_qualified)
-                );
+                r.frame(kite_run::pad_at(&w, 1), &mut a.core.hits);
+                let extra = [
+                    ("enter", kite_run::b(r.enter)),
+                    ("center", list(a.core.hits.center)),
+                    ("qualified", kite_run::b(r.qualified)),
+                ];
+                println!("{}", r.json(&extra));
             }
             _ => println!("{{\"error\": \"{line}\"}}"),
         }

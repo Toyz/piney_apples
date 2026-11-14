@@ -22,14 +22,14 @@ fn area_43_flies_over_and_sends_the_party_back() {
     hold(&mut s, 128, 128, 400, |s| playing(s).is_some());
     let w = playing(&s).unwrap();
     assert_eq!((w.scene().area, w.scene().field), (1, 43));
-    let fly = |w: &piney_world::field::world::FieldWorld| {
+    let fly = |w: &piney_world::world::World| {
         let a =
             w.area().kind().story().filter(|a| a.def == &piney_world::story_map::abyss::AREA_43).expect("EVENTAREA03");
         a.systems().get::<piney_world::story_map::abyss::FlyOver>().cloned().unwrap()
     };
     assert!(!fly(w).flag, "area 43 marked on a new game");
     let calls = |s: &Session| match &s.stage {
-        Stage::Area(a) => a.calls().iter().map(|(_, c)| c.clone()).collect::<Vec<_>>(),
+        Stage::Area(a) if !a.in_town() => a.calls().iter().map(|(_, c)| c.clone()).collect::<Vec<_>>(),
         _ => Vec::new(),
     };
     hold(&mut s, 128, 128, 400, |s| calls(s).iter().any(|c| c == "message_open story"));
@@ -40,8 +40,10 @@ fn area_43_flies_over_and_sends_the_party_back() {
     // OK until the line closes and the town comes.
     let mut pad = Pad::default();
     for f in 0..600u32 {
-        if let Stage::World(w) = &s.stage {
-            assert_eq!(w.town_number(), 1, "{}", Mode::title(&s));
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
+        {
+            assert_eq!(w.world().scene().town, 1, "{}", Mode::title(&s));
             return;
         }
         let b = if f % 24 == 0 { Buttons::CROSS } else { Buttons::NONE };

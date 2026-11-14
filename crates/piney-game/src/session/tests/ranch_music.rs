@@ -37,21 +37,26 @@ impl Ear {
 
     fn world(&self) -> &piney_world::World {
         match &self.s.stage {
-            Stage::World(w) => w.world(),
+            Stage::Area(w) if w.in_town() => w.world(),
             _ => panic!("not in a town: {}", Mode::title(&self.s)),
         }
     }
 
-    /// Frames with nothing held until Kite stands in town `town`.
+    /// Frames with nothing held until Kite stands in town `town`. The
+    /// console's ChangeArea writes ccGame at once: the town left reads the
+    /// next one's number until the session sets that one up, so a frame
+    /// runs first.
     fn arrive(&mut self, town: i32) {
         for _ in 0..3000 {
-            if let Stage::World(w) = &self.s.stage
+            self.step(&still());
+            if let Stage::Area(w) = &self.s.stage
+                && w.in_town()
+                && self.s.leaving.is_none()
                 && w.world().scene().town == town
                 && matches!(w.world().phase(), piney_world::Phase::Play(n) if n >= 30)
             {
                 return;
             }
-            self.step(&still());
         }
         panic!("not in town {town}: {}", Mode::title(&self.s));
     }
@@ -73,7 +78,7 @@ impl Ear {
             };
             self.step(&raw);
         }
-        panic!("Kite did not reach the ranch: {:?}", self.world().player().body.pos.map(f32::from_bits));
+        panic!("Kite did not reach the ranch: {:?}", self.world().kite().pos().map(f32::from_bits));
     }
 }
 

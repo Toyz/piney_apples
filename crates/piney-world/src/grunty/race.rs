@@ -73,20 +73,6 @@ pub enum RaceEvent {
     /// The end: `ccSnd +0x13a` 0, then sequence 1 in from nothing to 256
     /// over 30 frames (main 0x0017c1e0).
     PgBgmEnd,
-    /// The riding Grunty's notes (`ccSeSetParamInu(param, pcgs)`, at its
-    /// place) and its dust at a leg (`effSmoke`).
-    RideSound {
-        param: u32,
-        attribute: u32,
-        pos: V4,
-    },
-    RideSmoke {
-        pos: V4,
-        v: V4,
-        s: F,
-        life: i32,
-        t: i32,
-    },
     /// `ccMenu` +0xc (the panels), +0x10 (the map), +0xfe (the ban).
     Panel(i16),
     Map(i16),
@@ -746,21 +732,21 @@ pub fn before_camera_at(rot: V4, eye: V4, dist: F, height: F) -> (V4, V4) {
 }
 
 /// The race's run of a frame, on the town's world.
-impl crate::World {
+impl crate::town::cast::TownCast {
     /// 0x005ff820(kind) from menu 88: in a town with no race, the task
     /// started (it runs from the next frame's slot).
-    pub fn race_start(&mut self, kind: i32) -> bool {
-        if self.race.is_some() || self.volume == Volume::Inf {
+    pub fn race_start(&mut self, world: &mut crate::world::World, kind: i32) -> bool {
+        if self.race.is_some() || world.volume == Volume::Inf {
             return false;
         }
-        let files = match RaceFiles::read(&self.archive) {
+        let files = match RaceFiles::read(&world.archive) {
             Ok(f) => Rc::new(f),
             Err(e) => {
                 tracing::warn!("the flag race's files: {e}");
                 return false;
             }
         };
-        let server = crate::area::SERVER_OF_TOWN.get(self.scene.town as usize).copied().unwrap_or(0);
+        let server = crate::area::SERVER_OF_TOWN.get(world.scene.town as usize).copied().unwrap_or(0);
         self.race = Some(Box::new(Race::new(files, kind, server)));
         true
     }
@@ -805,31 +791,22 @@ impl crate::World {
         Some(out)
     }
 
-    /// The race's events since the last take.
-    pub fn take_race_events(&mut self) -> Vec<RaceEvent> {
-        let mut out = std::mem::take(&mut self.race_events);
-        if let Some(r) = self.race.as_deref_mut() {
-            out.append(&mut r.events);
-        }
-        out
-    }
-
     /// The race's slot (priority 63): the task's code up to its next
     /// breath.
-    pub(crate) fn race_slot(&mut self, host: &mut dyn RaceHost) {
+    pub(crate) fn race_slot(&mut self, world: &mut crate::world::World, host: &mut dyn RaceHost) {
         let Some(mut r) = self.race.take() else { return };
         r.clips.clear();
         r.cells.clear();
-        self.race_run(&mut r, host);
+        self.race_run(world, &mut r, host);
         if r.gone() {
-            self.race_events.append(&mut r.events);
+            self.outs.extend(r.events.drain(..).map(crate::world::cast::Out::Race));
         } else {
             self.race = Some(r);
         }
     }
 
-    fn race_run(&mut self, r: &mut Race, host: &mut dyn RaceHost) {
-        let t = piney_data::tables::race::of(self.volume);
+    fn race_run(&mut self, world: &mut crate::world::World, r: &mut Race, host: &mut dyn RaceHost) {
+        let t = piney_data::tables::race::of(world.volume);
         let s = usize::try_from(r.server).unwrap_or(0);
         loop {
             match r.pc {
@@ -846,24 +823,26 @@ impl crate::World {
                         return;
                     }
                     // Kite at the start, paused; the Grunty called.
-                    self.player.body.pos = t.kite_pos[s].map(f32::to_bits);
-                    self.player.body.dirc = [0, 0, ee::deg2rad(t.kite_rot[s]), ONE];
-                    self.player.acts.pause = true;
-                    self.ride_start_town(r.kind);
+                    world.put_kite(t.kite_pos[s].map(f32::to_bits), [0, 0, ee::deg2rad(t.kite_rot[s]), ONE]);
+                    world.set_pause(true);
+                    if world.ride_start_town(r.kind) {
+                        self.outs.push(crate::world::cast::Out::Race(RaceEvent::Forbid(1)));
+                        self.outs.push(crate::world::cast::Out::Race(RaceEvent::Panel(3)));
+                    }
                     r.pc = Pc::IntroTop;
                 }
                 Pc::IntroTop => {
                     match r.intro {
                         0 => {
-                            self.camera.change_camera(3);
+                            world.camera.change_camera(3);
                             let (pos, view) = if r.kind != 0 {
                                 let k = r.kind as usize;
                                 (t.intro_pos_kind[k], t.intro_view_kind[k])
                             } else {
                                 (t.intro_pos_server[s], t.intro_view_server[s])
                             };
-                            let n = self.camera.cam_id;
-                            let c = self.camera.cam_mut(n);
+                            let n = world.camera.cam_id;
+                            let c = world.camera.cam_mut(n);
                             c.pos = pos.map(f32::to_bits);
                             c.view = view.map(f32::to_bits);
                             r.intro += 1;
@@ -906,17 +885,17 @@ impl crate::World {
                         continue;
                     }
                     r.events.push(RaceEvent::BgmStop);
-                    self.camera.change_camera(1);
-                    self.camera.soft_reset(self.player.body.dirc[2]);
+                    world.camera.change_camera(1);
+                    world.camera.soft_reset(world.kite().dirc()[2]);
                     r.pc = Pc::SetupCam;
                     return;
                 }
                 Pc::SetupCam => {
                     // The field camera's place held by the event camera.
-                    let (pos, view) = (self.camera.active().pos, self.camera.active().view);
-                    self.camera.change_camera(3);
-                    let n = self.camera.cam_id;
-                    let c = self.camera.cam_mut(n);
+                    let (pos, view) = (world.camera.active().pos, world.camera.active().view);
+                    world.camera.change_camera(3);
+                    let n = world.camera.cam_id;
+                    let c = world.camera.cam_mut(n);
                     c.pos = pos;
                     c.view = view;
                     r.events.push(RaceEvent::Map(3));
@@ -943,12 +922,12 @@ impl crate::World {
                 }
                 Pc::Main => {
                     match r.phase {
-                        0 => self.race_countdown(r, s),
+                        0 => self.race_countdown(world, r, s),
                         1 => {
                             let old = r.count;
                             r.count += 1;
                             if old < 30 {
-                                self.race_clip(r, Clip::Count, 0xc448_0000, t.count_height[s].to_bits());
+                                self.race_clip(world, r, Clip::Count, 0xc448_0000, t.count_height[s].to_bits());
                             }
                             if r.state == 1 {
                                 r.phase += 1;
@@ -957,15 +936,18 @@ impl crate::World {
                         2 => {
                             // The finish with the three flags, else the
                             // quit; true: breathing in the fade.
-                            let breathes =
-                                if r.taken == 3 { self.race_finish(r, host, s) } else { self.race_quit(r, host, s) };
+                            let breathes = if r.taken == 3 {
+                                self.race_finish(world, r, host, s)
+                            } else {
+                                self.race_quit(world, r, host, s)
+                            };
                             if breathes {
                                 return;
                             }
                         }
                         _ => {}
                     }
-                    self.race_after(r, host);
+                    self.race_after(world, r, host);
                     return;
                 }
                 Pc::FinishOut | Pc::QuitOut => {
@@ -974,19 +956,18 @@ impl crate::World {
                     }
                     let finish = r.pc == Pc::FinishOut;
                     let (pos, rot) = (t.ride_end_pos[s].map(f32::to_bits), t.ride_end_rot[s].map(f32::to_bits));
-                    self.ride_place(pos, rot);
+                    world.ride_place(pos, rot);
                     if finish {
-                        self.player.body.pos = pos;
-                        self.player.body.dirc = rot;
+                        world.put_kite(pos, rot);
                     }
-                    self.camera.change_camera(3);
-                    let n = self.camera.cam_id;
-                    let c = self.camera.cam_mut(n);
+                    world.camera.change_camera(3);
+                    let n = world.camera.cam_id;
+                    let c = world.camera.cam_mut(n);
                     c.pos = t.finish_cam_pos[s].map(f32::to_bits);
                     c.view = t.finish_cam_view[s].map(f32::to_bits);
                     r.ride.ease_off = ONE;
                     if finish {
-                        self.race_rank(r);
+                        self.race_rank(world, r);
                         r.events.push(RaceEvent::BgmStop);
                         r.events.push(RaceEvent::Map(3));
                     } else {
@@ -1017,7 +998,7 @@ impl crate::World {
                             r.events.push(RaceEvent::Bgm(4));
                         }
                     }
-                    self.race_after(r, host);
+                    self.race_after(world, r, host);
                     return;
                 }
                 Pc::QuitIn => {
@@ -1032,7 +1013,7 @@ impl crate::World {
                         r.over_play = r.files.anm(Clip::Over, "ANM_xp_over_a");
                         r.sub += 1;
                     }
-                    self.race_after(r, host);
+                    self.race_after(world, r, host);
                     return;
                 }
                 Pc::EndOut => {
@@ -1042,7 +1023,7 @@ impl crate::World {
                     r.events.push(RaceEvent::BgmStop);
                     r.end = true;
                     r.intro = 7;
-                    self.camera.change_camera(1);
+                    world.camera.change_camera(1);
                     r.events.push(RaceEvent::Panel(1));
                     r.events.push(RaceEvent::Map(1));
                     r.events.push(RaceEvent::PgBgmEnd);
@@ -1056,16 +1037,15 @@ impl crate::World {
                     }
                     // Kite by the breeder, facing him.
                     let at = t.end_pos[s].map(f32::to_bits);
-                    self.player.body.pos = at;
-                    let breeder = crate::grunty::dummy(&self.area.core().file, "DMY_merchant6").map(|d| d.0);
-                    let mut rot = self.player.body.dirc;
+                    let breeder = crate::grunty::dummy(&world.area.core().file, "DMY_merchant6").map(|d| d.0);
+                    let mut rot = world.kite().dirc();
                     rot[2] = breeder.map_or(rot[2], |b| crate::town::pc::get_dirc(at, b));
-                    self.player.body.dirc = rot;
+                    world.put_kite(at, rot);
                     r.pc = Pc::EndCam;
                     return;
                 }
                 Pc::EndCam => {
-                    self.camera.soft_reset(self.player.body.dirc[2]);
+                    world.camera.soft_reset(world.kite().dirc()[2]);
                     host.continue_fade(r.fade, 30, CLEAR);
                     r.pc = Pc::EndIn;
                     return;
@@ -1079,7 +1059,7 @@ impl crate::World {
                     return;
                 }
                 Pc::WaitRide => {
-                    if self.ride.is_some() {
+                    if world.pg_ride() {
                         return;
                     }
                     r.events.push(RaceEvent::Forbid(0));
@@ -1093,8 +1073,8 @@ impl crate::World {
 
     /// The main loop's tail: the HUD, the (dead) restart, and the menu's
     /// done flag: the end's fade out begins, else the breath.
-    fn race_after(&mut self, r: &mut Race, host: &mut dyn RaceHost) {
-        self.race_hud(r);
+    fn race_after(&mut self, world: &mut crate::world::World, r: &mut Race, host: &mut dyn RaceHost) {
+        self.race_hud(world, r);
         if r.done {
             r.fade = host.entry_fade(30, BLACK);
             r.pc = Pc::EndOut;
@@ -1107,18 +1087,18 @@ impl crate::World {
     /// timer, Kite free, the field camera, the map, music 0); while it has
     /// not, a number every 30 frames with its sound. The clip drawn each
     /// call.
-    fn race_countdown(&mut self, r: &mut Race, s: usize) {
+    fn race_countdown(&mut self, world: &mut crate::world::World, r: &mut Race, s: usize) {
         if r.countdown() {
-            self.player.acts.pause = false;
-            self.camera.change_camera(1);
+            world.set_pause(false);
+            world.camera.change_camera(1);
         }
-        let h = piney_data::tables::race::of(self.volume).count_height[s].to_bits();
-        self.race_clip(r, Clip::Count, 0xc448_0000, h);
+        let h = piney_data::tables::race::of(world.volume).count_height[s].to_bits();
+        self.race_clip(world, r, Clip::Count, 0xc448_0000, h);
     }
 
     /// A clip stepped and drawn in front of the camera.
-    fn race_clip(&mut self, r: &mut Race, clip: Clip, dist: F, height: F) {
-        let (pos, rot) = before_camera(&self.camera, dist, height);
+    fn race_clip(&mut self, world: &mut crate::world::World, r: &mut Race, clip: Clip, dist: F, height: F) {
+        let (pos, rot) = before_camera(&world.camera, dist, height);
         let p = match clip {
             Clip::Count => &mut r.count_play,
             Clip::Cup => &mut r.cup_play,
@@ -1134,14 +1114,14 @@ impl crate::World {
 
     /// 0x005fe830: the time into the save's ranks; the result's clips by
     /// the rank.
-    fn race_rank(&mut self, r: &mut Race) {
-        let t = piney_data::tables::race::of(self.volume);
-        let ranks: [(i16, i16); 3] = piney_data::tables::fieldui::of(self.volume)
+    fn race_rank(&mut self, world: &mut crate::world::World, r: &mut Race) {
+        let t = piney_data::tables::race::of(world.volume);
+        let ranks: [(i16, i16); 3] = piney_data::tables::fieldui::of(world.volume)
             .race_ranks
             .get((r.server - 1) as usize)
             .map_or([(0, 0); 3], |rs| rs.map(|x| (x.time, x.row)));
         let row = (r.kind + ROW_KIND0) as i16;
-        r.rank = enter_time(&mut self.save.save, &ranks, r.server, r.time, row);
+        r.rank = enter_time(&mut world.save.save, &ranks, r.server, r.time, row);
         match r.rank {
             1..=3 => {
                 let k = r.rank as usize;
@@ -1155,11 +1135,17 @@ impl crate::World {
     /// 0x005fe290, phase 2 with the three flags: Kite held 32 frames, the
     /// fade's step (true: the task breathes inside it), then the result's
     /// clips until the music after.
-    fn race_finish(&mut self, r: &mut Race, host: &mut dyn RaceHost, s: usize) -> bool {
-        let h = piney_data::tables::race::of(self.volume).cup_height[s].to_bits();
+    fn race_finish(
+        &mut self,
+        world: &mut crate::world::World,
+        r: &mut Race,
+        host: &mut dyn RaceHost,
+        s: usize,
+    ) -> bool {
+        let h = piney_data::tables::race::of(world.volume).cup_height[s].to_bits();
         match r.sub {
             0 => {
-                self.player.acts.pause = true;
+                world.set_pause(true);
                 let old = r.cnt;
                 r.cnt += 1;
                 if old >= 31 {
@@ -1173,9 +1159,9 @@ impl crate::World {
                 return true;
             }
             2 => {
-                self.race_clip(r, Clip::Cup, 0xc3fa_0000, h);
-                self.race_clip(r, Clip::Place, 0xc3fa_0000, h);
-                self.race_clip(r, Clip::Chnut, 0xc3fa_0000, h);
+                self.race_clip(world, r, Clip::Cup, 0xc3fa_0000, h);
+                self.race_clip(world, r, Clip::Place, 0xc3fa_0000, h);
+                self.race_clip(world, r, Clip::Chnut, 0xc3fa_0000, h);
                 let old = r.cnt;
                 r.cnt += 1;
                 if old >= 191 {
@@ -1186,7 +1172,7 @@ impl crate::World {
                 }
             }
             3 | 4 => {
-                self.race_clip(r, Clip::Out, 0xc3fa_0000, h);
+                self.race_clip(world, r, Clip::Out, 0xc3fa_0000, h);
                 let old = r.cnt;
                 r.cnt += 1;
                 if old >= 181 {
@@ -1210,10 +1196,10 @@ impl crate::World {
 
     /// 0x005feab0, phase 2 short of the flags (quit, or the time over):
     /// Kite held 32 frames, the fade's step, then a time over's clip.
-    fn race_quit(&mut self, r: &mut Race, host: &mut dyn RaceHost, s: usize) -> bool {
+    fn race_quit(&mut self, world: &mut crate::world::World, r: &mut Race, host: &mut dyn RaceHost, s: usize) -> bool {
         match r.sub {
             0 => {
-                self.player.acts.pause = true;
+                world.set_pause(true);
                 let old = r.cnt;
                 r.cnt += 1;
                 if old >= 31 {
@@ -1227,8 +1213,8 @@ impl crate::World {
                 return true;
             }
             2 => {
-                let h = piney_data::tables::race::of(self.volume).cup_height[s].to_bits();
-                self.race_clip(r, Clip::Over, 0xc3fa_0000, h);
+                let h = piney_data::tables::race::of(world.volume).cup_height[s].to_bits();
+                self.race_clip(world, r, Clip::Over, 0xc3fa_0000, h);
                 let old = r.cnt;
                 r.cnt += 1;
                 if old >= 181 {
@@ -1243,8 +1229,8 @@ impl crate::World {
     }
 
     /// 0x005fee10 ([`Race::hud`]) with the volume's timer cells.
-    fn race_hud(&mut self, r: &mut Race) {
-        r.hud(piney_data::tables::race::of(self.volume).timer_cells);
+    fn race_hud(&mut self, world: &mut crate::world::World, r: &mut Race) {
+        r.hud(piney_data::tables::race::of(world.volume).timer_cells);
     }
 }
 

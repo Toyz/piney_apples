@@ -70,6 +70,9 @@ fn hopeless_nothingness_shot() {
     std::fs::create_dir_all(&dir).unwrap();
     let Some(mut s) = in_field_27_dungeon(Volume::Mut) else { return };
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let c = a.world().combat();
     let rooms: Vec<(i32, i32)> = c
         .ctrl

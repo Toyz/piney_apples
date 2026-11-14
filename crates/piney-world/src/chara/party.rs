@@ -7,7 +7,7 @@
 //! them by id as [`SpcRef`]s (docs/engine/field-game.md).
 
 use crate::chara::ai::{self, PartyLeave, SpcRef};
-use crate::ee::{self, V4};
+use crate::ee::V4;
 use crate::hit::Hits;
 
 /// `ccSPC::registry`'s length.
@@ -361,8 +361,8 @@ impl Spcs {
         }
     }
 
-    /// Remote command 5's party request for character `id`
-    /// ([`ai::manual_control`]).
+    /// Remote command 5's party request for character `id` (the AI's
+    /// `ManualControl`, the battle's).
     pub fn leave(&mut self, id: i32, how: PartyLeave, chars: &mut dyn SpcChars) {
         match how {
             PartyLeave::Resign => self.resign(id, chars),
@@ -480,17 +480,6 @@ impl Spcs {
         };
         self.slot_of(id).map(|i| self.registry[i].id)
     }
-
-    /// The character `pc_turn` and `pc_face` act on: `GetSpc(pc)`, or
-    /// `memberChar[-pc]` for a slot. -3 reads `memberID[0]` as the pointer
-    /// (Kite's id 0: nothing), so it names no one.
-    pub(crate) fn turned(&self, pc: i32) -> Option<i32> {
-        match pc {
-            0.. => self.get_spc(pc),
-            -2 | -1 => self.member_char[(-pc) as usize],
-            _ => None,
-        }
-    }
 }
 
 /// `pc_act pc act` (`ccEvent::Execute` case 60, main 0x001ad0c0, level 2), on
@@ -533,139 +522,17 @@ pub fn pc_act(spcs: &Spcs, chars: &mut dyn SpcChars, hits: &mut Hits, pc: i32, a
     any
 }
 
-/// What a remote walk's goal is read from (`pc_walk_*`).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum WalkGoal {
-    /// `(10 x, 10 y, 10 z, 1)`.
-    Pos(V4),
-    /// `10 dist` toward `rot` from where the character stands (w kept).
-    Dir { rot: i16, dist: i16 },
-    /// A place as it is (a marker's dummy, w 1; a character's position
-    /// offset by `rot` and `dist`, its w).
-    At(V4),
-}
-
-/// `v + 10 dist (sinf(a), -cosf(a))`, `a = DEG2RAD(rot)`: the offset of
-/// `pc_walk_dir` and `pc_walk_char`.
-pub fn walk_offset(mut v: V4, rot: i16, dist: i16) -> V4 {
-    let a = ee::deg2rad(rot);
-    let d = ee::mul(0x4120_0000, ee::from_int(i32::from(dist)));
-    v[0] = ee::add(v[0], ee::mul(d, ee::sinf(a)));
-    v[1] = ee::sub(v[1], ee::mul(d, ee::cosf(a)));
-    v
-}
-
-/// A remote walk (`pc_walk_pos` case 61, `pc_run_pos` 164, `pc_walk_dir`
-/// 62, `pc_walk_marker` 63, `pc_walk_char` 64) on character `id`:
-/// `ManualModeAI(1)`, `SetRemoteCmd(cmd)` (1, or 2 for `pc_run_pos`),
-/// `SetGoalPos(goal, 0)` (straight, `gPoint` -1); the AI's `ManualControl`
-/// walks there ([`crate::chara::ai::manual_control`] for Kite, the battle's for
-/// a member). False when `id` has no character.
-pub fn pc_walk(
-    chars: &mut dyn SpcChars,
-    hits: &mut Hits,
-    id: i32,
-    cmd: i16,
-    goal: WalkGoal,
-    annihilated: bool,
-) -> bool {
-    let Some(mut c) = chars.spc(id) else { return false };
-    c.manual_mode_ai(1, annihilated, hits);
-    c.set_remote_cmd(cmd);
-    let v = match goal {
-        WalkGoal::Pos(v) | WalkGoal::At(v) => v,
-        WalkGoal::Dir { rot, dist } => walk_offset(*c.pos, rot, dist),
-    };
-    if let Some(ai) = c.ai.as_deref_mut() {
-        ai.g_point = -1;
-        ai.g_pos = v;
-    }
-    true
-}
-
-/// `pc_command pc on` (case 66, main 0x001ae164): the characters `pc`
-/// names onto the command list (`ccEntryCmnd`) or, with `on` 0, off it
-/// (`ccDeleteCmnd`). True when someone was named.
-pub fn pc_command(spcs: &Spcs, chars: &mut dyn SpcChars, pc: i32, on: bool) -> bool {
-    let mut any = false;
-    for id in spcs.named(pc) {
-        if let Some(c) = chars.spc(id) {
-            *c.listed = on;
-            any = true;
-        }
-    }
-    any
-}
-
 fn set_manual_off(c: &mut SpcRef) {
     if let Some(ai) = c.ai.as_deref_mut() {
         ai.manual_sw = false;
     }
 }
 
-/// `pc_turn pc dirc chg` (case 71, main 0x001aed5c, level 2): `chg` 0 turns
-/// at once (`ccAI::SetDircZ`); otherwise the AI turns toward `dirc` at
-/// `chg` a frame (1 meaning 64) while its remote command is 0. False when
-/// `pc` names no built character.
-pub fn pc_turn(spcs: &Spcs, chars: &mut dyn SpcChars, pc: i32, dirc: i16, chg: i16) -> bool {
-    let Some(id) = spcs.turned(pc) else { return false };
-    let Some(mut c) = chars.spc(id) else { return false };
-    turn(&mut c, dirc as u16, chg)
-}
-
-/// The turn itself: false for a gradual one on a character without its AI
-/// yet (the port's Kite before the town's set-up).
-fn turn(c: &mut SpcRef, dd: u16, chg: i16) -> bool {
-    if chg != 0 {
-        let Some(ai) = c.ai.as_deref_mut() else { return false };
-        ai.turn_to(dd, chg);
-    } else {
-        c.set_dirc_z(dd);
-    }
-    true
-}
-
-/// Who `pc_face` turns to (`1 << type`: 4 the party, 0x18 town NPCs, 0x60
-/// enemies and objects; types 0 and 1 name no one).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FaceTarget {
-    Spc(i32),
-    Npc(i32),
-    Enemy(i32),
-    None,
-}
-
-impl FaceTarget {
-    pub fn of(ty: i16, code: i16) -> FaceTarget {
-        let bit = 1u32.checked_shl(ty as u32).unwrap_or(0);
-        let code = i32::from(code);
-        if bit & 4 != 0 {
-            FaceTarget::Spc(code)
-        } else if bit & 0x18 != 0 {
-            FaceTarget::Npc(code)
-        } else if bit & 0x60 != 0 {
-            FaceTarget::Enemy(code)
-        } else {
-            FaceTarget::None
-        }
-    }
-}
-
-/// `pc_face pc type code chg` (case 72, main 0x001aee30, level 2) with the
-/// target's position `to` found: `RAD2DEG(ccGetDirc(pos, to))` taken as
-/// `pc_turn` takes its heading.
-pub fn pc_face(spcs: &Spcs, chars: &mut dyn SpcChars, pc: i32, to: V4, chg: i16) -> bool {
-    let Some(id) = spcs.turned(pc) else { return false };
-    let Some(mut c) = chars.spc(id) else { return false };
-    let d = crate::event::dirc_to(*c.pos, to);
-    turn(&mut c, d as u16, chg)
-}
-
 /// `ccEvent::MenuBan` (main 0x001b2460), its party part: each party slot's
 /// member noted (`spcMode`) and put under manual control at remote command 0;
 /// then every registered character off the command list and its near fade
 /// off (`transDist` 0). `ccStoreSpcCondition` and `ClearCondition` are the
-/// field's (`FieldWorld::menu_ban_party`, `Combat::menu_ban_conditions`);
+/// field's (`World::menu_ban_party`, `Combat::menu_ban_conditions`);
 /// `ccSpcConditionEffectOFF` is not kept.
 pub fn menu_ban(spcs: &mut Spcs, chars: &mut dyn SpcChars, hits: &mut Hits) {
     let annihilated = spcs.annihilated(chars);
@@ -769,91 +636,20 @@ pub(crate) fn party_flag_bits(w: i32) -> i8 {
     (((w & 7) << 5) as i8) >> 5
 }
 
-impl crate::World {
-    /// The registry and Kite and the party members as [`SpcChars`]
-    /// ([`crate::town::party::TownChars`]) with the town's collision, lent
-    /// to `f`; the members' records written back after.
-    pub(crate) fn with_party<R>(
-        &mut self,
-        f: impl FnOnce(&mut Spcs, &mut crate::town::party::TownChars, &mut Hits) -> R,
-    ) -> R {
-        self.party.with_chars(&mut self.player, &mut self.spcs, &mut self.area.core_mut().hits, f)
-    }
-
-    /// The town's fellow tasks deleted as the scene changes
-    /// ([`Spcs::delete_fellows`]).
-    pub fn delete_fellows(&mut self) {
-        let keep_recalled = self.volume != piney_data::volume::Volume::Inf;
-        self.with_party(|spcs, chars, _| spcs.delete_fellows(chars, keep_recalled));
-    }
-
-    /// `ccSPC::Reboot` (gcmn 0x005a00d0) as the town's set-up runs it
-    /// (`rebootSpcManager`, before the fade in): every registered character built
-    /// afresh with its `bootParam` - Kite at the start position
-    /// ([`crate::chara::player::Player::build`]), the others as the battle's characters
-    /// ([`crate::town::party::TownParty::build`]) at their `StartPos` - each with
-    /// its AI, then `SetParty`. [`crate::World::place_entries`] runs it first.
-    pub(crate) fn reboot(&mut self) {
-        if self.rebooted {
+impl crate::town::cast::TownCast {
+    /// A registered character other than Kite built after the set-up's
+    /// `ccSPC::Reboot` ([`crate::world::World::reboot`]): registry slot `i`'s,
+    /// at its `StartPos`.
+    fn build_spc(&mut self, world: &mut crate::world::World, i: usize) {
+        let r = world.spcs.registry[i];
+        if r.id <= 0 {
             return;
         }
-        self.rebooted = true;
-        self.party.combat.spc.party_strategy = self.spcs.party_strategy;
-        for i in 0..REGISTRY {
-            self.build_spc(i);
-        }
-        self.spcs.set_party();
-        self.party.combat.set_party(self.spcs.party());
-    }
-
-    /// Reboot's step for registry slot `i`: its character built.
-    fn build_spc(&mut self, i: usize) {
-        let r = self.spcs.registry[i];
-        if r.id == -1 {
-            return;
-        }
-        let spc = piney_data::save::by_id::spc_param(r.id as usize);
-        let word = |at: usize| self.save.save.i32(spc + at) as u32;
-        let (velocity, height, width) = (word(0xd4), word(0x18), word(0x1c));
-        if r.id == 0 {
-            let mut p = crate::chara::player::Player::build(
-                self.start.0,
-                self.start.1,
-                velocity,
-                width,
-                height,
-                r.boot_param,
-                &mut self.area.core_mut().hits,
-            );
-            p.party_flag = party_flag_bits(r.party_flag);
-            p.list_num = i as i32;
-            // ccPlayer::ccPlayer's cycle and Reboot's ccAI (count, the
-            // message counters) draw rand() in that order: his stand-in's
-            // are made with the town's generator, and his own taken from it.
-            if self.party.combat.kite.is_none() {
-                self.party.combat.rand = piney_battle::rand::Rand(self.rand.0);
-                let k = self.party.combat.add_leader(&self.save.save, r.boot_param, party_flag_bits(r.party_flag));
-                self.rand.0 = self.party.combat.rand.0;
-                p.cycle = self.party.combat.crew.spc.get(&k).map_or(0, |s| s.cycle);
-                if let (Some(ai), Some(a)) = (p.ai.as_mut(), self.party.combat.crew.ais.get(&k)) {
-                    ai.count = a.count;
-                }
-            }
-            self.player = p;
-            self.party.combat.mirror_leader(&self.player);
-            return;
-        }
-        if self.party.combat.kite.is_none() {
-            // The leader's stand-in first: the members place themselves
-            // relative to him.
-            self.party.combat.add_leader(&self.save.save, 0, 1);
-            self.party.combat.mirror_leader(&self.player);
-        }
-        let Some(file) = self.char_files.get(r.id as usize).cloned() else { return };
-        let (pos, dirc) = self.start_of(r.id);
-        self.party.build(
-            &self.archive,
-            &self.save.save,
+        let Some(file) = world.char_files.get(r.id as usize).cloned() else { return };
+        let (pos, dirc) = self.start_of(world, r.id);
+        world.combat.build_member(
+            &world.archive,
+            &world.save.save,
             r.id,
             &file,
             pos,
@@ -861,8 +657,7 @@ impl crate::World {
             r.boot_param,
             party_flag_bits(r.party_flag),
             i as i32,
-            &mut self.area.core_mut().hits,
-            &mut self.rand,
+            &mut world.area.core_mut().hits,
         );
     }
 
@@ -871,154 +666,14 @@ impl crate::World {
     /// party member at its slot's place (`WORLD_MAN::SetCharPosition`: the
     /// start + (200, 100), + (-200, 100), + (0, 300), facing as Kite does),
     /// anyone else at the origin facing 0.
-    fn start_of(&self, id: i32) -> (crate::ee::V4, crate::ee::V4) {
-        let slot = self.spcs.check_member_id(id);
+    fn start_of(&self, world: &crate::world::World, id: i32) -> (crate::ee::V4, crate::ee::V4) {
+        let slot = world.spcs.check_member_id(id);
         if slot <= 0 {
             return (crate::ee::VF0, [0; 4]);
         }
-        let (pos, dirc) = self.start;
+        let (pos, dirc) = world.start();
         let starts = crate::area::map::party_starts(crate::area::kind::TOWN, pos, dirc[2]);
         (starts[slot as usize - 1], [0, 0, dirc[2], 0])
-    }
-
-    /// The registry and the party the last area left (`ccSpcManager` and
-    /// `ccPartyManager` are the game's globals): taken before the town's
-    /// set-up builds them (`rebootSpcManager`), with every `bootParam` 0 as
-    /// the old area's `ccThSpcDelete` left them.
-    pub fn set_spcs(&mut self, mut spcs: Spcs) {
-        spcs.th_spc_delete();
-        self.spcs = spcs;
-    }
-
-    /// `ccEntryEventMng`'s party entries (main 0x001b62e0-0x001b654c): each
-    /// event's registered character put at its marker (the origin without
-    /// one), `ccAI::SetDircZ(RAD2DEG(rot.z))`, and on the command list when
-    /// `param` is 5.
-    pub(crate) fn place_spc_entries(&mut self) {
-        for (_, code, marker, param) in std::mem::take(&mut self.spc_entries) {
-            self.place_spc(code, marker, param);
-        }
-    }
-
-    fn place_spc(&mut self, code: i16, marker: i16, param: i16) {
-        if self.spcs.slot_of(i32::from(code)).is_none() {
-            return;
-        }
-        let at = self.spc_marker(marker);
-        self.with_party(|_, chars, _| {
-            let Some(mut c) = chars.spc(i32::from(code)) else { return };
-            let (pos, rot) = at.unwrap_or((*c.pos, c.dirc[2]));
-            *c.pos = pos;
-            c.set_dirc_z(crate::ee::rad2deg(rot) as u16);
-            if param == 5 {
-                *c.listed = true;
-            }
-        });
-        if code != 0 {
-            self.party.combat.mirror_leader(&self.player);
-        }
-    }
-
-    /// Where `ccEntryEventMng` puts a party character in town (MUT main
-    /// 0x001cba88): `markerEvTbl[marker]`'s dummy, `vf0` below 0 (and for
-    /// a dummy the file lacks); from Mutation on, None for a marker of 99
-    /// or more, which leaves the character where it stands.
-    pub(crate) fn spc_marker(&self, marker: i16) -> Option<(V4, ee::F)> {
-        if marker >= 99 && self.volume != piney_data::volume::Volume::Inf {
-            return None;
-        }
-        let none = (crate::ee::VF0, 0);
-        Some(if marker >= 0 { self.marker_bits(marker).unwrap_or(none) } else { none })
-    }
-
-    /// An event's `entry` of a party character (types 0-2): registered
-    /// (`EntrySpc`, `bootParam = param`: `ccRegisterEventMng`) and placed by
-    /// the town's set-up ([`crate::World::place_entries`]); after the
-    /// set-up a new party member is built and placed at once (the game
-    /// would only at the next area).
-    ///
-    /// A full registry (`EntrySpc`'s -1) only skips `bootParam`
-    /// (`ccRegisterEventMng`, OUT main 0x001c2c78): the entry stays on the
-    /// list, and `ccEntryEventMng` still places a character already
-    /// registered (Kite in Lia Fail's event 301 block 9, with four members
-    /// in). False when the character is not registered at all.
-    pub(crate) fn entry_spc(&mut self, code: i16, marker: i16, param: i16) -> bool {
-        let slot = usize::try_from(self.spcs.entry_spc(i32::from(code))).ok();
-        if let Some(i) = slot {
-            self.spcs.registry[i].boot_param = i32::from(param);
-        }
-        if self.spcs.slot_of(i32::from(code)).is_none() {
-            return false;
-        }
-        if !self.placed {
-            self.spc_entries.push((2, code, marker, param));
-            return true;
-        }
-        if let Some(i) = slot.filter(|_| code != 0 && self.party.member(i32::from(code)).is_none()) {
-            self.build_spc(i);
-            self.place_spc(code, marker, param);
-            self.party.combat.set_party(self.spcs.party());
-        }
-        true
-    }
-
-    /// The party members' task frames (`ccThFellowNN`, priority 50) through
-    /// the battle's machinery ([`crate::combat::town`]): Kite's stand-in
-    /// brought up to date, then each member's `ccFellow::Main`; a leaver
-    /// its task lets go (`exitFlag`: `expulsionSpc`, the task's delete)
-    /// taken off the town.
-    pub(crate) fn party_frame(&mut self) {
-        let menu = self.menu_view;
-        // The Root Town's server: its number (Mac Anu 0 Delta, Dun Loireag
-        // 1 Theta).
-        let server = i32::from(self.save.save.u8(piney_data::save::offset::LAST_TOWN) as i8);
-        let mut x = crate::town::party::TownFrame {
-            hits: &mut self.area.core_mut().hits,
-            camera: &mut self.camera,
-            save: &mut self.save.save,
-            rand: &mut self.rand,
-            // CheckMenuType(): -1 with no menu open (the town knows whether
-            // one is, not which).
-            menu_type: if menu.idle { -1 } else { 0 },
-            menu_forbid: menu.forbid,
-            server,
-        };
-        self.party.frame(&mut self.player, &mut self.spcs, &mut x);
-    }
-
-    /// The registry and the party (`ccSpcManager`, `ccPartyManager`).
-    pub fn spcs(&self) -> &Spcs {
-        &self.spcs
-    }
-
-    /// `ccStoreSpcCondition()` as the next scene's `ccSetupGameCtrl` runs
-    /// it: the town's party (built whole: a town restores nothing) stored
-    /// for the next area.
-    pub fn store_conditions(&mut self) {
-        let c = &self.party.combat;
-        self.spcs.store_conditions(c.members.iter().map(|&(id, who)| (id, &c.scene.chars[who])));
-    }
-
-    /// The party members as the battle's characters (and Kite's
-    /// stand-in).
-    pub fn town_party(&self) -> &crate::town::party::TownParty {
-        &self.party
-    }
-
-    /// Party members' `charTbl` rows by slot (`ccParty::memberID`), -1
-    /// empty.
-    pub fn party(&self) -> [i32; SLOTS] {
-        self.spcs.party()
-    }
-
-    /// `ccParty::AddMember(code)` (gcmn 0x0059ce80): the slot it joined, or
-    /// -1. A member not registered here (called from the party menu by his
-    /// address) is first built at the Chaos Gate ([`Self::invite_new`]).
-    pub fn party_add(&mut self, code: i32) -> i32 {
-        if self.spcs.member_id.contains(&-1) && self.spcs.find(code).is_none() && !self.invite_new(code) {
-            return -1;
-        }
-        self.with_party(|spcs, chars, _| spcs.add_member(code, chars))
     }
 
     /// `inviteSpc(id)` (gcmn 0x005a08e0) for a character the registry does
@@ -1029,12 +684,12 @@ impl crate::World {
     /// `inviteOffsetTbl[slot]`, facing half a turn from the gate. The
     /// angle goes through `fptosi` as radians before `sinf` and `cosf`, so
     /// only whole radians are used; x gains 150 sin, y loses 150 cos.
-    fn invite_new(&mut self, code: i32) -> bool {
+    pub(crate) fn invite_new(&mut self, world: &mut crate::world::World, code: i32) -> bool {
         use crate::ee::{add, cosf, deg2rad, from_int, mul, rad2deg, sinf, sub, to_int};
-        let i = self.spcs.entry_spc(code);
+        let i = world.spcs.entry_spc(code);
         let Ok(i) = usize::try_from(i) else { return false };
-        self.spcs.registry[i].party_flag = 1;
-        self.build_spc(i);
+        world.spcs.registry[i].party_flag = 1;
+        self.build_spc(world, i);
         let heading = rad2deg(self.gate.dirc[2]);
         let a = from_int(to_int(deg2rad(heading.wrapping_add(INVITE_OFFSET[i % INVITE_OFFSET.len()] as i16))));
         let mut pos = self.gate.pos;
@@ -1042,153 +697,13 @@ impl crate::World {
         pos[1] = sub(pos[1], mul(INVITE_DIST, cosf(a)));
         pos[3] = crate::ee::ONE;
         let facing = heading.wrapping_add(i16::MIN);
-        let id = self.spcs.registry[i].id;
-        self.with_party(|_, chars, _| {
+        let id = world.spcs.registry[i].id;
+        world.with_party(|_, chars, _| {
             let Some(mut c) = chars.spc(id) else { return };
             *c.pos = pos;
             c.set_dirc_z(facing as u16);
         });
-        self.party.combat.mirror_leader(&self.player);
         true
-    }
-
-    /// `party_remove code` (`ccParty::DelMember` of its slot; -3 all, -1/-2
-    /// a slot).
-    pub fn party_remove(&mut self, code: i32) {
-        self.with_party(|spcs, chars, _| spcs.party_remove(code, chars));
-    }
-
-    /// `pc_mode pc param`: a registered character's `bootParam`, for when
-    /// the town's set-up builds it (callable before and after).
-    pub fn set_boot_param(&mut self, pc: i16, param: i16) {
-        self.spcs.pc_mode(i32::from(pc), i32::from(param));
-    }
-
-    /// `ccSpcChar::TransferOut` on party character `code` (0 Kite), as the
-    /// Chaos Gate's menus call it for each member leaving (the party's
-    /// warp out). False when there is no such character.
-    pub fn transfer_out(&mut self, code: i32) -> bool {
-        self.with_party(|_, chars, hits| {
-            let Some(mut c) = chars.spc(code) else { return false };
-            c.transfer_out(hits);
-            true
-        })
-    }
-
-    /// `ccSpcChar::RequestChatCmd(member, cmd, target, skill)` from the
-    /// CHAT menu (`ccAI::RequestChatCmd` 0x00583440) on party member `code`:
-    /// in a town `ActInTown` reads 9 (follow Kite) and 12 (stop).
-    pub fn chat_cmd(&mut self, code: i32, cmd: i32, target: Option<i32>, sid: i32) {
-        let Some(m) = self.party.member(code).filter(|&m| self.party.combat.crew.ais.contains_key(&m)) else {
-            return;
-        };
-        let t = target.and_then(|c| self.party.member(c));
-        let scene = crate::area::Scene::init();
-        let c = &mut self.party.combat;
-        c.rand = piney_battle::rand::Rand(self.rand.0);
-        c.with_ai(&mut self.area.core_mut().hits, &mut self.camera, &scene, &mut self.save.save, 0, |ctx| {
-            ctx.request_chat_cmd(m, cmd, t, sid)
-        });
-        self.rand.0 = c.rand.0;
-        c.shows.clear();
-    }
-
-    /// `ccSpcChar::ChangeEquipReport(n)` (gcmn 0x0059f4a0) on party member
-    /// `code`, from the CHAT menu's cancel, as in the fields
-    /// ([`crate::field::world::FieldWorld::equip_report`]): `n` 0
-    /// `ChatMessageEquipOK`, 7 `ChatMessageEquipNOT(1)`, 1-10 otherwise
-    /// `ChatMessageEquipNOT(0)`; its line goes up over the member on the
-    /// next frame, when the town's frame sends the lines raised since.
-    pub fn equip_report(&mut self, code: i32, n: i16) {
-        use piney_battle::party_ai::Chat;
-        if code == 0 || !(0..11).contains(&n) {
-            return;
-        }
-        let Some(m) = self.party.member(code).filter(|&m| self.party.combat.crew.ais.contains_key(&m)) else {
-            return;
-        };
-        let chat = match n {
-            0 => Chat::EquipOk,
-            7 => Chat::EquipNot(1),
-            _ => Chat::EquipNot(0),
-        };
-        let scene = crate::area::Scene::init();
-        let c = &mut self.party.combat;
-        c.rand = piney_battle::rand::Rand(self.rand.0);
-        c.with_ai(&mut self.area.core_mut().hits, &mut self.camera, &scene, &mut self.save.save, 0, |ctx| {
-            ctx.chat_line(m, chat)
-        });
-        self.rand.0 = c.rand.0;
-        c.shows.clear();
-    }
-
-    /// `ccSpcMessagePresentOtherFellow(ch)` (gcmn 0x005a1a70) after party
-    /// member `code` was given a present: with three in the party, the
-    /// other member (not Kite, not `code`) is sent message 0x10011
-    /// (`ccAISysMsgSendP(0x10011, -1, id, id, 0, 30, -1, ch)`, its own
-    /// sys-msg id), which its AI answers with
-    /// `ChatMessagePresentOtherFellow(ch)`.
-    pub fn present_other(&mut self, code: i32) {
-        let ids = self.spcs.party();
-        if self.spcs.num < 3 {
-            return;
-        }
-        let Some(me) = ids.iter().position(|&i| i == code) else { return };
-        let Some(ch) = self.party.member(code) else { return };
-        for (slot, &id) in ids.iter().enumerate() {
-            if slot == 0 || slot == me {
-                continue;
-            }
-            let Some(m) = self.party.member(id) else { continue };
-            let c = &mut self.party.combat;
-            let sid = c.crew.sys_msg_id(m) as u16;
-            c.crew.send(0x10011, sid, sid, 0, 30, -1, Some(ch));
-        }
-    }
-
-    /// `member->ai->manualSW = 0` on party member `code`.
-    pub fn manual_off(&mut self, code: i32) {
-        if let Some(a) = self.party.member(code).and_then(|m| self.party.combat.crew.ais.get_mut(&m)) {
-            a.manual_sw = false;
-        }
-    }
-
-    /// `ccSpcChar::ManualModeAI(member, ev)` (gcmn 0x0059eba0) on party
-    /// member `code`.
-    pub fn manual_mode_ai(&mut self, code: i32, ev: i32) {
-        let annihilated = {
-            let mut chars = self.party.read_chars(&mut self.player);
-            let a = self.spcs.annihilated(&mut chars);
-            self.party.finish(chars.members);
-            a
-        };
-        self.with_party(|_, chars, hits| {
-            if let Some(mut c) = chars.members.spc(code) {
-                c.manual_mode_ai(ev, annihilated, hits);
-            }
-        });
-    }
-
-    /// `ccAI::SetRemoteCmd(member->ai, cmd)` (gcmn 0x005832e0) on party
-    /// member `code`.
-    pub fn remote_cmd(&mut self, code: i32, cmd: i32) {
-        self.with_party(|_, chars, _| {
-            if let Some(mut c) = chars.members.spc(code) {
-                c.set_remote_cmd(cmd as i16);
-            }
-        });
-    }
-
-    /// `menu_ban` (true) / `menu_clear` (false): their party part
-    /// ([`menu_ban`], [`menu_clr`]; the menus' part is the field UI's).
-    pub fn menu_ban_party(&mut self, on: bool) {
-        self.with_party(|spcs, chars, hits| {
-            if on {
-                menu_ban(spcs, chars, hits);
-            } else {
-                menu_clr(spcs, chars, hits, 0);
-            }
-        });
     }
 }
 

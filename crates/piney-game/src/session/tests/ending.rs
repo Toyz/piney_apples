@@ -19,6 +19,7 @@ fn event_314_plays_through_field_126() {
         s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && a.world().scene().field == 126
             && field.is_none()
         {
@@ -26,7 +27,9 @@ fn event_314_plays_through_field_126() {
             let empty = w.area().kind().story().is_some_and(|m| m.def == &piney_world::story_map::ending::ENDING);
             field = Some((f, w.world_man().event, empty));
         }
-        if let Stage::Area(a) = &s.stage {
+        if let Stage::Area(a) = &s.stage
+            && !a.in_town()
+        {
             rolled += u32::from(a.world().fx().ending_running());
         }
         if super::survey::event_flag(&mut s, 314).is_some_and(|x| x & 3 << 62 != 0) {
@@ -64,6 +67,7 @@ fn play_to_roll(mut each: impl FnMut(&mut Session, Frame)) -> Option<(Session, P
     let (mut pad, mut pilot) = (Pad::default(), super::survey::StoryPilot::default());
     for f in 0..30_000u64 {
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && a.world().fx().ending_running()
         {
             return Some((s, pad));
@@ -122,6 +126,7 @@ fn the_field_staff_roll_plays_alone() {
     let sequences = |a: &piney_audio::Audio| a.with_engine(|e| e.seq.each_ref().map(|q| q.playing()));
     let (mut f, mut streamed) = (0u32, 0u32);
     while let Stage::Area(a) = &s.stage
+        && !a.in_town()
         && a.world().fx().ending_running()
     {
         let rate = Mode::frame_rate(&s);

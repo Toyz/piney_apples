@@ -29,7 +29,7 @@ fn list(v: &[u32]) -> String {
 struct Probe {
     rand: Rand,
     /// `genrand()` (`ccRand`), seeded as the harness seeds its MT19937.
-    mt: piney_world::mt::Mt,
+    mt: piney_battle::rand::Genrand,
     /// What `checkHitResultAttlibute` answers.
     attr: u32,
     player: V4,
@@ -43,7 +43,7 @@ impl Probe {
     fn new(seed: u64) -> Probe {
         Probe {
             rand: Rand(seed),
-            mt: piney_world::mt::Mt::seeded(seed as u32),
+            mt: piney_battle::rand::Genrand::seeded(seed as u32),
             attr: 0,
             player: [0, 0, 0, ONE],
             camera: Camera::default(),
@@ -59,7 +59,7 @@ impl Host for Probe {
         self.rand.rand()
     }
     fn genrand(&mut self) -> u32 {
-        self.mt.genrand()
+        self.mt.next_u32()
     }
     fn ground_attribute(&mut self, _pos: V4) -> u32 {
         self.attr

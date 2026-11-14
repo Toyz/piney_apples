@@ -1240,7 +1240,7 @@ class DungeonAgainstGame(unittest.TestCase):
             self.assertEqual(game, [("scene", 2, -2, -2, 0, 0, down)], what + ": the stairs up")
             self.assertEqual(mine, ["scene", 2, -2, -2, 0, 0, down], what + ": the stairs up")
             self.assertEqual(g.m.load(WM + 0x5C, 4), 0, what + ": entryFlag[2]")
-            # FieldWorld::go_field's ChangeScene for field type 4's dungeon 1.
+            # World::go_field's ChangeScene for field type 4's dungeon 1.
             self.assertEqual(g.go_field(1), ([("scene", 2, -2, -2, 0, 0, down)], 0), what + ": GoField below")
             self.count("lake stairs and GoField")
 

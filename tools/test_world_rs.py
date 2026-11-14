@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """crates/piney-world against the game's own field code run in tools/eemu.py.
 
-The world_probe example runs the port's field tasks on the pads this sends
+The world_probe example runs the port's field tasks (the camera, then the
+battle's tasks with Kite's ccPlayer::Main, as every area runs them; its
+ControlMove alone is tools/test_battle_kite_rs.py's) on the pads this sends
 it; the same pads go through the game's functions in eemu (with
 tools/test_anim.py's VU0 macro mode), over Mac Anu's real collision mesh:
 town01's Hit chunk decoded by the game's ccStream::Decode_Hit and registered
@@ -11,8 +13,6 @@ as a ccModelHit, as ROOTTOWN01's static model does.
     arguments;
   - avoidObstacle (main 0x00162430), the field camera's floor handling,
     over sloping grounds served to its ccSetGroundHeight;
-  - ccPlayer::ControlMove (gcmn 0x00598af0) on random pad, heading, camera
-    and speed states;
   - ccLandHitCheck (gcmn 0x00571e00) at random points of town01 and town01d;
   - the frame: cameraMain (main 0x00160cc0) on the camera task, then
     ccPlayer::Main (gcmn 0x00598310) - ControlMove, HitCheck, the move,
@@ -573,50 +573,6 @@ class WorldAgainstGame(unittest.TestCase):
                     print("avoid", [hex(v) for v in c], [hex(v) for v in want], [hex(v) for v in g])
         self.assertEqual(bad, 0)
         self.assertGreater(lifted, 300)
-
-    def test_control_move(self):
-        f = Field()
-        m = f.m
-        rng = random.Random(5)
-        cases = []
-        for _ in range(2000):
-            cases.append((rng.choice([0, 30, 63, 64, 90, 127, 128, 200, 230, 231, 255, rng.randrange(256)]),
-                          fb(rng.uniform(-math.pi, math.pi)), rng.choice([0, 0, 0, 1]), rng.choice([0, 0, 1]),
-                          fb(rng.uniform(-math.pi, math.pi)), fb(rng.uniform(-math.pi, math.pi)),
-                          rng.choice([0, 0, 1, 3]), fb(rng.uniform(-math.pi, math.pi)),
-                          rng.choice([ONE, ONE, fb(rng.uniform(0.2, 2))]), fb(27.5), rng.randrange(6),
-                          rng.choice([0, 0, 0, 1])))
-        got = ask(["move " + hexs(*c) for c in cases])
-        bad = 0
-        for c, g in zip(cases, got):
-            pow_, dircl, cmnd, reset, resetd, camrotz, camtype, dircz, sv, speed, tc, inact = c
-            p = PLAYER
-            m.mem[p:p + 0x300] = bytes(0x300)
-            m.store(PAD + 0x48, 1, pow_)
-            m.store(PAD + 0x4C, 4, dircl)
-            m.store(CMNDTARGET, 4, cmnd)
-            m.store(TCAM + 0x5C, 4, camtype)
-            m.store(TCAM + 0x60, 4, reset)
-            m.store(TCAM + 0x64, 4, resetd)
-            m.store(TCAM + 0x28, 4, camrotz)
-            m.store(inf_va(0x0037896C), 4, TCAM)
-            m.store(inf_va(0x0037897C), 2, 1)
-            m.store(p + 0x68, 4, dircz)
-            m.store(p + 0x28, 4, sv)
-            m.store(p + 0x104, 4, speed)
-            m.store(p + 0x2E4, 2, tc)
-            m.store(p + 0x200, 1, inact << 1)
-            f.call("ControlMove__8ccPlayerFv", p)
-            b = m.load(p + 0xE0, 1)
-            want = [m.load(p + 0x68, 4), m.load(p + 0x290, 4), m.load(p + 0x294, 4), m.load(p + 0x108, 4),
-                    m.load(p + 0x10C, 4), b >> 3 & 1, b >> 5 & 1, m.load(p + 0x2E4, 2, True),
-                    m.load(TCAM + 0x60, 4)]
-            if want != g:
-                bad += 1
-                if bad < 5:
-                    print("ControlMove", c, "game", want, "port", g)
-        m.store(CMNDTARGET, 4, 0)
-        self.assertEqual(bad, 0)
 
     def test_land(self):
         for t, town in enumerate(("town01", "town01d")):

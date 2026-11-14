@@ -11,7 +11,7 @@ fn the_world_counts_play_time() {
     let mut pad = Pad::default();
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let time = |s: &Session| match &s.stage {
-        Stage::World(w) => Some(w.world().state().save.play_time()),
+        Stage::Area(w) if w.in_town() => Some(w.world().state().save.play_time()),
         _ => None,
     };
     let start = time(&s).expect("not in Mac Anu");

@@ -29,7 +29,7 @@ fn mac_anu_with_black_rose(disc: &str) -> Option<Session> {
     let mut s = Session::bare(iso, archive, false, None, false);
     s.resume_in(state, None, Resume::World(Box::new(InWorld { scene, world_man: None, spcs }))).unwrap();
     let mut pad = Pad::default();
-    let playing = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    let playing = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
     for _ in 0..900 {
         if playing(&s) {
             break;
@@ -60,7 +60,10 @@ fn party_call(s: &mut Session, row: i16, mut each: impl FnMut(&Session, &Frame, 
     let (mut ordered, mut since, mut after) = (false, 0u32, 0u32);
     for i in 0..600u32 {
         let raw = {
-            let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+            let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+            if !w.in_town() {
+                panic!("left the town: {}", Mode::title(s))
+            }
             let m = &w.ui().ctrl;
             since += 1;
             let press =
@@ -77,7 +80,10 @@ fn party_call(s: &mut Session, row: i16, mut each: impl FnMut(&Session, &Frame, 
         pad.read(&raw);
         let frame = s.step(&pad);
         s.take_events();
-        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let Stage::Area(w) = &s.stage else { panic!("left the town") };
+        if !w.in_town() {
+            panic!("left the town")
+        }
         let m = &w.ui().ctrl;
         ordered |= m.menu == 3 && m.menu_next == -1;
         if !ordered {
@@ -122,7 +128,7 @@ fn kite_calls_the_party_in_town() {
 
 /// The field's orders (Infection's event 3, Orca along): Skill Usage's
 /// first, "Everyone, " and the order, over Kite for its two seconds; the
-/// field's runtime answers for the party as well (`hud_world`).
+/// field's runtime answers for the party as well (`menu_world`).
 #[test]
 fn kite_calls_the_party_in_a_field() {
     let Some((mut s, mut f)) = story_to_field(0) else { return };
@@ -134,6 +140,9 @@ fn kite_calls_the_party_in_a_field() {
     for i in 0..400u32 {
         let raw = {
             let Stage::Area(a) = &s.stage else { panic!("left the field: {}", Mode::title(&s)) };
+            if a.in_town() {
+                panic!("left the field: {}", Mode::title(&s))
+            }
             let m = &a.ui().ctrl;
             let press = |b: Buttons| if i.is_multiple_of(8) && i > 16 { Raw { buttons: b, ..still } } else { still };
             match a.ui().menu_type() {
@@ -148,6 +157,9 @@ fn kite_calls_the_party_in_a_field() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { panic!("left the field") };
+        if a.in_town() {
+            panic!("left the field")
+        }
         let m = &a.ui().ctrl;
         ordered |= m.menu == 3 && m.menu_next == -1;
         if let Some(slot) = m.chat.slots.iter().find(|x| ordered && x.cf > 0 && x.who == KITE) {

@@ -17,7 +17,6 @@ use piney_desktop::save::SaveState;
 use piney_world::chara::char::View;
 use piney_world::ee::{ONE, V4};
 use piney_world::grunty::{self, Bodies, Growth, Grunty, GruntyCtx, GruntyEvent, Tables};
-use piney_world::mt::Mt;
 use piney_world::town::Town;
 
 fn hex(s: &str) -> u32 {
@@ -151,7 +150,7 @@ fn main() {
     let mut save = SaveState::fresh().save;
     let mut g: Option<Grunty> = None;
     let mut rand = piney_world::Rand(1);
-    let mut mt = Mt::init(0);
+    let mut mt = piney_battle::rand::init_rand(0, &mut 0);
     let mut race: Option<(i32, i32, i16)> = None;
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
@@ -185,7 +184,7 @@ fn main() {
                 }
                 let tw = town.as_mut().unwrap();
                 rand = piney_world::Rand(u64::from(n(3)));
-                mt = Mt::init(0);
+                mt = piney_battle::rand::init_rand(0, &mut 0);
                 g = grunty::set_dog(&archive, &tables, &mut bodies, &tw.core.file, &mut tw.core.hits, &save, t, id, 0)
                     .unwrap();
                 match &g {
@@ -235,7 +234,7 @@ fn main() {
                     view,
                     hits: &mut tw.core.hits,
                     rand: &mut rand,
-                    mt: &mut mt,
+                    cc: &mut mt,
                     save: &mut save,
                     race: race.as_mut().map(|(kind, server, step)| grunty::RaceLink {
                         kind: *kind,

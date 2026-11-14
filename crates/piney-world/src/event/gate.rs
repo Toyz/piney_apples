@@ -42,7 +42,6 @@ const NEAR: F = 0x458c_a000;
 /// 4000, 400)`, and nothing under 0.05.
 const FADE_FAR: F = 0x457a_0000;
 const FADE_LEN: F = 0x43c8_0000;
-const MIN_DRAWN: F = 0x3d4c_cccd;
 /// Sound effects `gateAnm` starts (`ccSeOn3D`).
 pub const SE_OPENED: i32 = 71;
 pub const SE_CLOSE: i32 = 72;
@@ -130,6 +129,10 @@ pub struct Gate {
     /// +0xd4: the gate; +0x1e4: the magic circle.
     body: Anm,
     ring: Anm,
+    /// The circle's light as the gate's `ccChar::Draw` saw it: the gate
+    /// draws before the circle's `_AnimateForward` moves it (0x00459348,
+    /// 0x0045937c).
+    ring_at_body: Light,
     /// +0x1ec `gateAnm`'s state, +0x1f0 its frame count, +0x1e8 the
     /// circle's animation ended.
     pub state: u32,
@@ -169,6 +172,7 @@ impl Gate {
             root,
             body,
             ring,
+            ring_at_body: BLACK,
             state: 0,
             count: 0,
             ended: false,
@@ -242,13 +246,15 @@ impl Gate {
             f.near = true;
             let (file, root) = (self.file.clone(), draw::mat(&self.root));
             self.body.forward(&file, root);
+            self.ring_at_body = self.ring.light;
             // ccChar::Draw: +0x90 is 1, so `hide` starts set only in the
             // eye view (which skips the near-camera fade).
             let mut hide = eye;
             let fade =
                 camera_transparency(volume, self.pos, player, cam, deg1, WIDTH, HEIGHT, FADE_FAR, FADE_LEN, &mut hide);
-            self.transparency = ee::mul(self.cloak, fade);
-            f.drawn = !(ee::lt(self.transparency, MIN_DRAWN) && !hide);
+            let c = crate::chara::char::CharFade::new(self.cloak, fade, hide);
+            self.transparency = c.transparency;
+            f.drawn = c.drawn;
             if self.state != 0 {
                 self.ended = self.ring.forward(&file, root);
                 f.ring = true;
@@ -263,31 +269,36 @@ impl Gate {
         (self.body.play.time, self.ring.play.time)
     }
 
-    /// The draw environment's lights with the gate's two added after the
-    /// town's (`ccLightGrp::AddGrp` keeps equal priorities in the order
-    /// they came).
-    pub fn lights(&self, town: &TownLights) -> TownLights {
-        let mut out = town.clone();
-        out.lights.push(self.body.light);
-        out.lights.push(self.ring.light);
-        out
+    /// The gate's two lights, which go after the town's in the draw
+    /// environment (`ccLightGrp::AddGrp` keeps equal priorities in the
+    /// order they came).
+    pub fn lights(&self) -> [crate::town::Light; 2] {
+        [self.body.light, self.ring.light]
+    }
+
+    /// The two as the gate's own draw saw them (the circle's not yet
+    /// stepped).
+    pub fn body_lights(&self) -> [crate::town::Light; 2] {
+        [self.body.light, self.ring_at_body]
     }
 
     /// The last step's draws: the gate on layer 5 (`CHAR_LAYER`) at its
-    /// transparency, lit by `lights` (the town's with the gate's); the
-    /// circle, while used, on sysLayer (priority 0). Both anms are
+    /// transparency, lit by `body_lights` (the town's with
+    /// [`Gate::body_lights`]); the circle, while used, on sysLayer
+    /// (priority 0), lit by `lights` (with [`Gate::lights`]). Both anms are
     /// `SetFogSw(0)`: no fog, whatever the town's (the portal's additive
     /// plane would take the fog colour on its black border).
-    pub fn draw(&self, layers: &mut Layers, to_screen: Mat4, lights: &TownLights) {
+    pub fn draw(&self, layers: &mut Layers, to_screen: Mat4, body_lights: &TownLights, lights: &TownLights) {
         let root = draw::mat(&self.root);
-        let lit = |world: Mat4| light_matrix(lights, world, false);
         let fm = &*self.file;
         let fog = draw::Fogging::None;
         if self.frame.drawn {
+            let lit = |world: Mat4| light_matrix(body_lights, world, false);
             let alpha = ee::f(self.transparency);
             let b = &self.body;
             anim_draw_fog(layers, CHAR_LAYER, to_screen, fm, &b.play, root, &b.nodes, alpha, None, Some(&lit), fog);
         }
+        let lit = |world: Mat4| light_matrix(lights, world, false);
         if self.frame.ring {
             let r = &self.ring;
             anim_draw_fog(layers, OBJ_LAYER, to_screen, fm, &r.play, root, &r.nodes, 1.0, None, Some(&lit), fog);
@@ -368,13 +379,13 @@ mod tests {
         let f = g.step(piney_data::volume::Volume::Inf, kite, cam, 1512, false);
         assert_eq!((f.near, f.drawn, f.ring, f.sound), (true, true, false, None));
         assert_eq!((g.transparency, g.times()), (ONE, (256, 0)));
-        let l = g.lights(&TownLights { ambient: Vec3::ZERO, lights: Vec::new(), fog: None });
-        let light = l.lights[0];
+        let l = g.lights();
+        let light = l[0];
         assert_eq!((light.kind, light.far_start, light.far_end, light.intensity), (4, 400.0, 500.0, 1.0));
         assert!((light.pos - Vec3::new(0.0, 6300.0, 766.819)).length() < 0.01, "{:?}", light.pos);
         assert!((light.colour - Vec3::new(110.0, 137.0, 214.0) / 255.0).length() < 0.001);
         // The circle's light: black until the circle steps.
-        assert_eq!(l.lights[1].colour, Vec3::ZERO);
+        assert_eq!(l[1].colour, Vec3::ZERO);
         // Far from Kite it neither steps nor draws.
         let far = [0, 0x4480_0000, 0, ONE];
         assert!(!g.step(piney_data::volume::Volume::Inf, far, cam, 1512, false).near);
@@ -419,7 +430,7 @@ mod tests {
         let tables = piney_demo::newgame::NewGameTables::of(iso.volume().unwrap());
         let mut save = crate::SaveState::fresh();
         piney_demo::newgame::new_game(&mut save.save, 0, &tables, piney_demo::newgame::SAVE_VA);
-        let mut world = crate::World::enter(&mut iso, archive, save).unwrap();
+        let mut world = crate::World::log_in(&mut iso, archive, save).unwrap();
         let mut pad = piney_input::Pad::default();
         let mut drawn = 0;
         for _ in 0..40 {
@@ -427,7 +438,7 @@ mod tests {
             let frame = world.step(&pad);
             let gate_models =
                 frame.cmds.iter().filter(|c| matches!(c, piney_draw::Cmd::Model(m) if m.file == FILE)).count();
-            if world.gate().frame.drawn {
+            if world.cast().get::<crate::town::cast::TownCast>().unwrap().gate().frame.drawn {
                 assert!(gate_models > 0);
                 drawn += 1;
             }

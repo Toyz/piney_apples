@@ -28,6 +28,9 @@ fn a_data_bug_is_drawn_and_not_beaten_by_damage() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let w = a.world_mut();
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 30);
         let c = w.combat_mut();
@@ -75,6 +78,9 @@ fn a_drained_data_bug_s_base_form_takes_whole_hits() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let w = a.world_mut();
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 30);
         let c = w.combat_mut();

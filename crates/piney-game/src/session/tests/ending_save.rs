@@ -118,7 +118,7 @@ impl Player {
 
     /// Whether Quarantine's field roll (`STFROLL_VOL4`) runs.
     fn field_rolling(&self) -> bool {
-        matches!(&self.s.stage, Stage::Area(a) if a.world().fx().ending_running())
+        matches!(&self.s.stage, Stage::Area(a) if !a.in_town() && a.world().fx().ending_running())
     }
 
     /// The sequencers playing.

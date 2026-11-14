@@ -60,9 +60,6 @@ pub const TOWN_FAR: F = 0x457a_0000;
 pub const TOWN_FADE: F = 0x43c8_0000;
 pub const AREA_FAR: F = 0x45da_c000;
 pub const AREA_FADE: F = 0x4416_0000;
-/// Nothing is drawn under this transparency (0.05) unless the camera's
-/// nearness faded it.
-pub const MIN_DRAWN: F = 0x3d4c_cccd;
 /// `hitAttribute` bit: shaded ground (`WORLD_MAN::SleepDistantLight`
 /// around the draw).
 pub const SHADED: u32 = 0x4_0000;
@@ -666,10 +663,9 @@ pub fn char_draw_parts(
     let mut hide = !trans_dist || camera.eye;
     let (far, fade) = camera.fade();
     let t = camera.transparency(pos, width, height, far, fade, &mut hide);
-    let transparency = ee::mul(set_transparency, t);
-    let s = if hide { set_transparency } else { transparency };
-    let shadow_alpha = ((ee::to_int(ee::mul(0x4380_0000, s)).wrapping_add(1)) >> 1) as u8;
-    let drawn = !(ee::lt(transparency, MIN_DRAWN) && !hide);
+    let f = crate::chara::char::CharFade::new(set_transparency, t, hide);
+    let (transparency, drawn) = (f.transparency, f.drawn);
+    let shadow_alpha = ((ee::to_int(ee::mul(0x4380_0000, f.shadow)).wrapping_add(1)) >> 1) as u8;
     CharDraw {
         blend,
         transparency,

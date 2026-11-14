@@ -227,6 +227,9 @@ pub struct EvParty<'a> {
     /// reads through a null chunk when there is none; the port does
     /// nothing then.
     pub town_marker: &'a dyn Fn(i16) -> Option<(V4, F)>,
+    /// `GetNpc(code)` on the NPCs the area keeps off the battle's entry
+    /// control (a Root Town's): its position.
+    pub npc_pos: &'a dyn Fn(i32) -> Option<V4>,
     /// `ccDeleteCmnd`s of characters that were listed
     /// ([`Out::DeleteCmnd`]: `ccChangeCmndTarget(0)` when it was the
     /// command target).
@@ -391,8 +394,8 @@ impl EvParty<'_> {
     pub fn pc_walk_char(&mut self, pc: i16, ty: i16, code: i16, rot: i16, dist: i16) -> bool {
         let Some(c) = self.roster.registered(pc) else { return false };
         self.remote(c, 1);
-        let Some(t) = self.find_char(ty, code) else { return false };
-        let v = offset(self.scene.chars[t].pos, rot, dist);
+        let Some(t) = self.char_pos(ty, code) else { return false };
+        let v = offset(t, rot, dist);
         self.set_goal_pos(c, v);
         true
     }
@@ -411,6 +414,16 @@ impl EvParty<'_> {
             get_enemy(self.ctrl, self.scene, code)
         } else {
             None
+        }
+    }
+
+    /// Where [`EvParty::find_char`]'s character stands; an NPC the battle's
+    /// entry control does not hold from the area's own ([`EvParty::npc_pos`]).
+    pub fn char_pos(&self, ty: i16, code: i16) -> Option<V4> {
+        match self.find_char(ty, code) {
+            Some(t) => Some(self.scene.chars[t].pos),
+            None if 1u32 << (ty as u32 & 31) & 0x18 != 0 => (self.npc_pos)(i32::from(code)),
+            None => None,
         }
     }
 
@@ -455,12 +468,25 @@ impl EvParty<'_> {
     /// the event position numbered `marker` (Kite's position `kite` added
     /// when that position's floor and block are 9999 or more; a negative
     /// marker, or none of that number, the origin), facing its `dirc`
-    /// (`SetDircZ(RAD2DEG(dirc))`); with `param` 5 onto its command list
-    /// (`ccEntryCmnd`). False when `code` has no character.
+    /// (`SetDircZ(RAD2DEG(dirc))`); in a Root Town at the marker's dummy
+    /// (a negative marker the origin; none, where it stands). With `param` 5
+    /// onto its command list (`ccEntryCmnd`). False when `code` has no
+    /// character.
     pub fn place_entry(&mut self, code: i16, marker: i16, param: i16, kite: V4) -> bool {
         let Some(c) = self.roster.registered(code) else { return false };
-        let p = if marker >= 0 { entry::event_pos(self.positions, marker, kite) } else { None };
-        let (pos, dirc) = p.map_or(([0, 0, 0, ONE], 0), |p| (p.pos, p.dirc));
+        let origin = ([0, 0, 0, ONE], 0);
+        let (pos, dirc) = match self.area {
+            // A Root Town: the marker's dummy (none: where it stands).
+            0 if marker >= 0 => match (self.town_marker)(marker) {
+                Some(at) => at,
+                None => (self.scene.chars[c].pos, self.crew.spc.get(&c).map_or(0, |s| s.dirc[2])),
+            },
+            0 => origin,
+            _ => {
+                let p = if marker >= 0 { entry::event_pos(self.positions, marker, kite) } else { None };
+                p.map_or(origin, |p| (p.pos, p.dirc))
+            }
+        };
         self.place(c, pos, dirc);
         if param == 5 {
             entry::entry_cmnd(self.scene, c);
@@ -549,8 +575,8 @@ impl EvParty<'_> {
     /// either is missing.
     pub fn pc_face(&mut self, pc: i16, ty: i16, code: i16, chg: i16) -> bool {
         let Some(c) = self.roster.named(pc) else { return false };
-        let Some(t) = self.find_char(ty, code) else { return false };
-        let d = geom::get_dirc(self.scene.chars[c].pos, self.scene.chars[t].pos);
+        let Some(t) = self.char_pos(ty, code) else { return false };
+        let d = geom::get_dirc(self.scene.chars[c].pos, t);
         self.turn(c, geom::rad2deg(d) as u16, chg);
         true
     }

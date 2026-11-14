@@ -463,7 +463,7 @@ first-row flag.
 **The port.** `piney_world::sky::lattice::Lattice` is `ccLattice`. The boss's
 field run (`BossRun`) keeps one: in the cross it takes the two dummies
 through `OBJ_ex11swd`'s world matrix at the actor's drawn pose, and
-`FieldWorld` sends the strip each frame (`trail_packet`) as the triangles
+`World` sends the strip each frame (`trail_packet`) as the triangles
 it draws.
 
 **Checked.** `test_boss_effect_rs.py`'s `test_skeiths_trail` drives the
@@ -721,7 +721,7 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
 **In the field** (`piney_world::combat::boss`):
 
 1. An event's `entry 7 code` makes the boss at the entry control's
-   set-up (`FieldWorld::start_boss(code)`, `Combat::start_boss`): the
+   set-up (`World::start_boss(code)`, `Combat::start_boss`): the
    code's def (`BossDef::of`) makes it from its `bossTbl` row (code 0
    Skeith, 1 Innis, 2 Magus, 3 Fidchell, 4 Gorre, 5 Macha, 6 Tarvos, 7
    Corbenik, 12-15 Kyvia's fights), its centre the arena's

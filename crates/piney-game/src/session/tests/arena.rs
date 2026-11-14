@@ -116,6 +116,9 @@ pub(super) fn play(
             break;
         }
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world().combat();
         let Some(me) = c.boss_char() else { continue };
         let ch = &c.scene.chars[me];
@@ -146,13 +149,13 @@ pub(super) fn play(
         last_hp = hp;
         if std::env::var_os("PINEY_TRACE_KITE").is_some() {
             let w = a.world();
-            let (k, q) = (w.player().body.pos.map(f32::from_bits), ch.pos.map(f32::from_bits));
+            let (k, q) = (w.kite().pos().map(f32::from_bits), ch.pos.map(f32::from_bits));
             let kite = c.members.first().map(|&(_, m)| c.scene.chars[m].spc_char.act_num);
             let d = (k[0] - q[0]).hypot(k[1] - q[1]) as i32;
             eprintln!(
                 "KITE {f} boss {} d {d} kite {kite:?} target {:?} | {}",
                 b.base.act_num,
-                w.command_target_code(),
+                w.command_target_id(),
                 pilot.doing()
             );
         }
@@ -202,7 +205,7 @@ pub(super) fn god_shots_for(
         });
         music += u32::from(playing);
         let act = match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let c = a.world().combat();
                 c.boss_char().and_then(|me| c.scene.chars[me].foe_state()?.boss.as_ref().map(|b| b.base.act_num))
             }
@@ -210,8 +213,11 @@ pub(super) fn god_shots_for(
         };
         let first = act.is_some_and(|x| seen.insert(x));
         let span = range.is_some_and(|(a, b)| (a..=b).contains(&n));
-        if span && let Stage::Area(a) = &s.stage {
-            eprintln!("FRAME {n} act {act:?} target {:?}", a.world().command_target_code());
+        if span
+            && let Stage::Area(a) = &s.stage
+            && !a.in_town()
+        {
+            eprintln!("FRAME {n} act {act:?} target {:?}", a.world().command_target_id());
         }
         let shot = first || span || n.is_multiple_of(600);
         let path = shot.then(|| format!("{dir}/{name}-{n:05}-act{}.png", act.unwrap_or(-1)));

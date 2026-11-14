@@ -9,6 +9,7 @@
 use piney_battle::boss::defs;
 use piney_battle::enemy_ai::act as enemy_act;
 use piney_world::area::kind;
+use piney_world::world::CharId;
 
 use super::shrine::Walker;
 use super::*;
@@ -68,8 +69,8 @@ pub(super) struct StoryPilot {
     talking: Option<(i32, u64)>,
     talk_place: Option<(i32, i32)>,
     /// In a town: the same for its event NPCs, and the town.
-    town_talked: Vec<(piney_world::event::entry::Kind, i32)>,
-    town_talking: Option<((piney_world::event::entry::Kind, i32), u64)>,
+    town_talked: Vec<CharId>,
+    town_talking: Option<(CharId, u64)>,
     talk_town: Option<i32>,
     /// In a field or dungeon the story wants nothing of: since when, and
     /// whether the pilot is on its way out (PERSONAL, Gate Out).
@@ -485,7 +486,7 @@ impl StoryPilot {
         if !playing || event || c.battle.in_battle != 0 || a.ui().menu_type() != -1 || !self.grinding(a) {
             return None;
         }
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let dist = |m: usize| {
             let q = c.scene.chars[m].pos.map(f32::from_bits);
             (q[0] - p[0]).hypot(q[1] - p[1])
@@ -611,7 +612,7 @@ impl StoryPilot {
     /// of it by [`GRIND_OVER`] (the same, rated above it); or before an
     /// area behind a gate hack, while Virus Cores are short (an area whose
     /// foes' drains give one).
-    fn plan_detour(&mut self, s: &Session, w: &crate::world::WorldMode) {
+    fn plan_detour(&mut self, s: &Session, w: &crate::area::AreaMode) {
         let Some(vm) = w.vm() else { return };
         let save = &w.world().state().save;
         let wants = story_wants(vm, save);
@@ -691,7 +692,7 @@ impl StoryPilot {
 
     /// Whether the detour still holds the pilot in `field`: a lone
     /// stretch's level not yet reached, or a farm's cores still short.
-    fn detour_holds(&self, w: &piney_world::field::world::FieldWorld, field: i32) -> bool {
+    fn detour_holds(&self, w: &piney_world::world::World, field: i32) -> bool {
         if self.detour != Some(field as i16) {
             return false;
         }
@@ -759,10 +760,11 @@ impl StoryPilot {
     }
 
     pub(super) fn next(&mut self, s: &Session, f: u64) -> Raw {
-        if matches!(s.stage, Stage::Area(_)) {
+        if matches!(s.stage, Stage::Area(ref t) if !t.in_town()) {
             self.detour_since = None;
         }
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && !a.streaming()
         {
             self.provision(a);
@@ -789,7 +791,9 @@ impl StoryPilot {
                 return Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
             }
         }
-        if let Stage::World(w) = &s.stage {
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
+        {
             self.leaving = false;
             (self.box_since, self.boxes_tried) = (None, Vec::new());
             if self.unaided {
@@ -833,7 +837,7 @@ impl StoryPilot {
                 self.sells = spare(w);
                 (self.cores_short, self.cores_need) = cores_short(w);
             }
-            let town = w.town_number();
+            let town = w.world().scene().town;
             if self.no_shop.is_some_and(|t| t != town) {
                 self.no_shop = None;
             }
@@ -847,18 +851,21 @@ impl StoryPilot {
             }
         }
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && !a.streaming()
             && let Some(raw) = self.fight(a, f)
         {
             return raw;
         }
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && !a.streaming()
             && self.resting(a)
         {
             return Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         }
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && !a.streaming()
             && a.world().scene().area == kind::FIELD
             && let Some(raw) = self.talk_in_field(a, f)
@@ -866,6 +873,7 @@ impl StoryPilot {
             return raw;
         }
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && !a.streaming()
             && let Some(vm) = a.vm()
         {
@@ -950,26 +958,30 @@ impl StoryPilot {
                 return raw;
             }
         }
-        if let Stage::World(w) = &s.stage {
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
+        {
             self.note_town_talk(w, f);
         }
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && !w.streaming()
             && let Some(raw) = self.walk_in_town(w, f)
         {
             return raw;
         }
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && !a.streaming()
             && let Some(raw) = self.gate_out(a, f)
         {
             return raw;
         }
-        if !matches!(&s.stage, Stage::Area(_)) {
+        if !matches!(&s.stage, Stage::Area(t) if !t.in_town()) {
             (self.idle_since, self.gating) = (None, false);
         }
 
-        if !matches!(&s.stage, Stage::Area(_) | Stage::World(_)) {
+        if !matches!(&s.stage, Stage::Area(t) if !t.in_town()) {
             self.path.clear();
             self.mark = None;
         }
@@ -981,11 +993,7 @@ impl StoryPilot {
     /// holding it (`GIMMICKDATA` type 0, `flag` its code `0x45_0000 | id`:
     /// area 31's cures, one a floor), at its x, y; else a room whose row
     /// gives its statue an item (`ROOMDATA.itemID`); else the statue room.
-    fn item_spot(
-        &self,
-        w: &piney_world::field::world::FieldWorld,
-        wants: &[Want],
-    ) -> Option<(usize, usize, Option<[f32; 2]>)> {
+    fn item_spot(&self, w: &piney_world::world::World, wants: &[Want]) -> Option<(usize, usize, Option<[f32; 2]>)> {
         let ids: Vec<i16> = wants
             .iter()
             .filter_map(|x| match *x {
@@ -1053,8 +1061,8 @@ impl StoryPilot {
                 .collect();
             eprintln!(
                 "ITEM {f} at {at:?} target {target:?} command {:?} kite {:?} gimmicks {gims:?}",
-                w.command_target_code(),
-                w.player().body.pos.map(|v| f32::from_bits(v) as i32)
+                w.command_target_id(),
+                w.kite().pos().map(|v| f32::from_bits(v) as i32)
             );
         }
         let key = (sc.field, sc.dungeon, sc.floor, sc.block);
@@ -1069,11 +1077,11 @@ impl StoryPilot {
         };
         self.nothing_since = None;
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        if w.command_target_code() == Some((piney_world::event::entry::Kind::Gimmick, i as i32)) {
+        if w.command_target_id() == Some(CharId::Scene(i)) {
             return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         }
         let q = w.combat().scene.chars[i].pos.map(f32::from_bits);
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
@@ -1096,7 +1104,7 @@ impl StoryPilot {
         if c.enemies().into_iter().any(|e| c.scene.chars[e].hp > 0) {
             return None;
         }
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let i = c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().find(|&i| {
             // `gimmickTbl` rows 0 and 1, `ccGimBox`'s treasure boxes (the
             // breakables and the virus crystal are rows 2-14).
@@ -1119,7 +1127,7 @@ impl StoryPilot {
             _ => self.box_since = Some((key, f)),
         }
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        if w.command_target_code() == Some((piney_world::event::entry::Kind::Gimmick, i as i32)) {
+        if w.command_target_id() == Some(CharId::Scene(i)) {
             return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         }
         let q = c.scene.chars[i].pos.map(f32::from_bits);
@@ -1155,11 +1163,11 @@ impl StoryPilot {
         };
         let i = w.unopened_statue().filter(|_| f >= since + 300)?;
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        if w.command_target_code() == Some((piney_world::event::entry::Kind::Gimmick, i as i32)) {
+        if w.command_target_id() == Some(CharId::Scene(i)) {
             return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         }
         let q = w.combat().scene.chars[i].pos.map(f32::from_bits);
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
@@ -1274,8 +1282,8 @@ impl StoryPilot {
     /// A town's event NPC spoken to: once the talk the pilot started bans
     /// the menus (its event block plays), he is passed by after, as the
     /// `add_target`s of repeatable lines stay on the list (event 108's six).
-    fn note_town_talk(&mut self, w: &crate::world::WorldMode, f: u64) {
-        let town = w.town_number();
+    fn note_town_talk(&mut self, w: &crate::area::AreaMode, f: u64) {
+        let town = w.world().scene().town;
         if self.talk_town != Some(town) {
             (self.town_talked, self.town_talking, self.talk_town) = (Vec::new(), None, Some(town));
         }
@@ -1295,10 +1303,10 @@ impl StoryPilot {
             Some((_, at)) if f > at + 120 => self.town_talking = None,
             Some(_) => {}
             None => {
-                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked, &self.errands())
-                    && w.world().command_target() == Some((kind, code))
+                if let Some(GateGoal::Talk(who)) = gate_goal(w, &self.town_talked, &self.errands())
+                    && w.world().command_target_id() == Some(who)
                 {
-                    self.town_talking = Some(((kind, code), f));
+                    self.town_talking = Some((who, f));
                 }
             }
         }
@@ -1308,15 +1316,14 @@ impl StoryPilot {
     /// (an event's NPC, else the Chaos Gate), planned again when Kite
     /// stops; within 400 of him, or with a menu or window up, None (the
     /// straight walk and the talk of [`story_player`]).
-    fn walk_in_town(&mut self, w: &crate::world::WorldMode, f: u64) -> Option<Raw> {
-        use piney_world::event::entry::Kind;
+    fn walk_in_town(&mut self, w: &crate::area::AreaMode, f: u64) -> Option<Raw> {
         let world = w.world();
         let marker = |m: i16| world.marker(m).map(|mk| mk.pos);
         let (target, to) = match gate_goal(w, &self.town_talked, &self.errands())? {
-            GateGoal::Talk(kind, code) => ((kind, code), None),
-            GateGoal::Shop(code) | GateGoal::Sell(code) => ((Kind::Npc, code), None),
-            GateGoal::Marker(m) => ((Kind::Gimmick, -1), Some(marker(m)?)),
-            GateGoal::Area(_) | GateGoal::Town(_) => ((Kind::Gimmick, 16), None),
+            GateGoal::Talk(who) => (Some(who), None),
+            GateGoal::Shop(code) | GateGoal::Sell(code) => (Some(CharId::Npc(code)), None),
+            GateGoal::Marker(m) => (None, Some(marker(m)?)),
+            GateGoal::Area(_) | GateGoal::Town(_) => (Some(CharId::Object(16)), None),
             GateGoal::LogOut | GateGoal::Invite(_) | GateGoal::Disband => return None,
         };
         let waiting = w.calls().iter().rev().find_map(|(_, c)| {
@@ -1328,15 +1335,18 @@ impl StoryPilot {
                 None
             }
         });
-        if w.ui().menu_type() != -1 || waiting == Some(true) || world.command_target() == Some(target) {
+        if w.ui().menu_type() != -1
+            || waiting == Some(true)
+            || (target.is_some() && world.command_target_id() == target)
+        {
             self.path.clear();
             return None;
         }
         let to = match to {
             Some(q) => q,
-            None => world.char_place(target.0, target.1)?.0.map(f32::from_bits),
+            None => world.char_place(target?)?.0.map(f32::from_bits),
         };
-        let p = world.player().body.pos.map(f32::from_bits);
+        let p = world.kite().pos().map(f32::from_bits);
         if (to[0] - p[0]).hypot(to[1] - p[1]) < 400.0 {
             self.path.clear();
             return None;
@@ -1385,11 +1395,9 @@ impl StoryPilot {
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         // An event NPC's stand-in is on the entry control's object list:
         // the command target names it by its scene index.
-        let aimed = match w.command_target_code() {
-            Some((piney_world::event::entry::Kind::Npc, c)) => Some(c),
-            Some((piney_world::event::entry::Kind::Gimmick, i)) => {
-                w.combat().npcs.iter().find(|n| n.who == i as usize).map(|n| i32::from(n.code))
-            }
+        let aimed = match w.command_target_id() {
+            Some(CharId::Npc(c)) => Some(c),
+            Some(CharId::Scene(i)) => w.combat().npcs.iter().find(|n| n.who == i).map(|n| i32::from(n.code)),
             _ => None,
         };
         if aimed == Some(code) {
@@ -1400,7 +1408,7 @@ impl StoryPilot {
             return Some(still);
         }
         let to = w.char_pos(3, code as i16)?.map(f32::from_bits);
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
         if (to[0] - p[0]).hypot(to[1] - p[1]) < 400.0 {
             self.path.clear();
@@ -1548,7 +1556,7 @@ impl StoryPilot {
                     .flatten()
             };
             if aim && let Some(part) = focus(c).or_else(to_drain).or_else(|| prey(c, &self.field_hopeless)) {
-                let on = w.targeting().target == Some((piney_world::event::entry::Kind::Enemy, part as i32));
+                let on = w.targeting().target == Some(CharId::Scene(part));
                 if !on && self.target_tries < 24 {
                     if f.is_multiple_of(8) {
                         self.target_tries += 1;
@@ -1703,12 +1711,12 @@ impl StoryPilot {
             if self.lone_here(a) {
                 return None;
             }
-            let on_foe = matches!(w.command_target_code(), Some((piney_world::event::entry::Kind::Enemy, _)));
+            let on_foe = matches!(w.command_target_id(), Some(CharId::Scene(_)));
             // Holding the members back with no foe in his reach (QUA's
             // Napylons stand off at 300, where the walk after foes stops):
             // up to the nearest he holds them for.
             if fighting && !on_foe && self.holds_back(a) {
-                let p = w.player().body.pos.map(f32::from_bits);
+                let p = w.kite().pos().map(f32::from_bits);
                 let near = c
                     .enemies()
                     .into_iter()
@@ -2232,7 +2240,7 @@ impl StoryPilot {
         if self.leaving || self.action.is_some() || sc.area != kind::FIELD {
             return;
         }
-        let charms_left = |w: &piney_world::field::world::FieldWorld| -> i32 {
+        let charms_left = |w: &piney_world::world::World| -> i32 {
             (0..piney_fieldui::items::ITEMS)
                 .map(|n| piney_fieldui::items::save_item(w.state(), 0, n))
                 .filter(|it| (it.cat, it.id) == SPEED_CHARM)
@@ -2309,7 +2317,7 @@ impl StoryPilot {
         if sc.area != kind::FIELD || (!clear && self.lone_here(a)) {
             return None;
         }
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let at = |e: usize| c.scene.chars[e].pos.map(f32::from_bits);
         let dist = |e: usize| (at(e)[0] - p[0]).hypot(at(e)[1] - p[1]);
         // Any field's fight: the foes within 1,500 of Kite or aiming at the
@@ -2430,7 +2438,7 @@ impl StoryPilot {
         if sc.area != kind::DUNGEON {
             return self.walk_after(w, q, 200.0, f, false);
         }
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         if (q[0] - p[0]).hypot(q[1] - p[1]) < 200.0 {
             return None;
         }
@@ -2444,7 +2452,7 @@ impl StoryPilot {
     /// in a dungeon, or once close.
     fn walk_after(
         &mut self,
-        w: &piney_world::field::world::FieldWorld,
+        w: &piney_world::world::World,
         q: [f32; 4],
         close: f32,
         f: u64,
@@ -2455,7 +2463,7 @@ impl StoryPilot {
             MapKind::Story(m) => m.hits(),
             MapKind::Dungeon(_) => return None,
         };
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let far = (q[0] - p[0]).hypot(q[1] - p[1]);
         if far < close {
             self.chase.clear();
@@ -2509,7 +2517,7 @@ impl StoryPilot {
         }
         let MapKind::Field(fa) = w.area().kind() else { return None };
         let mid = fa.dungeon_pos()?.map(f32::from_bits);
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
         let toward = |q: [f32; 2]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
         let far = (mid[0] - p[0]).hypot(mid[1] - p[1]);
@@ -2754,8 +2762,8 @@ fn quarantine_story_survey() {
 /// members come and go.
 fn party_levels(s: &Session) -> i32 {
     let state = match &s.stage {
-        Stage::Area(a) => a.world().state(),
-        Stage::World(w) => w.world().state(),
+        Stage::Area(a) if !a.in_town() => a.world().state(),
+        Stage::Area(w) if w.in_town() => w.world().state(),
         _ => return 0,
     };
     i32::from(state.save.i16(piney_data::save::by_id::spc_param(0) + piney_data::save::offset::SPC_LEVEL))
@@ -2765,8 +2773,8 @@ fn party_levels(s: &Session) -> i32 {
 /// souls), for a whole run's lines.
 fn purse(s: &Session) -> String {
     let (state, party) = match &s.stage {
-        Stage::Area(a) => (a.world().state(), a.world().party()),
-        Stage::World(w) => (w.world().state(), w.world().party()),
+        Stage::Area(a) if !a.in_town() => (a.world().state(), a.world().party()),
+        Stage::Area(w) if w.in_town() => (w.world().state(), w.world().party()),
         _ => return String::new(),
     };
     let count = |(cat, id): (i8, i16)| -> i32 {
@@ -2798,18 +2806,18 @@ fn purse(s: &Session) -> String {
 /// for `mutation_whole_story`'s trace.
 fn whole_state(s: &Session) -> String {
     let (party, vm, save) = match &s.stage {
-        Stage::Area(a) => (a.world().party(), a.vm(), &a.world().state().save),
-        Stage::World(w) => (w.world().party(), w.vm(), &w.world().state().save),
+        Stage::Area(a) if !a.in_town() => (a.world().party(), a.vm(), &a.world().state().save),
+        Stage::Area(w) if w.in_town() => (w.world().party(), w.vm(), &w.world().state().save),
         _ => return String::new(),
     };
     let wants = vm.map(|vm| story_wants(vm, save));
     let o = piney_data::save::offset::PARTY_MEMBER_FLAG;
     let c = piney_data::save::offset::PARTY_MEMBER_CALL;
     let area = match &s.stage {
-        Stage::Area(a) => {
+        Stage::Area(a) if !a.in_town() => {
             let w = a.world();
             let c = w.combat();
-            let kite = w.player().body.pos.map(f32::from_bits);
+            let kite = w.kite().pos().map(f32::from_bits);
             let near = foes(c)
                 .iter()
                 .map(|&i| {
@@ -2850,7 +2858,10 @@ fn whole_state(s: &Session) -> String {
 /// through the console: the pilot drains no common foes to find them. A
 /// harness aid, as god is.
 pub(super) fn cores_for_hack(s: &mut Session) {
-    let Stage::World(w) = &s.stage else { return };
+    let Stage::Area(w) = &s.stage else { return };
+    if !w.in_town() {
+        return;
+    }
     let Some(h) = w.ui().ctrl.hack.as_deref() else { return };
     let save = &w.world().state().save;
     let short: Vec<(i32, i32)> = (0..4)
@@ -2886,6 +2897,9 @@ pub(super) const LONE_LEVEL: i16 = 75;
 /// outpace Kyvia's healing gomora. A harness aid, as god is.
 pub(super) fn levels_for_boss(s: &mut Session) {
     let Stage::Area(a) = &s.stage else { return };
+    if a.in_town() {
+        return;
+    }
     let w = a.world();
     let c = w.combat();
     let boss = c.boss.as_ref().filter(|r| !r.exit).map(|r| r.look.def);
@@ -2911,8 +2925,8 @@ pub(super) fn levels_for_boss(s: &mut Session) {
 /// Event `n`'s flag, from the save of whatever stage the session is on.
 pub(super) fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
     let save = match &mut s.stage {
-        Stage::World(w) => Some(&w.world().state().save),
-        Stage::Area(a) => Some(&*a.save_mut()),
+        Stage::Area(w) if w.in_town() => Some(&w.world().state().save),
+        Stage::Area(a) if !a.in_town() => Some(&*a.save_mut()),
         Stage::Desktop(d) => d.save_mut().map(|s| &*s),
         Stage::TopPage(t) => t.save_mut().map(|s| &*s),
         _ => None,
@@ -2986,6 +3000,9 @@ const OVER_FOES: i16 = 3;
 fn levels_for_foes(s: &mut Session) {
     use piney_battle::chara::Body;
     let Stage::Area(a) = &mut s.stage else { return };
+    if a.in_town() {
+        return;
+    }
     let c = a.world_mut().combat_mut();
     // A boss's row level (Skeith's 99) is nominal: [`levels_for_boss`]'s.
     let top = foes(c)
@@ -3010,7 +3027,10 @@ fn levels_for_foes(s: &mut Session) {
 /// In a town, Kite's Healing Potions and Mage's Souls topped up to five
 /// each, as a player buys them (the pilot does not shop). A harness aid.
 fn supplies(s: &mut Session) {
-    let Stage::World(w) = &s.stage else { return };
+    let Stage::Area(w) = &s.stage else { return };
+    if !w.in_town() {
+        return;
+    }
     let state = w.world().state();
     let count = |(cat, id): (i8, i16)| -> i32 {
         (0..piney_fieldui::items::ITEMS)
@@ -3085,13 +3105,16 @@ fn whole_story(disc: &str) {
                 pilot.barren,
                 pilot.doing(),
             );
-            if let Stage::Area(a) = &s.stage {
+            if let Stage::Area(a) = &s.stage
+                && !a.in_town()
+            {
                 eprintln!("STEPF {f} {}", fighters(a));
             }
-            if let Stage::World(w) = &s.stage {
+            if let Stage::Area(w) = &s.stage
+                && w.in_town()
+            {
                 let calls: Vec<&String> = w.calls().iter().rev().take(4).map(|(_, c)| c).collect();
-                let gate =
-                    w.world().char_place(piney_world::event::entry::Kind::Gimmick, 16).map(|g| g.0.map(f32::from_bits));
+                let gate = w.world().char_place(CharId::Object(16)).map(|g| g.0.map(f32::from_bits));
                 eprintln!(
                     "STEPG {f} {:?} calls {calls:?} gate {gate:?} target {:?} raw {raw:?}",
                     gate_goal(w, &pilot.town_talked, &pilot.errands()),
@@ -3102,7 +3125,7 @@ fn whole_story(disc: &str) {
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if matches!(s.stage, Stage::Area(_) | Stage::World(_)) && f.is_multiple_of(30) {
+        if matches!(s.stage, Stage::Area(ref t) if !t.in_town()) && f.is_multiple_of(30) {
             last_place = format!("{} {} {}", Mode::title(&s), purse(&s), whole_state(&s));
         }
         // `PINEY_TRACE_BOSS`: a boss fight a line a second: the party, the
@@ -3110,6 +3133,7 @@ fn whole_story(disc: &str) {
         if std::env::var_os("PINEY_TRACE_BOSS").is_some()
             && f.is_multiple_of(60)
             && let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && let Some(me) = a.world().combat().boss_char()
         {
             let c = a.world().combat();
@@ -3120,6 +3144,7 @@ fn whole_story(disc: &str) {
         }
         if f.is_multiple_of(30)
             && let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && a.world().combat().battle.in_battle != 0
         {
             fight.push_back(format!("{f} {}", fighters(a)));
@@ -3158,7 +3183,7 @@ fn whole_story(disc: &str) {
         }
         if f - last_end > stall {
             let menu = match &s.stage {
-                Stage::Area(a) => {
+                Stage::Area(a) if !a.in_town() => {
                     let m = &a.ui().ctrl;
                     format!(
                         "menu {} proccess {} status {} wait {} list {:?}",
@@ -3224,6 +3249,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                 }
                 if let Some(n) = exp
                     && let Stage::Area(a) = &s.stage
+                    && !a.in_town()
                     && matches!(a.world().phase(), piney_world::Phase::Play(p) if p > 30)
                     && !a.world().combat().members.is_empty()
                 {
@@ -3237,6 +3263,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some()
                     && f.is_multiple_of(50)
                     && let Stage::Area(a) = &s.stage
+                    && !a.in_town()
                 {
                     let m = &a.ui().ctrl;
                     eprintln!(
@@ -3253,20 +3280,15 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                 }
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some()
                     && f.is_multiple_of(50)
-                    && let Stage::World(w) = &s.stage
+                    && let Stage::Area(w) = &s.stage
+                    && w.in_town()
                 {
                     let world = w.world();
                     let at = |p: [u32; 4]| p.map(|v| f32::from_bits(v) as i32);
                     let targets: Vec<_> = world
                         .event_targets()
                         .iter()
-                        .map(|&(t, c)| {
-                            (
-                                t,
-                                c,
-                                world.char_place(piney_world::event::entry::Kind::Npc, i32::from(c)).map(|p| at(p.0)),
-                            )
-                        })
+                        .map(|&(t, c)| (t, c, world.char_place(CharId::Npc(i32::from(c))).map(|p| at(p.0))))
                         .collect();
                     eprintln!(
                         "TOWN {f} {} {:?} proccess {} page {} select {} wait {} {} kite {:?} targets {targets:?} command {:?} {}",
@@ -3277,7 +3299,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                         w.ui().ctrl.list().select,
                         w.ui().ctrl.wait_count,
                         purse(&s),
-                        at(world.player().body.pos),
+                        at(world.kite().pos()),
                         world.command_target(),
                         whole_state(&s)
                     );
@@ -3300,8 +3322,8 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             }
             if std::env::var("PINEY_SURVEY_CALLS").is_ok() {
                 let calls = match &s.stage {
-                    Stage::World(w) => w.calls().iter().rev().take(40).cloned().collect::<Vec<_>>(),
-                    Stage::Area(a) => a.calls().iter().rev().take(40).cloned().collect::<Vec<_>>(),
+                    Stage::Area(w) if w.in_town() => w.calls().iter().rev().take(40).cloned().collect::<Vec<_>>(),
+                    Stage::Area(a) if !a.in_town() => a.calls().iter().rev().take(40).cloned().collect::<Vec<_>>(),
                     _ => Vec::new(),
                 };
                 for c in calls.iter().rev() {
@@ -3347,7 +3369,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
 /// A lake's dungeon 1 wanted from its dungeon 0: a goal one floor past the
 /// lake's last, which takes that floor's stairs down (`Enter`'s -1 on field
 /// type 4: `ChangeScene(2, -2, -2, 1, 0, 0)`).
-fn lake_below(w: &piney_world::field::world::FieldWorld, wants: &[Want]) -> Option<piney_event::vm::EvPoint> {
+fn lake_below(w: &piney_world::world::World, wants: &[Want]) -> Option<piney_event::vm::EvPoint> {
     let sc = w.scene();
     let MapKind::Dungeon(d) = w.area().kind() else { return None };
     let below =
@@ -3387,7 +3409,7 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
         return None;
     }
     let boss = drain_candidates(c).into_iter().find(|&e| drainable(&c.scene, e, false))?;
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let q = c.scene.chars[boss].pos.map(f32::from_bits);
     if (q[0] - p[0]).hypot(q[1] - p[1]) < DRAIN_NEAR {
         return None;
@@ -3504,7 +3526,7 @@ fn out_of_battle(a: &crate::area::AreaMode) -> Option<Raw> {
     if c.battle.in_battle == 0 || !playing || a.ui().menu_type() != -1 {
         return None;
     }
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let d = |e: usize| {
         let q = c.scene.chars[e].pos.map(f32::from_bits);
         (q[0] - p[0]).hypot(q[1] - p[1])
@@ -3556,7 +3578,7 @@ fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
 /// holds (`impItemList`, the cores at category 15), when the gate will
 /// ask its hack: its words' protect (`EVENTAREA_INFO.protect`, four
 /// (core, count) pairs), and the whole ask.
-fn cores_short(w: &crate::world::WorldMode) -> (Cores, Cores) {
+fn cores_short(w: &crate::area::AreaMode) -> (Cores, Cores) {
     let Some(vm) = w.vm() else { return (Vec::new(), Vec::new()) };
     let save = &w.world().state().save;
     let words = &w.ui().texts().words;
@@ -3640,7 +3662,7 @@ fn better_weapon(
 /// Kite starts with 1000 GP and a blade of 20 attack, Mac Anu's sells 40):
 /// one over the one worn that the server's weapon shop sells and the gold
 /// pays for, none while the bag holds one to put on.
-fn shop_weapon(w: &crate::world::WorldMode) -> Option<i16> {
+fn shop_weapon(w: &crate::area::AreaMode) -> Option<i16> {
     let world = w.world();
     let state = world.state();
     let raw = &w.ui().texts().pers.equip_raw;
@@ -3673,7 +3695,7 @@ fn bag_weapon(raw: &piney_fieldui::menus::equip::EquipRaw, state: &piney_desktop
 /// equipment he carries (categories 0-9; none is worn from the bag), the
 /// gifts and odds (13 but the Fairy's Orb, 14), and of the spell charms
 /// (11) all but three of each (the Speed Charms kept whole).
-fn spare(w: &crate::world::WorldMode) -> Vec<Buy> {
+fn spare(w: &crate::area::AreaMode) -> Vec<Buy> {
     let state = w.world().state();
     let wear = bag_weapon(&w.ui().texts().pers.equip_raw, state);
     let mut out: Vec<Buy> = Vec::new();
@@ -3696,7 +3718,7 @@ fn spare(w: &crate::world::WorldMode) -> Vec<Buy> {
 
 /// The room of a magic portal still standing in this dungeon, this floor's
 /// first: (floor, room).
-fn portal_room(w: &piney_world::field::world::FieldWorld) -> Option<(usize, usize)> {
+fn portal_room(w: &piney_world::world::World) -> Option<(usize, usize)> {
     let c = w.combat();
     let sc = w.scene();
     let rooms: Vec<(i32, i32)> = c
@@ -3768,7 +3790,7 @@ fn nearest_seed(c: &piney_world::combat::Combat) -> Option<usize> {
 fn flee_seeds(a: &crate::area::AreaMode) -> Option<Raw> {
     let w = a.world();
     let c = w.combat();
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let (q, d) = live_seeds(c)
         .into_iter()
         .filter(|&(_, n)| n < 40)
@@ -3793,7 +3815,7 @@ fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
         return None;
     }
     let r = c.boss.as_ref().filter(|r| !r.exit)?;
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let dist = |e: usize| {
         let q = c.scene.chars[e].pos.map(f32::from_bits);
         (q[0] - p[0]).hypot(q[1] - p[1])
@@ -3829,12 +3851,12 @@ fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
     if !c.scene.listed(r.me) || me.hp <= 0 || me.cond[piney_battle::param::cond::DEAD] != 0 {
         return None;
     }
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let dist = |e: usize| {
         let q = c.scene.chars[e].pos.map(f32::from_bits);
         (q[0] - p[0]).hypot(q[1] - p[1])
     };
-    let aimed = matches!(w.command_target_code(), Some((piney_world::event::entry::Kind::Enemy, _)));
+    let aimed = matches!(w.command_target_id(), Some(CharId::Scene(_)));
     if (dist(r.me) < 350.0 && aimed)
         || c.enemies().into_iter().any(|e| e != r.me && c.scene.chars[e].hp > 0 && dist(e) < 400.0)
     {
@@ -3860,7 +3882,7 @@ fn kyvia_trace(a: &crate::area::AreaMode, f: u64) {
         return;
     };
     let core = &c.scene.chars[me];
-    let p = w.player().body.pos.map(|v| f32::from_bits(v) as i32);
+    let p = w.kite().pos().map(|v| f32::from_bits(v) as i32);
     let fourth = x.fourth.as_ref().map(|f| (pl.core_lv_count, pl.rising, f.fight_flg));
     eprintln!(
         "KYVIA {f} exit {} act {} st {} disc {} fourth {fourth:?} core {}/{} listed {} kite {p:?} | {}",
@@ -3888,7 +3910,7 @@ fn kyvia_place(a: &crate::area::AreaMode) -> Option<Raw> {
     let riding = b.systems.get::<Disc>().is_some_and(|d| d.st_flg == 1);
     let f = b.systems.get::<Places>().filter(|f| riding && f.rising == 0)?;
     let at = *f.core_appear_pos.get(usize::try_from(f.core_lv_count).ok()?)?;
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let q = at.map(f32::from_bits);
     if (q[0] - p[0]).hypot(q[1] - p[1]) < 100.0 {
         return None;
@@ -3910,7 +3932,7 @@ fn flee_wave(a: &crate::area::AreaMode) -> Option<Raw> {
     if !matches!(b.base.act_num, act::WAVE | act::EPITAPH_WAVE) {
         return None;
     }
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let q = me.pos.map(f32::from_bits);
     if (q[0] - p[0]).hypot(q[1] - p[1]) >= 1000.0 {
         return None;
@@ -3919,7 +3941,7 @@ fn flee_wave(a: &crate::area::AreaMode) -> Option<Raw> {
     Some(stick_toward(cam_z, (p[0] - q[0]).atan2(-(p[1] - q[1]))))
 }
 
-/// Kite straight to the story map's door ([`piney_world::field::world::FieldWorld::door`]),
+/// Kite straight to the story map's door ([`piney_world::world::World::door`]),
 /// the story wanting the block beyond it: while the field plays, no menu
 /// is up and the events do not bar it.
 fn walk_to_door(a: &crate::area::AreaMode) -> Option<Raw> {
@@ -3934,7 +3956,7 @@ fn walk_to_door(a: &crate::area::AreaMode) -> Option<Raw> {
         return None;
     }
     let door = w.area().get::<piney_world::story_map::StoryArea>()?.door()?.map(f32::from_bits);
-    let p = w.player().body.pos.map(f32::from_bits);
+    let p = w.kite().pos().map(f32::from_bits);
     let cam_z = f32::from_bits(w.camera().rot()[2]);
     Some(stick_toward(cam_z, (door[0] - p[0]).atan2(-(door[1] - p[1]))))
 }
@@ -3942,7 +3964,7 @@ fn walk_to_door(a: &crate::area::AreaMode) -> Option<Raw> {
 /// The room of this dungeon whose door leads out to a boss arena the story
 /// wants: `GotoNextRoom`'s -255 into `special::exit_field`'s field, through
 /// the dungeon's room of type 16 or more (area 46's to field 2).
-fn arena_door(w: &piney_world::field::world::FieldWorld, wants: &[Want]) -> Option<(usize, usize)> {
+fn arena_door(w: &piney_world::world::World, wants: &[Want]) -> Option<(usize, usize)> {
     let MapKind::Dungeon(d) = w.area().kind() else { return None };
     let field = piney_data::dungeon::special::exit_field(d.event_area, w.volume().number() as u32)?;
     wants.contains(&Want::Area(field as i16)).then_some(())?;
@@ -4018,6 +4040,7 @@ fn story_211_walks_round_the_rock_into_area_47_s_dungeon() {
         s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && a.world().scene().area == kind::DUNGEON
             && a.world().scene().field == 47
         {
@@ -4052,8 +4075,8 @@ fn event_18_back_in_town() {
         let took = t0.elapsed();
         s.take_events();
         match &s.stage {
-            Stage::Area(a) if a.world().scene().area == 2 => was_dungeon = true,
-            Stage::World(_) if was_dungeon && back.is_none() => {
+            Stage::Area(a) if !a.in_town() && a.world().scene().area == 2 => was_dungeon = true,
+            Stage::Area(t) if t.in_town() && was_dungeon && back.is_none() => {
                 back = Some(f);
                 eprintln!("{f}: back in town: {}", Mode::title(&s));
             }
@@ -4148,7 +4171,7 @@ fn frame_cost_over_a_long_run() {
                 draw_ms = 0.0;
             }
             let census = match &s.stage {
-                Stage::Area(a) => {
+                Stage::Area(a) if !a.in_town() => {
                     let c = a.world().fx().census();
                     format!("effects {} particles {} gens {}", c.effects.len(), c.particles, c.weapon_generators)
                 }
@@ -4185,6 +4208,9 @@ fn after_a_fight_shots() {
     for n in 0..6000u32 {
         let (raw, in_battle) = {
             let Stage::Area(a) = &s.stage else { panic!("left the area") };
+            if a.in_town() {
+                panic!("left the area")
+            }
             let w = a.world();
             let c = w.combat();
             let k = c.kite.unwrap();
@@ -4269,7 +4295,9 @@ fn event_115_field_13_talks_to_six() {
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if let Stage::Area(a) = &s.stage {
+        if let Stage::Area(a) = &s.stage
+            && !a.in_town()
+        {
             let w = a.world();
             if w.scene().field == 13 {
                 story_map |= matches!(w.area().kind(), MapKind::Story(_));
@@ -4283,7 +4311,7 @@ fn event_115_field_13_talks_to_six() {
         }
     }
     let status: Vec<u8> = match &s.stage {
-        Stage::Area(a) => {
+        Stage::Area(a) if !a.in_town() => {
             (10..16).map(|k| a.world().state().save.u8(piney_data::save::offset::EVENT_STATUS + k)).collect()
         }
         _ => Vec::new(),
@@ -4305,7 +4333,7 @@ fn event_13_leaves_mia_and_elk_out() {
     let mut pad = Pad::default();
     let mut pilot = StoryPilot::default();
     let registered = |s: &Session, id: i32| match &s.stage {
-        Stage::World(w) => w.world().spcs().registry.iter().any(|r| r.id == id),
+        Stage::Area(w) if w.in_town() => w.world().spcs().registry.iter().any(|r| r.id == id),
         _ => false,
     };
     let (mut met, mut done) = (false, None);
@@ -4317,7 +4345,8 @@ fn event_13_leaves_mia_and_elk_out() {
         met |= registered(&s, 1) && registered(&s, 10);
         if f.is_multiple_of(60)
             && event_flag(&mut s, 13).is_some_and(|x| x & 2 != 0)
-            && let Stage::World(w) = &mut s.stage
+            && let Stage::Area(w) = &mut s.stage
+            && w.in_town()
             && !w.streaming()
         {
             w.world_mut().pc_command(piney_event::host::PcCommand::PutMarker { pc: 0, marker: 31 });
@@ -4327,7 +4356,7 @@ fn event_13_leaves_mia_and_elk_out() {
         }
         if let Some(d) = done
             && f > d + 600
-            && matches!(s.stage, Stage::World(_))
+            && matches!(s.stage, Stage::Area(ref t) if t.in_town())
         {
             break;
         }
@@ -4354,12 +4383,13 @@ fn event_13_s_town_again_has_no_card() {
         s.take_events();
         if let Some(p) = put {
             assert!(s.load_disp.is_none(), "a card at {}: {}", f - p, Mode::title(&s));
-            if matches!(&s.stage, Stage::World(w) if w.streaming()) {
+            if matches!(&s.stage, Stage::Area(w) if w.in_town() && w.streaming()) {
                 return;
             }
             assert!(f < p + 600, "no stream 13: {}", Mode::title(&s));
         } else if event_flag(&mut s, 13).is_some_and(|x| x & 2 != 0)
-            && let Stage::World(w) = &mut s.stage
+            && let Stage::Area(w) = &mut s.stage
+            && w.in_town()
             && !w.streaming()
         {
             w.world_mut().pc_command(piney_event::host::PcCommand::PutMarker { pc: 0, marker: 31 });
@@ -4386,19 +4416,17 @@ fn event_14_blackrose_after_the_administrator() {
     let (mut step, mut at) = (0, 0u64);
     for f in 0..80000u64 {
         let raw = match &s.stage {
-            Stage::Area(a) if step > 0 => {
+            Stage::Area(a) if !a.in_town() && step > 0 => {
                 let w = a.world();
                 let c = w.combat();
                 let playing = a.vm().is_some_and(|v| v.playing().is_some()) || a.streaming();
-                let aimed = match w.command_target_code() {
-                    Some((piney_world::event::entry::Kind::Npc, c)) => Some((4, c)),
-                    Some((piney_world::event::entry::Kind::Gimmick, i)) => {
-                        c.npcs.iter().find(|n| n.who == i as usize).map(|n| (4, i32::from(n.code)))
-                    }
-                    Some((piney_world::event::entry::Kind::Spc, id)) => Some((2, id)),
+                let aimed = match w.command_target_id() {
+                    Some(CharId::Npc(c)) => Some((4, c)),
+                    Some(CharId::Scene(i)) => c.npcs.iter().find(|n| n.who == i).map(|n| (4, i32::from(n.code))),
+                    Some(CharId::Member(id)) => Some((2, id)),
                     _ => None,
                 };
-                let p = w.player().body.pos.map(f32::from_bits);
+                let p = w.kite().pos().map(f32::from_bits);
                 let cam_z = f32::from_bits(w.camera().rot()[2]);
                 let toward = |q: [f32; 4]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
                 match step {
@@ -4457,6 +4485,7 @@ fn event_14_blackrose_after_the_administrator() {
         s.take_events();
         if step == 0
             && let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && a.world().event_targets().contains(&(4, 29))
             && a.world().char_pos(4, 29).is_some()
             && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12)
@@ -4466,7 +4495,7 @@ fn event_14_blackrose_after_the_administrator() {
         }
         if step >= 1 && f.is_multiple_of(60) {
             let (menu, cam) = match &s.stage {
-                Stage::Area(a) => {
+                Stage::Area(a) if !a.in_town() => {
                     let c = a.world().camera();
                     let cam = format!(
                         "cam {} dist {:.0} kind {} puppet {} lock {}",
@@ -4505,6 +4534,9 @@ fn bob_s_keywords_show_in_the_field() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         if a.calls().iter().any(|(_, c)| c == "announce GateAddress { area: 24 }") {
             let sf = a.ui().ctrl.msg.sf;
             assert!(sf[0] > 0 && sf[1] > 0, "the window's lines: {sf:?}");

@@ -200,6 +200,9 @@ impl Walker {
     pub(super) fn step(&mut self, s: &Session, to: (usize, usize), f: u64) -> Option<Raw> {
         let raw = {
             let Stage::Area(a) = &s.stage else { return None };
+            if a.in_town() {
+                return None;
+            }
             let w = a.world();
             let sc = w.scene();
             if sc.area != kind::DUNGEON {
@@ -549,6 +552,9 @@ fn event_25_opens_in_area_23s_shrine() {
     let mut banks: Vec<piney_audio::SqContext> = Vec::new();
     walk_to_shrine(&mut s, 20_000, |s, events, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let w = a.world();
         let sc = w.scene();
         if sc.area != kind::DUNGEON {
@@ -571,7 +577,7 @@ fn event_25_opens_in_area_23s_shrine() {
             shrine = Some((d.special_room, file, d.position.map(f32::from_bits)));
         }
         if (sc.floor, sc.block) == (2, 2) && kite_at.is_none() && w.phase() == piney_world::Phase::Play(0) {
-            kite_at = Some(w.player().body.pos.map(f32::from_bits));
+            kite_at = Some(w.kite().pos().map(f32::from_bits));
         }
     });
     eprintln!("rooms {rooms:?}; now {}", Mode::title(&s));
@@ -593,23 +599,27 @@ fn event_25_opens_in_area_23s_shrine() {
     // On to the town block 16's `scene` asks for.
     let mut pad = Pad::default();
     for _ in 0..2000 {
-        if matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(_))) {
+        if matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(_)))
+        {
             break;
         }
         pad.read(&story_player(&s, 1));
         s.step(&pad);
         s.take_events();
     }
-    if !matches!(&s.stage, Stage::World(_)) {
+    if !matches!(&s.stage, Stage::Area(t) if t.in_town()) {
         let title = Mode::title(&s);
         let calls: Vec<String> = match &s.stage {
-            Stage::Area(a) => a.calls().iter().rev().take(30).map(|c| c.1.clone()).collect(),
+            Stage::Area(a) if !a.in_town() => a.calls().iter().rev().take(30).map(|c| c.1.clone()).collect(),
             _ => Vec::new(),
         };
         let played = take_vm(&mut s).map(|vm| blocks(&vm)).unwrap_or_default();
         panic!("not back in town: {title}; blocks {played:?}; last calls {calls:?}");
     }
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(w.world().scene().town, 1, "Dun Loireag");
     let bans = piney_world::dungeon::bans_of(&w.world().state().save);
     assert!(bans.contains(&[23, 0, 2, 2]), "block 16's area_ban: {bans:?}");
@@ -631,6 +641,9 @@ fn the_minimap_stays_across_floors() {
     let mut fights = (0, 0);
     walk_to_shrine(&mut s, 20_000, |s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let w = a.world();
         let sc = w.scene();
         // Not under a change's fade: the scene names the next room while
@@ -674,6 +687,9 @@ fn each_floor_paints_its_own_map() {
     let mut floors = std::collections::BTreeSet::new();
     walk_to_shrine(&mut s, 20_000, |s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let w = a.world();
         let sc = w.scene();
         if sc.area != kind::DUNGEON || !matches!(w.phase(), piney_world::Phase::Play(n) if n > 2) || s.leaving.is_some()
@@ -706,6 +722,9 @@ fn shrine_map_shots() {
         gs.set_overlay(Mode::archive(s));
         gs.render(frame);
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let w = a.world();
         let sc = w.scene();
         let at = [30, 90, 200, 400].into_iter().find(|&n| w.phase() == piney_world::Phase::Play(n));
@@ -726,7 +745,7 @@ fn shrine_map_shots() {
                         format!(
                             "seen {seen:?} squares {sq} texels {px} hide {} here {:?}",
                             m.map_hide,
-                            d.here(w.player().body.pos)
+                            d.here(w.kite().pos())
                         )
                     });
                     (d.level as i32, info.unwrap_or_default())
@@ -756,6 +775,9 @@ fn shrine_door_shots() {
         gs.set_overlay(Mode::archive(s));
         gs.render(frame);
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let sc = a.world().scene();
         if sc.area != kind::DUNGEON {
             return;
@@ -817,6 +839,7 @@ fn point(s: &mut Session, num: i32) -> Option<(usize, usize)> {
     let mut pad = Pad::default();
     for f in 0..2000 {
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && let Some(p) = a.vm().and_then(|vm| vm.mng.points.iter().find(|p| p.num == num))
         {
             return Some((usize::try_from(p.floor).ok()?, usize::try_from(p.block).ok()?));
@@ -846,12 +869,16 @@ fn event_29_meg_and_the_administrator() {
     let mut rooms: Vec<(i32, i32)> = Vec::new();
     walk_to(&mut s, goal, 30_000, |s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let w = a.world();
         let sc = w.scene();
         if rooms.last() != Some(&(sc.floor, sc.block)) {
             rooms.push((sc.floor, sc.block));
         }
-        for n in &w.npcs().list {
+        let battle = w.cast().get::<piney_world::world::cast::BattleCast>().expect("outside the towns");
+        for n in &battle.npcs.list {
             let code = n.npc().code();
             if !seen.iter().any(|x| x.0 == code) {
                 seen.push((code, n.npc().char().pos.map(f32::from_bits)));
@@ -920,6 +947,9 @@ fn event_29_shots() {
         gs.render(frame);
         f += 1;
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let sc = a.world().scene();
         if from.is_none() && (sc.floor, sc.block) == from_room {
             from = Some(f);
@@ -965,7 +995,7 @@ fn event_17_walks_kite_to_the_portal() {
     let mut pad = Pad::default();
     for f in 0..6000 {
         let raw = match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let w = a.world();
                 let played = a.vm().map(blocks).unwrap_or_default();
                 let marker = a.vm().and_then(|vm| vm.mng.positions.iter().find(|p| p.num == 1).map(|p| p.pos));
@@ -985,8 +1015,11 @@ fn event_17_walks_kite_to_the_portal() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         if a.vm().is_some_and(|vm| blocks(vm).contains(&(17, 14))) {
-            near = Some(a.world().player().body.pos.map(f32::from_bits));
+            near = Some(a.world().kite().pos().map(f32::from_bits));
             break;
         }
     }
@@ -1013,7 +1046,7 @@ fn event_17_talks_to_the_administrator() {
     let mut pad = Pad::default();
     for f in 0..8000u64 {
         let raw = match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let w = a.world();
                 let played = a.vm().map(blocks).unwrap_or_default();
                 let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
@@ -1044,6 +1077,9 @@ fn event_17_talks_to_the_administrator() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         if a.vm().is_some_and(|vm| blocks(vm).iter().filter(|&&b| b == (17, 9)).count() >= 2) {
             break;
         }
@@ -1061,6 +1097,9 @@ fn event_17_talks_to_the_administrator() {
 /// Kite's HP, SP and `dead`, and whether he is a ghost.
 fn kite_state(s: &Session) -> Option<(i16, i16, i16, bool)> {
     let Stage::Area(a) = &s.stage else { return None };
+    if a.in_town() {
+        return None;
+    }
     let c = a.world().combat();
     let k = c.kite?;
     let ch = &c.scene.chars[k];
@@ -1086,6 +1125,9 @@ fn the_party_keeps_its_hp_through_a_door() {
             s.take_events();
         }
         let Stage::Area(a) = &mut s.stage else { panic!("not in the dungeon: {}", Mode::title(&s)) };
+        if a.in_town() {
+            panic!("not in the dungeon: {}", Mode::title(&s))
+        }
         let c = a.world_mut().combat_mut();
         let k = c.kite.expect("Kite");
         let ch = &mut c.scene.chars[k];
@@ -1096,6 +1138,7 @@ fn the_party_keeps_its_hp_through_a_door() {
         let mut after = None;
         walk_to(&mut s, (0, 1), 4000, |s, _, _| {
             if let Stage::Area(a) = &s.stage
+                && !a.in_town()
                 && (a.world().scene().floor, a.world().scene().block) == (0, 1)
                 && after.is_none()
             {
@@ -1124,6 +1167,9 @@ fn the_doors_sound_as_they_open() {
     let mut heard = 0;
     walk_to(&mut s, POINT_1, 20_000, |s, events, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         if let MapKind::Dungeon(d) = a.world().area().kind() {
             se = se.or(d.door_se());
         }
@@ -1144,6 +1190,9 @@ fn the_rooms_have_their_breakables() {
     let mut by_room: Vec<((i32, i32), usize)> = Vec::new();
     walk_to(&mut s, POINT_1, 20_000, |s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let w = a.world();
         // The room's own play (not the change's fade, where the scene
         // names the next room while the last one's entries stand).
@@ -1188,6 +1237,9 @@ fn menu_ban_keeps_the_partys_condition() {
         s.take_events();
     }
     let Stage::Area(a) = &mut s.stage else { panic!("not in the dungeon: {}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("not in the dungeon: {}", Mode::title(&s))
+    }
     let w = a.world_mut();
     let k = w.combat().kite.expect("Kite");
     {
@@ -1221,7 +1273,7 @@ fn target_cursor_shot() {
     let mut taken = 0;
     for f in 0..4000u64 {
         let raw = match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let w = a.world();
                 let played = a.vm().map(blocks).unwrap_or_default();
                 let c = w.combat();
@@ -1250,6 +1302,9 @@ fn target_cursor_shot() {
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         let w = a.world();
         let on = w.command_target().is_some_and(|t| w.combat().npcs.iter().any(|n| n.who == t));
         seen = if on { seen + 1 } else { 0 };
@@ -1317,7 +1372,9 @@ fn open_an_object(as_obj: Option<AsObject>, rand: ObjRand, mut each: impl FnMut(
     walk_to(&mut s, (0, 6), 3000, |_, _, _| {});
     // Kite comes into the story start with no HP (a ghost: dead 4), who
     // targets nothing; stood up.
-    if let Stage::Area(a) = &mut s.stage {
+    if let Stage::Area(a) = &mut s.stage
+        && !a.in_town()
+    {
         let c = a.world_mut().combat_mut();
         if let Some(k) = c.kite {
             let ch = &mut c.scene.chars[k];
@@ -1329,7 +1386,7 @@ fn open_an_object(as_obj: Option<AsObject>, rand: ObjRand, mut each: impl FnMut(
     let mut pad = Pad::default();
     let mut run = ObjRun::default();
     let count = |s: &Session| match &s.stage {
-        Stage::Area(a) => a.world().state().save.i16(piney_fieldui::menus::objects::BREAK_COUNT),
+        Stage::Area(a) if !a.in_town() => a.world().state().save.i16(piney_fieldui::menus::objects::BREAK_COUNT),
         _ => 0,
     };
     run.count.0 = count(&s);
@@ -1341,6 +1398,9 @@ fn open_an_object(as_obj: Option<AsObject>, rand: ObjRand, mut each: impl FnMut(
     for f in 0..6000u64 {
         let raw = {
             let Stage::Area(a) = &mut s.stage else { break };
+            if a.in_town() {
+                break;
+            }
             if let ObjRand::Zero = rand {
                 a.ui_mut().ctrl.rng = piney_fieldui::ctrl::MenuRand::Fixed(Box::new(|| 0));
             }
@@ -1490,6 +1550,9 @@ fn a_grunty_food_is_picked_up() {
     walk_to(&mut s, (0, 6), 3000, |_, _, _| {});
     let who = {
         let Stage::Area(a) = &mut s.stage else { panic!("left the dungeon") };
+        if a.in_town() {
+            panic!("left the dungeon")
+        }
         let c = a.world_mut().combat_mut();
         let k = c.kite.expect("Kite");
         let ch = &mut c.scene.chars[k];
@@ -1504,6 +1567,9 @@ fn a_grunty_food_is_picked_up() {
     };
     let food = |s: &Session| -> Option<i32> {
         let Stage::Area(a) = &s.stage else { return None };
+        if a.in_town() {
+            return None;
+        }
         match a.world().combat().ctrl.objs.get(who) {
             Some(Obj::Gimmick(o)) if matches!(o.class, Class::Food(_)) => Some(o.act_num),
             _ => None,
@@ -1512,6 +1578,9 @@ fn a_grunty_food_is_picked_up() {
     assert_eq!(food(&s), Some(0));
     let (items0, count0) = {
         let Stage::Area(a) = &s.stage else { unreachable!() };
+        if a.in_town() {
+            unreachable!()
+        }
         let save = &a.world().state().save;
         (save.u8(0x0cfc + 26), save.i16(piney_fieldui::menus::objects::FOOD_COUNT))
     };
@@ -1521,6 +1590,9 @@ fn a_grunty_food_is_picked_up() {
     for f in 0..3000u64 {
         let raw = {
             let Stage::Area(a) = &mut s.stage else { break };
+            if a.in_town() {
+                break;
+            }
             let t = a.ui().menu_type();
             if menus.last() != Some(&t) {
                 menus.push(t);
@@ -1570,6 +1642,9 @@ fn a_grunty_food_is_picked_up() {
     assert!(noted, "no ccSeOn3DNote(179, 70)");
     assert!(food(&s).is_none(), "the egg is still there");
     let Stage::Area(a) = &s.stage else { panic!("left the dungeon") };
+    if a.in_town() {
+        panic!("left the dungeon")
+    }
     let save = &a.world().state().save;
     assert_eq!(save.u8(0x0cfc + 26), items0 + 1, "key item 26");
     assert_eq!(save.i16(piney_fieldui::menus::objects::FOOD_COUNT), count0 + 1, "foodCount[0]");
@@ -1590,6 +1665,9 @@ fn grunty_food_shots() {
     walk_to(&mut s, (0, 6), 3000, |_, _, _| {});
     let first = {
         let Stage::Area(a) = &mut s.stage else { panic!("left the dungeon") };
+        if a.in_town() {
+            panic!("left the dungeon")
+        }
         let c = a.world_mut().combat_mut();
         let k = c.kite.expect("Kite");
         let p = c.scene.chars[k].pos;
@@ -1624,6 +1702,9 @@ fn grunty_food_shots() {
     shot(&s, &frame, "1-foods");
     {
         let Stage::Area(a) = &mut s.stage else { panic!("left the dungeon") };
+        if a.in_town() {
+            panic!("left the dungeon")
+        }
         let c = a.world_mut().combat_mut();
         c.scene.chars[first].affect.ty = 11;
         if let Some(piney_battle::entry::Obj::Gimmick(o)) = c.ctrl.objs.get_mut(first) {
@@ -1658,6 +1739,9 @@ fn object_menu_shots() {
         let (mut open, mut since, mut taken) = (-1, 0u32, Vec::new());
         let run = open_an_object(o, ObjRand::Zero, |s, frame| {
             let Stage::Area(a) = &s.stage else { return };
+            if a.in_town() {
+                return;
+            }
             let t = a.ui().menu_type();
             if t != open {
                 (open, since) = (t, 0);
@@ -1701,6 +1785,9 @@ fn event_17s_symbol_casts_its_skill() {
     let Some(mut s) = in_story_dungeon(17, 0, 18, 0x7f, (0, 2)) else { return };
     let symbol = |s: &Session| -> Option<(usize, i32, i16)> {
         let Stage::Area(a) = &s.stage else { return None };
+        if a.in_town() {
+            return None;
+        }
         let c = a.world().combat();
         c.ctrl.objs.iter().enumerate().find_map(|(who, o)| match o {
             Obj::Gimmick(g) => match &g.class {
@@ -1764,6 +1851,9 @@ fn event_17s_symbol_casts_its_skill() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         if let Some((who, act, skill)) = symbol(&s) {
             seen.get_or_insert((who, skill));
             if acts.last() != Some(&act) {
@@ -1771,7 +1861,7 @@ fn event_17s_symbol_casts_its_skill() {
             }
             let c = a.world().combat();
             fires = fires.max(c.symbol_fires.len());
-            lit |= c.symbol_lights.contains_key(&who);
+            lit |= c.gimmick_lights.symbols.contains_key(&who);
             if act == 2 && a.ui().menu_type() == -1 {
                 break;
             }
@@ -1785,7 +1875,10 @@ fn event_17s_symbol_casts_its_skill() {
     assert!(opened, "SymbolMenu did not open");
     assert_eq!(acts, [0, 1, 2]);
     let Stage::Area(a) = &s.stage else { panic!("left the dungeon") };
-    assert!(!a.world().combat().symbol_lights.contains_key(&who), "the light stayed");
+    if a.in_town() {
+        panic!("left the dungeon")
+    }
+    assert!(!a.world().combat().gimmick_lights.symbols.contains_key(&who), "the light stayed");
     let count = a.world().state().save.u8(piney_fieldui::menus::objects::SYMBOL_COUNT);
     assert_eq!(count, 1, "symbolCount");
 }
@@ -1806,7 +1899,7 @@ fn symbol_shot() {
     let mut put_at = None;
     for f in 0..3000u64 {
         let sym = match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let c = a.world().combat();
                 c.ctrl.objs.iter().enumerate().find_map(|(who, o)| match o {
                     Obj::Gimmick(g) if matches!(g.class, Class::Symbol(_)) => Some(who),
@@ -1853,12 +1946,15 @@ fn a_lake_symbol_glows_and_puffs() {
     use crate::session::area15::{disc, hold, playing, start, wait};
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
-    hold(&mut s, 128, 128, 200, |s| matches!(&s.stage, Stage::World(_)));
+    hold(&mut s, 128, 128, 200, |s| matches!(&s.stage, Stage::Area(t) if t.in_town()));
     wait(&mut s, 100);
     s.go(Pending::Words([1, 136, 150]));
     hold(&mut s, 128, 128, 600, |s| playing(s).is_some_and(|w| w.scene().area == kind::DUNGEON));
     let symbol = |s: &Session| -> Option<(usize, (i32, i32), i32, i32)> {
         let Stage::Area(a) = &s.stage else { return None };
+        if a.in_town() {
+            return None;
+        }
         let c = a.world().combat();
         c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().find_map(|g| match c.ctrl.objs.get(g) {
             Some(piney_battle::entry::Obj::Gimmick(o)) if o.ent.id == 18 => match &o.class {
@@ -1872,6 +1968,9 @@ fn a_lake_symbol_glows_and_puffs() {
     let mut seen: Option<(i32, i32, bool)> = None;
     walk_to(&mut s, (room.0 as usize, room.1 as usize), 3_000, |s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let sc = a.world().scene();
         if (sc.floor, sc.block) != room || seen.is_some() {
             return;
@@ -1879,7 +1978,7 @@ fn a_lake_symbol_glows_and_puffs() {
         if let Some((g, _, act, cnt)) = symbol(s)
             && cnt > 20
         {
-            seen = Some((act, cnt, a.world().combat().symbol_lights.contains_key(&g)));
+            seen = Some((act, cnt, a.world().combat().gimmick_lights.symbols.contains_key(&g)));
         }
     });
     eprintln!("symbol in {room:?}: {seen:?}, {}", Mode::title(&s));
@@ -1890,7 +1989,6 @@ fn a_lake_symbol_glows_and_puffs() {
 
 /// newlib's first `rand()` from state `s`.
 fn first_rand(s: u64) -> i32 {
-    use piney_battle::rand::Rng as _;
     piney_battle::rand::Rand(s).rand()
 }
 
@@ -1954,6 +2052,9 @@ fn a_rooms_menu_is_made_anew_after_its_passes() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         // What a script's menu_ban or noise in a pass would write.
         if let crate::world::Setup::Pass(_) = a.setup() {
             let c = &mut a.ui_mut().ctrl;

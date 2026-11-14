@@ -69,6 +69,9 @@ fn run(s: &mut Session, mut each: impl FnMut(&Session, u32, &Frame, &Seen)) {
         let frame = s.step(&pad);
         let events = s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let c = a.world_mut().combat_mut();
         if let Some(k) = c.kite {

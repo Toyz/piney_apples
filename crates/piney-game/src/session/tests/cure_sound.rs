@@ -26,6 +26,9 @@ fn sounds_of_use(cat: u8, id: i16, drop: Option<usize>) -> Option<(Vec<usize>, i
         };
         if ready && !given {
             let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            if a.in_town() {
+                unreachable!()
+            }
             let save = &mut a.world_mut().state_mut().save;
             save.set_i16(offset::ITEM_LIST, id);
             save.set_u8(offset::ITEM_LIST + 2, cat);
@@ -119,6 +122,9 @@ fn an_antidote_sounds_from_power_on() {
             }
             let Some(s) = mode.session() else { return raw };
             let Stage::Area(a) = &mut s.stage else { return raw };
+            if a.in_town() {
+                return raw;
+            }
             if !given.get() {
                 let save = &mut a.world_mut().state_mut().save;
                 save.set_i16(offset::ITEM_LIST, item);
@@ -145,7 +151,7 @@ fn an_antidote_sounds_from_power_on() {
             audio.render(&mut buf);
             if given.get() && used.get().is_none() {
                 let gone = mode.session().is_some_and(|s| match &s.stage {
-                    Stage::Area(a) => !holds(&a.world().state().save, 10, item),
+                    Stage::Area(a) if !a.in_town() => !holds(&a.world().state().save, 10, item),
                     _ => false,
                 });
                 if gone {

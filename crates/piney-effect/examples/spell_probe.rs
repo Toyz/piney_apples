@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 use std::io::BufRead;
 
+use piney_battle::rand::Genrand;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::volume::Volume;
@@ -28,7 +29,6 @@ use piney_effect::thunder::{Effect2, ThunderBolt, ThunderData};
 use piney_effect::upheaval::{MngrKind, PartKind};
 use piney_effect::{CharRef, Effects, Event, Host, IntRef, ONE, V4, VecRef, convergence, summons};
 use piney_world::Rand;
-use piney_world::mt::Mt;
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -57,7 +57,7 @@ struct Char {
 
 struct Probe {
     rand: Rand,
-    mt: Mt,
+    mt: Genrand,
     draws: u64,
     player: V4,
     camera: Camera,
@@ -70,7 +70,7 @@ impl Probe {
     fn new(seed: u64, gseed: u32, area: (i32, i32, i32)) -> Probe {
         Probe {
             rand: Rand(seed),
-            mt: Mt::seeded(gseed),
+            mt: Genrand::seeded(gseed),
             draws: 0,
             player: [0, 0, 0, ONE],
             camera: Camera::default(),
@@ -121,7 +121,7 @@ impl Host for Probe {
     }
     fn genrand(&mut self) -> u32 {
         self.draws += 1;
-        self.mt.genrand()
+        self.mt.next_u32()
     }
     fn area(&self) -> (i32, i32, i32) {
         self.area

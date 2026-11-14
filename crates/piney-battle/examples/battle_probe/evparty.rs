@@ -331,6 +331,7 @@ fn one(t: &mut Toks) -> String {
             area: w.area,
             positions: &w.positions,
             town_marker: &town,
+            npc_pos: &|_| None,
             out: &mut outs,
         };
         let a = &args;

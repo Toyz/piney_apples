@@ -13,12 +13,8 @@ use std::sync::Arc;
 
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
-use piney_desktop::assets::SceneFile;
 use piney_world::area::Exit;
 use piney_world::area::{Scene, WorldMan};
-use piney_world::camera::{CamPad, Camera, Scheme};
-use piney_world::chara::motion::{self, PLAYER_ANIM_TBL};
-use piney_world::chara::player::Player;
 use piney_world::dungeon::DungeonArea;
 use piney_world::ee::{self, V4};
 use piney_world::hit::LAND_MASK;
@@ -30,7 +26,10 @@ use piney_world::systems::room_lights::RoomLights;
 use piney_world::systems::room_water::RoomWater;
 use piney_world::systems::sparks::Sparks;
 use piney_world::systems::{Hook, Kind, MapView, Request, Step};
-use piney_world::{Rand, tasks};
+
+#[path = "common/kite_run.rs"]
+mod kite_run;
+use kite_run::{KiteRun, Start};
 
 /// `DrawEff`'s steps: the sparks, the room lights, a lake's fireflies.
 const DRAW_EFF: &[Step] = &[
@@ -46,14 +45,6 @@ const LEAF_EFF: &[Step] = &[
 ];
 /// A lake's `DrawBG`.
 const DRAW_BG: &[Step] = &[Step::Run(Kind::LakeSky, Hook::Draw)];
-
-/// Kite and the camera in the dungeon.
-struct Run {
-    player: Player,
-    camera: Camera,
-    rand: Rand,
-    mode: i8,
-}
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -201,10 +192,9 @@ fn main() {
     let volume = iso.volume().unwrap();
     let mut d: Option<DungeonArea> = None;
     let mut scene = Scene::init();
-    let kite = SceneFile::read(&archive, "ctu1body").unwrap();
-    let anims: Vec<&piney_data::anim::Animation> =
-        PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
-    let mut run: Option<Run> = None;
+    let (data, body) = (kite_run::data(&mut iso), kite_run::body(&archive));
+    // Kite and the camera in the dungeon.
+    let mut run: Option<KiteRun> = None;
     // A new game's save: every area ban free (-1).
     let mut save = piney_data::save::SaveData::new();
     // WORLD_MAN.lastRoom (+0x100), which a field type 4 area's stairs keep.
@@ -642,103 +632,27 @@ fn main() {
             "start" => {
                 let a = d.as_mut().unwrap();
                 let pos = [hex(w[1]), hex(w[2]), hex(w[3]), ee::ONE];
-                let dirc = [0, 0, hex(w[4]), 0];
-                let mode = hex(w[6]) as i8;
-                let mut player = Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
-                player.acts.act = motion::act::IDLE;
-                player.acts.act_old = motion::act::IDLE;
-                player.acts.anim = motion::act::IDLE as usize;
-                player.acts.restraint = false;
-                player.acts.transfer_lag = 0;
-                player.acts.cloak = ee::ONE;
                 a.core.hits.chars.clear();
                 a.core.hits.center = [pos[0], pos[1]];
-                a.core.hits.hit_enable(&mut player.hit_body);
-                let camera = Camera::new(volume, pos, dirc, mode, Scheme::new(hex(w[5]) as i32));
-                // The disc's square roots (Outbreak's and Quarantine's sqrt.s).
-                run = Some(Run { player, camera, rand: Rand(u64::from(hex(w[7]))), mode });
+                // A dungeon's Kite (game.area 2), standing, his body on
+                // the list.
+                let start = Start {
+                    pos,
+                    dirc_z: hex(w[4]),
+                    scheme: hex(w[5]) as i32,
+                    mode: hex(w[6]) as i8,
+                    seed: hex(w[7]),
+                    area: 2,
+                    arriving: false,
+                };
+                run = Some(KiteRun::new(&data, &body, &mut a.core.hits, &start));
                 println!("{{}}");
             }
             "pad" => {
                 let a = d.as_mut().unwrap();
                 let r = run.as_mut().unwrap();
-                let mut pow = [0u8; 12];
-                for (k, p) in pow.iter_mut().enumerate() {
-                    *p = hex(w[7 + k]) as u8;
-                }
-                let pad = CamPad {
-                    direct: hex(w[1]),
-                    push: hex(w[2]),
-                    pow_l: hex(w[3]) as u8,
-                    dirc_l: hex(w[4]),
-                    pow_r: hex(w[5]) as u8,
-                    dirc_r: hex(w[6]),
-                    pow,
-                };
-                tasks(&mut r.camera, &mut r.player, &mut a.core.hits, &anims, &mut r.rand, &pad, &mut r.mode);
-                let (p, b, ac, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
-                let t = &c.tcam;
-                println!(
-                    concat!(
-                        "{{\"pos\": {}, \"dirc\": {}, \"move\": {}, \"now_speed\": {}, \"speed_rate\": {}, ",
-                        "\"move_flag\": {}, \"run_flag\": {}, \"stop_flag\": {}, \"restraint\": {}, ",
-                        "\"act\": {}, \"act_old\": {}, \"act_cnt\": {}, \"anm_flag\": {}, \"react_cnt\": {}, ",
-                        "\"transfer_lag\": {}, \"walk_run_cnt\": {}, \"cloak\": {}, \"transparency\": {}, ",
-                        "\"frame_spd\": {}, \"time\": {}, \"attribute\": {}, \"stop_cnt\": {}, \"drawn\": {}, ",
-                        "\"arms\": {:?}, \"target_count\": {}, \"angle\": {}, ",
-                        "\"cam_pos\": {}, \"cam_view\": {}, \"cam_rot\": {}, \"cam_rot2\": {}, \"cam_rot3\": {}, ",
-                        "\"cam_dist\": {}, \"cam_deg\": [{}, {}], \"cam_type\": {}, \"cam_reset_flag\": {}, ",
-                        "\"cam_reset_dirc\": {}, \"resetting\": {}, \"mem_dirc_z\": {}, \"mode\": {}, ",
-                        "\"world_view\": {}, \"world_screen\": {}, \"enter\": {}}}"
-                    ),
-                    list(&b.pos),
-                    list(&b.dirc),
-                    list(&b.move_pos),
-                    b.now_speed,
-                    b.speed_rate,
-                    u8::from(b.move_flag),
-                    u8::from(b.run_flag),
-                    u8::from(ac.stop_flag),
-                    u8::from(ac.restraint),
-                    ac.act,
-                    ac.act_old,
-                    ac.act_cnt,
-                    ac.anm_flag,
-                    ac.react_cnt,
-                    ac.transfer_lag,
-                    ac.walk_run_cnt,
-                    ac.cloak,
-                    p.transparency,
-                    ac.frame_spd,
-                    ac.time,
-                    p.hit_attribute,
-                    p.stop_cnt,
-                    u8::from(p.drawn),
-                    match p.arms {
-                        Some(piney_world::chara::arms::ArmsCall::Effect) => "effect",
-                        Some(piney_world::chara::arms::ArmsCall::Clear) => "clear",
-                        None => "none",
-                    },
-                    b.target_count,
-                    list(&p.angle),
-                    list(&t.pos),
-                    list(&t.view),
-                    list(&t.rot),
-                    list(&t.rot2),
-                    list(&t.rot3),
-                    t.dist,
-                    t.deg[0],
-                    t.deg[1],
-                    t.kind,
-                    u8::from(t.reset_flag),
-                    t.reset_dirc,
-                    u8::from(c.resetting),
-                    c.mem_dirc_z,
-                    r.mode,
-                    mat(&c.world_view),
-                    mat(&c.world_screen),
-                    u8::from(p.enter),
-                );
+                r.frame(kite_run::pad_at(&w, 1), &mut a.core.hits);
+                println!("{}", r.json(&[("enter", kite_run::b(r.enter))]));
             }
             _ => println!("{{\"error\": \"unknown request {cmd}\"}}"),
         }

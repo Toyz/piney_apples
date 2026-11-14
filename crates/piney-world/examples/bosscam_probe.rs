@@ -1,5 +1,5 @@
 //! Answers `tools/test_bosscam_rs.py`: the boss camera (`piney_world::camera::bosscam`,
-//! `ccBossCam`) over the field's camera and player tasks, as `merchcam_probe`
+//! `ccBossCam`) over the camera and the battle's tasks (Kite), as `merchcam_probe`
 //! runs them. One request a line (numbers in hex), one JSON line back:
 //! `start` (Kite and the camera), `frame` (one frame of the tasks), `boss`
 //! (`BossCam::new`), `quake` (`QuakeCam`), `main` (`CamMain` toward the boss),
@@ -12,13 +12,14 @@ use std::sync::Arc;
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
-use piney_desktop::assets::SceneFile;
 use piney_world::camera::bosscam::BossCam;
-use piney_world::camera::{Cam, CamPad, Camera, Scheme};
-use piney_world::chara::motion::PLAYER_ANIM_TBL;
-use piney_world::chara::player::Player;
+use piney_world::camera::{Cam, CamPad, Camera};
+use piney_world::ee;
 use piney_world::hit::{HitModel, Hits};
-use piney_world::{Rand, ee, tasks};
+
+#[path = "common/kite_run.rs"]
+mod kite_run;
+use kite_run::{KiteRun, Start};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -85,10 +86,7 @@ fn pad_at(w: &[&str], at: usize) -> CamPad {
 
 struct Run {
     hits: Hits,
-    player: Player,
-    camera: Camera,
-    rand: Rand,
-    mode: i8,
+    kite: KiteRun,
     boss: Option<BossCam>,
 }
 
@@ -97,9 +95,7 @@ fn main() {
     let mut iso = Iso::open(&iso_path).unwrap();
     let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-    let kite = SceneFile::read(&archive, "ctu1body").unwrap();
-    let anims: Vec<&piney_data::anim::Animation> =
-        PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
+    let (data, body) = (kite_run::data(&mut iso), kite_run::body(&archive));
     let models = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let mut run: Option<Run> = None;
     for line in std::io::stdin().lock().lines() {
@@ -109,29 +105,31 @@ fn main() {
         let v4 = |i: usize| [n(i), n(i + 1), n(i + 2), n(i + 3)];
         match w.first().copied() {
             Some("start") => {
-                let pos = [n(2), n(3), n(4), ee::ONE];
-                let dirc = [0, 0, n(5), 0];
-                let mode = n(7) as i8;
-                run = Some(Run {
-                    hits: Hits::new(volume, models.clone()),
-                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(volume, pos, dirc, mode, Scheme::new(n(6) as i32)),
-                    rand: Rand(u64::from(n(8))),
-                    mode,
-                    boss: None,
-                });
+                let mut hits = Hits::new(volume, models.clone());
+                let start = Start {
+                    pos: [n(2), n(3), n(4), ee::ONE],
+                    dirc_z: n(5),
+                    scheme: n(6) as i32,
+                    mode: n(7) as i8,
+                    seed: n(8),
+                    area: 0,
+                    arriving: true,
+                };
+                let kite = KiteRun::new(&data, &body, &mut hits, &start);
+                run = Some(Run { hits, kite, boss: None });
                 println!("{{}}");
             }
             Some("frame") => {
                 let r = run.as_mut().unwrap();
                 let pad = pad_at(&w, 1);
-                tasks(&mut r.camera, &mut r.player, &mut r.hits, &anims, &mut r.rand, &pad, &mut r.mode);
-                println!("{}", cameras(&r.camera));
+                r.kite.frame(pad, &mut r.hits);
+                println!("{}", cameras(&r.kite.camera));
             }
             Some("boss") => {
                 let r = run.as_mut().unwrap();
-                let b = BossCam::new(&mut r.camera, v4(1), r.player.body.pos);
-                println!("{{\"boss\": {}, \"cameras\": {}}}", boss_cam(&b), cameras(&r.camera));
+                let at = r.kite.pos();
+                let b = BossCam::new(&mut r.kite.camera, v4(1), at);
+                println!("{{\"boss\": {}, \"cameras\": {}}}", boss_cam(&b), cameras(&r.kite.camera));
                 r.boss = Some(b);
             }
             Some("sway") => {
@@ -141,7 +139,7 @@ fn main() {
             Some("mode") => {
                 let r = run.as_mut().unwrap();
                 let b = r.boss.as_mut().unwrap();
-                b.set_mode_range(n(1) as i32, n(2), &mut r.camera);
+                b.set_mode_range(n(1) as i32, n(2), &mut r.kite.camera);
                 println!("{{\"boss\": {}}}", boss_cam(b));
             }
             Some("quake") => {
@@ -152,14 +150,15 @@ fn main() {
             Some("main") => {
                 let r = run.as_mut().unwrap();
                 let pad = pad_at(&w, 5);
+                let at = r.kite.pos();
                 let b = r.boss.as_mut().unwrap();
-                b.cam_main(&mut r.camera, &pad, r.player.body.pos, v4(1));
-                println!("{{\"boss\": {}, \"cameras\": {}}}", boss_cam(b), cameras(&r.camera));
+                b.cam_main(&mut r.kite.camera, &pad, at, v4(1));
+                println!("{{\"boss\": {}, \"cameras\": {}}}", boss_cam(b), cameras(&r.kite.camera));
             }
             Some("off") => {
                 let r = run.as_mut().unwrap();
-                r.camera.boss_cam_off();
-                println!("{}", cameras(&r.camera));
+                r.kite.camera.boss_cam_off();
+                println!("{}", cameras(&r.kite.camera));
             }
             _ => panic!("bad request: {line}"),
         }

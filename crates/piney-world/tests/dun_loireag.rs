@@ -75,33 +75,47 @@ fn dun_loireag_collision_mesh() {
 fn arrival_in_dun_loireag_then_walking() {
     let Some((mut iso, archive)) = disc() else { return };
     let save = in_dun_loireag(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     assert_eq!(world.scene().town, 1);
     assert_eq!(world.area().core().file.stem, "town02");
-    assert_eq!(world.clear_colour(), Some([0x80, 0xc0, 0xf0]));
+    let mut f = piney_draw::Frame::new();
+    world.set_clear(&mut f);
+    assert_eq!(f.clear, piney_draw::Rgba([0x80, 0xc0, 0xf0, 0x80]));
     let mut pad = Pad::default();
     for _ in 0..FADE_FRAMES + HOLD_FRAMES {
         step(&mut world, &mut pad, Raw::default());
     }
     assert_eq!(world.phase(), Phase::Play(0));
-    let p = world.player();
-    assert_eq!((p.acts.act, ee::f(p.body.pos[0]), ee::f(p.body.pos[1])), (act::ARRIVE, 0.0, 3500.0));
+    // ccSetupGameCtrl's ccSPC::Reboot built Kite with the tasks, arriving
+    // (act 13) at the start.
+    let p = world.kite().pos();
+    assert_eq!(
+        (world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), ee::f(p[0]), ee::f(p[1])),
+        (act::ARRIVE, 0.0, 3500.0)
+    );
     // The gate at DMY_gate, 700 north of the start.
-    assert_eq!(world.gate().pos[..3], [0, ee::k(4200.0), 0]);
-    let mut sprites = 0;
+    assert_eq!(town(&world).gate().pos[..3], [0, ee::k(4200.0), 0]);
+    let sprites = std::rc::Rc::new(std::cell::Cell::new(0));
+    world.set_fx(Box::new(SpriteCount(sprites.clone())));
     for i in 0..120 {
         let f = step(&mut world, &mut pad, Raw::default());
+        if i == 0 {
+            let p = world.kite().pos();
+            assert_eq!(
+                (world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), ee::f(p[0]), ee::f(p[1])),
+                (act::ARRIVE, 0.0, 3500.0)
+            );
+        }
         if i > 2 {
             assert!(f.cmds.iter().any(|c| matches!(c, Cmd::Model(_))), "the town draws");
         }
-        sprites += world.take_town_sprites().len();
     }
-    assert_eq!(world.player().acts.act, act::IDLE);
-    assert!(sprites > 0, "no clouds or flares drawn");
+    assert_eq!(world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), act::IDLE);
+    assert!(sprites.get() > 0, "no clouds or flares drawn");
     // ccSetMerchant(0) in town 1: npcTbl rows 5-10.
-    let ids: Vec<i32> = world.merchants().iter().map(piney_world::event::entry::Npc::code).collect();
+    let ids: Vec<i32> = town(&world).merchants().iter().map(piney_world::event::entry::Npc::code).collect();
     assert_eq!(ids, [5, 6, 7, 8, 9, 10]);
-    assert_eq!(world.pcs().len(), 15);
+    assert_eq!(town(&world).pcs().len(), 15);
     let clouds = world
         .area()
         .get::<piney_world::town::Town>()
@@ -111,16 +125,16 @@ fn arrival_in_dun_loireag_then_walking() {
         .unwrap();
     assert_eq!(clouds.clouds.len(), 25);
     // Stick up: he runs south and stays on the ground.
-    let start = world.player().body.pos;
+    let start = world.kite().pos();
     for _ in 0..40 {
         step(&mut world, &mut pad, Raw { ly: 0, ..Raw::default() });
-        assert_eq!(world.player().acts.act, act::RUN);
+        assert_eq!(world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), act::RUN);
     }
-    let p = world.player().body.pos;
+    let p = world.kite().pos();
     assert!(ee::f(p[1]) < ee::f(start[1]) - 500.0, "ran to {:?}", p.map(ee::f));
     // Let go: he stops at once.
     step(&mut world, &mut pad, Raw::default());
-    assert_eq!(world.player().acts.act, act::IDLE);
+    assert_eq!(world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), act::IDLE);
 }
 
 /// `markerEvTbl`'s markers in town02: the gate (0) and the event markers
@@ -129,10 +143,34 @@ fn arrival_in_dun_loireag_then_walking() {
 fn dun_loireag_markers() {
     let Some((mut iso, archive)) = disc() else { return };
     let save = in_dun_loireag(&mut iso);
-    let world = World::enter(&mut iso, archive, save).unwrap();
+    let world = World::log_in(&mut iso, archive, save).unwrap();
     let (gate, _) = world.marker_bits(0).unwrap();
-    assert_eq!(gate, world.gate().pos);
+    assert_eq!(gate, town(&world).gate().pos);
     // DMY_marker_ev01-06, 20 and 21, DMY_marker71 and DMY_marker30.
     let found: Vec<i16> = (0..33).filter(|&n| world.marker_bits(n).is_some()).collect();
     assert_eq!(found, [0, 1, 2, 3, 4, 5, 6, 20, 21, 31, 32]);
+}
+
+/// Counts the `ccEff` sprites the town's draw hands its effects.
+struct SpriteCount(std::rc::Rc<std::cell::Cell<usize>>);
+
+impl piney_world::combat::FxTasks for SpriteCount {}
+
+impl piney_world::world::FieldFx for SpriteCount {
+    fn tasks(&mut self) -> &mut dyn piney_world::combat::FxTasks {
+        self
+    }
+    fn sprites(
+        &mut self,
+        sprites: &[piney_world::sprite::EffSprite],
+        _camera: &piney_world::camera::Camera,
+        _ctx: &mut piney_desktop::anm::Ctx,
+    ) {
+        self.0.set(self.0.get() + sprites.len());
+    }
+}
+
+/// The town's cast (tests read a cast's type through `<dyn Cast>::get`).
+fn town(w: &piney_world::world::World) -> &piney_world::town::cast::TownCast {
+    w.cast().get().expect("a town's cast")
 }

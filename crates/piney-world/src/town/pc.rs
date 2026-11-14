@@ -25,7 +25,7 @@ use crate::chara::npc::NpcRow;
 use crate::ee::{self, F, ONE, V4, add, atan2f, cosf, deg2rad, dot, lt, mul, rad2deg, sinf, sqrtf_on, sub, vadd, vsub};
 use crate::event::entry::{Npc, NpcCtx};
 use crate::hit::{self, Hits, WALL_MASK};
-use crate::mt::Mt;
+use piney_battle::rand::{Genrand, Rng as _};
 use piney_event::host::NpcCommand;
 
 /// `ccLandHitCheck`'s mask for entries: floors with bit 1 (every floor of
@@ -196,7 +196,7 @@ impl Pool {
 /// town: the rows of the walking PCs, by slot (-1 unused). The first
 /// three slots draw among the fifty, the rest among the whole pool; a
 /// draw taken moves on to the next free row.
-pub fn register_random_npc(mt: &mut Mt, reserved: i32, pool: &Pool) -> [i16; 16] {
+pub fn register_random_npc(mt: &mut Genrand, reserved: i32, pool: &Pool) -> [i16; 16] {
     const FIFTY: usize = 50;
     let mut rows = [-1i16; 16];
     let n = 16 - reserved - pool.fewer;
@@ -310,8 +310,6 @@ pub struct TownPcs {
     pub town: i32,
     /// `DMY_merchant1`-`5` in the town's file (`whatShop`).
     pub merchants: [Option<V4>; 5],
-    /// The game's `ccRand`.
-    pub mt: Mt,
     /// `eventMng+0x18`: PCs shown.
     pub shown: i32,
     /// `eventMng+0x78c`: an event holds back the greetings.
@@ -335,9 +333,8 @@ pub struct TownPcs {
 
 impl TownPcs {
     /// The state `ccThEntryCtrl` starts with in town `town` of the file
-    /// `town_file` (its landmarks and merchants' dummies), `ccRand` as
-    /// `mt` leaves it.
-    pub fn new(volume: Volume, town: i32, town_file: &SceneFile, mt: Mt) -> Result<TownPcs> {
+    /// `town_file` (its landmarks and merchants' dummies).
+    pub fn new(volume: Volume, town: i32, town_file: &SceneFile) -> Result<TownPcs> {
         let dummy = |name: &str| {
             town_file
                 .ccs
@@ -351,7 +348,6 @@ impl TownPcs {
             area: 0,
             town,
             merchants: std::array::from_fn(|k| dummy(&format!("DMY_merchant{}", k + 1))),
-            mt,
             shown: 0,
             chat_hold: false,
             chat_num: 0,
@@ -366,14 +362,13 @@ impl TownPcs {
 
     /// The same outside the towns (area 1 a field, 2 a dungeon), where
     /// only events place PCs: no landmarks, no merchants' dummies.
-    pub fn outside(volume: Volume, area: i32, town: i32, mt: Mt) -> Result<TownPcs> {
+    pub fn outside(volume: Volume, area: i32, town: i32) -> Result<TownPcs> {
         Ok(TownPcs {
             tables: Tables::of(volume),
             map: NaviMap { volume, ..NaviMap::default() },
             area,
             town,
             merchants: [None; 5],
-            mt,
             shown: 0,
             chat_hold: false,
             chat_num: 0,
@@ -591,9 +586,10 @@ impl RtownPc {
         marker: i32,
         player: V4,
         hits: &mut Hits,
+        cc: &mut Genrand,
     ) -> RtownPc {
         let origin = if marker >= 0 { Origin::Slot(marker) } else { Origin::Event };
-        RtownPc::place_as(town, row, model, origin, player, hits)
+        RtownPc::place_as(town, row, model, origin, player, hits, cc)
     }
 
     /// [`RtownPc::place`] from any [`Origin`]: a SEARCH PC is made at its
@@ -606,6 +602,7 @@ impl RtownPc {
         origin: Origin,
         player: V4,
         hits: &mut Hits,
+        cc: &mut Genrand,
     ) -> RtownPc {
         let mut t = town.borrow_mut();
         let marker = match origin {
@@ -736,7 +733,7 @@ impl RtownPc {
                     *c = 0;
                 }
                 if pc.chat_gp.1 == 0 {
-                    t.chat_mes = (t.mt.rand() & 3) as usize;
+                    t.chat_mes = (cc.rand() & 3) as usize;
                     t.talk_flag = false;
                 }
             }
@@ -953,7 +950,7 @@ impl RtownPc {
                         self.act_num = 1;
                         t.landmark(self.mark_pos[0], &mut self.char.pos);
                         drop(t);
-                        self.change_route(false, ctx.hits);
+                        self.change_route(false, ctx.hits, ctx.cc);
                     }
                 }
                 true
@@ -1190,7 +1187,7 @@ impl RtownPc {
                         self.act_num = 1;
                         t.landmark(self.mark_pos[0], &mut self.char.pos);
                         drop(t);
-                        self.change_route(false, ctx.hits);
+                        self.change_route(false, ctx.hits, ctx.cc);
                     }
                 }
                 true
@@ -1274,7 +1271,7 @@ impl RtownPc {
                     self.act_process = 1;
                     self.act_num = 3;
                     self.act_cnt = 0;
-                    self.change_route(true, ctx.hits);
+                    self.change_route(true, ctx.hits, ctx.cc);
                 }
             }
             1 => {
@@ -1283,7 +1280,7 @@ impl RtownPc {
                 self.act_cnt += 1;
                 if c >= 61 {
                     self.act_cnt = 0;
-                    self.change_route(true, ctx.hits);
+                    self.change_route(true, ctx.hits, ctx.cc);
                     self.act_process += 1;
                 }
             }
@@ -1293,8 +1290,8 @@ impl RtownPc {
                 if c >= 31 {
                     self.act_process = 0;
                     self.act_num = 3;
-                    let mut t = town.borrow_mut();
-                    let r = (t.mt.rand() & 3) as usize;
+                    let t = town.borrow();
+                    let r = (ctx.cc.rand() & 3) as usize;
                     let text = t.tables.chat_shop.get(self.shop_num as usize).map_or("", |s| s[r]);
                     self.events.push(PcEvent::Chat(text));
                 }
@@ -1328,7 +1325,7 @@ impl RtownPc {
                     self.transrate = 0;
                     self.act_process += 1;
                     self.act_cnt = 0;
-                    self.change_route(true, ctx.hits);
+                    self.change_route(true, ctx.hits, ctx.cc);
                 }
             }
             3 => {
@@ -1405,8 +1402,8 @@ impl RtownPc {
                     // From Mutation on a SEARCH PC greets no one (MUT gcmn
                     // 0x005234fc).
                     if lt(self.pl_dist, CHAT_NEAR) && !self.search {
-                        let mut t = self.town.borrow_mut();
-                        let r = (t.mt.rand() & 3) as usize;
+                        let t = self.town.borrow();
+                        let r = (ctx.cc.rand() & 3) as usize;
                         if !t.chat_hold {
                             let text = t.tables.chat[r];
                             self.events.push(PcEvent::Chat(text));
@@ -1420,7 +1417,7 @@ impl RtownPc {
                     }
                 }
             } else if self.pos_cnt >= 61 {
-                self.change_route(false, ctx.hits);
+                self.change_route(false, ctx.hits, ctx.cc);
                 self.pos_cnt = 0;
             } else {
                 self.navi.landmark += 1;
@@ -1478,10 +1475,10 @@ impl RtownPc {
     /// `ccRtownPC::changeRoute(changetype)` (0x00509000): a new target among
     /// the four landmarks, never the last one, and the route there;
     /// `changetype` skips its first landmark.
-    fn change_route(&mut self, skip_first: bool, hits: &mut Hits) {
+    fn change_route(&mut self, skip_first: bool, hits: &mut Hits, cc: &mut Genrand) {
         self.navi.finish = 1;
         loop {
-            let r = (self.town.borrow_mut().mt.rand() & 3) as usize;
+            let r = (cc.rand() & 3) as usize;
             self.target_num = self.mark_pos[r];
             if self.target_num != self.target_num_old {
                 break;
@@ -1807,15 +1804,14 @@ pub fn enter(
     volume: Volume,
     town_file: &SceneFile,
     town_no: i32,
-    count: u32,
+    cc: &mut Genrand,
     reserved: i32,
     pool: &Pool,
     player: V4,
     hits: &mut Hits,
 ) -> Result<(Rc<RefCell<TownPcs>>, Vec<RtownPc>)> {
-    let mut mt = Mt::init(count);
-    let rows = register_random_npc(&mut mt, reserved, pool);
-    let town = Rc::new(RefCell::new(TownPcs::new(volume, town_no, town_file, mt)?));
+    let rows = register_random_npc(cc, reserved, pool);
+    let town = Rc::new(RefCell::new(TownPcs::new(volume, town_no, town_file)?));
     let mut pcs = Vec::new();
     let mut files = Files::new();
     for (slot, &r) in rows.iter().enumerate() {
@@ -1827,7 +1823,7 @@ pub fn enter(
             let t = town.borrow();
             load_model(archive, &mut files, &t.tables, &row)?
         };
-        pcs.push(RtownPc::place(&town, &row, &model, slot as i32, player, hits));
+        pcs.push(RtownPc::place(&town, &row, &model, slot as i32, player, hits, cc));
     }
     Ok((town, pcs))
 }
@@ -1847,7 +1843,7 @@ mod tests {
 
     #[test]
     fn fifteen_distinct_rows() {
-        let mut mt = Mt::init(1234);
+        let mut mt = piney_battle::rand::init_rand(1234, &mut 0);
         let rows = register_random_npc(&mut mt, 1, &Pool::default());
         let chosen: Vec<i16> = rows.iter().copied().filter(|&r| r >= 0).collect();
         assert_eq!(chosen.len(), 15);
@@ -1867,7 +1863,7 @@ mod tests {
         assert_eq!(t.walk_extra_rows, [180, 181, 183, 182, 120, 121]);
         let none = Pool::with(&t, 4, |_| false);
         assert_eq!(none.fewer, 10);
-        let mut mt = Mt::init(99);
+        let mut mt = piney_battle::rand::init_rand(99, &mut 0);
         let rows = register_random_npc(&mut mt, 1, &none);
         let chosen: Vec<i16> = rows.iter().copied().filter(|&r| r >= 0).collect();
         assert_eq!(chosen.len(), 5);
@@ -1875,7 +1871,7 @@ mod tests {
         let all = Pool::with(&t, 0, |_| true);
         let mut seen = std::collections::BTreeSet::new();
         for count in 0..200 {
-            let mut mt = Mt::init(count);
+            let mut mt = piney_battle::rand::init_rand(count, &mut 0);
             seen.extend(register_random_npc(&mut mt, 1, &all).into_iter().filter(|&r| r >= 80));
         }
         assert_eq!(seen.into_iter().collect::<Vec<_>>(), [120, 121, 180, 181, 182, 183]);
@@ -1937,8 +1933,10 @@ mod tests {
     fn mac_anu_walking_pcs() {
         let Some(mut m) = mac_anu() else { return };
         // ccSys+0x358 0, Kite alone: the rows the game picks (eemu).
+        let mut cc = piney_battle::rand::init_rand(0, &mut 0);
         let (town, mut pcs) =
-            enter(&m.archive, Volume::Inf, &m.town, 0, 0, 1, &Pool::default(), crate::START_POS, &mut m.hits).unwrap();
+            enter(&m.archive, Volume::Inf, &m.town, 0, &mut cc, 1, &Pool::default(), crate::START_POS, &mut m.hits)
+                .unwrap();
         let rows: Vec<i16> = pcs.iter().map(|p| p.row.id).collect();
         assert_eq!(rows, [37, 39, 49, 57, 44, 45, 47, 38, 79, 56, 62, 58, 61, 50, 63]);
         // Markers 0-2: Mac Anu's chat group round landmark 38; the rest walk.
@@ -1975,6 +1973,7 @@ mod tests {
                     cam: &t,
                     hits: &mut m.hits,
                     rand: &mut rand,
+                    cc: &mut cc,
                 };
                 Npc::step(pc, &mut ctx);
             }

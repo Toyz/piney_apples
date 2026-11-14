@@ -5,6 +5,7 @@
 
 use piney_battle::param::elm;
 use piney_fieldui::spr::{Obj, Packet};
+use piney_world::world::CharId;
 
 use super::revive::{area, field_with_mia_and_elk, step};
 use super::*;
@@ -21,13 +22,13 @@ fn hell_hound_targeted() -> Option<(Session, usize)> {
     for p in c.members.iter().map(|m| m.1).collect::<Vec<_>>() {
         c.scene.chars[p].no_death = true;
     }
-    let (pos, dirc) = (c.scene.chars[c.kite.unwrap()].pos, f32::from_bits(c.kite_dirc()[2]));
+    let (pos, dirc) = (c.scene.chars[c.kite.unwrap()].pos, f32::from_bits(c.kite_ref().map_or(0, |k| k.spc.dirc[2])));
     let mut at = pos;
     at[0] = (f32::from_bits(at[0]) - 600.0 * dirc.sin()).to_bits();
     at[1] = (f32::from_bits(at[1]) + 600.0 * dirc.cos()).to_bits();
     let hound = w.put_enemy(HELL_HOUND, at, 0).expect("the Hell Hounds");
     // The command target fixed on it, as the field's menus fix it.
-    w.change_command_target(Some((piney_world::event::entry::Kind::Enemy, hound as i32)));
+    w.change_command_target(Some(CharId::Scene(hound)));
     w.set_target_fix(true);
     step(&mut s, 30);
     assert_eq!(area(&mut s).world().command_target(), Some(hound), "the Hell Hound targeted");

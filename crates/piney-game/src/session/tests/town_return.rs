@@ -1,6 +1,7 @@
 //! Back in a town from a field: the party's faces, the members' kit and
 //! the trade lists as `ccSetupGameCtrl` leaves them.
 
+use piney_world::world::CharId;
 use std::path::Path;
 
 use piney_data::volume::Volume;
@@ -15,16 +16,16 @@ const BLACKROSE: i32 = 15;
 const MISTRAL: i32 = 16;
 
 /// The town's world once its set-up is well over.
-pub(super) fn in_town(s: &Session) -> Option<&crate::world::WorldMode> {
+pub(super) fn in_town(s: &Session) -> Option<&crate::area::AreaMode> {
     match &s.stage {
-        Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30) => Some(w),
+        Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30) => Some(w),
         _ => None,
     }
 }
 
 /// PERSONAL, Party, Add, member `pc`'s face, OK, the greeting closed: the
 /// pad for the menus as they stand (`None` once done).
-fn invite_pad(w: &crate::world::WorldMode, f: u64, pc: i32) -> Option<Raw> {
+fn invite_pad(w: &crate::area::AreaMode, f: u64, pc: i32) -> Option<Raw> {
     let ui = w.ui();
     let c = &ui.ctrl;
     let still = |b: Buttons| Raw { buttons: b, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
@@ -55,14 +56,20 @@ fn invite_pad(w: &crate::world::WorldMode, f: u64, pc: i32) -> Option<Raw> {
 /// Member `pc` called by the Party menu in `s`'s town (his address and
 /// Kite's leave to call set first).
 fn invite(s: &mut Session, pc: i32) {
-    let Stage::World(w) = &mut s.stage else { panic!("not in a town: {}", Mode::title(s)) };
+    let Stage::Area(w) = &mut s.stage else { panic!("not in a town: {}", Mode::title(s)) };
+    if !w.in_town() {
+        panic!("not in a town: {}", Mode::title(s))
+    }
     let save = &mut w.world_mut().state_mut().save;
     for at in [offset::PARTY_MEMBER_FLAG, offset::PARTY_MEMBER_CALL] {
         save.set_i32(at, save.i32(at) | 1 << pc);
     }
     let mut pad = Pad::default();
     for f in 1..4000u64 {
-        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        if !w.in_town() {
+            panic!("left the town: {}", Mode::title(s))
+        }
         let Some(raw) = invite_pad(w, f, pc) else { return };
         pad.read(&raw);
         s.step(&pad);
@@ -75,7 +82,7 @@ fn invite(s: &mut Session, pc: i32) {
 pub(super) fn to_the_field(s: &mut Session, iso: &Path) {
     let mut d = Iso::open(iso).unwrap();
     s.world_man = Some(crate::area::story_world_man(&mut d, 14, false).unwrap());
-    s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 14)));
+    s.change_area_now(1, 14);
     hold(s, 128, 128, 900, |s| playing(s).is_some());
 }
 
@@ -101,20 +108,29 @@ fn faces_come_back_from_a_field() {
             assert_eq!(tex[slot], if id == 0 { 18 } else { id }, "slot {slot} of {party:?}");
         }
     };
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(w.world().party(), [0, ORCA, -1]);
     faces(w.world().party(), w.ui().ctrl.face_tex);
     to_the_field(&mut s, &iso);
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     faces(a.world().party(), a.ui().ctrl.face_tex);
     back_to_town(&mut s);
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(w.world().party(), [0, ORCA, -1]);
     faces(w.world().party(), w.ui().ctrl.face_tex);
 }
 
 /// PERSONAL, Status, then R1 to party page `page` (`None` once there).
-fn status_pad(w: &crate::world::WorldMode, f: u64, page: i16) -> Option<Raw> {
+fn status_pad(w: &crate::area::AreaMode, f: u64, page: i16) -> Option<Raw> {
     let c = &w.ui().ctrl;
     let still = |b: Buttons| Raw { buttons: b, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let every = |n: u64, b: Buttons| still(if f.is_multiple_of(n) { b } else { Buttons::NONE });
@@ -184,24 +200,35 @@ fn the_status_portraits_come_back_from_a_field() {
             break;
         }
         let raw = match &s.stage {
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12) => gate_out_pad(a, f),
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12) => {
+                gate_out_pad(a, f)
+            }
             _ => still,
         };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
     }
-    let Stage::World(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("not back in Mac Anu: {}", Mode::title(&s))
+    }
     assert_eq!(w.world().party(), [0, BLACKROSE, MISTRAL]);
     for (page, id) in [(1i16, BLACKROSE), (2, MISTRAL)] {
         for f in 1..3000u64 {
-            let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+            let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+            if !w.in_town() {
+                panic!("left the town: {}", Mode::title(&s))
+            }
             let Some(raw) = status_pad(w, f, page) else { break };
             pad.read(&raw);
             s.step(&pad);
             s.take_events();
         }
-        let Stage::World(w) = &s.stage else { unreachable!() };
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
         let ui = w.ui();
         assert_eq!((ui.ctrl.menu, ui.ctrl.list().page), (8, page), "{id}'s Status page");
         let faces: Vec<u8> = (ui.draws().iter())
@@ -225,13 +252,19 @@ fn the_status_portraits_come_back_from_a_field() {
 fn portrait(s: &mut Session, page: i16, id: i32) {
     let mut pad = Pad::default();
     for f in 1..3000u64 {
-        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        if !w.in_town() {
+            panic!("left the town: {}", Mode::title(s))
+        }
         let Some(raw) = status_pad(w, f, page) else { break };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
     }
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     let ui = w.ui();
     assert_eq!((ui.ctrl.menu, ui.ctrl.list().page), (8, page), "{id}'s Status page");
     let slot = w.world().party().iter().position(|&m| m == id).expect("in the party");
@@ -248,7 +281,10 @@ fn portrait(s: &mut Session, page: i16, id: i32) {
     assert_eq!(ui.ctrl.face_tex[slot], id, "{id}'s face");
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     for f in 0..600u64 {
-        let Stage::World(w) = &s.stage else { break };
+        let Stage::Area(w) = &s.stage else { break };
+        if !w.in_town() {
+            break;
+        }
         if w.ui().menu_type() == -1 {
             break;
         }
@@ -274,6 +310,9 @@ fn the_status_portraits_follow_the_slots() {
     to_the_field(&mut s, &iso);
     {
         let Stage::Area(a) = &mut s.stage else { unreachable!() };
+        if a.in_town() {
+            unreachable!()
+        }
         let w = a.world_mut();
         let (br, k) = (w.combat().who(BLACKROSE).expect("BlackRose in the field"), w.combat().kite);
         w.entry_affect(br, k, 1, [9999, 0, 0]);
@@ -285,24 +324,35 @@ fn the_status_portraits_follow_the_slots() {
             break;
         }
         let raw = match &s.stage {
-            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12) => gate_out_pad(a, f),
+            Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12) => {
+                gate_out_pad(a, f)
+            }
             _ => still,
         };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
     }
-    let Stage::World(w) = &mut s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &mut s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("not back in Mac Anu: {}", Mode::title(&s))
+    }
     assert_eq!(w.world().party(), [0, BLACKROSE, MISTRAL]);
     portrait(&mut s, 1, BLACKROSE);
     portrait(&mut s, 2, MISTRAL);
-    let Stage::World(w) = &mut s.stage else { unreachable!() };
+    let Stage::Area(w) = &mut s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     w.world_mut().party_remove(BLACKROSE);
     assert_eq!(w.world().party(), [0, -1, MISTRAL]);
     portrait(&mut s, 1, MISTRAL);
     to_the_field(&mut s, &iso);
     back_to_town(&mut s);
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(w.world().party(), [0, -1, MISTRAL]);
     portrait(&mut s, 1, MISTRAL);
 }
@@ -330,6 +380,9 @@ fn the_kit_comes_back_in_town() {
     assert!(!kit.is_empty());
     let gold = piney_data::save::by_id::spc_param(ORCA as usize) + offset::SPC_GOLD;
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let save = a.save_mut();
     let kite_gold = save.i32(piney_data::save::by_id::spc_param(0) + offset::SPC_GOLD);
     for at in [offset::PARTY_MEMBER_FLAG, offset::PARTY_MEMBER_CALL] {
@@ -341,7 +394,10 @@ fn the_kit_comes_back_in_town() {
     }
     save.set_i32(gold, 5000);
     back_to_town(&mut s);
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     let save = &w.world().state().save;
     let mut cost = 0;
     for &(cat, id, n) in &kit {
@@ -382,13 +438,22 @@ fn trades_come_back_each_scene() {
     let held = |save: &SaveData| spots.map(|at| (save.i16(at), save.u8(at + 2) as i8, save.u8(at + 3) as i8));
     let want = [(charm.lst.id, charm.lst.category, charm.lst.num), (trade.id, trade.category, trade.num)];
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     take(a.save_mut());
     back_to_town(&mut s);
-    let Stage::World(w) = &mut s.stage else { unreachable!() };
+    let Stage::Area(w) = &mut s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(held(&w.world().state().save), want, "in Mac Anu");
     take(&mut w.world_mut().state_mut().save);
     to_the_field(&mut s, &iso);
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     assert_eq!(held(&a.world().state().save), want, "in the field");
 }
 
@@ -407,9 +472,15 @@ fn the_town_restocks_from_the_rand_the_field_left() {
         let mut s = start(&iso, &archive, Some(14));
         hold(&mut s, 128, 128, 900, |s| playing(s).is_some());
         let Stage::Area(a) = &mut s.stage else { unreachable!() };
+        if a.in_town() {
+            unreachable!()
+        }
         a.world_mut().set_rand(seed);
         back_to_town(&mut s);
-        let Stage::World(w) = &s.stage else { unreachable!() };
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
         let save = &w.world().state().save;
         (0..npcs).map(|k| npc_trade_list(k) + 4 * 15).map(|at| (save.i16(at), save.u8(at + 2))).collect()
     };
@@ -425,7 +496,6 @@ fn the_town_restocks_from_the_rand_the_field_left() {
 /// found her and turns to face Kite, and stays stopped through Talk (47).
 #[test]
 fn mistral_spoken_to_while_running_stands_facing_kite() {
-    use piney_world::event::entry::Kind;
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
     hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
@@ -433,12 +503,15 @@ fn mistral_spoken_to_while_running_stands_facing_kite() {
     invite(&mut s, MISTRAL);
     // Her place, heading, act and flags, the heading from her to Kite, the menu.
     let mistral = |s: &Session| {
-        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
-        let tp = w.world().town_party();
-        let k = tp.member(MISTRAL).expect("Mistral in town");
-        let (at, dirc) = tp.place(MISTRAL).unwrap();
-        let sp = tp.combat.crew.spc.get(&k).copied().unwrap_or_default();
-        let kite = w.world().player().body.pos;
+        let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        if !w.in_town() {
+            panic!("left the town: {}", Mode::title(s))
+        }
+        let tp = w.world().combat();
+        let k = tp.who(MISTRAL).expect("Mistral in town");
+        let (at, dirc) = tp.member_place(MISTRAL).unwrap();
+        let sp = tp.crew.spc.get(&k).copied().unwrap_or_default();
+        let kite = w.world().kite().pos();
         let (dx, dy) =
             (f32::from_bits(kite[0]) - f32::from_bits(at[0]), f32::from_bits(kite[1]) - f32::from_bits(at[1]));
         let moving = sp.move_flag || sp.run_flag;
@@ -453,14 +526,17 @@ fn mistral_spoken_to_while_running_stands_facing_kite() {
             opened = Some((f, at));
             break;
         }
-        let Stage::World(w) = &s.stage else { unreachable!() };
+        let Stage::Area(w) = &s.stage else { unreachable!() };
+        if !w.in_town() {
+            unreachable!()
+        }
         let world = w.world();
         let raw = if f < 300 || act != piney_battle::fellow::act::RUN {
             still
-        } else if world.command_target() == Some((Kind::Spc, MISTRAL)) {
+        } else if world.command_target_id() == Some(CharId::Member(MISTRAL)) {
             Raw { buttons: if f % 30 == 0 { Buttons::CROSS } else { Buttons::NONE }, ..still }
         } else {
-            let kite = world.player().body.pos;
+            let kite = world.kite().pos();
             let (dx, dy) =
                 (f32::from_bits(at[0]) - f32::from_bits(kite[0]), f32::from_bits(at[1]) - f32::from_bits(kite[1]));
             stick_toward(f32::from_bits(world.camera().rot()[2]), dx.atan2(-dy))
@@ -499,26 +575,33 @@ fn mistral_spoken_to_while_running_stands_facing_kite() {
 /// runs up. Her menu (21) stops her where it found her, facing Kite.
 #[test]
 fn mistral_running_after_kite_stops_when_spoken_to() {
-    use piney_world::event::entry::Kind;
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
     hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
     invite(&mut s, BLACKROSE);
     invite(&mut s, MISTRAL);
-    let Stage::World(w) = &mut s.stage else { unreachable!() };
+    let Stage::Area(w) = &mut s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     for id in [BLACKROSE, MISTRAL] {
-        w.world_mut().chat_cmd(id, 9, None, 0);
+        if let Some(m) = w.world().combat().who(id) {
+            w.world_mut().chat_cmd(m, 9, None, 0);
+        }
     }
     // Her place, heading, act and actType, the heading from Kite to her,
     // the menu.
     let mistral = |s: &Session| {
-        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
-        let tp = w.world().town_party();
-        let k = tp.member(MISTRAL).expect("Mistral in town");
-        let (at, dirc) = tp.place(MISTRAL).unwrap();
-        let sp = tp.combat.crew.spc.get(&k).copied().unwrap_or_default();
-        let act_type = tp.combat.crew.ais.get(&k).map_or(-1, |a| a.act_type);
-        let kite = w.world().player().body.pos;
+        let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        if !w.in_town() {
+            panic!("left the town: {}", Mode::title(s))
+        }
+        let tp = w.world().combat();
+        let k = tp.who(MISTRAL).expect("Mistral in town");
+        let (at, dirc) = tp.member_place(MISTRAL).unwrap();
+        let sp = tp.crew.spc.get(&k).copied().unwrap_or_default();
+        let act_type = tp.crew.ais.get(&k).map_or(-1, |a| a.act_type);
+        let kite = w.world().kite().pos();
         let (dx, dy) =
             (f32::from_bits(at[0]) - f32::from_bits(kite[0]), f32::from_bits(at[1]) - f32::from_bits(kite[1]));
         (at, f32::from_bits(dirc[2]), (sp.act_num, act_type), dx.atan2(-dy), w.ui().ctrl.menu)
@@ -536,7 +619,10 @@ fn mistral_running_after_kite_stops_when_spoken_to() {
     let mut opened = None;
     'tries: for k in 0..8u64 {
         for _ in 0..400 {
-            let Stage::World(w) = &s.stage else { unreachable!() };
+            let Stage::Area(w) = &s.stage else { unreachable!() };
+            if !w.in_town() {
+                unreachable!()
+            }
             let cam = f32::from_bits(w.world().camera().rot()[2]);
             step(&mut s, stick_toward(cam, k as f32 * 2.1));
         }
@@ -546,15 +632,18 @@ fn mistral_running_after_kite_stops_when_spoken_to() {
                 opened = Some((f, at));
                 break 'tries;
             }
-            let Stage::World(w) = &s.stage else { unreachable!() };
+            let Stage::Area(w) = &s.stage else { unreachable!() };
+            if !w.in_town() {
+                unreachable!()
+            }
             let world = w.world();
-            let kite = world.player().body.pos;
+            let kite = world.kite().pos();
             let near =
                 (0..2).map(|j| (f32::from_bits(at[j]) - f32::from_bits(kite[j])).powi(2)).sum::<f32>() < 500.0 * 500.0;
             let running = act == piney_battle::fellow::act::RUN && matches!(act_type, 3 | 94);
             let raw = if !running {
                 still
-            } else if world.command_target() == Some((Kind::Spc, MISTRAL)) {
+            } else if world.command_target_id() == Some(CharId::Member(MISTRAL)) {
                 Raw { buttons: if f % 2 == 0 { Buttons::CROSS } else { Buttons::NONE }, ..still }
             } else if near && f % 6 == 0 {
                 stick_toward(f32::from_bits(world.camera().rot()[2]), from_kite)
@@ -587,7 +676,10 @@ fn the_operation_holds_from_a_field_s_start() {
     let mut s = start(&iso, &archive, None);
     hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
     invite(&mut s, ORCA);
-    let Stage::World(w) = &mut s.stage else { unreachable!() };
+    let Stage::Area(w) = &mut s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     w.world_mut().state_mut().save.set_u8(piney_battle::frame::SAVE_OPERATION, 8);
     let mut pad = Pad::default();
     for _ in 0..5 {
@@ -597,6 +689,9 @@ fn the_operation_holds_from_a_field_s_start() {
     }
     to_the_field(&mut s, &iso);
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let c = a.world().combat();
     let orca = c.who(ORCA).expect("Orca in the field");
     let ai = &c.crew.ais[&orca];

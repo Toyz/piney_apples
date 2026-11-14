@@ -899,7 +899,7 @@ impl FieldUi {
 
 #[cfg(test)]
 mod tests {
-    use piney_battle::rand::{Rand, Rng as _};
+    use piney_battle::rand::Rand;
 
     use crate::ctrl::MenuRand;
     use crate::menus::option::tests::field_ui;

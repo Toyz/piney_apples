@@ -6,7 +6,7 @@
 
 use std::io::BufRead;
 
-use piney_battle::rand::{Rand, Rng};
+use piney_battle::rand::Rand;
 use piney_world::camera::Shake;
 
 fn main() {

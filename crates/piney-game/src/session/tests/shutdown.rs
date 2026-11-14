@@ -30,7 +30,7 @@ fn logged_in(event: i32, last: usize, status: i16, town: u8) -> Option<Session> 
         start.at = Resume::World(Box::new(InWorld { scene, world_man: None, spcs }));
     })?;
     let mut pad = Pad::default();
-    let playing = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    let playing = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
     for _ in 0..900 {
         if playing(&s) {
             break;
@@ -45,8 +45,11 @@ fn logged_in(event: i32, last: usize, status: i16, town: u8) -> Option<Session> 
 
 /// The rows of the town's PCs (walking and the events'), sorted.
 fn pc_rows(s: &Session) -> Vec<usize> {
-    let Stage::World(w) = &s.stage else { panic!("not in a town: {}", Mode::title(s)) };
-    let mut rows: Vec<usize> = w.world().pcs().iter().map(|p| p.row.row).collect();
+    let Stage::Area(w) = &s.stage else { panic!("not in a town: {}", Mode::title(s)) };
+    if !w.in_town() {
+        panic!("not in a town: {}", Mode::title(s))
+    }
+    let mut rows: Vec<usize> = town_cast(w.world()).pcs().iter().map(|p| p.row.row).collect();
     rows.sort_unstable();
     rows
 }
@@ -56,10 +59,13 @@ fn pc_rows(s: &Session) -> Vec<usize> {
 #[test]
 fn carmina_gadelica_is_empty_after_innis() {
     let Some(s) = logged_in(107, 22, 3, CARMINA_GADELICA) else { return };
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     // The registry's 2 (Kite, BlackRose) are added at the draw.
     assert_eq!(w.vm().map(|vm| vm.mng.regist_npc_num), Some(17), "16 and the Administrator");
-    assert!(w.world().merchants().iter().any(|m| m.id == 29), "the Administrator");
+    assert!(town_cast(w.world()).merchants().iter().any(|m| m.id == 29), "the Administrator");
     assert_eq!(pc_rows(&s), Vec::<usize>::new(), "PCs in Carmina Gadelica after the shutdown");
 }
 
@@ -76,7 +82,10 @@ fn carmina_gadelica_has_only_the_events_pcs_after_the_shutdown() {
 #[test]
 fn mac_anu_walks_after_the_shutdown() {
     let Some(s) = logged_in(108, 1, 1, MAC_ANU) else { return };
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(w.vm().map(|vm| vm.mng.regist_npc_num), Some(0));
     assert_eq!(pc_rows(&s).len(), 14, "Mac Anu's walkers: {:?}", pc_rows(&s));
 }

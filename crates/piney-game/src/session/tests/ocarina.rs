@@ -19,6 +19,9 @@ fn still() -> Raw {
 /// The dungeon, once its scene has played `n` frames.
 fn dungeon_at(s: &Session, n: u32) -> Option<&DungeonArea> {
     let Stage::Area(a) = &s.stage else { return None };
+    if a.in_town() {
+        return None;
+    }
     let w = a.world();
     let playing = matches!(w.phase(), piney_world::Phase::Play(k) if k >= n);
     match w.area().kind() {
@@ -46,6 +49,9 @@ fn wait(s: &mut Session, frames: u32, done: impl Fn(&Session) -> bool) -> bool {
 /// as the stairs' ground (attribute 0x80000) asks it.
 fn take_stairs(s: &mut Session, room: usize) {
     let Stage::Area(a) = &mut s.stage else { panic!("not in an area") };
+    if a.in_town() {
+        panic!("not in an area")
+    }
     let MapKind::Dungeon(d) = a.world().area().kind() else { panic!("not in a dungeon") };
     let fl = &d.floors[0];
     let cell = (0..6400usize)
@@ -64,6 +70,9 @@ fn take_stairs(s: &mut Session, room: usize) {
 fn play_ocarina(s: &mut Session) {
     {
         let Stage::Area(a) = &mut s.stage else { panic!("not in an area") };
+        if a.in_town() {
+            panic!("not in an area")
+        }
         let save = &mut a.world_mut().state_mut().save;
         save.set_i16(offset::ITEM_LIST, 1);
         save.set_u8(offset::ITEM_LIST + 2, 13);
@@ -107,6 +116,9 @@ fn below_a_lake() -> Option<(Session, usize)> {
     // that `lastRoom` is it, then down.
     let down = dungeon_at(&s, 0).map(|d| d.floors[0].down).unwrap();
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     assert!(a.world_mut().room_select(0, down as i32));
     assert!(wait(&mut s, 600, |s| dungeon_at(s, 0).is_none()), "the change of room");
     assert!(wait(&mut s, 600, |s| dungeon_at(s, 30).is_some()), "the room");
@@ -122,7 +134,7 @@ fn assert_at_the_lake(s: &Session, last: usize) {
     let w = area(s).world();
     assert_eq!((d.dtype, w.scene().dungeon, w.scene().block), (8, 0, last as i32), "not the lake's room left");
     assert_eq!((d.room_at, d.room.is_some()), (Some((0, last)), true), "the room not built");
-    let kite = w.player().body.pos;
+    let kite = w.kite().pos();
     let stairs = d.floors[0].start[1];
     assert_eq!(kite[..2], stairs[..2], "Kite not at the stairs down: {:?}", kite.map(f32::from_bits));
     assert_eq!(d.here(kite), Some(last), "Kite outside the room: {:?}", kite.map(f32::from_bits));
@@ -164,8 +176,11 @@ fn gate_out_from_a_lake_reaches_the_town() {
         };
         let Some(mut s) = s else { return };
         let Stage::Area(a) = &mut s.stage else { unreachable!() };
+        if a.in_town() {
+            unreachable!()
+        }
         a.gate_out();
-        let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if w.town_number() == 0);
+        let in_town = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && w.world().scene().town == 0);
         assert!(wait(&mut s, 900, in_town), "below {below}: not in Mac Anu: {}", Mode::title(&s));
     }
 }
@@ -187,7 +202,7 @@ fn the_ocarina_and_the_stairs_out_of_a_dungeon_reach_its_field() {
             take_stairs(&mut s, up);
         }
         let in_field = |s: &Session| match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let w = a.world();
                 matches!(w.area().kind(), MapKind::Field(_))
                     && matches!(w.phase(), piney_world::Phase::Play(n) if n > 60)
@@ -199,7 +214,7 @@ fn the_ocarina_and_the_stairs_out_of_a_dungeon_reach_its_field() {
         let w = area(&s).world();
         let MapKind::Field(f) = w.area().kind() else { unreachable!() };
         let entrance = f.dungeon_pos().expect("the entrance").map(f32::from_bits);
-        let kite = w.player().body.pos.map(f32::from_bits);
+        let kite = w.kite().pos().map(f32::from_bits);
         let off = (kite[0] - entrance[0]).hypot(kite[1] - entrance[1]);
         assert!((off - 900.0).abs() < 1.0, "{what}: Kite {kite:?}, the entrance {entrance:?}");
     }

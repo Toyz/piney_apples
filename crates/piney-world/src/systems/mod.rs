@@ -134,6 +134,13 @@ pub enum MapEvent {
     },
 }
 
+impl MapEvent {
+    /// An effect start (`effSmoke`, `effSmokeN`), for the next effect task.
+    pub fn is_smoke(&self) -> bool {
+        matches!(self, MapEvent::Smoke(_) | MapEvent::SmokeN { .. })
+    }
+}
+
 /// What a map's `Draw` reads of the rest of the field.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MapView {

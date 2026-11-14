@@ -74,7 +74,7 @@ fn in_area_47_dungeon_of(disc: &str, n: i32, block: u32) -> Option<Ear> {
 /// The stream event 108 plays at phase 2 on the way in, if any.
 fn streaming(s: &Session) -> Option<String> {
     match &s.stage {
-        Stage::Area(a) => a.stream_scene(),
+        Stage::Area(a) if !a.in_town() => a.stream_scene(),
         _ => None,
     }
 }
@@ -82,6 +82,9 @@ fn streaming(s: &Session) -> Option<String> {
 /// Kyvia's body, once block 21 has made it.
 fn kyvia(s: &Session) -> Option<usize> {
     let Stage::Area(a) = &s.stage else { return None };
+    if a.in_town() {
+        return None;
+    }
     let c = a.world().combat();
     let me = c.boss_char()?;
     let b = c.scene.chars[me].foe_state()?.boss.as_ref()?;
@@ -103,7 +106,7 @@ fn area_47s_door_leads_to_kyvias_disc() {
         }
         let volume = Iso::open(&e.s.iso).unwrap().volume().unwrap().number() as u32;
         let field = piney_data::dungeon::special::exit_field(47, volume).unwrap();
-        e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, field)));
+        e.s.change_area_now(1, field);
         let mut made = false;
         for f in 0..8000u32 {
             // START skips the event's stream; CROSS moves its lines on.
@@ -119,6 +122,9 @@ fn area_47s_door_leads_to_kyvias_disc() {
             }
         }
         let Stage::Area(a) = &e.s.stage else { panic!("{disc}: not in the field: {}", Mode::title(&e.s)) };
+        if a.in_town() {
+            panic!("{disc}: not in the field: {}", Mode::title(&e.s))
+        }
         let w = a.world();
         assert_eq!((w.scene().area, w.scene().field), (1, field), "{disc}");
         assert_eq!(w.world_man().event, field, "{disc}: eventAreaNumber");
@@ -142,7 +148,7 @@ fn area_47s_music_stops_before_event_108s_stream() {
         e.step(&still());
     }
     assert!(e.sequences()[0], "the dungeon's music is not on");
-    e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 9)));
+    e.s.change_area_now(1, 9);
     let (mut said, mut streamed, mut heard) = (Vec::new(), 0u32, 0u32);
     for _ in 0..600 {
         let now = e.step(&still());
@@ -171,7 +177,7 @@ fn kyvia_stage_shots() {
     for _ in 0..200 {
         e.step(&still());
     }
-    e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 9)));
+    e.s.change_area_now(1, 9);
     let mut f = 0u32;
     while kyvia(&e.s).is_none() && f < 8000 {
         let raw = match streaming(&e.s) {
@@ -185,7 +191,9 @@ fn kyvia_stage_shots() {
     let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(e.s.archive.clone())).unwrap();
     let (mut stepping, mut drawing) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
     for i in 0..1200u32 {
-        if let Stage::Area(a) = &mut e.s.stage {
+        if let Stage::Area(a) = &mut e.s.stage
+            && !a.in_town()
+        {
             let c = a.world_mut().combat_mut();
             for &(_, k) in &c.members {
                 c.scene.chars[k].hp = c.scene.chars[k].max_hp;
@@ -227,7 +235,7 @@ fn kyvia_attack_shots() {
     for _ in 0..200 {
         e.step(&still());
     }
-    e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 9)));
+    e.s.change_area_now(1, 9);
     let mut gs: Option<piney_gs::Gs> = None;
     let mut since = u32::MAX;
     super::kyvia_fx::fight(&mut e.s, frames, |s, frame, i, now| {
@@ -257,7 +265,7 @@ fn kyvia_core_wave_shots() {
     for _ in 0..200 {
         e.step(&still());
     }
-    e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 9)));
+    e.s.change_area_now(1, 9);
     let mut gs: Option<piney_gs::Gs> = None;
     let mut at_core = 0;
     let f = f32::from_bits;
@@ -302,7 +310,7 @@ fn no_data_bugs_over_kyvias_disc() {
     for _ in 0..200 {
         e.step(&still());
     }
-    e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 9)));
+    e.s.change_area_now(1, 9);
     let glyphs = piney_data::ccs::Ccs::parse(e.s.archive.inflate_named("field_eff").unwrap())
         .unwrap()
         .find_object("TEX_sfzdigi1")

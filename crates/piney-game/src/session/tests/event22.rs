@@ -2,6 +2,7 @@
 //! event's `piros_colour` turns him orange ([`crate::piros`]).
 
 use piney_input::{Buttons, Raw};
+use piney_world::world::CharId;
 
 use super::*;
 
@@ -39,7 +40,7 @@ fn story_in_mac_anu(n: i32, played: u64) -> Option<Session> {
     let mut s = Session::resume(iso, archive, None, start.state, start.vm, start.at).unwrap();
     let mut pad = Pad::default();
     let mut n = 0;
-    while !matches!(s.stage, Stage::World(_)) {
+    while !matches!(s.stage, Stage::Area(ref t) if t.in_town()) {
         let b = match n {
             200 => Buttons::CIRCLE,
             n if n > 240 && n % 30 == 0 => Buttons::CROSS,
@@ -57,7 +58,7 @@ fn story_in_mac_anu(n: i32, played: u64) -> Option<Session> {
 }
 
 /// Windows closed every 24 frames.
-fn player(w: &WorldMode, f: u64) -> Raw {
+fn player(w: &AreaMode, f: u64) -> Raw {
     let waiting = w.calls().iter().rev().find_map(|(_, c)| {
         if c.starts_with("message_open")
             || c.starts_with("announce")
@@ -75,7 +76,7 @@ fn player(w: &WorldMode, f: u64) -> Raw {
 }
 
 /// Piros's tint as the town holds it.
-fn tint(w: &WorldMode) -> Option<piney_world::chara::char::AffectColour> {
+fn tint(w: &AreaMode) -> Option<piney_world::chara::char::AffectColour> {
     w.world().fellow_affect(crate::piros::PIROS)
 }
 
@@ -91,13 +92,14 @@ fn event_22_turns_piros_orange() {
     let mut seen = None;
     for f in 0..6000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && w.calls().iter().filter(|(_, c)| c.starts_with("piros_colour")).count() >= 2
             && tint(w).is_some_and(|t| t.fix == 1)
         {
@@ -105,7 +107,10 @@ fn event_22_turns_piros_orange() {
             break;
         }
     }
-    let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("left the town: {}", Mode::title(&s))
+    }
     let calls: Vec<String> = w.calls().iter().rev().take(30).rev().map(|(f, c)| format!("{f} {c}")).collect();
     let t = seen.unwrap_or_else(|| panic!("no tint: {}\n{}", Mode::title(&s), calls.join("\n")));
     assert_eq!((t.fix, t.rate, t.colour), (1, 65, 0x0020_80ff));
@@ -128,13 +133,16 @@ fn event_22_shot() {
     let mut aargh = None;
     for f in 0..6000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         let frame = s.step(&pad);
         s.take_events();
-        let Stage::World(w) = &s.stage else { continue };
+        let Stage::Area(w) = &s.stage else { continue };
+        if !w.in_town() {
+            continue;
+        }
         if flashed.is_none() && w.calls().iter().any(|(_, c)| c.starts_with("piros_colour")) {
             flashed = Some(f);
         }
@@ -207,6 +215,7 @@ fn story_22_in_area_31(dungeon: bool) -> Option<Session> {
 /// frames put the 1 back after block 0 has run.
 fn board_done(s: &mut Session) {
     if let Stage::Area(a) = &mut s.stage
+        && !a.in_town()
         && !matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 1)
     {
         a.world_mut().state_mut().save.set_u8(crate::piros::STATUS - 1, 1);
@@ -244,7 +253,7 @@ fn event_22_tints_piros_in_area_31() {
         let mut seen = None;
         for f in 0..3000u64 {
             let raw = match &s.stage {
-                Stage::Area(a) => area_player(a, f),
+                Stage::Area(a) if !a.in_town() => area_player(a, f),
                 _ => still(Buttons::NONE),
             };
             pad.read(&raw);
@@ -252,6 +261,7 @@ fn event_22_tints_piros_in_area_31() {
             s.take_events();
             board_done(&mut s);
             if let Stage::Area(a) = &s.stage
+                && !a.in_town()
                 && a.calls().iter().any(|(_, c)| c.starts_with("piros_colour"))
                 && let Some(t) = a.world().affect_of(crate::piros::PIROS).filter(|t| t.fix == 1)
             {
@@ -260,7 +270,9 @@ fn event_22_tints_piros_in_area_31() {
             }
         }
         let calls = match &s.stage {
-            Stage::Area(a) => a.calls().iter().map(|(f, c)| format!("{f} {c}")).collect::<Vec<_>>().join("\n"),
+            Stage::Area(a) if !a.in_town() => {
+                a.calls().iter().map(|(f, c)| format!("{f} {c}")).collect::<Vec<_>>().join("\n")
+            }
             _ => String::new(),
         };
         let t = seen.unwrap_or_else(|| panic!("no tint (dungeon {dungeon}): {}\n{calls}", Mode::title(&s)));
@@ -284,7 +296,7 @@ fn event_22_tells_piros_used_the_cure() {
     let mut line_msg = None;
     for f in 0..4000u64 {
         let raw = match &s.stage {
-            Stage::Area(a) => area_player(a, f),
+            Stage::Area(a) if !a.in_town() => area_player(a, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -292,6 +304,9 @@ fn event_22_tells_piros_used_the_cure() {
         s.take_events();
         board_done(&mut s);
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         if !given && a.calls().iter().any(|(_, c)| c.starts_with("piros_colour")) {
             a.world_mut().state_mut().save.add_item(0, 15, 54, 1);
             given = true;
@@ -304,6 +319,9 @@ fn event_22_tells_piros_used_the_cure() {
         }
     }
     let Stage::Area(a) = &s.stage else { panic!("left the dungeon: {}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("left the dungeon: {}", Mode::title(&s))
+    }
     let calls: Vec<(u64, &str)> = a.calls().iter().map(|(f, c)| (*f, c.as_str())).collect();
     let log = || calls.iter().map(|(f, c)| format!("{f} {c}")).collect::<Vec<_>>().join("\n");
     let at = |p: &dyn Fn(&str) -> bool, from: usize| calls.iter().skip(from).position(|(_, c)| p(c)).map(|i| i + from);
@@ -336,8 +354,10 @@ fn event_22_dungeon_shot() {
         // After the tint, the camera turned round (L1 held) to the party
         // behind Kite.
         let raw = match &s.stage {
-            Stage::Area(_) if tinted.is_some_and(|t| f > t + 60 && f < t + 60 + TURN) => still(Buttons::L1),
-            Stage::Area(a) => area_player(a, f),
+            Stage::Area(t) if !t.in_town() && tinted.is_some_and(|t| f > t + 60 && f < t + 60 + TURN) => {
+                still(Buttons::L1)
+            }
+            Stage::Area(a) if !a.in_town() => area_player(a, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -345,6 +365,9 @@ fn event_22_dungeon_shot() {
         s.take_events();
         board_done(&mut s);
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         if tinted.is_none() && a.world().affect_of(crate::piros::PIROS).is_some_and(|t| t.fix == 1) {
             tinted = Some(f);
         }
@@ -368,14 +391,13 @@ fn event_22_dungeon_shot() {
 /// 100), facing as Kite does), arriving (act 13).
 #[test]
 fn the_town_takes_the_party_back() {
-    use piney_world::event::entry::Kind;
     let Some(mut s) = story_22_in_area_31(false) else { return };
     let mut pad = Pad::default();
     let mut out = false;
     let mut placed = None;
     for f in 0..4000u64 {
         let raw = match &s.stage {
-            Stage::Area(a) => area_player(a, f),
+            Stage::Area(a) if !a.in_town() => area_player(a, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -383,15 +405,17 @@ fn the_town_takes_the_party_back() {
         s.take_events();
         board_done(&mut s);
         match &mut s.stage {
-            Stage::Area(a) if !out && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 30) => {
+            Stage::Area(a)
+                if !a.in_town() && !out && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 30) =>
+            {
                 // Event 22's town blocks (eventStatus[0] 1) are for a party
                 // without Piros; they are kept out of Mac Anu.
                 a.world_mut().state_mut().save.set_u8(crate::piros::STATUS - 1, 2);
                 a.gate_out();
                 out = true;
             }
-            Stage::World(w) if w.world().char_place(Kind::Spc, 8).is_some() => {
-                let p = w.world().char_place(Kind::Spc, 8).map(|(p, _)| p.map(f32::from_bits));
+            Stage::Area(w) if w.in_town() && w.world().char_place(CharId::Member(8)).is_some() => {
+                let p = w.world().char_place(CharId::Member(8)).map(|(p, _)| p.map(f32::from_bits));
                 placed = Some((w.world().party(), p));
                 break;
             }
@@ -399,7 +423,9 @@ fn the_town_takes_the_party_back() {
         }
     }
     let calls = match &s.stage {
-        Stage::World(w) => w.calls().iter().map(|(f, c)| format!("{f} {c}")).collect::<Vec<_>>().join("\n"),
+        Stage::Area(w) if w.in_town() => {
+            w.calls().iter().map(|(f, c)| format!("{f} {c}")).collect::<Vec<_>>().join("\n")
+        }
         _ => String::new(),
     };
     let (party, pos) = placed.unwrap_or_else(|| panic!("not back in Mac Anu with Piros: {}\n{calls}", Mode::title(&s)));
@@ -410,13 +436,12 @@ fn the_town_takes_the_party_back() {
 /// Mac Anu with Piros in the party (back from area 31, as
 /// [`the_town_takes_the_party_back`]): the session and the frame count.
 fn mac_anu_with_piros() -> Option<(Session, u64)> {
-    use piney_world::event::entry::Kind;
     let mut s = story_22_in_area_31(false)?;
     let mut pad = Pad::default();
     let mut out = false;
     for f in 0..4000u64 {
         let raw = match &s.stage {
-            Stage::Area(a) => area_player(a, f),
+            Stage::Area(a) if !a.in_town() => area_player(a, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -424,12 +449,14 @@ fn mac_anu_with_piros() -> Option<(Session, u64)> {
         s.take_events();
         board_done(&mut s);
         match &mut s.stage {
-            Stage::Area(a) if !out && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 30) => {
+            Stage::Area(a)
+                if !a.in_town() && !out && matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 30) =>
+            {
                 a.world_mut().state_mut().save.set_u8(crate::piros::STATUS - 1, 2);
                 a.gate_out();
                 out = true;
             }
-            Stage::World(w) if w.world().char_place(Kind::Spc, 8).is_some() => return Some((s, f)),
+            Stage::Area(w) if w.in_town() && w.world().char_place(CharId::Member(8)).is_some() => return Some((s, f)),
             _ => {}
         }
     }
@@ -449,8 +476,11 @@ fn piros_says_his_arrival_line_in_mac_anu() {
         pad.read(&still(Buttons::NONE));
         s.step(&pad);
         s.take_events();
-        let Stage::World(w) = &s.stage else { continue };
-        let who = crate::world::handle(piney_world::event::entry::Kind::Spc, crate::piros::PIROS);
+        let Stage::Area(w) = &s.stage else { continue };
+        if !w.in_town() {
+            continue;
+        }
+        let who = CharId::Member(crate::piros::PIROS).handle();
         if let Some(slot) = w.ui().ctrl.chat.slots.iter().find(|x| x.cf > 0 && x.who == who) {
             said = Some((f - f0, String::from_utf8_lossy(&slot.text).into_owned()));
             break;
@@ -488,7 +518,6 @@ fn stick(cam_z: f32, h: f32) -> Raw {
 /// plaza) from frame 150 to 450, then stands. Piros's greatest distance from where he started, his distance
 /// from Kite at the end, his `actType`s in order, and how far Kite went.
 fn piros_in_mac_anu(follow: bool, frames: u64) -> Option<(f32, f32, Vec<i16>, f32)> {
-    use piney_world::event::entry::Kind;
     let (mut s, f0) = mac_anu_with_piros()?;
     let mut pad = Pad::default();
     let (mut start, mut kite_start) = (None, None);
@@ -496,19 +525,30 @@ fn piros_in_mac_anu(follow: bool, frames: u64) -> Option<(f32, f32, Vec<i16>, f3
     let mut acts = Vec::new();
     for f in f0..f0 + frames {
         if follow && f == f0 + 100 {
-            let Stage::World(w) = &mut s.stage else { return None };
-            w.world_mut().chat_cmd(crate::piros::PIROS, 9, None, 0);
+            let Stage::Area(w) = &mut s.stage else { return None };
+            if !w.in_town() {
+                return None;
+            }
+            if let Some(m) = w.world().combat().who(crate::piros::PIROS) {
+                w.world_mut().chat_cmd(m, 9, None, 0);
+            }
         }
         let raw = match &s.stage {
-            Stage::World(w) if f >= f0 + 150 && f < f0 + 450 => stick(f32::from_bits(w.world().camera().rot()[2]), 0.0),
+            Stage::Area(w) if w.in_town() && f >= f0 + 150 && f < f0 + 450 => {
+                stick(f32::from_bits(w.world().camera().rot()[2]), 0.0)
+            }
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+        let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+        if !w.in_town() {
+            panic!("left the town: {}", Mode::title(&s))
+        }
         let world = w.world();
-        let (Some((p, _)), Some((k, _))) = (world.char_place(Kind::Spc, 8), world.char_place(Kind::Spc, 0)) else {
+        let (Some((p, _)), Some((k, _))) = (world.char_place(CharId::Member(8)), world.char_place(CharId::Member(0)))
+        else {
             continue;
         };
         let (p, k) = (p.map(f32::from_bits), k.map(f32::from_bits));
@@ -517,8 +557,8 @@ fn piros_in_mac_anu(follow: bool, frames: u64) -> Option<(f32, f32, Vec<i16>, f3
         let k0 = *kite_start.get_or_insert(k);
         kite_moved = kite_moved.max(((k[0] - k0[0]).powi(2) + (k[1] - k0[1]).powi(2)).sqrt());
         end = ((p[0] - k[0]).powi(2) + (p[1] - k[1]).powi(2)).sqrt();
-        let party = world.town_party();
-        if let Some(a) = party.member(8).and_then(|w| party.combat.crew.ais.get(&w)).map(|a| a.act_type)
+        let party = world.combat();
+        if let Some(a) = party.who(8).and_then(|w| party.crew.ais.get(&w)).map(|a| a.act_type)
             && acts.last() != Some(&a)
         {
             acts.push(a);
@@ -530,12 +570,13 @@ fn piros_in_mac_anu(follow: bool, frames: u64) -> Option<(f32, f32, Vec<i16>, f3
 /// Back in Mac Anu with no order, Piros is not led (`ActInTown`: `actType`
 /// 96 waits for Kite without an invitation, then rests, 99): he walks the
 /// town on his own, to a shop (5-9) or a landmark (10) at random, and rests
-/// there (11).
+/// there (11). First seen with `ccAI`'s 95, the set-up having built him
+/// before the tasks' first frame.
 #[test]
 fn piros_walks_mac_anu_on_his_own() {
     let Some((moved, _, acts, _)) = piros_in_mac_anu(false, 900) else { return };
-    let walk = acts.get(2).is_some_and(|a| (5..=10).contains(a));
-    assert!(acts.starts_with(&[96, 99]) && walk, "act types {acts:?}");
+    let walk = acts.get(3).is_some_and(|a| (5..=10).contains(a));
+    assert!(acts.starts_with(&[95, 96, 99]) && walk, "act types {acts:?}");
     assert!(moved > 1000.0, "Piros moved {moved:.0}; act types {acts:?}");
 }
 
@@ -564,12 +605,16 @@ fn piros_follow_shots() {
     let mut pad = Pad::default();
     for f in f0..f0 + 700 {
         if f == f0 + 100
-            && let Stage::World(w) = &mut s.stage
+            && let Stage::Area(w) = &mut s.stage
+            && w.in_town()
+            && let Some(m) = w.world().combat().who(crate::piros::PIROS)
         {
-            w.world_mut().chat_cmd(crate::piros::PIROS, 9, None, 0);
+            w.world_mut().chat_cmd(m, 9, None, 0);
         }
         let raw = match &s.stage {
-            Stage::World(w) if f >= f0 + 150 && f < f0 + 450 => stick(f32::from_bits(w.world().camera().rot()[2]), 0.0),
+            Stage::Area(w) if w.in_town() && f >= f0 + 150 && f < f0 + 450 => {
+                stick(f32::from_bits(w.world().camera().rot()[2]), 0.0)
+            }
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -597,7 +642,7 @@ fn event_16_gives_the_contest_prize() {
     let Some(mut s) = story_in_mac_anu(16, 0x3f) else { return };
     // Category 15 of Kite's: the important items' counts (impItemList).
     let book = |s: &Session| match &s.stage {
-        Stage::World(w) => w.world().state().save.u8(piney_data::save::offset::IMP_ITEM_LIST + 60),
+        Stage::Area(w) if w.in_town() => w.world().state().save.u8(piney_data::save::offset::IMP_ITEM_LIST + 60),
         _ => 0,
     };
     let before = book(&s);
@@ -606,7 +651,7 @@ fn event_16_gives_the_contest_prize() {
     let mut menu = false;
     for f in 0..6000u64 {
         let raw = match &s.stage {
-            Stage::World(w) => {
+            Stage::Area(w) if w.in_town() => {
                 menu |= w.ui().menu_type() == 29;
                 // The item-get menu: X on its OK.
                 if w.ui().menu_type() == 29 && f.is_multiple_of(12) { still(Buttons::CROSS) } else { player(w, f) }
@@ -616,7 +661,8 @@ fn event_16_gives_the_contest_prize() {
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if let Stage::World(w) = &s.stage
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
             && w.calls().iter().any(|(_, c)| c.starts_with("mail"))
         {
             break;
@@ -641,32 +687,26 @@ fn the_gates_circle_sounds() {
     let mut opened = None;
     for f in 0..3000u64 {
         let raw = match &s.stage {
-            Stage::World(w) if w.world().phase() == piney_world::Phase::Play(0) || opened.is_some() => {
+            Stage::Area(w) if w.in_town() && w.world().phase() == piney_world::Phase::Play(0) || opened.is_some() => {
                 still(Buttons::NONE)
             }
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         if opened.is_none()
-            && let Stage::World(w) = &mut s.stage
+            && let Stage::Area(w) = &mut s.stage
+            && w.in_town()
             && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 60)
         {
-            w.world_mut().affect(
-                piney_world::event::entry::Kind::Gimmick,
-                i32::from(piney_world::event::gate::GIMMICK),
-                11,
-            );
+            w.world_mut().affect(CharId::Object(piney_world::event::gate::GIMMICK), 11, [0; 2]);
             opened = Some(f);
         }
         if let Some(o) = opened
             && f == o + 100
-            && let Stage::World(w) = &mut s.stage
+            && let Stage::Area(w) = &mut s.stage
+            && w.in_town()
         {
-            w.world_mut().affect(
-                piney_world::event::entry::Kind::Gimmick,
-                i32::from(piney_world::event::gate::GIMMICK),
-                0,
-            );
+            w.world_mut().affect(CharId::Object(piney_world::event::gate::GIMMICK), 0, [0; 2]);
         }
         pad.read(&raw);
         s.step(&pad);
@@ -695,7 +735,7 @@ fn kite_has_footsteps_in_mac_anu() {
     // Settled in the town, then the stick held up for three seconds.
     for f in 0..200u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -721,7 +761,7 @@ fn the_walking_pcs_have_footsteps() {
     let mut steps = 0;
     for f in 0..500u64 {
         let raw = match &s.stage {
-            Stage::World(w) => player(w, f),
+            Stage::Area(w) if w.in_town() => player(w, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -744,7 +784,6 @@ fn the_walking_pcs_have_footsteps() {
 #[test]
 #[ignore]
 fn piros_menu_shot() {
-    use piney_world::event::entry::Kind;
     let Some((mut s, _)) = mac_anu_with_piros() else { return };
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/spcmenu".into());
     std::fs::create_dir_all(&dir).unwrap();
@@ -762,16 +801,19 @@ fn piros_menu_shot() {
     let mut opened = None;
     for f in 0..900u64 {
         let raw = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let Stage::Area(w) = &s.stage else { panic!("left the town") };
+            if !w.in_town() {
+                panic!("left the town")
+            }
             let world = w.world();
             if w.ui().ctrl.menu == 21 && w.ui().ctrl.menu_status == 2 {
                 opened = Some(f);
                 break;
             }
-            if world.command_target() == Some((Kind::Spc, crate::piros::PIROS)) {
+            if world.command_target_id() == Some(CharId::Member(crate::piros::PIROS)) {
                 still(if f % 20 == 0 { Buttons::CROSS } else { Buttons::NONE })
             } else if let (Some((at, _)), kite) =
-                (world.char_place(Kind::Spc, crate::piros::PIROS), world.player().body.pos)
+                (world.char_place(CharId::Member(crate::piros::PIROS)), world.kite().pos())
             {
                 let (dx, dy) =
                     (f32::from_bits(at[0]) - f32::from_bits(kite[0]), f32::from_bits(at[1]) - f32::from_bits(kite[1]));
@@ -786,7 +828,7 @@ fn piros_menu_shot() {
     let f = opened.expect("Piros's menu did not open");
     println!("menu 21 up at frame {f}");
     let at = |s: &Session| match &s.stage {
-        Stage::World(w) => w.world().char_place(Kind::Spc, crate::piros::PIROS).map(|p| p.0),
+        Stage::Area(w) if w.in_town() => w.world().char_place(CharId::Member(crate::piros::PIROS)).map(|p| p.0),
         _ => None,
     };
     let before = at(&s);
@@ -809,7 +851,6 @@ fn piros_menu_shot() {
 /// stops where he is instead of running on while the menu is open.
 #[test]
 fn piros_stops_when_spoken_to_while_running() {
-    use piney_world::event::entry::Kind;
     let Some((mut s, _)) = mac_anu_with_piros() else { return };
     let mut pad = Pad::default();
     let mut step = |s: &mut Session| {
@@ -818,10 +859,13 @@ fn piros_stops_when_spoken_to_while_running() {
         s.take_events();
     };
     let piros = |s: &Session| {
-        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
-        let tp = w.world().town_party();
-        let k = tp.member(crate::piros::PIROS).expect("Piros in town");
-        let ch = &tp.combat.scene.chars[k];
+        let Stage::Area(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        if !w.in_town() {
+            panic!("left the town: {}", Mode::title(s))
+        }
+        let tp = w.world().combat();
+        let k = tp.who(crate::piros::PIROS).expect("Piros in town");
+        let ch = &tp.scene.chars[k];
         (ch.spc_char.act_num, ch.pos.map(|v| f32::from_bits(v) as i32))
     };
     let mut running = false;
@@ -833,8 +877,11 @@ fn piros_stops_when_spoken_to_while_running() {
         }
     }
     assert!(running, "Piros never ran");
-    let Stage::World(w) = &mut s.stage else { panic!("left the town") };
-    w.world_mut().affect(Kind::Spc, crate::piros::PIROS, 14);
+    let Stage::Area(w) = &mut s.stage else { panic!("left the town") };
+    if !w.in_town() {
+        panic!("left the town")
+    }
+    w.world_mut().affect(CharId::Member(crate::piros::PIROS), 14, [0; 2]);
     for _ in 0..10 {
         step(&mut s);
     }
@@ -855,9 +902,14 @@ fn a_member_reports_his_equipment_in_town() {
     let Some((mut s, _)) = mac_anu_with_piros() else { return };
     let mut pad = Pad::default();
     let speakers = |s: &mut Session, report: Option<(i32, i16)>| {
-        let Stage::World(w) = &mut s.stage else { panic!("not in town: {}", Mode::title(s)) };
-        if let Some((code, n)) = report {
-            w.world_mut().equip_report(code, n);
+        let Stage::Area(w) = &mut s.stage else { panic!("not in town: {}", Mode::title(s)) };
+        if !w.in_town() {
+            panic!("not in town: {}", Mode::title(s))
+        }
+        if let Some((code, n)) = report
+            && let Some(m) = w.world().combat().who(code)
+        {
+            w.world_mut().equip_report(m, n);
         }
         w.ui().chat_speakers()
     };
@@ -870,7 +922,7 @@ fn a_member_reports_his_equipment_in_town() {
     speakers(&mut s, Some((crate::piros::PIROS, 0)));
     s.step(&pad);
     s.take_events();
-    let piros = crate::world::handle(piney_world::event::entry::Kind::Spc, crate::piros::PIROS);
+    let piros = CharId::Member(crate::piros::PIROS).handle();
     assert!(speakers(&mut s, None).contains(&piros), "Piros's line up");
 }
 
@@ -890,7 +942,7 @@ fn event_22_finale_plays_in_the_room_and_gives_the_diary() {
     let (mut first_line, mut menu) = (None, false);
     for f in 0..2500u64 {
         let raw = match &s.stage {
-            Stage::Area(a) => area_player(a, f),
+            Stage::Area(a) if !a.in_town() => area_player(a, f),
             _ => still(Buttons::NONE),
         };
         pad.read(&raw);
@@ -902,6 +954,9 @@ fn event_22_finale_plays_in_the_room_and_gives_the_diary() {
             board_done(&mut s);
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         if !given && a.calls().iter().any(|(_, c)| c.starts_with("piros_colour")) {
             let save = &mut a.world_mut().state_mut().save;
             save.set_u8(crate::piros::STATUS, 8);
@@ -920,7 +975,10 @@ fn event_22_finale_plays_in_the_room_and_gives_the_diary() {
         "block 29's first line (phase, in the old room): {first_line:?}"
     );
     assert!(menu, "menu 29 never opened");
-    let Stage::World(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("not back in Mac Anu: {}", Mode::title(&s))
+    }
     let save = &w.world().state().save;
     let diary = (0..40).map(|k| save.item(0, k)).find(|it| it.category == 12 && it.id == 24);
     assert_eq!(diary.map(|it| it.count), Some(1));

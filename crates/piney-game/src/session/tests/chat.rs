@@ -21,14 +21,20 @@ fn mac_anu(frames: u32, mut each: impl FnMut(&Session, u32, &Frame) -> bool) {
 }
 
 /// A walking player opens a balloon within a minute: its text one of the
-/// players' lines, over one of Mac Anu's walking PCs (`handle` kind 2).
+/// players' lines, over one of Mac Anu's walking PCs (a `CharId::Npc` handle).
 #[test]
 fn mac_anu_players_chat() {
     let mut seen = None;
     mac_anu(3600, |s, f, _| {
-        let Stage::World(w) = &s.stage else { return false };
+        let Stage::Area(w) = &s.stage else { return false };
+        if !w.in_town() {
+            return false;
+        }
         let c = &w.ui().ctrl.chat;
-        if let Some(slot) = c.slots.iter().find(|s| s.cf > 0 && s.who >> 24 == 2) {
+        if let Some(slot) = c.slots.iter().find(|s| {
+            s.cf > 0
+                && matches!(piney_world::world::CharId::from_handle(s.who), Some(piney_world::world::CharId::Npc(_)))
+        }) {
             seen = Some((f, slot.who, String::from_utf8_lossy(&slot.text).into_owned()));
             return true;
         }
@@ -53,7 +59,10 @@ fn mac_anu_chat_shots() {
     let mut gs: Option<piney_gs::Gs> = None;
     let mut taken = 0;
     mac_anu(3600, |s, f, frame| {
-        let Stage::World(w) = &s.stage else { return false };
+        let Stage::Area(w) = &s.stage else { return false };
+        if !w.in_town() {
+            return false;
+        }
         if w.ui().chat_speakers().is_empty() || f % 20 != 0 {
             return false;
         }
@@ -82,6 +91,9 @@ fn a_member_speaks_in_a_fight() {
     let mut said: Vec<(u32, String, bool)> = Vec::new();
     walk_to_east_portal(&mut s, 1500, true, |s| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let fight = a.world().combat().battle.in_battle != 0;
         for slot in a.ui().ctrl.chat.slots.iter().filter(|x| x.cf > 0 && x.who >> 24 == 1) {
             let line = (slot.who & 0xff_ffff, String::from_utf8_lossy(&slot.text).into_owned(), fight);
@@ -115,6 +127,9 @@ fn member_chat_shot() {
     walk_to_east_portal_frames(&mut s, 1500, true, |s, frame| {
         n += 1;
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         if open.is_none()
             && a.world().combat().battle.in_battle != 0
             && a.ui().ctrl.chat.slots.iter().any(|x| x.cf > 0 && x.who >> 24 == 1 && x.who & 0xff_ffff != 0)
@@ -158,6 +173,9 @@ fn chat_member_heal(mut each: impl FnMut(&Session, &Frame)) -> Option<HealRun> {
     // The member (party slot 1), Repth in his skill list and SP for it.
     let (member_id, member) = {
         let Stage::Area(a) = &mut s.stage else { panic!("left the area") };
+        if a.in_town() {
+            panic!("left the area")
+        }
         let id = a.world().party()[1];
         assert!(id > 0, "a member in slot 1: {:?}", a.world().party());
         let save = &mut a.world_mut().state_mut().save;
@@ -179,6 +197,9 @@ fn chat_member_heal(mut each: impl FnMut(&Session, &Frame)) -> Option<HealRun> {
     for i in 0..4000u64 {
         let raw = {
             let Stage::Area(a) = &s.stage else { panic!("left the area") };
+            if a.in_town() {
+                panic!("left the area")
+            }
             let w = a.world();
             let c = w.combat();
             let ui = a.ui();
@@ -230,6 +251,9 @@ fn chat_member_heal(mut each: impl FnMut(&Session, &Frame)) -> Option<HealRun> {
         // the party's, so the member may name the spell in the order's frame.
         {
             let Stage::Area(a) = &s.stage else { panic!() };
+            if a.in_town() {
+                panic!()
+            }
             let m = &a.ui().ctrl;
             run.ordered |= m.menu == 73 && m.menu_next == -1;
         }
@@ -279,6 +303,9 @@ fn chat_member_shots() {
     let (mut open, mut since, mut taken, mut ordered) = (-1, 0u32, Vec::new(), false);
     let run = chat_member_heal(|s, frame| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let m = &a.ui().ctrl;
         // 0: from the order on (the balloon up).
         ordered |= m.menu == 73 && m.menu_next == -1;
@@ -319,10 +346,16 @@ fn a_member_keeps_the_strategy_it_is_told() {
     story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
     let orca = |s: &Session| {
         let Stage::Area(a) = &s.stage else { panic!("left the area: {}", Mode::title(s)) };
+        if a.in_town() {
+            panic!("left the area: {}", Mode::title(s))
+        }
         a.world().combat().who(2).expect("Orca in the party")
     };
     let o = orca(&s);
     let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     a.world_mut().chat_cmd(o, 8, None, 0);
     let mut pad = Pad::default();
     for n in 0..60 {
@@ -330,6 +363,9 @@ fn a_member_keeps_the_strategy_it_is_told() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { unreachable!() };
+        if a.in_town() {
+            unreachable!()
+        }
         let ai = &a.world().combat().crew.ais[&orca(&s)];
         assert_eq!((ai.strategy, ai.strategy_cmd), (1, 1), "Orca's strategy {n} frames after the order");
     }

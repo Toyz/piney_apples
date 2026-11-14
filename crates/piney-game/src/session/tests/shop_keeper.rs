@@ -33,15 +33,18 @@ fn arrived() -> Option<Session> {
         let spcs = Some(crate::start::party_of(&[BLACK_ROSE]));
         start.at = Resume::World(Box::new(InWorld { scene, world_man: None, spcs }));
     })?;
-    let playing = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    let playing = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
     hold(&mut s, 128, 128, 900, playing);
     assert!(playing(&s), "not in Dun Loireag: {}", Mode::title(&s));
     Some(s)
 }
 
 fn shop_keeper(s: &Session) -> Option<&Merchant> {
-    let Stage::World(w) = &s.stage else { return None };
-    w.world().merchants().iter().find(|m| m.id == SHOP_KEEPER)
+    let Stage::Area(w) = &s.stage else { return None };
+    if !w.in_town() {
+        return None;
+    }
+    town_cast(w.world()).merchants().iter().find(|m| m.id == SHOP_KEEPER)
 }
 
 /// The Shop Keeper stands at marker 6, on the NPC list before the town's
@@ -50,16 +53,19 @@ fn shop_keeper(s: &Session) -> Option<&Merchant> {
 #[test]
 fn mutations_shop_keeper_stands_at_marker_6() {
     let Some(mut s) = arrived() else { return };
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     let world = w.world();
     assert_eq!(world.scene().town, 1);
     let (pos, rot) = world.marker_dummy(MARKER).expect("marker 6 in Dun Loireag's file");
     let m = shop_keeper(&s).expect("entry 4 29 not placed");
     assert_eq!((m.name.as_str(), m.flags), ("Administrator", piney_world::chara::npc::TYPE_SYSOPE));
-    assert_eq!(world.merchants()[0].id, SHOP_KEEPER, "made before ccSetMerchant(0)'s");
+    assert_eq!(town_cast(world).merchants()[0].id, SHOP_KEEPER, "made before ccSetMerchant(0)'s");
     // At the marker's dummy, its rotation copied whole; then block 27's
     // `npc_face 29 2 0 0` turned him to Kite at once.
-    let kite = world.player().body.pos;
+    let kite = world.kite().pos();
     let face = piney_world::ee::deg2rad(piney_world::event::dirc_to(m.ch.pos, kite));
     assert_eq!((m.ch.pos, m.ch.dirc), (pos, [rot[0], rot[1], face, rot[3]]));
     assert_eq!(m.anm_tbl, piney_world::town::merchant::ANM_TBL[0]);

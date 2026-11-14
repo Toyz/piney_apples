@@ -26,7 +26,7 @@ fn issue_74_replay() {
         let Some(s) = mode.session() else { return };
         let archive = s.archive.clone();
         let now = match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let w = a.world();
                 let sc = w.scene();
                 format!(
@@ -98,6 +98,9 @@ fn in_area_66_dungeon(disc: &str) -> Option<Session> {
 /// entry control's list, and its place.
 fn portal(s: &Session) -> Option<piney_world::ee::V4> {
     let Stage::Area(a) = &s.stage else { return None };
+    if a.in_town() {
+        return None;
+    }
     let c = a.world().combat();
     let mut circles = c.ctrl.list(piney_battle::entry::Kind::Circle).into_iter();
     circles.find(|&i| c.ctrl.entry_obj(i).is_some_and(|o| o.obj_flag)).map(|i| c.scene.chars[i].pos)
@@ -123,6 +126,9 @@ fn area_66s_last_door_leads_to_the_arena() {
         assert_eq!(field, 67);
         // WORLD_MAN::Enter on GotoNextRoom's -255, as the door asks it.
         let Stage::Area(a) = &mut s.stage else { panic!("{disc}: not in the dungeon") };
+        if a.in_town() {
+            panic!("{disc}: not in the dungeon")
+        }
         a.world_mut().change_area(1, field);
         // ChangeRequest(6, 7)'s ccDisableThEvent, in the door's own frame.
         a.vm_mut().unwrap().disable();
@@ -132,11 +138,14 @@ fn area_66s_last_door_leads_to_the_arena() {
             pad.read(&piney_input::Raw { buttons: b, ..still() });
             s.step(&pad);
             s.take_events();
-            if matches!(s.stage, Stage::World(_)) {
+            if matches!(s.stage, Stage::Area(ref t) if t.in_town()) {
                 town = true;
                 break;
             }
             let Stage::Area(a) = &mut s.stage else { continue };
+            if a.in_town() {
+                continue;
+            }
             let w = a.world();
             let in_dungeon = matches!(w.area().kind(), MapKind::Dungeon(_));
             if in_dungeon || !matches!(w.phase(), piney_world::Phase::Play(n) if n > 60) {
@@ -150,6 +159,9 @@ fn area_66s_last_door_leads_to_the_arena() {
             if !put && let Some(at) = portal(&s) {
                 let tenth = |v: u32| (f32::from_bits(v) / 10.0).round() as i16;
                 let Stage::Area(a) = &mut s.stage else { unreachable!() };
+                if a.in_town() {
+                    unreachable!()
+                }
                 a.world_mut().pc_command(piney_event::host::PcCommand::Put {
                     pc: 0,
                     x: tenth(at[0]),
@@ -159,6 +171,9 @@ fn area_66s_last_door_leads_to_the_arena() {
                 put = true;
             } else if foe && f.is_multiple_of(20) {
                 let Stage::Area(a) = &mut s.stage else { unreachable!() };
+                if a.in_town() {
+                    unreachable!()
+                }
                 a.kill_enemies();
             }
         }
@@ -166,7 +181,10 @@ fn area_66s_last_door_leads_to_the_arena() {
         assert!(put, "{disc}: no portal in the arena");
         assert!(foe, "{disc}: the portal gave no enemy 262");
         assert!(town, "{disc}: event 163 did not end in town: {}", Mode::title(&s));
-        let Stage::World(w) = &s.stage else { panic!("{disc}: not in town: {}", Mode::title(&s)) };
+        let Stage::Area(w) = &s.stage else { panic!("{disc}: not in town: {}", Mode::title(&s)) };
+        if !w.in_town() {
+            panic!("{disc}: not in town: {}", Mode::title(&s))
+        }
         // Block 6 played (the item, the scene to town) and `end_event -1`
         // closed the event (ccStartThEvent makes it done).
         let flags = w.world().state().save.event_flag(163);
@@ -203,6 +221,9 @@ fn fields_66_and_91_are_their_maps() {
             s.step(&pad);
             s.take_events();
             let Stage::Area(a) = &s.stage else { continue };
+            if a.in_town() {
+                continue;
+            }
             let w = a.world();
             if matches!(w.phase(), piney_world::Phase::Play(n) if n > 120) {
                 door = w.area().get::<piney_world::story_map::StoryArea>().and_then(|m| m.door());
@@ -210,6 +231,9 @@ fn fields_66_and_91_are_their_maps() {
             }
         }
         let Stage::Area(a) = &mut s.stage else { panic!("{disc}: not in field {field}") };
+        if a.in_town() {
+            panic!("{disc}: not in field {field}")
+        }
         let w = a.world();
         let sky = w.area().kind().story().unwrap_or_else(|| panic!("{disc}: field {field} is no story map"));
         assert!(sky.def == class, "{disc}");
@@ -217,7 +241,7 @@ fn fields_66_and_91_are_their_maps() {
         if class == &MIRROR {
             assert_eq!(start[..3], [4600.0, -4700.0, 910.0], "{disc}: the start");
         }
-        let p = w.player().body.pos.map(f32::from_bits);
+        let p = w.kite().pos().map(f32::from_bits);
         assert_eq!(p[..2], start[..2], "{disc}: Kite is not at the start");
         assert!((p[2] - start[2]).abs() < 200.0, "{disc}: Kite is not on the floor: {p:?}");
         let at = door.expect("the map's door");
@@ -234,6 +258,7 @@ fn fields_66_and_91_are_their_maps() {
             s.step(&pad);
             s.take_events();
             if let Stage::Area(a) = &s.stage
+                && !a.in_town()
                 && matches!(a.world().area().kind(), MapKind::Dungeon(_))
             {
                 dungeon = true;
@@ -262,6 +287,9 @@ fn mirror_world_shots() {
         s.take_events();
     }
     let Stage::Area(a) = &mut s.stage else { return };
+    if a.in_town() {
+        return;
+    }
     a.world_mut().change_area(1, 67);
     a.vm_mut().unwrap().disable();
     let mut put = false;
@@ -284,6 +312,9 @@ fn mirror_world_shots() {
         {
             let tenth = |v: u32| (f32::from_bits(v) / 10.0).round() as i16;
             let Stage::Area(a) = &mut s.stage else { return };
+            if a.in_town() {
+                return;
+            }
             let (x, y, z) = (tenth(at[0]), tenth(at[1]) + 150, tenth(at[2]));
             a.world_mut().pc_command(piney_event::host::PcCommand::Put { pc: 0, x, y, z });
             put = true;
@@ -312,7 +343,7 @@ fn in_dun_loireag() -> Option<(Session, &'static piney_data::area::AreaTables)> 
         s.step(&pad);
         s.take_events();
     }
-    assert!(matches!(s.stage, Stage::World(_)), "{}", Mode::title(&s));
+    assert!(matches!(s.stage, Stage::Area(ref t) if t.in_town()), "{}", Mode::title(&s));
     Some((s, tables))
 }
 
@@ -330,6 +361,7 @@ fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_
         s.step(&pad);
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && let Some(m) = a.world().area().kind().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
         {
             assert!(!m.systems().get::<Clouds>().unwrap().started, "the map drew before the first look");
@@ -372,26 +404,33 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
     }
     // Gate Out: the scroll the map leaves is the last it drew.
     let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("{}", Mode::title(&s))
+    }
     a.gate_out();
     a.vm_mut().unwrap().disable();
     let mut left = [0; 2];
     for _ in 0..400 {
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && let Some(m) = a.world().area().kind().story().filter(|m| m.def == &piney_world::story_map::sky::MIRROR)
         {
             let v = &m.systems().get::<Scrolls>().unwrap().v;
             left = [v[0], v[1]];
         }
-        if matches!(s.stage, Stage::World(_)) {
+        if matches!(s.stage, Stage::Area(ref t) if t.in_town()) {
             break;
         }
         pad.read(&still());
         s.step(&pad);
         s.take_events();
     }
-    assert!(matches!(s.stage, Stage::World(_)), "{}", Mode::title(&s));
+    assert!(matches!(s.stage, Stage::Area(ref t) if t.in_town()), "{}", Mode::title(&s));
     assert_ne!(left, [0, 0], "the scroll never moved");
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(
         w.world().state().move_tex[piney_world::story_map::move_tex::EA04],
         left,
@@ -406,6 +445,9 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
     assert_eq!(again, left, "the second visit's scroll");
     // Log in loads GCMN.PRG again.
     let Stage::Area(a) = &s.stage else { unreachable!() };
+    if a.in_town() {
+        unreachable!()
+    }
     let mut state = a.world().state_out();
     crate::session::log_in(&s.iso, &mut state, 0);
     assert_eq!(state.move_tex, [[0; 2]; piney_desktop::MOVE_TEX_ROWS]);
@@ -431,7 +473,7 @@ fn the_holy_grounds_scroll_carries_across_visits() {
         s.take_events();
     };
     let scroll_of = |s: &Session| match &s.stage {
-        Stage::Area(a) => a.world().area().kind().story().filter(|e| e.def == &HOLY_GROUND).map(|e| {
+        Stage::Area(a) if !a.in_town() => a.world().area().kind().story().filter(|e| e.def == &HOLY_GROUND).map(|e| {
             let v = &e.systems().get::<Scrolls>().unwrap().v;
             [v[0], v[1]]
         }),
@@ -448,12 +490,15 @@ fn the_holy_grounds_scroll_carries_across_visits() {
             first = first.or(scroll_of(s));
         }
         let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(s)) };
+        if a.in_town() {
+            panic!("{}", Mode::title(s))
+        }
         a.gate_out();
         a.vm_mut().into_iter().for_each(|v| v.disable());
         let mut left = None;
         for _ in 0..400 {
             left = scroll_of(s).or(left);
-            if matches!(s.stage, Stage::World(_)) {
+            if matches!(s.stage, Stage::Area(ref t) if t.in_town()) {
                 break;
             }
             step(s);
@@ -463,7 +508,10 @@ fn the_holy_grounds_scroll_carries_across_visits() {
     let (first, left) = visit(&mut s);
     assert_eq!(first, [0, 0], "a new log in's scroll");
     assert_ne!(left, [0, 0], "the scroll never moved");
-    let Stage::World(w) = &s.stage else { panic!("{}", Mode::title(&s)) };
+    let Stage::Area(w) = &s.stage else { panic!("{}", Mode::title(&s)) };
+    if !w.in_town() {
+        panic!("{}", Mode::title(&s))
+    }
     assert_eq!(w.world().state().move_tex[scroll::EA02], left);
     let (again, _) = visit(&mut s);
     assert_eq!(again, left, "the second visit's scroll");
@@ -482,7 +530,7 @@ fn dun_loireags_scrolls_carry_across_visits() {
     use piney_world::town::scroll_statics as statics;
     let Some((mut s, tables)) = in_dun_loireag() else { return };
     let town = |s: &Session| match &s.stage {
-        Stage::World(w) if w.world().area().get::<piney_world::town::Town>()?.def == &DUN_LOIREAG => {
+        Stage::Area(w) if w.in_town() && w.world().area().get::<piney_world::town::Town>()?.def == &DUN_LOIREAG => {
             let systems = w.world().area().get::<piney_world::town::Town>()?.systems();
             let v = systems.get::<Scrolls>()?.v.clone();
             Some(([v[0], v[1]], v[2], systems.get::<Water>()?.u))
@@ -493,6 +541,9 @@ fn dun_loireags_scrolls_carry_across_visits() {
     assert_ne!(left, ([0, 0], 0, 0), "the scrolls never moved");
     let (_, _) = gate_to_66(&mut s, tables);
     let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(&s)) };
+    if a.in_town() {
+        panic!("{}", Mode::title(&s))
+    }
     let carried = a.world().state_out().scroll_statics;
     a.gate_out();
     a.vm_mut().unwrap().disable();
@@ -518,7 +569,7 @@ fn dun_loireags_scrolls_carry_across_visits() {
     let v_on = (f32::from_bits(back.0[0]) - carried_v).rem_euclid(1.0);
     assert!(v_on < 0.1, "v$1346 restarted: {carried_v} then {}", f32::from_bits(back.0[0]));
     let mut state = match &s.stage {
-        Stage::World(w) => w.world().state_out(),
+        Stage::Area(w) if w.in_town() => w.world().state_out(),
         _ => unreachable!(),
     };
     let before = state.scroll_statics;

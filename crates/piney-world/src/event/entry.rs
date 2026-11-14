@@ -40,6 +40,8 @@ pub struct NpcCtx<'a> {
     pub hits: &'a mut Hits,
     /// newlib's `rand()`.
     pub rand: &'a mut crate::Rand,
+    /// The game's one `ccRand` (`Combat::cc`).
+    pub cc: &'a mut piney_battle::rand::Genrand,
 }
 
 /// An entry-controlled town character (a merchant, a walking PC): what the

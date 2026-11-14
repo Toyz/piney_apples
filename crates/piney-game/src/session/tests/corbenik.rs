@@ -56,6 +56,9 @@ fn corbenik_trace() {
             return;
         }
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let c = a.world().combat();
         let Some(me) = c.boss_char() else { return };
         let ch = &c.scene.chars[me];
@@ -66,7 +69,7 @@ fn corbenik_trace() {
             ch.max_hp,
             c.scene.listed(me),
             c.enemies(),
-            a.world().command_target_code(),
+            a.world().command_target_id(),
             super::survey::fighters(a)
         );
     });
@@ -81,9 +84,10 @@ fn the_banner_stays_off_through_the_fight() {
     super::arena::play(&mut s, 313, corbenik, 400, |s, _, _| {
         s.take_events();
         if let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && a.world().combat().boss_char().is_some()
         {
-            seen = Some(a.hud_world().boss_entry);
+            seen = Some(a.menu_world().boss_entry);
         }
     });
     assert_eq!(seen, Some(7), "the HUD's bossEntry once Corbenik is in");
@@ -116,6 +120,9 @@ fn corbenik_fight_to_its_end() {
             eprintln!("{}", s.console(&format!("exp {n}")));
         }
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let c = a.world().combat();
         let Some(me) = c.boss_char() else { return };
         let Some(b) = c.scene.chars[me].foe_state().and_then(|x| x.boss.as_ref()) else { return };
@@ -227,7 +234,9 @@ fn event_313_answers_blackrose() {
             at = Some(f);
             break;
         }
-        if let Stage::World(w) = &s.stage {
+        if let Stage::Area(w) = &s.stage
+            && w.in_town()
+        {
             party = w.world().party();
         }
     }

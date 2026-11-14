@@ -2,10 +2,11 @@
 //! door leaves the game - area 27's `WORLD_MAN`, town 1 - with event 30's
 //! `entry 7 0` for the entry control's set-up.
 
+use piney_world::world::CharId;
 use std::collections::BTreeSet;
 
 use piney_input::{Buttons, Raw};
-use piney_world::field::world::FxCensus;
+use piney_world::world::FxCensus;
 
 use super::*;
 
@@ -24,6 +25,9 @@ fn arena() -> Option<Session> {
     scene.change_scene(1, 1, 1, -1, -1, -1, &mut state.save);
     let mut s = Session::in_world(iso, archive, None, state, None, scene, Some(wm)).unwrap();
     let Stage::Area(a) = &mut s.stage else { panic!("not in the area") };
+    if a.in_town() {
+        panic!("not in the area")
+    }
     a.world_mut().set_event_entries(Vec::new(), vec![[7, 0, 0, 0]], Vec::new());
     Some(s)
 }
@@ -56,6 +60,9 @@ fn run_forcing(
         s.take_events();
         each(s, i, &frame);
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world_mut().combat_mut();
         if let Some((at, act)) = force
             && i == at
@@ -103,6 +110,9 @@ fn skeith_fights_in_its_arena() {
     let (mut errors, mut heights) = (Vec::new(), Vec::new());
     let seen = run(&mut s, 900, |s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let (cam, c) = (a.world().camera(), a.world().combat());
         let (Some(k), Some(me)) = (c.kite, c.boss_char()) else { return };
         assert_eq!(cam.cam_id, piney_world::camera::id::BATTLE);
@@ -118,6 +128,9 @@ fn skeith_fights_in_its_arena() {
     let acts: BTreeSet<i16> = seen.iter().map(|x| x.0).collect();
     assert!(acts.len() > 1, "the boss stood in act {acts:?}");
     let Stage::Area(a) = &s.stage else { panic!() };
+    if a.in_town() {
+        panic!()
+    }
     assert_eq!(a.world().boss_task(), Some(0));
     let near = errors.iter().filter(|e| **e < 0.35).count();
     println!("acts {acts:?}, HP {:?}, facing the boss {near} of {} frames", seen.last(), errors.len());
@@ -192,6 +205,9 @@ fn skeith_hits_show_their_damage_once() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         let census = a.world().fx().census();
         let c = a.world_mut().combat_mut();
         let members: Vec<usize> = c.party.members.iter().flatten().copied().collect();
@@ -229,7 +245,7 @@ fn skeith_shots() {
         // Every 30th frame, and every 4th while the boss dashes, chases or
         // swings the wave.
         let busy = match &s.stage {
-            Stage::Area(a) => {
+            Stage::Area(a) if !a.in_town() => {
                 let c = a.world().combat();
                 c.boss_char()
                     .and_then(|me| c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()))
@@ -337,6 +353,9 @@ fn event_30_stream_shots() {
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         if a.stream_scene().as_deref() != Some("str9101") {
             continue;
         }
@@ -376,6 +395,9 @@ fn event_30_streams_play_before_the_loading_display() {
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         let band = draws_the_load_band(&frame);
         match a.stream_scene() {
             Some(scene) => {
@@ -420,6 +442,10 @@ fn event_30_ends_with_skeith() {
             left = true;
             break;
         };
+        if a.in_town() {
+            left = true;
+            break;
+        }
         // Before the fight's end: Kite poisoned for long, and his record's
         // physical attack raised for as long (temp, with its timer).
         if since == 300 {
@@ -487,7 +513,7 @@ fn event_30_ends_with_skeith() {
     // desktop) takes the session out of the area.
     assert!(left, "the event did not end the area");
     println!("now: {}", Mode::title(&s));
-    assert!(!matches!(s.stage, Stage::Area(_)));
+    assert!(!matches!(s.stage, Stage::Area(ref t) if !t.in_town()));
     // The desktop: event 31 (ENDING) - stream 15, the closing lines, the
     // staff roll.
     let mut titles = Vec::new();
@@ -543,6 +569,9 @@ fn skeith_drained_through_the_menus() {
     let Some(mut s) = event_30_arena() else { return };
     {
         let Stage::Area(a) = &mut s.stage else { panic!("not in the area") };
+        if a.in_town() {
+            panic!("not in the area")
+        }
         let save = &mut a.world_mut().state_mut().save;
         let free = (0..20).find(|&k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) < 0).unwrap();
         save.set_i16(piney_fieldui::items::SKILL_LIST + 2 * free, 2);
@@ -554,6 +583,9 @@ fn skeith_drained_through_the_menus() {
     for i in 0..9000u64 {
         let raw = {
             let Stage::Area(a) = &mut s.stage else { panic!("left the area: {}", Mode::title(&s)) };
+            if a.in_town() {
+                panic!("left the area: {}", Mode::title(&s))
+            }
             {
                 let c = a.world_mut().combat_mut();
                 if let Some(k) = c.kite {
@@ -631,6 +663,9 @@ fn kite_bumps_into_skeith() {
     for _ in 0..600u32 {
         let raw = {
             let Stage::Area(a) = &mut s.stage else { panic!() };
+            if a.in_town() {
+                panic!()
+            }
             let c = a.world_mut().combat_mut();
             let (Some(k), Some(me)) = (c.kite, c.boss_char()) else {
                 pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
@@ -673,6 +708,9 @@ fn skeith_drains_a_member() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { panic!("left the area") };
+        if a.in_town() {
+            panic!("left the area")
+        }
         let open = a.ui().ctrl.menu == 74;
         menu74 |= open;
         let c = a.world_mut().combat_mut();
@@ -703,6 +741,9 @@ fn skeith_drains_a_member() {
         }
     }
     let Stage::Area(a) = &s.stage else { panic!() };
+    if a.in_town() {
+        panic!()
+    }
     let calls: Vec<&str> = a.calls().iter().map(|(_, c)| c.as_str()).collect();
     println!(
         "acts {acts:?} calls {:?}",
@@ -731,6 +772,9 @@ fn member_drain_shots() {
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         if a.ui().ctrl.menu == 74 {
             n += 1;
             if n % 20 == 1 {
@@ -789,6 +833,9 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
     let mut s = event_30_arena()?;
     {
         let Stage::Area(a) = &mut s.stage else { panic!("not in the area") };
+        if a.in_town() {
+            panic!("not in the area")
+        }
         let save = &mut a.world_mut().state_mut().save;
         let free = (0..20).find(|&k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) < 0).unwrap();
         save.set_i16(piney_fieldui::items::SKILL_LIST + 2 * free, 2);
@@ -800,6 +847,9 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
     for i in 0..12000u64 {
         let raw = {
             let Stage::Area(a) = &mut s.stage else { panic!("left the area: {}", Mode::title(&s)) };
+            if a.in_town() {
+                panic!("left the area: {}", Mode::title(&s))
+            }
             let menu = a.ui().ctrl.menu;
             if menu == 66 && !in_drain {
                 in_drain = true;
@@ -882,6 +932,9 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         if let Some((_, l)) = a.calls().iter().rev().find(|c| c.1.starts_with("drain_side_effect ")) {
             id = l.trim_start_matches("drain_side_effect ").parse().ok();
         }
@@ -975,6 +1028,7 @@ fn drain_side_effect_resisted_shows_miss() {
         }
         if tolerance.is_none()
             && let Stage::Area(a) = &s.stage
+            && !a.in_town()
             && let Some(k) = a.world().combat().kite
         {
             tolerance = Some(a.world().combat().scene.chars[k].real()[piney_battle::param::elm::BODY]);
@@ -1076,7 +1130,8 @@ fn event_107_ends_with_innis() {
     for i in 0..12000u32 {
         // While a block plays (its menus banned), CROSS every 8th frame
         // moves its messages on.
-        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let playing =
+            matches!(&s.stage, Stage::Area(a) if !a.in_town() && a.vm().is_some_and(|v| v.playing().is_some()));
         let raw = if playing && i.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
         pad.read(&raw);
         s.step(&pad);
@@ -1088,6 +1143,9 @@ fn event_107_ends_with_innis() {
             break;
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world_mut().combat_mut();
         if let Some(k) = c.kite {
             let ch = &mut c.scene.chars[k];
@@ -1135,6 +1193,9 @@ fn innis_drained_through_the_menus() {
     let Some(mut s) = event_107_arena() else { return };
     {
         let Stage::Area(a) = &mut s.stage else { panic!("not in the area") };
+        if a.in_town() {
+            panic!("not in the area")
+        }
         let save = &mut a.world_mut().state_mut().save;
         let has = (0..20).any(|k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) == 2);
         if !has {
@@ -1149,6 +1210,9 @@ fn innis_drained_through_the_menus() {
     for i in 0..20000u64 {
         let raw = {
             let Stage::Area(a) = &mut s.stage else { panic!("left the area: {}", Mode::title(&s)) };
+            if a.in_town() {
+                panic!("left the area: {}", Mode::title(&s))
+            }
             {
                 let c = a.world_mut().combat_mut();
                 if let Some(k) = c.kite {
@@ -1272,7 +1336,9 @@ fn event_108_ends_with_kyvia() {
         // While a block plays (its menus banned) or a stream shows, CROSS
         // every 8th frame moves its messages on.
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         let raw = if talking && i.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
@@ -1286,6 +1352,9 @@ fn event_108_ends_with_kyvia() {
             break;
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
             let ch = &mut c.scene.chars[k];
@@ -1370,7 +1439,9 @@ fn event_115_ends_with_magus() {
         // While a block plays (its menus banned) or a stream shows, CROSS
         // every 8th frame moves its messages on.
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         let raw = if talking && i.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
@@ -1384,6 +1455,9 @@ fn event_115_ends_with_magus() {
             break;
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
             let ch = &mut c.scene.chars[k];
@@ -1452,7 +1526,7 @@ fn magus_under_the_autopilot() {
             s.console("infection 0");
             // The survey's party levels for a boss's parts (60).
             let low = match &s.stage {
-                Stage::Area(a) => {
+                Stage::Area(a) if !a.in_town() => {
                     let c = a.world().combat();
                     c.members.iter().filter_map(|&(_, k)| c.scene.chars[k].spc()).map(|p| p.base.level).min()
                 }
@@ -1472,12 +1546,15 @@ fn magus_under_the_autopilot() {
         }
         if f.is_multiple_of(3000) {
             let party = match &s.stage {
-                Stage::Area(a) => Some(a.world().party()),
+                Stage::Area(a) if !a.in_town() => Some(a.world().party()),
                 _ => None,
             };
             println!("{f}: {} - party {party:?}", Mode::title(&s));
         }
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world().combat();
         let Some(r) = c.boss.as_ref().filter(|r| r.code == 2 && !r.exit) else { continue };
         let me = r.me;
@@ -1488,10 +1565,11 @@ fn magus_under_the_autopilot() {
         if menu != last_menu && (menu == 65 || menu == 66) {
             let t = a.world().targeting().target;
             let who = match t {
-                Some((_, k)) if k as usize == me => "Magus".to_string(),
-                Some((_, k)) => {
-                    r.parts.iter().position(|&p| p == k as usize).map_or(format!("{t:?}"), |i| format!("leaf {i}"))
+                Some(CharId::Scene(k)) if k == me => "Magus".to_string(),
+                Some(CharId::Scene(k)) => {
+                    r.parts.iter().position(|&p| p == k).map_or(format!("{t:?}"), |i| format!("leaf {i}"))
                 }
+                Some(t) => format!("{t:?}"),
                 None => "none".to_string(),
             };
             println!("{f}: menu {menu} at {who}");
@@ -1553,7 +1631,7 @@ fn magus_drained_through_the_menus() {
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         let press = |b: Buttons| if i.is_multiple_of(8) { Raw { buttons: b, ..still } } else { still };
         // Between stages (a load, a fade): OK now and then.
-        if !matches!(s.stage, Stage::Area(_)) {
+        if !matches!(s.stage, Stage::Area(ref t) if !t.in_town()) {
             pad.read(&press(Buttons::CROSS));
             s.step(&pad);
             s.take_events();
@@ -1561,6 +1639,9 @@ fn magus_drained_through_the_menus() {
         }
         let raw = {
             let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            if a.in_town() {
+                unreachable!()
+            }
             if !prepared {
                 let save = &mut a.world_mut().state_mut().save;
                 let has = (0..20).any(|k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) == 2);
@@ -1634,11 +1715,7 @@ fn magus_drained_through_the_menus() {
                 (4, _) if m.list().page < 5 => press(Buttons::RIGHT),
                 (4, _) => press(go_to(0)),
                 // The target menu: down to Magus, then take it.
-                (65, Some((me, _)))
-                    if w.targeting().target != Some((piney_world::event::entry::Kind::Enemy, me as i32)) =>
-                {
-                    press(Buttons::DOWN)
-                }
+                (65, Some((me, _))) if w.targeting().target != Some(CharId::Scene(me)) => press(Buttons::DOWN),
                 _ => press(Buttons::CROSS),
             }
         };

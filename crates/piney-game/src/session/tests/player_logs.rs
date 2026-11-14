@@ -31,7 +31,9 @@ fn player_log_replay() {
         let overlay = mode.archive();
         if let Some(s) = mode.session() {
             let archive = s.archive.clone();
-            if let Stage::Area(a) = &s.stage {
+            if let Stage::Area(a) = &s.stage
+                && !a.in_town()
+            {
                 let w = a.world();
                 let sc = w.scene();
                 let now = format!(

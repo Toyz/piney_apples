@@ -49,7 +49,9 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             levels_for_boss(s);
         }
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         pad.read(&if talking && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
@@ -67,6 +69,9 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             break;
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let cam_id = a.world().camera().cam_id;
         let c = a.world_mut().combat_mut();
@@ -180,7 +185,7 @@ fn kyvia_fourth_shots() {
         g.set_overlay(Mode::archive(s));
         g.render(frame);
         let hell = match &s.stage {
-            Stage::Area(a) => a.world().fx().census().boss_draws.iter().any(|d| d == "ANM_ex31lhit"),
+            Stage::Area(a) if !a.in_town() => a.world().fx().census().boss_draws.iter().any(|d| d == "ANM_ex31lhit"),
             _ => false,
         };
         if (hell && n.is_multiple_of(30)) || n.is_multiple_of(600) {

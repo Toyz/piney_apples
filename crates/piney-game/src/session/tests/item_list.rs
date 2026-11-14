@@ -6,7 +6,7 @@
 
 use piney_data::save::{by_id, ext, registry_row};
 use piney_input::{Buttons, Raw};
-use piney_world::event::entry::Kind;
+use piney_world::world::CharId;
 
 use super::*;
 
@@ -59,9 +59,9 @@ fn dun_loireag(bag: &[(i8, i16)], full: bool, missing: &[(i32, i32)]) -> Option<
     Some(Session::in_world(iso, archive, None, state, None, scene, None).unwrap())
 }
 
-fn world(s: &Session) -> &crate::world::WorldMode {
+fn world(s: &Session) -> &crate::area::AreaMode {
     match &s.stage {
-        Stage::World(w) => w,
+        Stage::Area(w) if w.in_town() => w,
         _ => panic!("left the town: {}", Mode::title(s)),
     }
 }
@@ -87,18 +87,18 @@ fn speak_to_event_npc(s: &mut Session, pad: &mut Pad) -> bool {
             let w = world(s);
             let world = w.world();
             let placed = matches!(world.phase(), piney_world::Phase::Play(n) if n >= 60);
-            let npc = world.merchants().iter().find(|m| m.flags & EVENT_NPC != 0);
+            let npc = town_cast(world).merchants().iter().find(|m| m.flags & EVENT_NPC != 0);
             let open = menu(s) == (MENU_LIST, 2, 1);
             let raw = match npc {
                 _ if !placed || open => still(Buttons::NONE),
-                Some(m) if world.command_target() == Some((Kind::Npc, m.id)) => {
+                Some(m) if world.command_target_id() == Some(CharId::Npc(m.id)) => {
                     still(if f % 20 == 0 { Buttons::CROSS } else { Buttons::NONE })
                 }
                 Some(m) => {
                     let q = m.ch.pos.map(f32::from_bits);
                     let w = walk.get_or_insert_with(|| super::town_walk::TownWalker::new([q[0], q[1]], 300.0));
                     w.stick(world, f).unwrap_or_else(|| {
-                        let kite = world.player().body.pos.map(f32::from_bits);
+                        let kite = world.kite().pos().map(f32::from_bits);
                         let cam = f32::from_bits(world.camera().rot()[2]);
                         super::stick_toward(cam, (q[0] - kite[0]).atan2(-(q[1] - kite[1])))
                     })
@@ -176,7 +176,7 @@ fn item_complete_gives_the_desktop_items_and_the_npc_goes() {
     assert!((89..=95).all(|n| bit(offset::DT_STR_LIST, n)), "movies 90-96");
     assert_eq!(save.u8(ITEM_COMPLETE), 0, "ITEM COMPLETE's status");
     for _ in 0..200 {
-        if world(&s).world().merchants().iter().all(|m| m.flags & EVENT_NPC == 0) {
+        if town_cast(world(&s).world()).merchants().iter().all(|m| m.flags & EVENT_NPC == 0) {
             return;
         }
         press(&mut s, &mut pad, Buttons::NONE);

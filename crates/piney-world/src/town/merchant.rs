@@ -1038,7 +1038,16 @@ mod tests {
         };
         let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
         let mut rand = crate::Rand(1);
-        let mut ctx = NpcCtx { player: kite, player_dirc: [0; 4], view, cam: &cam, hits: &mut hits, rand: &mut rand };
+        let mut cc = piney_battle::rand::Genrand::default();
+        let mut ctx = NpcCtx {
+            player: kite,
+            player_dirc: [0; 4],
+            view,
+            cam: &cam,
+            hits: &mut hits,
+            rand: &mut rand,
+            cc: &mut cc,
+        };
         step_all(&mut m, &mut ctx);
         let r = &m[4];
         assert_eq!(r.frame, MerchantFrame { near: true, in_view: true, stepped: true, drawn: true });
@@ -1067,9 +1076,18 @@ mod tests {
         let kite = [ee::k(-800.0), ee::k(3600.0), ee::k(300.0), ONE];
         let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
         let mut rand = crate::Rand(1);
+        let mut cc = piney_battle::rand::Genrand::default();
         let mut body = hit::Body { pos: kite, radius: ee::k(45.0), ..hit::Body::default() };
         hits.hit_enable(&mut body);
-        let mut ctx = NpcCtx { player: kite, player_dirc: [0; 4], view, cam: &cam, hits: &mut hits, rand: &mut rand };
+        let mut ctx = NpcCtx {
+            player: kite,
+            player_dirc: [0; 4],
+            view,
+            cam: &cam,
+            hits: &mut hits,
+            rand: &mut rand,
+            cc: &mut cc,
+        };
         step_all(&mut m, &mut ctx);
         step_all(&mut m, &mut ctx);
         assert_eq!((m[4].body_hit_flag, m[4].body_hit_cnt), (1, 2));
@@ -1078,7 +1096,15 @@ mod tests {
         assert_eq!(m[4].ch.hit.offset.map(ee::f), [-29.999998, 0.0, 0.0, 1.0]);
         assert_eq!((m[3].body_hit_flag, m[3].body_hit_cnt), (0, 0));
         hits.hit_disable(&mut body);
-        let mut ctx = NpcCtx { player: kite, player_dirc: [0; 4], view, cam: &cam, hits: &mut hits, rand: &mut rand };
+        let mut ctx = NpcCtx {
+            player: kite,
+            player_dirc: [0; 4],
+            view,
+            cam: &cam,
+            hits: &mut hits,
+            rand: &mut rand,
+            cc: &mut cc,
+        };
         step_all(&mut m, &mut ctx);
         assert_eq!((m[4].body_hit_flag, m[4].body_hit_cnt), (0, 0));
     }
@@ -1097,7 +1123,16 @@ mod tests {
         };
         let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
         let mut rand = crate::Rand(1);
-        let mut ctx = NpcCtx { player: kite, player_dirc: [0; 4], view, cam: &cam, hits: &mut hits, rand: &mut rand };
+        let mut cc = piney_battle::rand::Genrand::default();
+        let mut ctx = NpcCtx {
+            player: kite,
+            player_dirc: [0; 4],
+            view,
+            cam: &cam,
+            hits: &mut hits,
+            rand: &mut rand,
+            cc: &mut cc,
+        };
         let r = &mut m[4];
         r.influence(14);
         assert!(r.entry.affect && r.act_num == 0);

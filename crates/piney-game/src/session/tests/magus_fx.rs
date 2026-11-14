@@ -50,7 +50,9 @@ fn fight_heard(
     let (mut came, mut seen, mut laser_at) = (None, Vec::new(), 0);
     for n in 0..frames + 6000 {
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         pad.read(&if talking && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
@@ -60,6 +62,9 @@ fn fight_heard(
             crate::handle(events, audio);
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
@@ -157,6 +162,9 @@ fn magus_shows_its_leaves_needles_and_laser() {
 /// colour with alpha 0): its status and count.
 fn magus_flash(s: &Session) -> Option<(i16, i16)> {
     let Stage::Area(a) = &s.stage else { return None };
+    if a.in_town() {
+        return None;
+    }
     (a.fade_def().elems.iter())
         .find(|e| e.status != 0 && (e.col0 == 0x80e0_ffff || e.col1 == 0x80e0_ffff))
         .map(|e| (e.status, e.tcnt))

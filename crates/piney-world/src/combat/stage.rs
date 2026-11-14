@@ -24,6 +24,7 @@ use piney_battle::world::{AnmSlot, CharHit, Note, World};
 use piney_battle::{Char as BChar, enemy_motion};
 
 use crate::camera::{CamPad, Camera};
+use crate::chara::char::CharFade;
 use crate::combat::cast::Cast;
 use crate::combat::spc::{self, SpcRec};
 use crate::ee::{self, F, ONE, V4};
@@ -103,6 +104,10 @@ pub enum Show {
     /// ([`crate::field::npcs`]): `effTransfer` as a PC or the Administrator
     /// comes or goes, the Administrator's act -5 (its rings and sound).
     Npc(usize, crate::town::merchant::SysopEvent),
+    /// What the area's own characters started at the entry control's slot
+    /// (a town's race task and NPC list: [`crate::world::cast::Out`]), in
+    /// their order; a character in it is named by its code.
+    Cast(crate::world::cast::Out),
     /// The riding Grunty's sounds and dust (`piney_battle::ride::Out`'s
     /// `Sound` and `Smoke`; [`super::ride`]).
     Ride(piney_battle::ride::Out),
@@ -213,6 +218,46 @@ pub struct TownNav<'a> {
     pub points: &'a [V4],
 }
 
+/// A Root Town's navigation as the town's set-up reads it (`ccSetNaviMap`,
+/// `naviPointNameTable`), held by the area's [`super::Combat`].
+pub struct TownNavData {
+    pub map: crate::chara::navi::NaviMap,
+    pub points: Vec<V4>,
+}
+
+impl TownNavData {
+    /// `naviPointNameTable` (INF gcmn 0x00653c80): eight names, the first none.
+    const POINTS: usize = 8;
+
+    /// Town `town`'s (0 Mac Anu), over its scene file's dummies; the
+    /// landmarks also go to the battle's keep (`keep.town`).
+    pub fn read(
+        volume: piney_data::volume::Volume,
+        town: usize,
+        file: &piney_desktop::assets::SceneFile,
+        keep: &mut piney_battle::party_motion::Keep,
+    ) -> piney_data::Result<TownNavData> {
+        let map = crate::chara::navi::NaviMap::read(volume, town, file)?;
+        keep.town = piney_battle::navi::TownMap {
+            num: map.num,
+            marks: map.marks.iter().map(|m| piney_battle::navi::Landmark { pos: m.pos, name: m.name }).collect(),
+        };
+        let mut points = vec![ee::VF0; Self::POINTS];
+        let names = &piney_data::tables::world::of(volume).navi_points;
+        for (k, p) in points.iter_mut().enumerate().skip(1) {
+            let Some(name) = names.get(k).copied().flatten() else { continue };
+            if let Some(d) = file.ccs.find_object(name).and_then(|o| file.scene.dummies.get(&o)) {
+                *p = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE];
+            }
+        }
+        Ok(TownNavData { map, points })
+    }
+
+    pub fn nav(&self) -> TownNav<'_> {
+        TownNav { map: &self.map, points: &self.points }
+    }
+}
+
 impl Stage<'_> {
     fn w2p_of(&self, pos: V4) -> V4 {
         kite::w2p_pos(&self.bounds, self.player, pos).0
@@ -237,44 +282,23 @@ impl Stage<'_> {
     }
 
     /// `ccGetCameraTransparency(pos, width, height, far, len, &hide)`
-    /// (main 0x001da8b0) with the active camera.
+    /// (main 0x001da8b0) with the active camera, both points through
+    /// `ccTransPosW2P`.
     pub fn transparency(&self, pos: V4, width: F, height: F, far: F, len: F, hide: &mut bool) -> F {
         let cam = self.camera.active();
-        let p = self.w2p_of(pos);
-        let c = self.w2p_of(cam.pos);
-        let d = ee::vsub(c, p);
-        let dist = ee::sqrtf_on(self.camera.volume, ee::dot(d, d));
-        let t = ee::div(ee::from_int(8192 - i32::from(cam.deg[1])), 0x4600_0000);
-        let u = ee::sub(ONE, t);
-        let mut r = ee::add(ee::mul(width, t), ee::mul(height, u));
-        if ee::lt(r, 0x4334_0000) {
-            r = 0x4334_0000;
-        }
-        let r2 = ee::mul(0x3fa0_0000, r);
-        if !*hide && ee::lt(dist, r2) {
-            *hide = true;
-            let near = ee::mul(0x3f4c_cccd, r);
-            let f = ee::sub(dist, near);
-            return if ee::le(f, 0) { 0 } else { ee::div(f, ee::sub(r2, near)) };
-        }
-        *hide = false;
-        if ee::le(far, 0) || ee::le(dist, far) {
-            return ONE;
-        }
-        let over = ee::sub(dist, far);
-        if ee::le(over, len) { ee::div(ee::sub(len, over), len) } else { 0 }
+        let (p, c) = (self.w2p_of(pos), self.w2p_of(cam.pos));
+        geom::camera_transparency(self.camera.volume, p, c, cam.deg[1], width, height, far, len, hide)
     }
 
     /// `ccChar::Draw()`'s test for a party character at `pos` (the area's
     /// fade: 7000 over 600 outside a town): its transparency and whether it
     /// is drawn (under 0.05 not, unless the camera's nearness faded it).
-    pub fn char_draw(&self, pos: V4, width: F, height: F, set_transparency: F, trans_dist: bool) -> (F, bool) {
+    pub fn char_draw(&self, pos: V4, width: F, height: F, set_transparency: F, trans_dist: bool) -> CharFade {
         let eye = self.camera.active().kind == crate::camera::kind::EYE;
         let mut hide = !trans_dist || eye;
         let (far, len) = if self.area == 0 { (0x457a_0000, 0x43c8_0000) } else { (0x45da_c000, 0x4416_0000) };
         let fade = self.transparency(pos, width, height, far, len, &mut hide);
-        let t = ee::mul(set_transparency, fade);
-        (t, !(ee::lt(t, 0x3d4c_cccd) && !hide))
+        CharFade::new(set_transparency, fade, hide)
     }
 
     fn body(&self, who: usize, h: &CharHit, manual: bool) -> hit::Body {
@@ -502,7 +526,7 @@ impl FellowWorld for Stage<'_> {
     /// happens with the field's).
     fn draw(&mut self, who: usize) -> bool {
         let Some(a) = self.cast.get(who) else { return false };
-        let (_, drawn) = self.char_draw(a.ch.pos, a.ch.width, a.ch.height, ONE, a.trans_dist);
+        let drawn = self.char_draw(a.ch.pos, a.ch.width, a.ch.height, ONE, a.trans_dist).drawn;
         // ccChar::Draw's blend: the affect's tint (a flash counts down).
         if let Some(a) = self.cast.get_mut(who) {
             a.ch.blend = a.ch.affect.blend();
@@ -756,17 +780,19 @@ impl KiteWorld for Stage<'_> {
         self.hits.trans.unwrap_or(ee::VF0)
     }
     fn draw(&mut self, me: usize, pos: V4, set_transparency: BF, transparency: &mut BF) -> bool {
+        // ccGetCameraTransparency's ccTransPosW2P measures from where he
+        // stands now (plw's position), past this frame's move.
+        self.player = pos;
         let Some(a) = self.cast.get(me) else { return false };
         let (w, h, td) = (a.ch.width, a.ch.height, a.trans_dist);
-        let (t, drawn) = self.char_draw(pos, w, h, set_transparency, td);
-        *transparency = t;
+        let f = self.char_draw(pos, w, h, set_transparency, td);
+        *transparency = f.transparency;
         if let Some(a) = self.cast.get_mut(me) {
             a.ch.pos = pos;
-            a.alpha = t;
-            a.drawn = drawn;
+            a.set_fade(f);
             a.ch.blend = a.ch.affect.blend();
         }
-        drawn
+        f.drawn
     }
     fn skill_check(&mut self, scene: &Scene, ch: usize) -> i32 {
         self.skills.borrow().check(self.t, scene, ch, self.kite_act)

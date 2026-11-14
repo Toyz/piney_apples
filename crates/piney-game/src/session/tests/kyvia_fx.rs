@@ -125,13 +125,18 @@ pub(super) fn fight_leaning(
         let ry = if lean == 128 { 128 } else { 129 };
         let still = Raw { analog: true, lx: 128, ly: 128, rx: lean, ry, ..Raw::default() };
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         pad.read(&if talking && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let cam_id = a.world().camera().cam_id;
         let c = a.world_mut().combat_mut();
@@ -289,6 +294,9 @@ fn kyvias_gomoras_bend_through_their_shapes() {
 /// The gomoras' `bodyHit`s.
 fn gomora_hits(s: &Session) -> Vec<piney_battle::world::CharHit> {
     let Stage::Area(a) = &s.stage else { return Vec::new() };
+    if a.in_town() {
+        return Vec::new();
+    }
     let c = a.world().combat();
     let Some(core) = c.boss_char().and_then(|me| core_of(c, me)) else { return Vec::new() };
     let Some(x) = c.scene.chars[core].foe_state().and_then(|f| f.boss.as_ref()).and_then(|b| b.systems.get::<Core>())
@@ -342,6 +350,9 @@ fn the_stick_turns_kyvias_camera() {
         hurry,
         |s, _, _, _| {
             let Stage::Area(a) = &s.stage else { return };
+            if a.in_town() {
+                return;
+            }
             let Some(cam) = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()) else { return };
             let z = f32::from_bits(cam.zrot_cont);
             (most, least) = (most.max(z), least.min(z));
@@ -376,6 +387,9 @@ fn kyvia_push_and_turn_shots() {
             let pushed = gomora_hits(s).iter().any(|h| h.offset != [0; 4]);
             pushes += u32::from(pushed);
             let Stage::Area(a) = &s.stage else { return };
+            if a.in_town() {
+                return;
+            }
             let z = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()).map_or(0, |c| c.zrot_cont);
             let tag = if pushed && pushes.is_multiple_of(25) {
                 Some("push")

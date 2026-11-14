@@ -3,6 +3,7 @@
 //! `work/infection/infection.iso`. `tools/test_world_rs.py` checks the same
 //! code against the game's own functions frame by frame.
 
+use piney_world::world::Request as WReq;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -36,6 +37,15 @@ fn new_game(iso: &mut Iso) -> SaveState {
     state
 }
 
+/// Kite's record (the battle's character, as in every area).
+fn kite(world: &World) -> piney_world::combat::spc::SpcRec {
+    world.combat().member_rec(0).expect("Kite is built by the set-up")
+}
+
+fn kite_manual(world: &World) -> bool {
+    kite(world).ai.is_some_and(|a| a.manual_sw)
+}
+
 fn step(world: &mut World, pad: &mut Pad, raw: Raw) -> piney_draw::Frame {
     pad.read(&raw);
     world.step(pad)
@@ -67,7 +77,7 @@ fn mac_anu_collision_mesh() {
 fn arrival_then_walking() {
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     assert_eq!(world.frame_rate(), 2);
     let mut pad = Pad::default();
     // The fade out and the hold draw only the fader.
@@ -77,40 +87,57 @@ fn arrival_then_walking() {
     }
     assert_eq!(world.phase(), Phase::Play(0));
     let reqs = world.take_requests();
-    assert!(reqs.contains(&Request::SoundFadeOut) && reqs.contains(&Request::SqLoad(2)), "{reqs:?}");
+    assert!(reqs.contains(&WReq::Game(Request::SoundFadeOut)) && reqs.contains(&WReq::SqLoad), "{reqs:?}");
     // The arrival: act 13, Kite faded in, then standing in town (act 2).
-    let p = world.player();
-    assert_eq!((p.acts.act, ee::f(p.body.pos[1]), ee::f(p.body.pos[2])), (act::ARRIVE, 5600.0, 600.0));
+    // ccSetupGameCtrl's ccSPC::Reboot built Kite with the tasks, arriving
+    // (act 13) at the start.
+    let p = world.kite().pos();
+    assert_eq!(
+        (world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), ee::f(p[1]), ee::f(p[2])),
+        (act::ARRIVE, 5600.0, 600.0)
+    );
     let mut arrived = None;
     for i in 0..120 {
         let f = step(&mut world, &mut pad, Raw::default());
+        if i == 0 {
+            let p = world.kite().pos();
+            assert_eq!(
+                (world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), ee::f(p[1]), ee::f(p[2])),
+                (act::ARRIVE, 5600.0, 600.0)
+            );
+        }
         if i > 2 {
             assert!(f.cmds.iter().any(|c| matches!(c, Cmd::Model(_))), "the town draws");
         }
-        if arrived.is_none() && world.player().acts.act == act::IDLE {
+        if arrived.is_none() && world.kite().built().map_or(0, |k| k.ch.spc_char.act_num) == act::IDLE {
             arrived = Some(i);
         }
     }
     // F0 sets up, F1 is the first act-13 frame; it ends on its 74th.
     assert_eq!(arrived, Some(74));
-    assert!(world.take_requests().contains(&Request::Transfer));
-    assert_eq!(ee::f(world.player().acts.cloak), 1.0);
+    assert!(world.take_requests().contains(&WReq::Game(Request::Transfer)));
+    assert_eq!(ee::f(world.kite().built().map(|k| *k.spc).unwrap_or_default().transparency), 1.0);
     // The camera sits behind him: north of him, looking south.
     let cam = world.camera().tcam.pos;
     assert!(ee::f(cam[1]) > 6400.0 && ee::f(cam[2]) > 700.0, "{:?}", cam.map(ee::f));
     // Stick up: he runs south, down the stairs, the camera following.
     for _ in 0..70 {
         step(&mut world, &mut pad, Raw { ly: 0, ..Raw::default() });
-        assert_eq!(world.player().acts.act, act::RUN);
+        assert_eq!(world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), act::RUN);
     }
-    let p = world.player();
-    let (y, z) = (ee::f(p.body.pos[1]), ee::f(p.body.pos[2]));
+    let p = world.kite().pos();
+    let (y, z) = (ee::f(p[1]), ee::f(p[2]));
     assert!(y < 4000.0 && z < 350.0, "ran to ({y}, {z})");
     assert!(ee::f(world.camera().tcam.pos[1]) > y);
     // Let go: he stops at once and stands.
     step(&mut world, &mut pad, Raw::default());
-    let p = world.player();
-    assert_eq!((p.acts.act, p.body.move_flag), (act::IDLE, false));
+    assert_eq!(
+        (
+            world.kite().built().map_or(0, |k| k.ch.spc_char.act_num),
+            world.kite().built().is_some_and(|k| k.spc.move_flag)
+        ),
+        (act::IDLE, false)
+    );
 }
 
 #[test]
@@ -138,47 +165,48 @@ fn markers_and_event_commands() {
     use piney_event::host::PcCommand;
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     // markerEvTbl[0] is DMY_gate, where the Chaos Gate stands.
     let (gate, _) = world.marker_bits(0).unwrap();
-    assert_eq!(gate, world.gate().pos);
+    assert_eq!(gate, town(&world).gate().pos);
     // Every Mac Anu event marker the table names.
     let found: Vec<i16> = (0..33).filter(|&n| world.marker_bits(n).is_some()).collect();
     assert!(found.len() > 10, "{found:?}");
     assert!(world.marker_bits(3).is_some(), "event 2 puts Orca at marker 3");
-    // pc_turn and pc_put_marker on Kite, at once.
-    assert!(world.pc_command(PcCommand::Turn { pc: 0, dirc: -32768, chg: 0 }));
-    assert_eq!(world.player().body.dirc[2], ee::deg2rad(-32768));
-    assert!(world.pc_command(PcCommand::PutMarker { pc: 0, marker: 3 }));
-    assert_eq!(world.player().body.pos, world.marker_bits(3).unwrap().0);
-    // A gradual turn needs the AI: declined.
-    assert!(!world.pc_command(PcCommand::Turn { pc: 0, dirc: 0, chg: 8 }));
-
-    // Event 2's `entry 1 2 3 5`, registered, then built and put by the
-    // town's set-up: Orca at marker 3, facing its heading, on the party's
-    // command list.
-    assert!(world.entry(1, 2, 3, 5));
+    // pc_turn and pc_put_marker on Kite, at once, once the set-up's
+    // Reboot has built him (`GetSpc(0)` before it finds no one).
+    assert!(!world.pc_command(PcCommand::Turn { pc: 0, dirc: -32768, chg: 0 }));
     let mut pad = Pad::default();
+    world.set_spc_entries(vec![[1, 2, 3, 5]]);
     for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 1) {
         step(&mut world, &mut pad, Raw::default());
     }
+    assert!(world.pc_command(PcCommand::Turn { pc: 0, dirc: -32768, chg: 0 }));
+    assert_eq!(world.kite().dirc()[2], ee::deg2rad(-32768));
+    assert!(world.pc_command(PcCommand::PutMarker { pc: 0, marker: 3 }));
+    assert_eq!(world.kite().pos(), world.marker_bits(3).unwrap().0);
+
+    // Event 2's `entry 1 2 3 5` (its phase 0 pass), registered, then
+    // built and put by the town's set-up: Orca at marker 3, facing its
+    // heading, on the party's command list.
     let (at, rot) = world.marker_bits(3).unwrap();
-    let party = world.town_party();
-    let orca = party.rec(2).unwrap();
-    assert_eq!((orca.listed, party.flags(2)), (true, 6));
+    let party = world.combat();
+    let orca = party.member_rec(2).unwrap();
+    assert_eq!((orca.listed, party.member_flags(2)), (true, 6));
     assert_eq!(orca.pos, at);
     assert_eq!(orca.dirc[2], ee::deg2rad(ee::rad2deg(rot)));
-    assert_eq!(party.actor(2).unwrap().ch.anim_name(), Some(party.combat.data.mt.clip(2, orca.act)));
-    assert_eq!(world.char_pos(1, 2).unwrap().0, at);
-    // pc_face Kite at Orca: Kite's heading is ccGetDirc's.
-    assert!(world.pc_command(PcCommand::Face { pc: 0, ty: 1, code: 2, chg: 0 }));
+    assert_eq!(party.member_actor(2).unwrap().ch.anim_name(), Some(party.data.mt.clip(2, orca.act)));
+    assert_eq!(world.char_pos(2, 2).unwrap(), at);
+    // pc_face of type 1 names no one (1 << 1 is none of GetSpc's 4,
+    // GetNpc's 0x18, GetEnemy's 0x60): nothing turns.
+    assert!(!world.pc_command(PcCommand::Face { pc: 0, ty: 1, code: 2, chg: 0 }));
     // pc_put on Orca, then remove.
     assert!(world.pc_command(PcCommand::Put { pc: 2, x: 10, y: 0, z: -5 }));
-    assert_eq!(world.town_party().rec(2).unwrap().pos[0], ee::from_int(100));
+    assert_eq!(world.combat().member_rec(2).unwrap().pos[0], ee::from_int(100));
     world.remove(1, 2);
-    assert_eq!(world.town_party().members().count(), 1);
+    assert_eq!(world.combat().party_members().count(), 1);
     world.remove(2, 2);
-    assert_eq!(world.town_party().members().count(), 0);
+    assert_eq!(world.combat().party_members().count(), 0);
 }
 
 /// Kite put in front of the Recorder's booth and turned to it (`pc_put`,
@@ -188,11 +216,11 @@ fn markers_and_event_commands() {
 fn talking_to_the_recorder() {
     use piney_event::host::PcCommand;
     use piney_input::Buttons;
-    use piney_world::event::entry::Kind;
     use piney_world::event::talk::{Shop, TalkRequest};
+    use piney_world::world::CharId;
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     let mut pad = Pad::default();
     for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 100) {
         step(&mut world, &mut pad, Raw::default());
@@ -203,35 +231,35 @@ fn talking_to_the_recorder() {
     for _ in 0..3 {
         step(&mut world, &mut pad, Raw::default());
     }
-    assert_eq!(world.command_target(), Some((Kind::Npc, 4)));
+    assert_eq!(world.command_target_id(), Some(CharId::Npc(4)));
     // cmndSortRoot: the Recorder nearest, 150 away, straight ahead.
-    let (kind, code, dist, _) = world.command_sorted()[0];
-    assert_eq!((kind, code, ee::f(dist)), (Kind::Npc, 4, 150.0));
+    let (who, dist, _) = world.command_sorted()[0];
+    assert_eq!((who, ee::f(dist)), (CharId::Npc(4), 150.0));
     // The target cursor over it and the HUD's names.
-    let (x, y, on) = world.tag_pos(Kind::Npc, 4, 0.45, 0).unwrap();
-    eprintln!("recorder tag {x} {y} {on}; kite {:?}", world.tag_pos(Kind::Spc, 0, 0.45, 0));
+    let (x, y, on) = world.tag_pos(CharId::Npc(4), 0.45f32.to_bits(), 0).unwrap();
+    eprintln!("recorder tag {x} {y} {on}; kite {:?}", world.tag_pos(CharId::Member(0), 0.45f32.to_bits(), 0));
     assert_eq!(on, 1);
     assert!((0..512).contains(&x) && (0..448).contains(&y));
-    assert_eq!(world.char_info(Kind::Npc, 4).unwrap().name, b"Recorder");
-    let kite = world.char_info(Kind::Spc, 0).unwrap();
+    assert_eq!(world.char_info(CharId::Npc(4)).unwrap().name, b"Recorder");
+    let kite = world.char_info(CharId::Member(0)).unwrap();
     assert_eq!((kite.name.as_slice(), kite.flags), (&b"Kite"[..], 7));
     step(&mut world, &mut pad, Raw { buttons: Buttons::CROSS, ..Raw::default() });
     assert_eq!(world.take_talk(), [TalkRequest::Shop { npc: 4, shop: Shop::Recorder, msg: 0x0063_1a50, line: 0 }]);
-    assert!(world.player().acts.pause);
+    assert!(world.kite().built().is_some_and(|k| k.ch.spc_char.flags & piney_battle::chara::spc_flag::PAUSE != 0));
     world.close_menu();
-    assert!(!world.player().acts.pause);
+    assert!(!world.kite().built().is_some_and(|k| k.ch.spc_char.flags & piney_battle::chara::spc_flag::PAUSE != 0));
     // Asleep (a menu's ccSleepAllThread), the stick moves nobody.
     world.set_asleep(true);
-    let at = world.player().body.pos;
+    let at = world.kite().pos();
     for _ in 0..10 {
         step(&mut world, &mut pad, Raw { ly: 0, ..Raw::default() });
     }
-    assert_eq!(world.player().body.pos, at);
+    assert_eq!(world.kite().pos(), at);
     world.set_asleep(false);
     for _ in 0..10 {
         step(&mut world, &mut pad, Raw { ly: 0, ..Raw::default() });
     }
-    assert_ne!(world.player().body.pos, at);
+    assert_ne!(world.kite().pos(), at);
 }
 
 /// The entry control's set-up: an event's town PC and the Administrator
@@ -244,22 +272,28 @@ fn talking_to_the_recorder() {
 fn the_entry_controls_set_up() {
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
-    assert!(world.entry(3, 40, 3, 0));
-    assert!(world.entry(4, 29, 5, 0));
-    assert!(!world.entry(4, 40, 5, 0), "ccSetMerchant makes only 29 and 158");
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
+    assert!(world.event_entry([3, 40, 3, 0]));
+    assert!(world.event_entry([4, 29, 5, 0]));
+    assert!(!world.event_entry([4, 40, 5, 0]), "ccSetMerchant makes only 29 and 158");
     world.set_regist_npc_num(3);
-    assert!(world.merchants().is_empty() && world.pcs().is_empty());
+    assert!(town(&world).merchants().is_empty() && town(&world).pcs().is_empty());
     let mut pad = Pad::default();
     for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 1) {
         step(&mut world, &mut pad, Raw::default());
     }
     let (at, rot) = world.marker_dummy(3).unwrap();
-    let ids: Vec<i32> = world.merchants().iter().map(|m| m.id).collect();
+    let ids: Vec<i32> = town(&world).merchants().iter().map(|m| m.id).collect();
     assert_eq!(ids, [29, 0, 1, 2, 3, 4]);
-    assert_eq!((world.merchants()[0].ch.pos, world.merchants()[0].ch.dirc), world.marker_dummy(5).unwrap());
-    assert_eq!(world.pcs().len(), 13);
-    assert_eq!((world.pcs()[0].row.row, world.pcs()[0].char.pos, world.pcs()[0].char.dirc), (40, at, rot));
+    assert_eq!(
+        (town(&world).merchants()[0].ch.pos, town(&world).merchants()[0].ch.dirc),
+        world.marker_dummy(5).unwrap()
+    );
+    assert_eq!(town(&world).pcs().len(), 13);
+    assert_eq!(
+        (town(&world).pcs()[0].row.row, town(&world).pcs()[0].char.pos, town(&world).pcs()[0].char.dirc),
+        (40, at, rot)
+    );
     let kinds: Vec<u32> = world.area().core().hits.chars.iter().map(|b| b.kind).collect();
     assert_eq!(kinds, [2; 19]);
     for _ in 0..100 {
@@ -279,9 +313,9 @@ fn event_two_characters() {
     use piney_event::host::PcCommand;
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     let mut pad = Pad::default();
-    assert!(world.entry(2, 2, 3, 5));
+    world.set_spc_entries(vec![[2, 2, 3, 5]]);
     assert!(world.pc_command(PcCommand::Mode { pc: -3, param: 6 }));
     let r = world.spcs().registry;
     assert_eq!((r[0].id, r[0].boot_param, r[1].id, r[1].boot_param), (0, 6, 2, 5));
@@ -292,10 +326,10 @@ fn event_two_characters() {
     // The town's set-up: Kite out of sight (act 14, cloak 0) under manual
     // control and off the command list; Orca standing at marker 3 facing
     // its heading, manual, listed, his body on the character list.
-    let p = world.player();
-    assert_eq!((p.acts.act, p.acts.cloak, p.manual(), p.listed), (act::HIDDEN, 0, true, false));
+    let p = kite(&world);
+    assert_eq!((p.act, p.cloak, kite_manual(&world), p.listed), (act::HIDDEN, 0, true, false));
     let (at, rot) = world.marker_bits(3).unwrap();
-    let orca = world.town_party().rec(2).unwrap();
+    let orca = world.combat().member_rec(2).unwrap();
     let ai = orca.ai.as_ref().unwrap();
     assert_eq!((orca.act, ai.manual_sw, orca.listed), (2, true, true));
     assert_eq!(orca.pos, at);
@@ -303,58 +337,58 @@ fn event_two_characters() {
     assert!(orca.hit.sw);
     // The play pass.
     world.menu_ban_party(true);
-    let orca = world.town_party().rec(2).unwrap();
+    let orca = world.combat().member_rec(2).unwrap();
     assert!(!orca.listed && !orca.trans_dist);
     assert!(world.pc_command(PcCommand::Face { pc: 2, ty: 2, code: 0, chg: 0 }));
     for _ in 0..80 {
         step(&mut world, &mut pad, Raw::default());
-        assert!(!world.player().drawn);
+        assert!(!world.kite().built().is_some_and(|k| k.actor.is_some_and(|a| a.drawn)));
     }
     assert!(world.pc_command(PcCommand::Act { pc: 0, act: 3 }));
     for _ in 0..80 {
         step(&mut world, &mut pad, Raw::default());
     }
-    let p = world.player();
-    assert_eq!((p.acts.act, p.acts.cloak, p.manual()), (act::IDLE, ee::ONE, true));
-    assert!(p.drawn && p.hit_body.sw);
+    let p = kite(&world);
+    assert_eq!((p.act, p.cloak, kite_manual(&world)), (act::IDLE, ee::ONE, true));
+    assert!(world.kite().built().is_some_and(|k| k.actor.is_some_and(|a| a.drawn)) && p.hit.sw);
     // Turning to Orca a quarter of the way a frame.
-    let before = p.body.dirc[2];
+    let before = p.dirc[2];
     assert!(world.pc_command(PcCommand::Face { pc: 0, ty: 2, code: 2, chg: 64 }));
-    let want = piney_world::event::dirc_to(world.player().body.pos, world.town_party().rec(2).unwrap().pos) as u16;
-    assert_eq!(world.player().ai.as_ref().unwrap().g_deg, want);
+    let want = piney_world::event::dirc_to(world.kite().pos(), world.combat().member_rec(2).unwrap().pos) as u16;
+    assert_eq!(kite(&world).ai.unwrap().g_deg, want);
     for _ in 0..60 {
         step(&mut world, &mut pad, Raw::default());
     }
-    let turned = world.player().body.dirc[2];
+    let turned = world.kite().dirc()[2];
     assert_ne!(turned, before);
     // It stops 8 short: once ccSetDirc's step is 1, RAD2DEG(DEG2RAD(s + 1))
     // truncates back to s (the game does the same, checked in eemu).
     assert_eq!(ee::rad2deg(turned), want as i16 + 8);
-    assert!(world.player().ai.as_ref().unwrap().remote_flag);
+    assert!(kite(&world).ai.unwrap().remote_flag);
     // The pad does nothing under manual control.
-    let pos = world.player().body.pos;
+    let pos = world.kite().pos();
     let raw = Raw { ly: 0, ..Raw::default() };
     for _ in 0..10 {
         step(&mut world, &mut pad, raw);
     }
-    assert_eq!(world.player().body.pos, pos);
+    assert_eq!(world.kite().pos(), pos);
     // Orca joins (the menu's ccParty::AddMember).
     assert_eq!(world.party_add(2), 1);
     assert_eq!(world.party(), [0, 2, -1]);
-    assert_eq!(world.town_party().rec(2).unwrap().party_flag, 1);
+    assert_eq!(world.combat().member_rec(2).unwrap().party_flag, 1);
     // The second menu_ban, now with Orca in slot 1.
     world.menu_ban_party(true);
     // The end: both turned at once.
     assert!(world.pc_command(PcCommand::Turn { pc: 0, dirc: -32768, chg: 0 }));
     assert!(world.pc_command(PcCommand::Turn { pc: 2, dirc: 28672, chg: 0 }));
-    assert_eq!(world.player().body.dirc[2], ee::deg2rad(-32768));
-    assert_eq!(world.town_party().rec(2).unwrap().dirc[2], ee::deg2rad(28672));
+    assert_eq!(world.kite().dirc()[2], ee::deg2rad(-32768));
+    assert_eq!(world.combat().member_rec(2).unwrap().dirc[2], ee::deg2rad(28672));
     // menu_clear hands Kite back to the pad; Orca stays as menu_ban found
     // him (manual).
     world.menu_ban_party(false);
-    let orca = world.town_party().rec(2).unwrap();
-    assert!(!world.player().manual() && orca.ai.as_ref().is_some_and(|a| a.manual_sw));
-    assert!(world.player().listed && orca.listed);
+    let orca = world.combat().member_rec(2).unwrap();
+    assert!(!kite_manual(&world) && orca.ai.as_ref().is_some_and(|a| a.manual_sw));
+    assert!(world.kite().built().is_some_and(|k| k.listed) && orca.listed);
 }
 
 /// A registered character's menu (Talk / Trade / Gift) in a town: the
@@ -364,33 +398,33 @@ fn event_two_characters() {
 /// menu's close (0) clears the flag.
 #[test]
 fn a_member_spoken_to_stands_facing_kite() {
-    use piney_world::event::entry::Kind;
+    use piney_world::world::CharId;
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     let mut pad = Pad::default();
-    assert!(world.entry(2, 2, 3, 5));
+    world.set_spc_entries(vec![[2, 2, 3, 5]]);
     // The town's set-up, then a few frames of his Main (posP, which
     // Greeting measures from, is his place in Kite's frame as the last
     // Main left it).
     for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 10) {
         step(&mut world, &mut pad, Raw::default());
     }
-    let talking = |w: &World| w.town_party().rec(2).unwrap().ai.unwrap().talk_flag;
+    let talking = |w: &World| w.combat().member_rec(2).unwrap().ai.unwrap().talk_flag;
     assert!(!talking(&world));
-    world.affect(Kind::Spc, 2, 14);
+    world.affect(CharId::Member(2), 14, [0; 2]);
     step(&mut world, &mut pad, Raw::default());
-    let orca = world.town_party().rec(2).unwrap();
+    let orca = world.combat().member_rec(2).unwrap();
     assert!(talking(&world));
-    let want = piney_world::event::dirc_to(orca.pos, world.player().body.pos) as u16;
+    let want = piney_world::event::dirc_to(orca.pos, world.kite().pos()) as u16;
     assert_eq!(orca.ai.unwrap().g_deg, want);
     let pos = orca.pos;
     for _ in 0..30 {
         step(&mut world, &mut pad, Raw::default());
     }
     assert!(talking(&world));
-    assert_eq!(world.town_party().rec(2).unwrap().pos, pos);
-    world.affect(Kind::Spc, 2, 0);
+    assert_eq!(world.combat().member_rec(2).unwrap().pos, pos);
+    world.affect(CharId::Member(2), 0, [0; 2]);
     step(&mut world, &mut pad, Raw::default());
     assert!(!talking(&world));
 }
@@ -407,7 +441,7 @@ fn kites_buff_times_out_in_town() {
     let mut p = SpcParam::from_save(&save.save, 0);
     (p.temp[0], p.time[0]) = (10, 60);
     p.store(&mut save.save, 0);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     let mut pad = Pad::default();
     let buff = |w: &World| {
         let p = SpcParam::from_save(&w.state().save, 0);
@@ -481,25 +515,25 @@ fn kite_walks_to_an_event_goal() {
     use piney_event::host::PcCommand;
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
-    let mut world = World::enter(&mut iso, archive, save).unwrap();
+    let mut world = World::log_in(&mut iso, archive, save).unwrap();
     let mut pad = Pad::default();
     for _ in 0..200 {
         step(&mut world, &mut pad, Raw::default());
     }
-    let start = world.player().body.pos;
+    let start = world.kite().pos();
     let tenth = |v: u32| (ee::f(v) / 10.0).round() as i16;
     let (x, y, z) = (tenth(start[0]), tenth(start[1]) - 30, tenth(start[2]));
     assert!(world.pc_command(PcCommand::WalkPos { pc: 0, x, y, z, run: false }));
     let goal = [f32::from(x) * 10.0, f32::from(y) * 10.0];
     let dist = |w: &World| {
-        let p = w.player().body.pos;
+        let p = w.kite().pos();
         ((ee::f(p[0]) - goal[0]).powi(2) + (ee::f(p[1]) - goal[1]).powi(2)).sqrt()
     };
     let before = dist(&world);
     let mut arrived = None;
     for f in 0..300 {
         step(&mut world, &mut pad, Raw::default());
-        let ai = world.player().ai.as_ref().unwrap();
+        let ai = kite(&world).ai.unwrap();
         if ai.remote_cmd == 0 {
             arrived = Some(f);
             break;
@@ -512,8 +546,8 @@ fn kite_walks_to_an_event_goal() {
     // under 50, about 107 short of the goal here.
     let after = dist(&world);
     assert!(after < 125.0 && before - after > 150.0, "{after} from the goal after {f} frames");
-    assert!(world.player().ai.as_ref().unwrap().remote_flag);
-    assert!(!world.player().body.move_flag);
+    assert!(kite(&world).ai.unwrap().remote_flag);
+    assert!(!world.kite().built().is_some_and(|k| k.spc.move_flag));
 }
 
 /// Mac Anu after the arrival with the save's Controller setting (`camType`)
@@ -522,7 +556,7 @@ fn kite_walks_to_an_event_goal() {
 fn camera_under(iso: &mut Iso, archive: &Arc<Archive>, cam: u8, raw: Raw) -> ([i16; 2], f32, [i16; 2], f32) {
     let mut save = new_game(iso);
     save.save.set_u8(piney_data::save::offset::CAM_TYPE, cam);
-    let mut world = World::enter(iso, archive.clone(), save).unwrap();
+    let mut world = World::log_in(iso, archive.clone(), save).unwrap();
     assert_eq!(world.camera().scheme, piney_world::camera::Scheme::new(i32::from(cam)));
     let mut pad = Pad::default();
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
@@ -563,4 +597,9 @@ fn the_controller_scheme_drives_the_camera() {
     let b1 = camera_under(&mut iso, &archive, 2, up);
     assert!(zoom(a1) != 0.0 && tilt(a1) == 0, "A-1, the stick up zooms: {a1:?}");
     assert!(tilt(b1) != 0, "B-1, the stick up tilts: {b1:?}");
+}
+
+/// The town's cast (tests read a cast's type through `<dyn Cast>::get`).
+fn town(w: &piney_world::world::World) -> &piney_world::town::cast::TownCast {
+    w.cast().get().expect("a town's cast")
 }

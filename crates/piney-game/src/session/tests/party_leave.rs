@@ -39,6 +39,9 @@ fn event_18_at_point_1(iso: &Path) -> Option<Session> {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let playing = matches!(a.world().phase(), piney_world::Phase::Play(k) if k > 10);
         away |= room && !playing;
         if !playing {
@@ -66,15 +69,15 @@ fn event_18_at_point_1(iso: &Path) -> Option<Session> {
 /// The party and its registered ids where `s` is.
 fn party(s: &Session) -> ([i32; 3], Vec<i32>) {
     let spcs = match &s.stage {
-        Stage::World(w) => w.world().spcs(),
-        Stage::Area(a) => a.world().spcs(),
+        Stage::Area(w) if w.in_town() => w.world().spcs(),
+        Stage::Area(a) if !a.in_town() => a.world().spcs(),
         _ => panic!("not in The World: {}", Mode::title(s)),
     };
     (spcs.party(), spcs.registry.iter().map(|r| r.id).filter(|&id| id >= 0).collect())
 }
 
 /// Where the room's magic portal stands while it is switched on.
-fn portal(w: &piney_world::field::world::FieldWorld) -> Option<[u32; 4]> {
+fn portal(w: &piney_world::world::World) -> Option<[u32; 4]> {
     let c = w.combat();
     c.ctrl
         .list(piney_battle::entry::Kind::Circle)
@@ -105,6 +108,7 @@ fn event_18_leaves_kite_alone() {
         let flags = event_flag(&mut s, 18).unwrap_or(0);
         if flags & 1 << 19 != 0 && f.is_multiple_of(30) {
             if let Stage::Area(a) = &mut s.stage
+                && !a.in_town()
                 && let Some(at) = portal(a.world())
             {
                 let tenth = |v: u32| (f32::from_bits(v) / 10.0).round() as i16;
@@ -124,7 +128,10 @@ fn event_18_leaves_kite_alone() {
     }
     assert!(in_town(&s).is_some(), "never back in Mac Anu: {}", Mode::title(&s));
     assert_eq!(party(&s), ([0, -1, -1], vec![0]), "back in Mac Anu");
-    let Stage::World(w) = &s.stage else { unreachable!() };
+    let Stage::Area(w) = &s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
     assert_eq!(w.ui().ctrl.face_tex[1..3], [-1, -1], "the faces in Mac Anu");
     to_the_field(&mut s, &iso);
     assert_eq!(party(&s), ([0, -1, -1], vec![0]), "in the field");
@@ -216,6 +223,9 @@ fn moonstone_leaves(mut each: impl FnMut(&Session, &Frame, u64)) -> Option<(Vec<
             return Some((seen, s));
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         if matches!(a.world().phase(), piney_world::Phase::Play(_)) {
             a.world_mut().combat_mut().ctrl.lists[1].num = 0;
         }
@@ -258,6 +268,9 @@ fn moonstone_leave_shots() {
     let mut first = None;
     moonstone_leaves(|s, frame, f| {
         let Stage::Area(a) = &s.stage else { return };
+        if a.in_town() {
+            return;
+        }
         let c = a.world().combat();
         let leaving = c.who(MOONSTONE).is_some_and(|m| c.scene.chars[m].spc_char.act_num == 12);
         let n = f - *first.get_or_insert(if leaving { f } else { return });

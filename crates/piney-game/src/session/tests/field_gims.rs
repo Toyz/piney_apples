@@ -74,6 +74,9 @@ fn entries(words: [i32; 3]) -> Option<(usize, usize, Vec<i32>, i32)> {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let w = a.world();
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 4);
         let MapKind::Field(f) = w.area().kind() else { continue };
@@ -135,6 +138,9 @@ fn other_race(c: &piney_world::combat::Combat, i: usize) -> bool {
 fn toward_other(s: &Session, n: u32) -> (Raw, Option<f32>) {
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let Stage::Area(a) = &s.stage else { return (still, None) };
+    if a.in_town() {
+        return (still, None);
+    }
     let w = a.world();
     let c = w.combat();
     let Some(k) = c.kite else { return (still, None) };
@@ -181,6 +187,9 @@ fn a_higher_fields_other_races_move() {
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &s.stage else { break };
+        if a.in_town() {
+            break;
+        }
         let c = a.world().combat();
         for i in c.ctrl.list(Kind::Enemy) {
             let Some(e) = c.foes.get(i).and_then(|f| f.as_ref()) else { continue };
@@ -265,6 +274,9 @@ fn breath_shots() {
                     s.step(&pad);
                     s.take_events();
                     let Stage::Area(a) = &s.stage else { continue };
+                    if a.in_town() {
+                        continue;
+                    }
                     let c = a.world().combat();
                     found = c.ctrl.list(Kind::Enemy).into_iter().find_map(|i| {
                         c.foes.get(i).and_then(|f| f.as_ref()).map(|e| e.ene_id).filter(|&r| breathes(r))
@@ -281,6 +293,9 @@ fn breath_shots() {
                 for n in 0..3000u32 {
                     let raw = {
                         let Stage::Area(a) = &s.stage else { break };
+                        if a.in_town() {
+                            break;
+                        }
                         let w = a.world();
                         let c = w.combat();
                         match (
@@ -306,7 +321,9 @@ fn breath_shots() {
                     // Kite (level 1) is kept alive and the breathers
                     // unkillable (Orca would fell one at a blow), so that
                     // the fight goes on to their breath.
-                    if let Stage::Area(a) = &mut s.stage {
+                    if let Stage::Area(a) = &mut s.stage
+                        && !a.in_town()
+                    {
                         let c = a.world_mut().combat_mut();
                         for i in 0..c.scene.chars.len() {
                             let foe = c.foes.get(i).and_then(|f| f.as_ref()).map(|e| e.ene_id);
@@ -324,6 +341,9 @@ fn breath_shots() {
                     s.take_events();
                     gs.render(&frame);
                     let Stage::Area(a) = &s.stage else { break };
+                    if a.in_town() {
+                        break;
+                    }
                     let c = a.world().combat();
                     let burning = c.breaths.map.values().any(|b| b.count > 0);
                     if burning && n % 5 == 0 && shots < 40 {
@@ -335,6 +355,9 @@ fn breath_shots() {
                     }
                 }
                 let Stage::Area(a) = &s.stage else { return };
+                if a.in_town() {
+                    return;
+                }
                 let c = a.world().combat();
                 eprintln!(
                     "flames drawn {}, bursts {}, breaths {}",
@@ -389,7 +412,9 @@ fn many_fields_fight() {
         let Some(mut s) = in_random_field([x, y, z]) else { return };
         let mut pad = Pad::default();
         for f in 0..1500u32 {
-            if let Stage::Area(a) = &mut s.stage {
+            if let Stage::Area(a) = &mut s.stage
+                && !a.in_town()
+            {
                 let c = a.world_mut().combat_mut();
                 if let Some(k) = c.kite {
                     let ch = &mut c.scene.chars[k];
@@ -400,6 +425,9 @@ fn many_fields_fight() {
             s.step(&pad);
             s.take_events();
             let Stage::Area(a) = &s.stage else { break };
+            if a.in_town() {
+                break;
+            }
             let c = a.world().combat();
             for i in c.ctrl.list(Kind::Enemy) {
                 if let Some(e) = c.foes.get(i).and_then(|f| f.as_ref()) {
@@ -471,6 +499,9 @@ fn field_gims_shots() {
             s.take_events();
             gs.render(&frame);
             let Stage::Area(a) = &s.stage else { continue };
+            if a.in_town() {
+                continue;
+            }
             let piney_world::Phase::Play(p) = a.world().phase() else { continue };
             if p == 30 || p == 90 || (p > 120 && p % 60 == 0) {
                 let (wd, h) = gs.target_size();

@@ -107,16 +107,25 @@ fn every_entry_in_fort_ouph_and_lia_fail_is_placed() {
                 let world_markers = |world: &World| {
                     mine.iter().all(|e| stays(e) || e.marker < 0 || world.marker_bits(e.marker).is_some())
                 };
-                let mut world = World::enter(&mut iso, archive.clone(), in_town(volume, town, true)).unwrap();
+                let mut world = World::log_in(&mut iso, archive.clone(), in_town(volume, town, true)).unwrap();
                 assert!(world_markers(&world), "{what}: {mine:?} a marker the file lacks");
+                // ccEntryEventMng as every area's: the party's entries the
+                // registry's (ccRegisterEventMng), the town NPCs the cast's.
+                let mut spc = Vec::new();
                 for e in &mine {
                     assert!((2..=4).contains(&e.ty), "{what}: {e:?} a type the towns place");
-                    let before = world.char_pos(e.ty, e.code).map(|(p, _)| p);
-                    assert!(world.entry(e.ty, e.code, e.marker, e.param), "{what}: {e:?} not taken");
+                    let before = world.char_pos(e.ty, e.code);
+                    let entry = [e.ty, e.code, e.marker, e.param];
+                    if e.ty == 2 {
+                        spc.push(entry);
+                    } else {
+                        assert!(world.event_entry(entry), "{what}: {e:?} not taken");
+                    }
                     if stays(e) && e.code == 0 {
-                        assert_eq!(world.char_pos(e.ty, e.code).map(|(p, _)| p), before, "{what}: {e:?} moved");
+                        assert_eq!(world.char_pos(e.ty, e.code), before, "{what}: {e:?} moved");
                     }
                 }
+                world.set_spc_entries(spc);
                 let mut pad = Pad::default();
                 for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 1) {
                     pad.read(&Raw::default());
@@ -124,7 +133,7 @@ fn every_entry_in_fort_ouph_and_lia_fail_is_placed() {
                 }
                 for e in mine.iter().filter(|e| e.marker >= 0 && e.param != -1 && !stays(e)) {
                     let (at, _) = world.marker_bits(e.marker).unwrap();
-                    let (pos, _) = world.char_pos(e.ty, e.code).unwrap_or_else(|| panic!("{what}: {e:?} not placed"));
+                    let pos = world.char_pos(e.ty, e.code).unwrap_or_else(|| panic!("{what}: {e:?} not placed"));
                     assert_eq!(pos, at, "{what}: {e:?}");
                 }
             }

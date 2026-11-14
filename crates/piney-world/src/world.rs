@@ -23,8 +23,7 @@ use piney_input::Pad;
 use crate::area::{AreaMap, Disp, EnterCx, Exit, Scene, WorldMan, kind};
 use crate::camera::{CamPad, Camera, Scheme};
 use crate::chara::body::{Body, TRALL};
-use crate::chara::kite::Kite;
-use crate::chara::player::Player;
+use crate::chara::kite::Kite as KiteModel;
 use crate::combat::cast::load_looks;
 use crate::combat::{self, BattleData, Combat, Look, Show};
 use crate::dungeon::DungeonArea;
@@ -35,11 +34,17 @@ use crate::field::def::FieldDef;
 use crate::hit::Hits;
 use crate::sprite::{EffSprite, EffState};
 use crate::story_map::Kept;
-use crate::systems::{MapEvent, MapView, Signal, Smoke};
+use crate::systems::{MapEvent, MapView, Signal};
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
 use piney_data::store::Table;
 
+pub mod cast;
+mod char_id;
+mod lights;
 mod ride;
+
+pub use char_id::CharId;
+pub use lights::CastLights;
 
 /// What a frame asks of the rest of the game.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -48,7 +53,7 @@ pub enum Request {
     /// sequence bank, the BGM, the soft reset, the arrival's effect.
     Game(crate::Request),
     /// `ccGame::ChangeRequest(6, 7)` after a change of scene
-    /// ([`FieldWorld::scene`]): `ccSetupGameCtrl` again.
+    /// ([`World::scene`]): `ccSetupGameCtrl` again.
     ChangeScene,
     /// `ccSetupGameCtrl`'s `ccSndSQLoad` for the area (0x00168fac: 3 a
     /// field, 5 a story map's event bank, 4 a dungeon; nothing unless the
@@ -62,7 +67,7 @@ pub enum Request {
     Story(crate::story_map::StoryRequest),
 }
 
-/// What the HUD projects of a battle character ([`FieldWorld::hud_geometry`]).
+/// What the HUD projects of a battle character ([`World::hud_geometry`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HudGeometry {
     /// `ccCalcTagPosChar(c, p, (0, 0, 0.45 height), 0)`: the target
@@ -82,123 +87,165 @@ pub struct HudGeometry {
 }
 
 /// The field game outside the towns.
-pub struct FieldWorld {
-    save: SaveState,
+pub struct World {
+    pub(crate) save: SaveState,
     /// The disc's volume: whose tables the field reads.
-    volume: piney_data::volume::Volume,
-    scene: Scene,
-    world_man: WorldMan,
-    area: Box<dyn AreaMap>,
+    pub(crate) volume: piney_data::volume::Volume,
+    pub(crate) scene: Scene,
+    pub(crate) world_man: WorldMan,
+    pub(crate) area: Box<dyn AreaMap>,
     /// `WORLD_MAN`'s other dungeons of the area and `lastRoom`, kept
     /// while the one being played is `place`'s.
-    dungeons: crate::dungeon::Dungeons,
-    kite: Kite,
-    player: Player,
-    camera: Camera,
-    phase: Phase,
-    requests: Vec<Request>,
-    targeting: talk::Targeting,
-    talks: Vec<talk::TalkRequest>,
-    menu_view: talk::MenuView,
-    asleep: bool,
-    archive: Arc<Archive>,
+    pub(crate) dungeons: crate::dungeon::Dungeons,
+    pub(crate) kite: KiteModel,
+    pub(crate) camera: Camera,
+    pub(crate) phase: Phase,
+    pub(crate) requests: Vec<Request>,
+    pub(crate) targeting: talk::Targeting,
+    pub(crate) talks: Vec<talk::TalkRequest>,
+    pub(crate) menu_view: talk::MenuView,
+    pub(crate) asleep: bool,
+    /// The light group before the last awake frame's tasks ran (its
+    /// party's draws, and what its other draws saw of the lights the later
+    /// tasks moved); None before the first.
+    pub(crate) lights_before: Option<lights::LightSources>,
+    pub(crate) archive: Arc<Archive>,
     /// `ccSpcManager` and `ccPartyManager`, carried from the area before.
-    spcs: crate::chara::party::Spcs,
+    pub(crate) spcs: crate::chara::party::Spcs,
     /// The fights: Kite, the party members `rebootSpcManager` built, the
     /// entry control's enemies and portals (piney-battle's scene).
-    combat: Combat,
+    pub(crate) combat: Combat,
     /// The event's entries `ccEntryEventMng` places when the entry control
     /// starts: `entry_mc`, `entry`, and the event positions.
-    event_entries: (Vec<[i16; 4]>, Vec<[i16; 4]>, Vec<piney_battle::entry::EvPos>),
+    pub(crate) event_entries: (Vec<[i16; 4]>, Vec<[i16; 4]>, Vec<piney_battle::entry::EvPos>),
     /// `compulsionGameOver` (main 0x00378c74): a game over forced from
     /// outside the battle. Nothing the port runs sets it yet.
     pub compulsion_game_over: bool,
     /// `ccThGameCtrl` left its loop for the game over this frame (taken by
     /// the runtime, which runs `ccThGameOver`).
-    game_over_signal: bool,
+    pub(crate) game_over_signal: bool,
     /// `ccMenuCtrl::CheckMenuType()` as the field's menus showed it.
-    menu_type: i32,
-    /// `scFadeDef`'s elements as the frame starts ([`FieldWorld::set_fades`]).
-    fades: [piney_battle::boss::FadeView; 4],
+    pub(crate) menu_type: i32,
+    /// `scFadeDef`'s elements as the frame starts ([`World::set_fades`]).
+    pub(crate) fades: [piney_battle::boss::FadeView; 4],
     /// `ccSys.count`.
-    count: u32,
-    /// `ccThGameCtrl` already run this frame ([`FieldWorld::step_game_ctrl`]).
-    ctrl_done: bool,
+    pub(crate) count: u32,
+    /// `ccThGameCtrl` already run this frame ([`World::step_game_ctrl`]).
+    pub(crate) ctrl_done: bool,
     /// The field's effects (piney-effect, installed by the runtime above).
-    fx: Box<dyn FieldFx>,
+    pub(crate) fx: Box<dyn FieldFx>,
     /// The sounds and flashes a field's weather asked for since the
-    /// runtime last took them ([`FieldWorld::take_ambient_calls`]).
-    ambient_calls: Vec<MapEvent>,
+    /// runtime last took them ([`World::take_ambient_calls`]).
+    pub(crate) ambient_calls: Vec<MapEvent>,
     /// `spcConditionEffectFlag` (main 0x00378ce4): the condition tints
     /// pulse. `ccThSpc`'s start turns it on (`ccSpcConditionEffectON`);
     /// `menu_ban`, the spring's hold and the events' `condition_fx_off`
     /// turn it off, `menu_clear`, the spring's release and
     /// `condition_fx_on` on again.
-    condition_fx: bool,
+    pub(crate) condition_fx: bool,
     /// `ccThGameCtrl` set `ccMenu.plAttack` (the action button's attack)
     /// since the menus last looked.
-    pl_attack_set: bool,
+    pub(crate) pl_attack_set: bool,
     /// `eventMng.target[]` (type, code): characters whose talk goes to the
-    /// event ([`FieldWorld::set_event_targets`]).
-    event_targets: Vec<(i16, i16)>,
+    /// event ([`World::set_event_targets`]).
+    pub(crate) event_targets: Vec<(i16, i16)>,
     /// `charTbl`'s names and files (DEMO.PRG), by row.
-    char_names: Vec<Vec<u8>>,
-    char_files: Vec<String>,
+    pub(crate) char_names: Vec<Vec<u8>>,
+    pub(crate) char_files: Vec<String>,
     /// Where `ccGetStartPositions` stands the party: the leader and his
     /// facing, then `StartPos[1..3]`.
-    start: (V4, F, [V4; 3]),
+    pub(crate) start: (V4, F, [V4; 3]),
     /// Held on the set-up's last black frame while the event passes run.
-    loading: bool,
+    pub(crate) loading: bool,
     /// Whether `rebootSpcManager` has run.
-    rebooted: bool,
+    pub(crate) rebooted: bool,
     /// The event's `entry`s of party characters (types 0-2), registered by
-    /// [`FieldWorld::set_spc_entries`] and placed after `Reboot`.
-    spc_entries: Vec<[i16; 4]>,
+    /// [`World::set_spc_entries`] and placed after `Reboot`.
+    pub(crate) spc_entries: Vec<[i16; 4]>,
+    /// `eventMng.registNpcNum` as `ccRegisterEventMng(0)` left it: every
+    /// area's file list calls it (`ccSetFileListTown`, `Field`, `Dungeon`,
+    /// INF main 0x00169690 ..); a town's walking PCs reserve it.
+    pub(crate) regist_npc_num: i32,
     /// The event camera (`eventMng.cam`, `ccThCameraExecute`).
-    evcam: crate::camera::evcam::EventCam,
+    pub(crate) evcam: crate::camera::evcam::EventCam,
     /// From Mutation on, `ccSnd` +0x139: the skill words silent while a
     /// Grunty is out (set by its flute, cleared as the ride ends; a new
     /// scene's `ccFileListLoad` clears it too, which a new field world is).
-    voices_off: bool,
+    pub(crate) voices_off: bool,
     /// `SetPathFindingMap` due before the next battle frame (`ccThSpc`'s
     /// start; `DUNGEON::Draw` after a room change).
-    path_map: bool,
+    pub(crate) path_map: bool,
     /// The story map's message closed this frame, for its scene.
-    story_message_closed: bool,
+    pub(crate) story_message_closed: bool,
     /// `gtHackFlag` (main 0x00378a98): the gate hack's `ccSetGtHack`,
-    /// carried from the town ([`FieldWorld::set_gate_hack`]) and kept or
-    /// cleared by `ccClearGtHack` ([`FieldWorld::clear_gt_hack`]).
-    gt_hack: bool,
+    /// carried from the town ([`World::set_gate_hack`]) and kept or
+    /// cleared by `ccClearGtHack` ([`World::clear_gt_hack`]).
+    pub(crate) gt_hack: bool,
+    /// The area `WORLD_MAN::GO` built this scene for (`ccGame.area` at the
+    /// set-up; a later ChangeArea writes ccGame, not what was built).
+    built: i32,
     /// `ccGame.setupMode` (+0x50): the set-up plays the Chaos Gate's
     /// movie while the field loads.
-    setup_mode: bool,
-    gate_stream: GateStream,
-    /// The event's NPCs' classes ([`crate::field::npcs`]).
-    npcs: crate::field::npcs::FieldNpcs,
-    /// The event NPCs' starts of the last frame, for the next frame's
-    /// effects (the entry control's shows come before them).
-    npc_shows: Vec<Show>,
+    pub(crate) setup_mode: bool,
+    pub(crate) gate_stream: GateStream,
+    /// Who stands here and how they run ([`cast::Cast`]).
+    pub(crate) cast: Box<dyn cast::Cast>,
     /// `ccMenu.interNoiz = 2` asked by the Administrator since the last
-    /// take ([`FieldWorld::take_noise`]).
-    noise: bool,
+    /// take ([`World::take_noise`]).
+    pub(crate) noise: bool,
     /// `ccSys+0x358` at the set-up's `ccInitRand` ([`crate::Arrival`]).
-    rand_count: u32,
+    pub(crate) rand_count: u32,
+}
+
+/// Kite as the world reads him ([`World::kite`]).
+#[derive(Clone, Copy)]
+pub enum Kite<'a> {
+    /// Before `ccSPC::Reboot` builds him: where he will start.
+    Starting { pos: V4, dirc: V4 },
+    /// The battle's `ccPlayer`.
+    Built(combat::KiteRef<'a>),
+}
+
+impl<'a> Kite<'a> {
+    /// Where he stands (`plw +0x40`).
+    pub fn pos(&self) -> V4 {
+        match self {
+            Kite::Starting { pos, .. } => *pos,
+            Kite::Built(k) => k.ch.pos,
+        }
+    }
+
+    /// His heading.
+    pub fn dirc(&self) -> V4 {
+        match self {
+            Kite::Starting { dirc, .. } => *dirc,
+            Kite::Built(k) => k.spc.dirc,
+        }
+    }
+
+    /// The battle's character, once built.
+    pub fn built(self) -> Option<combat::KiteRef<'a>> {
+        match self {
+            Kite::Built(k) => Some(k),
+            Kite::Starting { .. } => None,
+        }
+    }
 }
 
 /// `ccSetupGameCtrl`'s stream 107 with `setupMode` set
 /// (`ccThExecuteStream`, `ccRequestLoadStreamGateHack`): the set-up waits
 /// for it before it builds the party.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum GateStream {
+pub(crate) enum GateStream {
     #[default]
     Idle,
-    /// Asked of the host ([`FieldWorld::take_gate_stream`]).
+    /// Asked of the host ([`World::take_gate_stream`]).
     Asked,
     Playing,
     Done,
 }
 
-/// What the host plays for [`FieldWorld::take_gate_stream`]:
+/// What the host plays for [`World::take_gate_stream`]:
 /// `ccRequestLoadStreamGateHack(107, game.town, game.field)`, in the crisis
 /// or not (`saveData` +0x6772).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -208,7 +255,79 @@ pub struct GateHackStream {
     pub crisis: bool,
 }
 
-impl FieldWorld {
+impl World {
+    /// The core a Root Town's set-up makes (`ccSetupGameCtrl` for area 0,
+    /// `WORLD_MAN::GO(0)`): the town's world holds it while it joins this
+    /// one (the one-world relay); a town has no `WORLD_MAN` words, no kept
+    /// dungeons and no field effects.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn town_core(
+        save: SaveState,
+        volume: piney_data::volume::Volume,
+        scene: Scene,
+        area: Box<dyn AreaMap>,
+        (kite, camera): (KiteModel, Camera),
+        mut combat: Combat,
+        archive: Arc<Archive>,
+        (char_names, char_files): (Vec<Vec<u8>>, Vec<String>),
+        start: (V4, F, [V4; 3]),
+        requests: Vec<Request>,
+    ) -> World {
+        // ccInitRand with no frames counted yet ([`World::init_rand`]).
+        combat.rnds = save.rand_s;
+        combat.cc = piney_battle::rand::init_rand(0, &mut combat.rnds);
+        World {
+            save,
+            volume,
+            scene,
+            world_man: WorldMan::default(),
+            area,
+            dungeons: Default::default(),
+            kite,
+            camera,
+            phase: Phase::FadeOut(0),
+            requests,
+            targeting: talk::Targeting::default(),
+            talks: Vec::new(),
+            menu_view: talk::MenuView::default(),
+            asleep: false,
+            lights_before: None,
+            archive,
+            spcs: crate::chara::party::Spcs::new_game(),
+            combat,
+            event_entries: Default::default(),
+            compulsion_game_over: false,
+            game_over_signal: false,
+            menu_type: -1,
+            fades: Default::default(),
+            count: 0,
+            ctrl_done: false,
+            fx: Box::new(combat::NoFx),
+            ambient_calls: Vec::new(),
+            condition_fx: true,
+            pl_attack_set: false,
+            event_targets: Vec::new(),
+            char_names,
+            char_files,
+            start,
+            loading: false,
+            rebooted: false,
+            spc_entries: Vec::new(),
+            regist_npc_num: 0,
+            evcam: crate::camera::evcam::EventCam::new(),
+            voices_off: false,
+            path_map: false,
+            story_message_closed: false,
+            gt_hack: false,
+            built: scene.area,
+            setup_mode: false,
+            gate_stream: GateStream::Idle,
+            cast: Box::new(cast::BattleCast::default()),
+            noise: false,
+            rand_count: 0,
+        }
+    }
+
     /// `StartPos` as this scene's set-up left it: the leader's place and
     /// his facing (z).
     pub fn start(&self) -> (V4, V4) {
@@ -216,8 +335,9 @@ impl FieldWorld {
         (pos, [0, 0, rot, 0])
     }
 
-    /// `ccSetupGameCtrl` for `scene` (area 1: a field of `world_man`'s
-    /// words), reading the field and Kite from the disc. `at.faded`: the
+    /// `ccSetupGameCtrl` for `scene` (area 0: a Root Town; 1: a field of
+    /// `world_man`'s words; 2: its dungeon), reading the area and Kite from
+    /// the disc, the area's map with it. `at.faded`: the
     /// scene that asked for it has already faded out (its own tasks ran
     /// under the fade), so the set-up starts with the frames held black;
     /// `at.frames` gives `ccInitRand` its count. `spcs`: the party the
@@ -232,7 +352,19 @@ impl FieldWorld {
         kept: Option<Kept>,
         at: crate::Arrival,
         spcs: crate::chara::party::Spcs,
-    ) -> piney_data::Result<FieldWorld> {
+    ) -> piney_data::Result<World> {
+        // WORLD_MAN::GO(0) (main 0x0019f8e0): a Root Town, its ccInitRand
+        // after the fade and hold as every area's, the registry and party
+        // the last area left.
+        if scene.area == kind::TOWN {
+            let mut w = World::town(iso, archive, save, scene, world_man, at.before)?;
+            w.init_rand(at.rand_count());
+            w.set_spcs(spcs);
+            if at.faded {
+                w.skip_fade_out();
+            }
+            return Ok(w);
+        }
         let volume = iso.volume()?;
         let (char_names, char_files): (Vec<Vec<u8>>, Vec<String>) = crate::load_char_tbl(iso)?.into_iter().unzip();
         // ccDeleteAllThread: the last area's ccThSpc goes, and its delete
@@ -345,8 +477,8 @@ impl FieldWorld {
         let data = Rc::new(BattleData::read(iso)?);
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
         let kite = match crate::chara::body::weapon_of(&data.t, &save.save, 0) {
-            Some((w, _)) => Kite::read_armed(&archive, &w)?,
-            None => Kite::read(&archive)?,
+            Some((w, _)) => KiteModel::read_armed(&archive, &w)?,
+            None => KiteModel::read(&archive)?,
         };
         let mut combat = Combat::new(data.clone(), save.rand);
         combat.cc = cc;
@@ -358,11 +490,7 @@ impl FieldWorld {
         combat.cast.looks = load_looks(&archive, &data, scene.server, ty, rank, &[]);
         // EFF_xmagpat1's patNum, which the portal's sparks wrap at.
         combat.part_pats = combat.cast.looks.circle.as_ref().map_or(0, |c| c.pat_num);
-        let spc = offset::SPC_PARAM;
-        let f = |at: usize| save.save.i32(at) as u32;
-        let (velocity, height, width) = (f(spc + 0xd4), f(spc + 0x18), f(spc + 0x1c));
         let dirc = [0, 0, rot, 0];
-        let player = Player::new(volume, pos, dirc, velocity, width, height);
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
         let camera = Camera::new(volume, pos, dirc, mode, scheme);
@@ -382,7 +510,11 @@ impl FieldWorld {
             requests.push(Request::Game(crate::Request::EnableReset(false)));
             Phase::FadeOut(0)
         };
-        Ok(FieldWorld {
+        // WORLD::Init's or the DUNGEON constructor's map.
+        if let Err(e) = area.setup_map(&archive, volume, &scene) {
+            tracing::warn!("the area's map: {e}");
+        }
+        Ok(World {
             save,
             volume,
             scene,
@@ -390,7 +522,6 @@ impl FieldWorld {
             area,
             dungeons,
             kite,
-            player,
             camera,
             phase,
             requests,
@@ -398,6 +529,7 @@ impl FieldWorld {
             talks: Vec::new(),
             menu_view: talk::MenuView::default(),
             asleep: false,
+            lights_before: None,
             archive,
             spcs,
             combat,
@@ -419,18 +551,25 @@ impl FieldWorld {
             loading: false,
             rebooted: false,
             spc_entries: Vec::new(),
+            regist_npc_num: 0,
             evcam: crate::camera::evcam::EventCam::new(),
             voices_off: false,
             path_map: true,
             story_message_closed: false,
             gt_hack: false,
+            built: scene.area,
             setup_mode: false,
             gate_stream: GateStream::Idle,
-            npcs: Default::default(),
-            npc_shows: Vec::new(),
+            cast: Box::new(cast::BattleCast::default()),
             noise: false,
             rand_count,
         })
+    }
+
+    /// `WORLD_MAN::GetTownType()`: `game.town` while a Root Town is built
+    /// (`WORLD_MAN` +0x430, which GO(0) sets), None otherwise.
+    pub fn town_type(&self) -> Option<i32> {
+        (self.built == kind::TOWN).then_some(self.scene.town)
     }
 
     /// The gate hack as the town left it (`gtHackFlag`, `ccGame.setupMode`
@@ -461,7 +600,7 @@ impl FieldWorld {
     }
 
     /// `ccGame.setupMode`'s movie, once the set-up is ready for it: what
-    /// to play. The host plays it and says [`FieldWorld::gate_stream_done`].
+    /// to play. The host plays it and says [`World::gate_stream_done`].
     pub fn take_gate_stream(&mut self) -> Option<GateHackStream> {
         if self.gate_stream != GateStream::Asked {
             return None;
@@ -545,7 +684,7 @@ impl FieldWorld {
     /// the origin, then `SetParty`, all as the battle's characters; then
     /// `ccEntryEventMng` puts the event's party entries at their positions
     /// ([`piney_battle::evparty::EvParty::place_entry`]).
-    fn reboot(&mut self) {
+    pub(crate) fn reboot(&mut self) {
         if self.rebooted {
             return;
         }
@@ -676,28 +815,6 @@ impl FieldWorld {
         for [_, code, marker, param] in std::mem::take(&mut self.spc_entries) {
             self.ev_party(|p| p.place_entry(code, marker, param, kite));
         }
-        self.sync_player();
-    }
-
-    /// The town player's view of Kite (what the field's HUD, the map, the
-    /// event camera and the title read) from the battle's.
-    fn sync_player(&mut self) {
-        let c = &self.combat;
-        let Some(k) = c.kite else { return };
-        let ch = &c.scene.chars[k];
-        let s = c.crew.spc.get(&k).copied().unwrap_or_default();
-        let p = &mut self.player;
-        p.body.pos = ch.pos;
-        p.body.dirc = s.dirc;
-        p.body.move_flag = s.move_flag;
-        p.body.run_flag = s.run_flag;
-        p.acts.act = ch.spc_char.act_num;
-        p.hit_attribute = s.hit_attribute;
-        p.transparency = s.transparency;
-        p.set_transparency = s.set_transparency;
-        p.dead = ch.cond[piney_battle::param::cond::DEAD];
-        p.listed = c.scene.listed(k);
-        p.drawn = c.cast.get(k).is_some_and(|a| a.drawn);
     }
 
     /// The fights.
@@ -777,7 +894,7 @@ impl FieldWorld {
         let c = &self.camera;
         MapView {
             eye: c.active().pos,
-            player: self.player.body.pos,
+            player: self.kite().pos(),
             cam: c.active().clone(),
             flare: crate::sky::lensflare::FlareCamera::of(c),
             puppet_show: c.puppet_show,
@@ -813,10 +930,15 @@ impl FieldWorld {
             .chain(entries.iter().filter(|e| matches!(e[0], 5 | 6)))
             .map(|e| i32::from(e[1]))
             .collect();
+        // The enemies' and portals' files are a field's or a dungeon's
+        // list's (ccSetFileListField, ccSetFileListDungeon); a town's
+        // (ccSetFileListTown, INF main 0x00169690, for game.area 0) has none.
         let s = self.scene;
-        let (ty, rank) = self.world_man.enemy_rank(s.area, s.field, s.floor, self.world_man.field_attr());
-        self.combat.cast.looks = load_looks(&self.archive, &self.combat.data, s.server, ty, rank, &rows);
-        self.combat.part_pats = self.combat.cast.looks.circle.as_ref().map_or(0, |c| c.pat_num);
+        if s.area != kind::TOWN {
+            let (ty, rank) = self.world_man.enemy_rank(s.area, s.field, s.floor, self.world_man.field_attr());
+            self.combat.cast.looks = load_looks(&self.archive, &self.combat.data, s.server, ty, rank, &rows);
+            self.combat.part_pats = self.combat.cast.looks.circle.as_ref().map_or(0, |c| c.pat_num);
+        }
         self.event_entries = (entries_mc, entries, positions);
     }
 
@@ -839,6 +961,17 @@ impl FieldWorld {
     /// `scFadeDef`'s four elements as the game's fader holds them.
     pub fn set_fades(&mut self, f: [piney_battle::boss::FadeView; 4]) {
         self.fades = f;
+    }
+
+    /// `ccSys.count` (+0x358) for this frame, as the game's frame loop
+    /// counts it (`ccSystem::Ctrl`, main 0x0010a6bc: once a frame from
+    /// power-on, in every mode).
+    pub fn set_count(&mut self, frames: u32) {
+        self.count = frames;
+    }
+
+    pub fn count(&self) -> u32 {
+        self.count
     }
 
     pub fn set_menu_type(&mut self, t: i32) {
@@ -871,18 +1004,32 @@ impl FieldWorld {
         self.loading = on;
     }
 
-    /// Where a party character (type 2 and code, 0 Kite) or an event NPC
-    /// (type 3 or 4 and its row) stands, as the events and the event camera
-    /// look them up.
-    /// `marker_pos`'s marker in a field (`ccEvent::Execute` case 144, INF
-    /// main 0x001b1aa4): on an event map, `markerEvTbl[n]`'s dummy of the
-    /// map's stream; a plain field's (`WORLD_MAN` +0x438) is not ported.
+    /// `markerEvTbl[n]` (`ccEvMarker2Pos`, INF main 0x001b1aa4) in the
+    /// area's marker file (a town's, an event map's, a dungeon's; a plain
+    /// field has none): the dummy's position (w 1), its rotation's z, bits.
+    pub fn marker_bits(&self, n: i16) -> Option<(V4, F)> {
+        self.marker_dummy(n).map(|(pos, rot)| (pos, rot[2]))
+    }
+
+    /// [`crate::event::marker_dummy_in`] of the area's marker file, with the
+    /// rotation the game wrote into the dummy this visit if it did (only a
+    /// town's `setMerchant` writes one, [`crate::area::AreaCore::written`]).
+    pub fn marker_dummy(&self, n: i16) -> Option<(V4, V4)> {
+        let (pos, rot) = crate::event::marker_dummy_in(self.area.marker_file()?, self.volume, n)?;
+        let name = piney_data::tables::world::of(self.volume).markers.get(n as usize).copied();
+        let written = self.area.core().written.iter().find(|(d, _)| Some(d.as_str()) == name).map(|&(_, r)| r);
+        Some((pos, written.unwrap_or(rot)))
+    }
+
+    /// [`crate::event::event_marker_in`] as [`World::marker_dummy`] reads
+    /// the marker.
+    pub fn event_marker(&self, marker: i16) -> Option<(V4, V4)> {
+        if marker < 0 { Some((crate::ee::VF0, crate::ee::VF0)) } else { self.marker_dummy(marker) }
+    }
+
+    /// [`World::marker_bits`] as the interpreter's `Host::marker`.
     pub fn marker(&self, n: i16) -> Option<piney_event::host::Marker> {
-        // `ccEvMarker2Pos` (INF main 0x001b1aa4): an event map's stream
-        // (`WORLD_MAN` +0x444, +0x1a4), a dungeon's (`dungeon[game.dungeon]`
-        // +0xd3884); a plain field stores to address 0 (0x001b1b78).
-        let file = self.area.marker_file()?;
-        let (p, r) = crate::event::marker_in(file, self.volume, n)?;
+        let (p, r) = self.marker_bits(n)?;
         Some(piney_event::host::Marker { pos: p.map(f32::from_bits), dirc: f32::from_bits(r) })
     }
 
@@ -893,15 +1040,56 @@ impl FieldWorld {
         self.event_entries.2 = positions;
     }
 
+    /// The place of the character an event instruction's `type code` names
+    /// ([`World::find_char_pos`]): what `pc_face`, `npc_face`, the HUD and
+    /// the scripts' checks read.
     pub fn char_pos(&self, ty: i16, code: i16) -> Option<V4> {
-        if matches!(ty, 3 | 4) {
-            return self.npcs.by_code(i32::from(code)).map(|n| n.npc().char().pos);
+        self.find_char_pos(&*self.cast, ty, code)
+    }
+
+    /// `ccEvent::Execute`'s lookup by `1 << type` (`sllv`, the low five
+    /// bits; cases 59, 64, 72, 161, 162): 4 `GetSpc(code)` (main
+    /// 0x001b2bb0), 0x18 `GetNpc(code)` (0x001b2cc0), 0x60 `GetEnemy(code)`
+    /// (0x001b2d50), anything else no one. The character's place (+0x40).
+    pub(crate) fn find_char_pos(&self, cast: &dyn cast::Cast, ty: i16, code: i16) -> Option<V4> {
+        let bit = 1u32 << (ty as u32 & 31);
+        let code = i32::from(code);
+        if bit & 4 != 0 {
+            self.spc_pos(code)
+        } else if bit & 0x18 != 0 {
+            cast.npc(code).map(|n| n.char().pos)
+        } else if bit & 0x60 != 0 {
+            let who = piney_battle::evparty::get_enemy(&self.combat.ctrl, &self.combat.scene, code)?;
+            self.scene_pos(who)
+        } else {
+            None
         }
-        if ty != 2 {
-            return None;
+    }
+
+    /// The event camera's lookup (`ccEvent::CamCtrl` 0x001b3704, the
+    /// camera instructions 23, 24, 27, 30): [`World::find_char_pos`], and
+    /// for any other type `ccCheckTargetTypeId(1 << type, code)` (gcmn
+    /// 0x005199e0) on the command lists - types 0 and 1 the listed party
+    /// members whose base type has that bit (Kite's 7, the others' 6).
+    fn camera_char_pos(&self, cast: &dyn cast::Cast, ty: i16, code: i16) -> Option<V4> {
+        let bit = 1u32 << (ty as u32 & 31);
+        if bit & 0x7c != 0 {
+            return self.find_char_pos(cast, ty, code);
         }
-        let who = self.combat.who(i32::from(code))?;
-        Some(self.combat.scene.chars[who].pos)
+        let who = piney_battle::evparty::check_target_type_id(&self.combat.scene, bit as i32, i32::from(code))?;
+        self.scene_pos(who)
+    }
+
+    /// `GetSpc(code)`'s character's place: the registry's (a negative code
+    /// a party slot, [`crate::chara::party::Spcs::get_spc`]).
+    fn spc_pos(&self, code: i32) -> Option<V4> {
+        let id = self.spcs.get_spc(code)?;
+        self.combat.who(id).map(|w| self.combat.scene.chars[w].pos)
+    }
+
+    /// A battle character's place.
+    fn scene_pos(&self, who: usize) -> Option<V4> {
+        self.combat.scene.chars.get(who).map(|c| c.pos)
     }
 
     pub fn frame_rate(&self) -> u32 {
@@ -951,8 +1139,16 @@ impl FieldWorld {
         &self.world_man
     }
 
-    pub fn player(&self) -> &Player {
-        &self.player
+    /// Kite (`plw`: the battle's ccPlayer, in every area), or before
+    /// `ccSPC::Reboot` builds him, where he will start.
+    pub fn kite(&self) -> Kite<'_> {
+        match self.combat.kite_ref() {
+            Some(k) => Kite::Built(k),
+            None => {
+                let (pos, dirc) = self.start();
+                Kite::Starting { pos, dirc }
+            }
+        }
     }
 
     pub fn camera(&self) -> &Camera {
@@ -1010,12 +1206,17 @@ impl FieldWorld {
         self.area.core().field_rand
     }
 
-    /// `SimGenerateCode`'s `fieldrand` (a gate menu's words): the place's
-    /// draws go on from `seed`, `randcnt` moved on by its 13.
+    /// `SimGenerateCode`'s `fieldrand` (a gate menu's words): the one
+    /// `fieldrand` goes on from `seed`, `randcnt` moved on by its 13 draws
+    /// (INF main 0x0019e5c0), the place's when it draws from it, else the
+    /// one the save carries.
     pub fn set_field_seed(&mut self, seed: u32) {
-        match self.area.core_mut().field_rand.as_mut() {
-            Some(r) => *r = piney_data::dungeon::Rng { seed, count: r.count.wrapping_add(13) },
-            None => self.save.field_rand = piney_data::dungeon::Rng { seed, ..self.save.field_rand },
+        let core = self.area.core_mut();
+        let r = core.field_rand.unwrap_or(self.save.field_rand);
+        let r = piney_data::dungeon::Rng { seed, count: r.count.wrapping_add(13) };
+        match core.field_rand.as_mut() {
+            Some(f) => *f = r,
+            None => self.save.field_rand = r,
         }
     }
 
@@ -1106,7 +1307,7 @@ impl FieldWorld {
         let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
         let clear = |f: i32, b: i32| room_clear(ctrl, foes, f, b);
         let mut cx = EnterCx {
-            player: self.player.body.pos,
+            player: self.kite().pos(),
             scene: &self.scene,
             clear: &clear,
             save: &mut self.save.save,
@@ -1129,7 +1330,7 @@ impl FieldWorld {
         let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
         let clear = |f: i32, b: i32| room_clear(ctrl, foes, f, b);
         let mut cx = EnterCx {
-            player: self.player.body.pos,
+            player: self.kite().pos(),
             scene: &self.scene,
             clear: &clear,
             save: &mut self.save.save,
@@ -1159,7 +1360,7 @@ impl FieldWorld {
         let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
         let clear = |f: i32, b: i32| room_clear(ctrl, foes, f, b);
         let mut cx = EnterCx {
-            player: self.player.body.pos,
+            player: self.kite().pos(),
             scene: &self.scene,
             clear: &clear,
             save: &mut self.save.save,
@@ -1268,9 +1469,15 @@ impl FieldWorld {
         }
     }
 
-    /// [`FieldWorld::step`] into a frame the caller finishes (the HUD draws
+    /// [`World::step`] into a frame the caller finishes (the HUD draws
     /// on its own layers of it).
     pub fn step_into(&mut self, pad: &Pad, ctx: &mut Ctx) {
+        self.step_into_with(pad, ctx, &mut crate::grunty::race::NoFades);
+    }
+
+    /// [`World::step_into`] with the menu's fader (`EntryFade` ..), which
+    /// a town's Flag Race fades on.
+    pub fn step_into_with(&mut self, pad: &Pad, ctx: &mut Ctx, fades: &mut dyn crate::grunty::race::RaceHost) {
         match self.phase {
             Phase::FadeOut(k) => {
                 piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
@@ -1308,9 +1515,9 @@ impl FieldWorld {
             }
             Phase::Play(f) => {
                 if f >= 1 {
-                    self.frame(pad, ctx, f >= 2);
+                    self.frame(pad, ctx, f >= 2, fades);
                 } else if !self.asleep {
-                    self.entry_setup(&CamPad::from_pad(pad));
+                    self.with_cast(|c, w| w.entry_setup(&CamPad::from_pad(pad), c));
                 }
                 if f < FADE_FRAMES {
                     piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0x8000_0000, 0, f, FADE_FRAMES);
@@ -1334,15 +1541,14 @@ impl FieldWorld {
 
     /// `ccThGameCtrl` (33), the frame's first world task, run by itself so
     /// that the menu task (34) can follow it before the rest
-    /// ([`FieldWorld::step_into`], `ccThCamera` 40 on).
+    /// ([`World::step_into`], `ccThCamera` 40 on).
     pub fn step_game_ctrl(&mut self, pad: &Pad) {
         self.targeting.map_test = false;
         if let Phase::Play(f) = self.phase
             && f >= 1
             && !self.asleep
         {
-            self.count = self.count.wrapping_add(1);
-            self.game_ctrl(pad);
+            self.with_cast(|c, w| w.game_ctrl(pad, c));
             self.ctrl_done = true;
         }
     }
@@ -1353,23 +1559,24 @@ impl FieldWorld {
         self.targeting.map_test
     }
 
-    /// `ccThGameCtrl` (33): the command target over the battle's command
-    /// lists (the party, the enemies, the objects: `ccSortCmnd`,
-    /// `ccSelectTarget`) and the menu buttons.
-    fn game_ctrl(&mut self, pad: &Pad) {
-        use crate::event::entry::Kind;
+    /// `ccThGameCtrl` (33, gcmn 0x00517800), one task for every area: the
+    /// command target over the command lists (the party, the enemies, the
+    /// objects, then the cast's own: `ccSortCmnd`, `ccSelectTarget`) and
+    /// the menu buttons. Everyone's posP is where they stood at the end of
+    /// last frame.
+    pub(crate) fn game_ctrl(&mut self, pad: &Pad, cast: &dyn cast::Cast) {
         use piney_battle::param::cond;
         use piney_input::Buttons as B;
         let c = &self.combat;
         let Some(k) = c.kite else { return };
         let kc = &c.scene.chars[k];
-        let dirc = c.kite_dirc();
+        let dirc = c.kite_ref().map_or([0; 4], |k| k.spc.dirc);
         let leader = talk::Leader { volume: self.volume, pos_p: [0, 0, kc.pos[2], ONE], dirc, width: kc.base().width };
         // The three command lists in order, Kite apart: the party's by
         // charTbl row, the enemies' and the others' by scene index.
-        let cmnd = |kind: Kind, code: i32, i: usize| {
+        let cmnd = |who: CharId, i: usize| {
             let ch = &c.scene.chars[i];
-            let mut m = talk::Cmnd::new(kind, code, ch.ty() as u32, ch.base().width, ch.pos_p);
+            let mut m = talk::Cmnd::new(who, ch.ty() as u32, ch.base().width, ch.pos_p);
             m.id = ch.id();
             m.cond = talk::Cond::from_shorts(&ch.cond.v);
             m.act = ch.spc_char.act_num;
@@ -1382,38 +1589,31 @@ impl FieldWorld {
                 at = n;
                 continue;
             }
-            cands.push(cmnd(Kind::Spc, i32::from(c.scene.chars[i].id()), i));
+            cands.push(cmnd(CharId::Member(i32::from(c.scene.chars[i].id())), i));
         }
-        for &i in &c.scene.ene_list {
-            cands.push(cmnd(Kind::Enemy, i as i32, i));
+        for &i in c.scene.ene_list.iter().chain(&c.scene.obj_list) {
+            cands.push(cmnd(CharId::Scene(i), i));
         }
-        for &i in &c.scene.obj_list {
-            cands.push(cmnd(Kind::Gimmick, i as i32, i));
-        }
+        cast.cmnds(kc.pos, &mut cands);
         let pushed = |at: usize, default: u16| {
             let b = self.save.save.i16(at) as u16;
             let b = if b == 0 { default } else { b };
             pad.push.bits() & u32::from(b) != 0
         };
         let m = self.menu_view;
-        let skill = c.skills.borrow().check(&c.data.t, &c.scene, k, kc.spc_char.act_num);
         let kite_cond = talk::Cond::from_shorts(&kc.cond.v);
         let input = talk::Input {
             pow_l: pad.pow_l,
-            eye: self.camera.tcam.kind == crate::camera::kind::EYE,
+            // checkCameraType(): activeCamPtr->type.
+            eye: self.camera.active().kind == crate::camera::kind::EYE,
             action: pushed(offset::ASSIGN_PAD_ACTION, crate::DEFAULT_ACTION),
             personal: pushed(offset::ASSIGN_PAD_ACTION + 2, B::TRIANGLE.bits() as u16),
             chat: pushed(offset::ASSIGN_PAD_ACTION + 4, B::SQUARE.bits() as u16),
             option: pushed(offset::ASSIGN_PAD_ACTION + 6, B::START.bits() as u16),
-            player_ok: piney_battle::kite::menu_check(&c.party, &c.scene, k, skill)
-                && !matches!(kc.spc_char.act_num, 12 | 13),
             menu_idle: m.idle,
             forbid: m.forbid,
             forbid_chat_except: m.forbid_chat_except,
             pl_attack: m.pl_attack,
-            held: kite_cond.held(),
-            dead: kite_cond.dead != 0,
-            skill_one: skill == 1,
             area: self.scene.area,
             field: self.scene.field,
             // `ccGame.dungeonType`: a lake's (8, 9) PERSONAL is the field's,
@@ -1433,11 +1633,8 @@ impl FieldWorld {
             let who = if mc == k {
                 talk::Who::Leader
             } else {
-                let code = i32::from(ch.id());
-                cands
-                    .iter()
-                    .position(|x| x.kind == Kind::Spc && x.code == code)
-                    .map_or(talk::Who::Unlisted, talk::Who::Cand)
+                let me = CharId::Member(i32::from(ch.id()));
+                cands.iter().position(|x| x.who == me).map_or(talk::Who::Unlisted, talk::Who::Cand)
             };
             let pos_p = if mc == k { leader.pos_p } else { ch.pos_p };
             party.slots[slot] = Some(talk::Member { pos_p, dead: ch.cond[cond::DEAD], who });
@@ -1477,20 +1674,33 @@ impl FieldWorld {
             None | Some(talk::Ctrl::Attack { .. }) => {}
             Some(talk::Ctrl::Open(menu)) => self.talks.push(talk::TalkRequest::Open { menu }),
             Some(talk::Ctrl::Action(a)) => {
-                // ccEvent::CheckOperate(9)'s test (as the town's): a
-                // target's type is a bit of the character's base type
-                // flags, its code the base id; the event's then, no menu.
-                // A party character's code is its charTbl row, not its
-                // scene index.
-                let id = self
-                    .target_index(Some((a.kind, a.code)))
-                    .and_then(|i| self.combat.scene.chars.get(i))
-                    .map(|ch| ch.id());
+                // ccEvent::CheckOperate(9)'s test: a target's type is a bit
+                // of the character's base type flags (the Chaos Gate, type
+                // 13, a gimmick, can be one), its code the base id; the
+                // event's then, no menu. A cast's NPC spoken to (22) says
+                // its line; a shop's (24-26) opens with one.
+                let id = self.base_id(a.who);
                 let event = self.event_targets.iter().any(|&(t, c)| a.flags & (1u32 << (t & 31)) != 0 && Some(c) == id);
-                self.talks.push(if event {
-                    talk::TalkRequest::Event { kind: a.kind, code: a.code }
-                } else {
-                    talk::TalkRequest::Menu { menu: a.menu, kind: a.kind, code: a.code }
+                let npc = match a.who {
+                    CharId::Npc(code) => cast.npc(code).map(|n| (code, n)),
+                    _ => None,
+                };
+                self.talks.push(match (event, a.menu, npc, talk::Shop::of(a.flags)) {
+                    (true, ..) => talk::TalkRequest::Event { who: a.who },
+                    (_, 22, Some((code, n)), _) => {
+                        let (msg, line) = match n.talk_line() {
+                            Some((m, l)) => (m, Some(l)),
+                            None => {
+                                (crate::chara::npc::NpcRow::of(self.volume, code as usize).map_or(0, |r| r.msg), None)
+                            }
+                        };
+                        talk::TalkRequest::Talk { npc: code, msg, line }
+                    }
+                    (_, 24..=26, Some((code, n)), Some(shop)) => {
+                        let (msg, line) = n.talk_line().unwrap_or((0, 0));
+                        talk::TalkRequest::Shop { npc: code, shop, msg, line }
+                    }
+                    _ => talk::TalkRequest::Menu { menu: a.menu, who: a.who },
                 });
             }
             // The game over (field-walk.md): the task's first step here,
@@ -1504,9 +1714,16 @@ impl FieldWorld {
         self.pl_attack_set |= out.pl_attack && !m.pl_attack;
     }
 
+    /// Kite put at `pos` facing `dirc` (+0x40, +0x60) by the scene (the
+    /// Flag Race's places, the riding Grunty's moves), the one Kite.
+    pub(crate) fn put_kite(&mut self, pos: V4, dirc: V4) {
+        let Some(k) = self.combat.kite else { return };
+        self.combat.scene.chars[k].pos = pos;
+        self.combat.crew.spc.entry(k).or_default().dirc = dirc;
+    }
+
     /// Kite's `pauseSW` (+0xe0 bit 0): a menu holds him.
-    fn set_pause(&mut self, on: bool) {
-        self.player.acts.pause = on;
+    pub(crate) fn set_pause(&mut self, on: bool) {
         let Some(k) = self.combat.kite else { return };
         let f = &mut self.combat.scene.chars[k].spc_char.flags;
         if on {
@@ -1516,13 +1733,9 @@ impl FieldWorld {
         }
     }
 
-    /// The scene index the command target names: a party member by its
-    /// `charTbl` row, anything else by its index.
-    pub fn target_index(&self, t: Option<(crate::event::entry::Kind, i32)>) -> Option<usize> {
-        match t? {
-            (crate::event::entry::Kind::Spc, id) => self.combat.who(id),
-            (_, i) => usize::try_from(i).ok().filter(|&i| i < self.combat.scene.chars.len()),
-        }
+    /// The battle's scene index of `id`, when the scene holds it.
+    pub fn scene_index(&self, id: CharId) -> Option<usize> {
+        self.combat.scene_of(id)
     }
 
     /// `eventMng.target[]` as the event interpreter holds it ((type,
@@ -1534,15 +1747,15 @@ impl FieldWorld {
 
     /// The command target (`cmndTarget`) as a scene index.
     pub fn command_target(&self) -> Option<usize> {
-        self.target_index(self.targeting.target)
+        self.scene_index(self.targeting.target?)
     }
 
-    /// The command target (`cmndTarget`) by kind and code.
-    pub fn command_target_code(&self) -> Option<(crate::event::entry::Kind, i32)> {
+    /// The command target (`cmndTarget`).
+    pub fn command_target_id(&self) -> Option<CharId> {
         self.targeting.target
     }
 
-    /// The event targets as [`FieldWorld::set_event_targets`] left them.
+    /// The event targets as [`World::set_event_targets`] left them.
     pub fn event_targets(&self) -> &[(i16, i16)] {
         &self.event_targets
     }
@@ -1558,7 +1771,7 @@ impl FieldWorld {
     }
 
     /// `ccChangeCmndTarget` from the field's menus.
-    pub fn change_command_target(&mut self, t: Option<(crate::event::entry::Kind, i32)>) {
+    pub fn change_command_target(&mut self, t: Option<CharId>) {
         self.targeting.set_target(t);
     }
 
@@ -1669,7 +1882,7 @@ impl FieldWorld {
     /// menus, the save's count already down: the item's rules on the scene
     /// now, and the whole use as steps in the game's order, which the menu
     /// plays (its windows and waits) and hands back one at a time
-    /// ([`FieldWorld::item_step`]). Nothing without Kite.
+    /// ([`World::item_step`]). Nothing without Kite.
     pub fn use_item(&mut self, target: usize, code: i32, arg: i32) -> Vec<piney_battle::item::Step> {
         let Some(k) = self.combat.kite else { return Vec::new() };
         let parody = self.save.save.u8(0x842b) != 0;
@@ -1680,7 +1893,7 @@ impl FieldWorld {
     /// `ccUseItemRequest`, the ocarina command): each one's rules run on
     /// the scene now ([`Combat::use_item`]), and its steps handed back with
     /// the user and the target, for the runtime to play as the menu plays
-    /// Kite's ([`FieldWorld::item_step`] for the world's).
+    /// Kite's ([`World::item_step`] for the world's).
     pub fn take_member_items(&mut self) -> Vec<(usize, usize, Vec<piney_battle::item::Step>)> {
         let uses = std::mem::take(&mut self.combat.member_items);
         let parody = self.save.save.u8(0x842b) != 0;
@@ -1689,7 +1902,7 @@ impl FieldWorld {
             .collect()
     }
 
-    /// One of [`FieldWorld::use_item`]'s steps on the world, as the menu
+    /// One of [`World::use_item`]'s steps on the world, as the menu
     /// reaches it (`user` used the item on `target`): the affects, the
     /// skill, the effects, the trap box's entry word, Kite's hold, the
     /// system message. False for a step the port does not carry out here
@@ -1861,7 +2074,7 @@ impl FieldWorld {
         let c = self.combat.scene.chars.get(who)?;
         let hits = &self.area.core().hits;
         let bounds = Combat::bounds(self.scene.area, hits);
-        let player = self.player.body.pos;
+        let player = self.kite().pos();
         // The copy nearest the player (ccTransPosFW2LW).
         let pos = piney_battle::kite::fw2lw(&bounds, player, c.pos);
         let h = c.base().height;
@@ -1885,8 +2098,8 @@ impl FieldWorld {
         let b = ee::rad2deg(ee::atan2f(ee::sub(vp[1], cp[1]), ee::sub(vp[0], cp[0])));
         let dd = (0x1400i32 + (i32::from(a) - i32::from(b))) as i16;
         let in_view = dd > 0 && i32::from(dd) < 2 * 0x1400;
-        let dist =
-            self.targeting.sorted.iter().find(|t| self.target_index(Some((t.0, t.1))) == Some(who)).map_or(0, |t| t.2);
+        let me = self.combat.char_id(who);
+        let dist = self.targeting.sorted.iter().find(|t| t.0 == me).map_or(0, |t| t.1);
         Some(HudGeometry { tag, bar_res, bar, arrow, in_view, dist })
     }
 
@@ -1897,6 +2110,7 @@ impl FieldWorld {
         use piney_battle::entry::Kind;
         let c = &self.combat;
         let mut e = crate::map::Entries::default();
+        self.cast.map_entries(&mut e);
         for i in c.ctrl.list(Kind::Circle) {
             let Some(o) = c.ctrl.entry_obj(i) else { continue };
             e.circles.push(crate::map::field::Circle { mx: o.ent.x, my: o.ent.y, fading: o.dest_flag, alpha: o.alpha });
@@ -1934,39 +2148,105 @@ impl FieldWorld {
         }
     }
 
-    /// `ccCheckTarget`'s lists: whether `who` is on a command list.
-    pub fn listed(&self, who: usize) -> bool {
-        self.combat.scene.listed(who)
+    /// `ccCheckTarget(c)` (gcmn 0x00519920): whether `id` is on a command
+    /// list (the party's, the enemies', the others').
+    pub fn listed(&self, id: CharId) -> bool {
+        match id {
+            CharId::Member(_) | CharId::Scene(_) => self.scene_index(id).is_some_and(|w| self.combat.scene.listed(w)),
+            // On the list from its constructor to the dismount.
+            CharId::Ride => self.combat.ride.obj.as_deref().is_some_and(|o| o.listed),
+            CharId::Npc(_) | CharId::Object(_) => self.cast.own(self, id).is_some_and(|o| o.listed),
+        }
+    }
+
+    /// Where `id` stands as its `ccChar` +0x40 is read, and its base's
+    /// height: a battle character's (and the ride's) copy nearest the
+    /// player, the cast's own as they keep it.
+    pub fn char_place(&self, id: CharId) -> Option<(V4, F)> {
+        let near = |p: V4| {
+            let bounds = Combat::bounds(self.scene.area, &self.area.core().hits);
+            piney_battle::kite::fw2lw(&bounds, self.kite().pos(), p)
+        };
+        match id {
+            CharId::Member(_) | CharId::Scene(_) => {
+                let c = self.combat.scene.chars.get(self.scene_index(id)?)?;
+                Some((near(c.pos), c.base().height))
+            }
+            // pcgsTbl's height.
+            CharId::Ride => self.combat.ride.obj.as_deref().map(|o| (near(o.ride.pos), piney_battle::ride::SIZE)),
+            CharId::Npc(_) | CharId::Object(_) => self.cast.own(self, id).map(|o| (o.pos, o.height)),
+        }
+    }
+
+    /// `ccCalcTagPosChar(c, out, (0, 0, height * scale), mode)` (gcmn
+    /// 0x0051a500): the screen point over `id` in the frame buffer's
+    /// pixels and the call's answer (mode 0: 1 on screen, else 0; else 1
+    /// inside, else 2). None when `id` is unknown or behind the camera. The
+    /// target cursor's scale is 0.45, the life bar's and a balloon's 0.9.
+    pub fn tag_pos(&self, id: CharId, scale: F, mode: i32) -> Option<(i32, i32, i32)> {
+        let (pos, height) = self.char_place(id)?;
+        let off = [0, 0, ee::mul(height, scale), 0];
+        crate::chara::char::calc_tag_pos(&self.camera.world_screen, pos, off, mode)
     }
 
     /// What `ccChatMsg::Disp` asks of a speaker: `ccCheckTarget(c)`, and
     /// `ccCalcTagPosChar(c, p, (0, 0, 0.9 height), 0)`'s point when it
-    /// passes (on the copy of the character nearest the player).
-    pub fn chat_point(&self, who: usize) -> Option<(bool, Option<(i32, i32)>)> {
-        let c = self.combat.scene.chars.get(who)?;
-        let hits = &self.area.core().hits;
-        let bounds = Combat::bounds(self.scene.area, hits);
-        let pos = piney_battle::kite::fw2lw(&bounds, self.player.body.pos, c.pos);
-        let off = [0, 0, ee::mul(0x3f66_6666, c.base().height), 0];
-        let at = crate::chara::char::calc_tag_pos(&self.camera.world_screen, pos, off, 0)
-            .filter(|t| t.2 != 0)
-            .map(|t| (t.0, t.1));
-        Some((self.listed(who), at))
+    /// passes.
+    pub fn chat_point(&self, id: CharId) -> Option<(bool, Option<(i32, i32)>)> {
+        self.char_place(id)?;
+        let at = self.tag_pos(id, 0x3f66_6666, 0).filter(|t| t.2 != 0).map(|t| (t.0, t.1));
+        Some((self.listed(id), at))
     }
 
-    /// The riding Grunty's balloon place (from Mutation on): on the command
-    /// list from its constructor to the dismount, its tag at 0.9 of
-    /// `pcgsTbl`'s height over it (`ccCalcTagPosChar`). None while no ride.
-    pub fn ride_chat_point(&self) -> Option<(bool, Option<(i32, i32)>)> {
-        let o = self.combat.ride.obj.as_deref()?;
-        let hits = &self.area.core().hits;
-        let bounds = Combat::bounds(self.scene.area, hits);
-        let pos = piney_battle::kite::fw2lw(&bounds, self.player.body.pos, o.ride.pos);
-        let off = [0, 0, ee::mul(0x3f66_6666, piney_battle::ride::SIZE), 0];
-        let at = crate::chara::char::calc_tag_pos(&self.camera.world_screen, pos, off, 0)
-            .filter(|t| t.2 != 0)
-            .map(|t| (t.0, t.1));
-        Some((o.listed, at))
+    /// `id`'s base id (+0x0c): a party member's `charTbl` row, an NPC's
+    /// `npcTbl` row, an object's `gimmickTbl` row.
+    pub fn base_id(&self, id: CharId) -> Option<i16> {
+        match id {
+            CharId::Member(_) | CharId::Scene(_) => Some(self.combat.scene.chars.get(self.scene_index(id)?)?.id()),
+            CharId::Ride => None,
+            CharId::Npc(code) => Some(code as i16),
+            CharId::Object(row) => Some(row),
+        }
+    }
+
+    /// What the HUD shows of `id` beside its place: its name (a party
+    /// member's from `charTbl`, anyone else's from its base), its base's
+    /// type flags and height, and a party member's `ccSpcParam` in the
+    /// save (`saveData.spcParam[code]`: level, HP, SP...).
+    pub fn char_info(&self, id: CharId) -> Option<crate::CharInfo> {
+        let (_, height) = self.char_place(id)?;
+        let scene = |w: usize| self.combat.scene.chars.get(w);
+        let (name, flags, spc_param) = match id {
+            CharId::Member(m) => {
+                let ch = scene(self.scene_index(id)?)?;
+                let name = self.char_names.get(usize::try_from(m).ok()?).cloned().unwrap_or_default();
+                (name, ch.ty() as u32, Some(piney_data::save::by_id::spc_param(m as usize)))
+            }
+            CharId::Scene(w) => {
+                let ch = scene(w)?;
+                let name = ch.base().label.map(piney_data::tables::sjis::encode).unwrap_or_default();
+                (name, ch.ty() as u32, None)
+            }
+            CharId::Ride => return None,
+            CharId::Npc(_) | CharId::Object(_) => {
+                let o = self.cast.own(self, id)?;
+                (o.name?, o.flags, None)
+            }
+        };
+        Some(crate::CharInfo { who: id, name, flags, height, spc_param })
+    }
+
+    /// `Host::command_target`: the character the action button would act
+    /// on (`cmndTarget`), its base type flags and id.
+    pub fn command_target_ref(&self) -> Option<piney_event::host::CharRef> {
+        let id = self.targeting.target?;
+        let types = self.char_info(id)?.flags;
+        Some(piney_event::host::CharRef { handle: id.handle(), types, code: self.base_id(id)? })
+    }
+
+    /// `ccCheckTarget(t)` for a character the scripts hold.
+    pub fn target_alive(&self, t: &piney_event::host::CharRef) -> bool {
+        CharId::from_handle(t.handle).is_some_and(|id| self.listed(id))
     }
 
     /// `hold type code` (Some) / `hold_end` (None): the event's
@@ -2196,8 +2476,24 @@ impl FieldWorld {
         let roster = self.combat.roster(ids);
         let area = self.scene.area;
         let positions = self.event_entries.2.clone();
+        // A Root Town's markers (`markerEvTbl`'s dummies); from Mutation on
+        // ccEntryEventMng leaves a character where it stands for a marker
+        // of 99 or more (MUT main 0x001cba88).
+        let markers: Vec<Option<(V4, F)>> = match area {
+            kind::TOWN => {
+                let n = piney_data::tables::world::of(self.volume).markers.len();
+                let late = self.volume != piney_data::volume::Volume::Inf;
+                (0..n as i16).map(|m| if late && m >= 99 { None } else { self.marker_bits(m) }).collect()
+            }
+            _ => Vec::new(),
+        };
+        let town_marker = |m: i16| usize::try_from(m).ok().and_then(|i| markers.get(i).copied().flatten());
+        // GetNpc on the cast's NPCs (a Root Town's are not the battle's).
+        let cast = &self.cast;
+        let npc_pos = |code: i32| cast.npc(code).map(|n| n.char().pos);
         let hits = &mut self.area.core_mut().hits;
-        let (r, out) = self.combat.with_ev_party(hits, &mut self.camera, area, &roster, &positions, f);
+        let (r, out) =
+            self.combat.with_ev_party(hits, &mut self.camera, area, &roster, &positions, &town_marker, &npc_pos, f);
         for o in out {
             if let piney_battle::entry::Out::DeleteCmnd(c) = o
                 && self.command_target() == Some(c)
@@ -2209,8 +2505,9 @@ impl FieldWorld {
     }
 
     /// `ccThEvHold` (priority 33), after the event and before the menus
-    /// and the camera.
-    fn ev_hold_task(&mut self) {
+    /// and the camera: the `hold` instruction starts it in any area (INF
+    /// main 0x001b0a00, `ccEvent::Execute`, no area test).
+    pub(crate) fn ev_hold_task(&mut self) {
         let area = self.scene.area;
         let hits = &mut self.area.core_mut().hits;
         let bounds = Combat::bounds(area, hits);
@@ -2218,41 +2515,29 @@ impl FieldWorld {
     }
 
     /// The tasks' frame.
-    fn frame(&mut self, pad: &Pad, ctx: &mut Ctx, drawn: bool) {
+    fn frame(&mut self, pad: &Pad, ctx: &mut Ctx, drawn: bool, fades: &mut dyn crate::grunty::race::RaceHost) {
         let awake = !self.asleep;
         let ctrl_done = std::mem::take(&mut self.ctrl_done);
+        let cpad = CamPad::from_pad(pad);
         if awake {
             if !ctrl_done {
-                self.count = self.count.wrapping_add(1);
-                self.game_ctrl(pad);
+                self.with_cast(|c, w| w.game_ctrl(pad, c));
             }
-            let cpad = CamPad::from_pad(pad);
-            self.event_camera_task(&cpad);
+            self.with_cast(|c, w| w.event_camera_task(c, &cpad));
             self.ev_hold_task();
             // ccThCamera (40): cameraMain with Kite's heading.
             let mut mode = self.save.save.u8(offset::CAMERA_MODE) as i8;
-            let heading = self.combat.kite_dirc()[2];
+            let heading = self.kite().dirc()[2];
             let wiped = self.combat.annihilated();
             self.camera.main(&cpad, heading, true, wiped, &mut mode);
             self.save.save.set_u8(offset::CAMERA_MODE, mode as u8);
             // A leaver's task wakes to its exit (set by an earlier frame's
             // ccFellow::Main) and ends before its Main would run.
             self.fellows_gone();
-            // ccThSpc .. ccThSkill: the battle's tasks, with the event
-            // NPCs' starts of the last frame.
-            self.combat.shows.append(&mut self.npc_shows);
-            self.combat_frame(&cpad);
-            self.sync_player();
-            self.npcs_frame();
-            let transfers = self
-                .combat
-                .shows
-                .iter()
-                .filter(|s| matches!(s, Show::Kite(_, piney_battle::kite::Out::Transfer)))
-                .count();
-            for _ in 0..transfers {
-                self.requests.push(Request::Game(crate::Request::Transfer));
-            }
+            self.lights_before = Some(self.light_sources());
+            // ccThSpc .. ccThParticle: the battle's tasks, the cast's at the
+            // entry control's slot.
+            self.with_cast(|c, w| w.combat_frame(&cpad, c, fades));
             if std::mem::take(&mut self.combat.enter) {
                 self.enter_place();
             }
@@ -2262,16 +2547,8 @@ impl FieldWorld {
         // direction (SetLightDirection, copied at GO), sysLayer's view.
         ctx.layers.shadows = draw::go_shadows(&self.area.core().lights, &self.camera.world_screen);
         self.fx.set_fog(self.area.core().lights.fog);
-        self.draw_cast(ctx, to_screen);
-        {
-            let area = self.scene.area;
-            let hits = &mut self.area.core_mut().hits;
-            let bounds = Combat::bounds(area, hits);
-            let c = &self.combat;
-            let view =
-                FxView { scene: &c.scene, ctrl: &c.ctrl, cast: &c.cast, camera: &self.camera, bounds, kite: c.kite };
-            self.fx.draw(&view, ctx);
-        }
+        self.draw_cast(ctx, to_screen, awake);
+        self.with_fx_view(|fx, view| fx.draw(view, ctx));
         // ccThFieldDisp (96): WORLD::Draw or DUNGEON::Draw - drawn from the
         // tasks' second frame; what they step (and the hit list a field's
         // passes leave) only while awake.
@@ -2315,20 +2592,43 @@ impl FieldWorld {
             let (flames, mut smoke) = self.combat.breath_draws();
             sprites.extend(flames);
             self.fx.sprites(&sprites, &self.camera, ctx);
-            // The area's smoke and the breaths' bursts for the next effect
-            // task; the rest of its calls (thunder, steam, TOBJ's hum, the
+            // The area's smoke and the breaths' bursts for ccThParticle; the
+            // rest of its calls (thunder, steam, TOBJ's hum, the
             // doors) for the runtime.
             if awake {
-                let mut puffs: Vec<Smoke> =
-                    events.iter().filter_map(|e| if let MapEvent::Smoke(s) = e { Some(*s) } else { None }).collect();
-                puffs.append(&mut smoke);
+                let mut puffs: Vec<MapEvent> = events.iter().filter(|e| e.is_smoke()).copied().collect();
+                puffs.extend(smoke.drain(..).map(MapEvent::Smoke));
                 self.fx.smoke(&puffs);
             }
-            self.ambient_calls.extend(events.into_iter().filter(|e| !matches!(e, MapEvent::Smoke(_))));
+            self.ambient_calls.extend(events.into_iter().filter(|e| !e.is_smoke()));
             for r in story_out {
                 self.story_request(r);
             }
         }
+        // ccThParticle (98): the smoke just started moves this frame.
+        if awake {
+            self.with_cast(|c, w| w.particle_task(&cpad, c));
+        }
+        self.with_fx_view(|fx, view| fx.draw_particles(view, ctx));
+    }
+
+    /// The effects' view of the battle (its scene, entry control, actors,
+    /// the camera and the map's bounds), lent to `f` with the effects.
+    pub(crate) fn with_fx_view(&mut self, f: impl FnOnce(&mut dyn FieldFx, &FxView)) {
+        let area = self.scene.area;
+        let bounds = Combat::bounds(area, &self.area.core().hits);
+        let c = &self.combat;
+        let view = FxView { scene: &c.scene, ctrl: &c.ctrl, cast: &c.cast, camera: &self.camera, bounds, kite: c.kite };
+        f(&mut *self.fx, &view);
+    }
+
+    /// `ccThParticle` (98) over the battle, after the area's draw (96).
+    pub(crate) fn particle_task(&mut self, cpad: &CamPad, cast: &mut dyn cast::Cast) {
+        let info = self.task_info();
+        let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, *cpad, &info);
+        x.spcs = Some(&mut self.spcs);
+        x.own = Some(&*cast);
+        self.combat.particle_task(&mut x, self.fx.tasks());
     }
 
     /// What a story map's scene asked: `MenuBan` / `MenuClr` (the camera's
@@ -2355,10 +2655,18 @@ impl FieldWorld {
     }
 
     /// The battle's tasks over the area's collision and the camera (the
-    /// entry control set up first if [`FieldWorld::entry_setup`] has not
-    /// run).
-    fn combat_frame(&mut self, cpad: &CamPad) {
-        self.entry_setup(cpad);
+    /// entry control set up first if [`World::entry_setup`] has not
+    /// run), the cast's NPC list ending `ccThEntryCtrl`'s slot (64).
+    pub(crate) fn combat_frame(
+        &mut self,
+        cpad: &CamPad,
+        cast: &mut dyn cast::Cast,
+        fades: &mut dyn crate::grunty::race::RaceHost,
+    ) {
+        self.entry_setup(cpad, cast);
+        // The ride's slot (49, after Kite's) reads the cast's tasks (a
+        // town's Flag Race, 63) as they left them last frame.
+        self.combat.ride.race = cast.race_ride();
         let info = self.task_info();
         // Kyvia's disc as the boss reads it this frame (`IsMove`,
         // `discPrevPos`, `DMY_marker01`).
@@ -2375,7 +2683,24 @@ impl FieldWorld {
         // on the one registry and party, as in a town.
         let before = self.spcs.party();
         x.spcs = Some(&mut self.spcs);
-        self.combat.frame(&mut x, self.fx.tasks());
+        let first = self.combat.shows.len();
+        let done = self.combat.frame_to_entry(&mut x);
+        drop(x);
+        cast.entry_slot(self, fades);
+        if let Some(done) = done {
+            let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, *cpad, &info);
+            x.spcs = Some(&mut self.spcs);
+            x.own = Some(&*cast);
+            self.combat.frame_from_entry(&mut x, self.fx.tasks(), done);
+        }
+        // Kite's effTransfers, asked of the game too.
+        let transfers = self.combat.shows[first..]
+            .iter()
+            .filter(|s| matches!(s, Show::Kite(_, piney_battle::kite::Out::Transfer)))
+            .count();
+        for _ in 0..transfers {
+            self.requests.push(Request::Game(crate::Request::Transfer));
+        }
         self.spcs.party_strategy = self.combat.spc.party_strategy;
         if self.spcs.party() != before {
             self.combat.set_party(self.spcs.party());
@@ -2401,7 +2726,7 @@ impl FieldWorld {
     /// each event entry in a dungeon), on the frame of [`Phase::Play`] 0, before
     /// the event's first pass that plays; so event 4's trap room opens its doors
     /// then to shut them on camera a frame later.
-    fn entry_setup(&mut self, cpad: &CamPad) {
+    fn entry_setup(&mut self, cpad: &CamPad, cast: &mut dyn cast::Cast) {
         if !self.combat.started {
             let (ty, rank) = {
                 let s = self.scene;
@@ -2418,7 +2743,7 @@ impl FieldWorld {
             if let Some(rng) = rng {
                 self.area.core_mut().field_rand = Some(rng);
             }
-            self.build_npcs();
+            cast.placed(self);
             // An `entry 7 code`: ccEntryEventMng's ccBossEntryStart(code),
             // the boss at the arena's centre (DMY_center01).
             if let Some(e) = en.iter().find(|e| e[0] == 7) {
@@ -2434,105 +2759,20 @@ impl FieldWorld {
         }
     }
 
-    /// The classes of the event's NPCs the entry control has just made
-    /// ([`crate::field::npcs`]), where `ccEntryEventMng` put their stand-ins.
-    fn build_npcs(&mut self) {
-        let placed = self.combat.npcs.clone();
-        if placed.is_empty() {
-            return;
-        }
-        let (area, town) = (self.scene.area, self.scene.town);
-        let player = self.player.body.pos;
-        let chars = &self.combat.scene.chars;
-        let objs = &self.combat.ctrl.objs;
-        let at = |who: usize| {
-            let dirc = match objs.get(who) {
-                Some(piney_battle::entry::Obj::Npc(o)) => o.dirc,
-                _ => [0, 0, 0, ONE],
-            };
-            (chars[who].pos, dirc)
-        };
-        let hits = &mut self.area.core_mut().hits;
-        let (archive, volume, cc) = (&self.archive, self.volume, &mut self.combat.cc);
-        let missing = self.npcs.with_cc(cc, |n| n.build(archive, volume, &placed, area, town, hits, player, at));
-        for m in missing {
-            tracing::warn!("the event's NPCs: {m}");
-        }
-    }
-
-    /// One frame of the event's NPCs (their place on the entry control's
-    /// NPC list, after the battle's tasks here): each class steps, its
-    /// stand-in follows (position, heading, the command lists), their
-    /// starts wait for the next frame's effects, and a
-    /// class done with its NPC has the stand-in deleted.
-    fn npcs_frame(&mut self) {
-        if self.npcs.list.is_empty() {
-            return;
-        }
-        let a = self.camera.active();
-        let view = crate::chara::char::View {
-            player: self.player.body.pos,
-            cam: a.pos,
-            deg1: a.deg[1],
-            eye: a.kind == crate::camera::kind::EYE,
-        };
-        let mut rand = crate::Rand(self.combat.rand.0);
-        let hits = &mut self.area.core_mut().hits;
-        let mut cx = crate::event::entry::NpcCtx {
-            player: self.player.body.pos,
-            player_dirc: self.player.body.dirc,
-            view,
-            cam: self.camera.active(),
-            hits,
-            rand: &mut rand,
-        };
-        let out = self.npcs.with_cc(&mut self.combat.cc, |n| n.step(&mut cx));
-        self.combat.rand.0 = rand.0;
-        for n in &self.npcs.list {
-            let c = &mut self.combat;
-            let Some(ch) = c.scene.chars.get_mut(n.who) else { continue };
-            ch.pos = n.npc().char().pos;
-            ch.pos_p = n.npc().char().pos_p;
-            if let Some(piney_battle::entry::Obj::Npc(o)) = c.ctrl.objs.get_mut(n.who) {
-                o.dirc = n.dirc();
-            }
-            let listed = c.scene.listed(n.who);
-            if n.npc().listed() && !listed {
-                piney_battle::fellow::entry_cmnd(&mut c.scene, n.who);
-            } else if !n.npc().listed() && listed {
-                piney_battle::fellow::delete_cmnd(&mut c.scene, n.who);
-            }
-        }
-        for (who, e) in out.starts {
-            match e {
-                crate::town::merchant::SysopEvent::Noise => self.noise = true,
-                _ => self.npc_shows.push(Show::Npc(who, e)),
-            }
-        }
-        if !out.gone.is_empty() {
-            let info = self.task_info();
-            let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
-            self.combat.with_entry_cx(&mut x, |ctrl, cx| {
-                for &who in &out.gone {
-                    ctrl.delete_npc(cx, who);
-                }
-            });
-            self.combat.npcs.retain(|n| !out.gone.contains(&n.who));
-        }
-    }
-
-    /// The `near_marker` condition's distance outside the towns:
+    /// The `near_marker` condition's distance:
     /// `ccGetDist(ccTransPosW2P(pos), plw->posP)` (`ccEvent::CheckOpen`,
-    /// main 0x001a7d9c) through the map's bounds. Kite's `posP` is
-    /// `FZeroPosition` with his ground height (0, 0, z), or a carrier's
-    /// move this frame while he rides one (worklog 328).
+    /// main 0x001a7d9c), `ccPlayer::W2PPos` (gcmn 0x0059b5a0) wrapping
+    /// through `WORLD_MAN`'s bounds in every area (a town's +-24000). Kite's
+    /// place and `posP` are the battle's character's; `posP` is
+    /// `FZeroPosition` with his ground height, or a carrier's move this
+    /// frame while he rides one (worklog 328).
     pub fn player_distance(&self, pos: V4) -> F {
-        let hits = &self.area.core().hits;
-        let b = Combat::bounds(self.scene.area, hits);
-        let p = self.player.body.pos;
-        let at = |v: V4| piney_battle::kite::w2p_pos(&b, p, v).0;
-        let pos_p = self.combat.kite.and_then(|k| self.combat.scene.chars.get(k)).map_or(at(p), |c| c.pos_p);
-        piney_battle::enemy_ai::get_dist_on(self.volume, at(pos), pos_p)
+        let b = Combat::bounds(self.scene.area, &self.area.core().hits);
+        let c = &self.combat;
+        let kite = c.kite.and_then(|k| c.scene.chars.get(k));
+        let p = kite.map_or(self.kite().pos(), |k| k.pos);
+        let at = piney_battle::kite::w2p_pos(&b, p, pos).0;
+        piney_battle::enemy_ai::get_dist_on(self.volume, at, kite.map_or([0, 0, p[2], ONE], |k| k.pos_p))
     }
 
     /// `ccStoreSpcCondition()` as the next scene's `ccSetupGameCtrl` runs
@@ -2543,9 +2783,110 @@ impl FieldWorld {
         self.spcs.store_conditions(c.members.iter().map(|&(id, who)| (id, &c.scene.chars[who])));
     }
 
-    /// The event's NPCs ([`crate::field::npcs`]).
-    pub fn npcs(&self) -> &crate::field::npcs::FieldNpcs {
-        &self.npcs
+    /// Who stands here ([`cast::Cast`]; tests see its type through
+    /// `<dyn Cast>::get`).
+    pub fn cast(&self) -> &dyn cast::Cast {
+        &*self.cast
+    }
+
+    /// A method of the cast with the world lent to it (the cast is out of
+    /// its place meanwhile: what it calls of the world finds no cast).
+    fn with_cast<R>(&mut self, f: impl FnOnce(&mut dyn cast::Cast, &mut World) -> R) -> R {
+        let mut c = std::mem::replace(&mut self.cast, Box::new(cast::Lent));
+        let r = f(&mut *c, self);
+        self.cast = c;
+        r
+    }
+
+    /// Entered from a field or dungeon whose own tasks ran under
+    /// `ccSetupGameCtrl`'s fade out (the session drew it over them): the
+    /// set-up goes on from the frames held black, as it would after the
+    /// fade. Its `ccSoundFadeOut` went with the session's fade.
+    pub fn skip_fade_out(&mut self) {
+        if let Phase::FadeOut(_) = self.phase {
+            self.phase = Phase::Hold(0);
+            self.requests.retain(|r| *r != Request::Game(crate::Request::SoundFadeOut));
+            let off = self.scene.sound_off();
+            self.requests.push(Request::Game(off));
+        }
+    }
+
+    /// `ccMenuCtrl::SetMerchantCamera()` (gcmn 0x005269d0) as a shop's
+    /// menu opens on the NPC `who` (`cmndTarget`): the camera turned to
+    /// it ([`crate::camera::Camera::set_merchant`]); a breeder's view is
+    /// the one for `server` (`ccGame.server`). Anything but an NPC of the
+    /// cast is left.
+    pub fn set_merchant_camera(&mut self, who: CharId, server: i32) {
+        let CharId::Npc(code) = who else { return };
+        let Some(n) = self.cast.npc(code) else { return };
+        let target = if n.flags() & crate::chara::npc::TYPE_BREEDER != 0 {
+            let Some(v) = crate::camera::breeder_view(self.volume, server) else { return };
+            v
+        } else {
+            crate::camera::MerchantView::Char { pos: n.char().pos, dirc: n.char().dirc }
+        };
+        self.camera.set_merchant(target);
+    }
+
+    /// `ccChar::EntryAffect(who, plw, cmnd, p0, p1, 0)` from the menus: a
+    /// battle character through its rules (a registered one's
+    /// `ccFellow::Influence`, gcmn 0x0041bdb0: 14 and 15 greet Kite, 0
+    /// ends it), else one of the cast's own.
+    pub fn affect(&mut self, who: CharId, cmnd: i16, [p0, p1]: [i16; 2]) {
+        match self.scene_index(who) {
+            Some(i) => self.entry_affect(i, self.combat.kite, cmnd, [p0, p1, 0]),
+            None => self.with_cast(|c, w| c.affect(w, who, cmnd, [p0, p1])),
+        }
+    }
+
+    /// One of the menus' asks of the cast ([`cast::Ask`]).
+    pub fn ask(&mut self, a: cast::Ask) -> bool {
+        self.with_cast(|c, w| c.ask(w, a))
+    }
+
+    /// What the menus read of the cast's characters.
+    pub fn seen(&self) -> cast::Seen {
+        self.cast.seen([self.targeting.prev, self.targeting.target])
+    }
+
+    /// `ccRegisterEventMng(0)`'s `registNpcNum` (the set-up's first pass).
+    pub fn set_regist_npc_num(&mut self, n: i32) {
+        self.regist_npc_num = n;
+    }
+
+    /// `ccEntryEventMng`'s step for an entry the cast places itself.
+    pub fn event_entry(&mut self, e: [i16; 4]) -> bool {
+        self.with_cast(|c, w| c.event_entry(w, e))
+    }
+
+    /// The event task idles this frame for the cast's tasks.
+    pub fn holds_events(&self) -> bool {
+        self.cast.holds_events()
+    }
+
+    /// `remove type code` (`ccEvent::Execute` 0x001aa290): type 2 takes a
+    /// party member out of the party (`ccParty::DelMember` of its slot)
+    /// and the registry (`ccSPC::DelSpc` of each slot with its id), off
+    /// the area; 5 and 6 delete an enemy or object
+    /// ([`World::remove_entry`]); -1 (`deleteAllObject`) is not ported.
+    pub fn remove(&mut self, ty: i16, code: i16) -> bool {
+        if ty != 2 {
+            return self.remove_entry(ty, code);
+        }
+        let code = i32::from(code);
+        self.with_party(|spcs, chars, _| {
+            if let Some(s) = spcs.member_id.iter().position(|&m| m == code) {
+                spcs.del_member(s as i32, chars);
+            }
+        });
+        for i in 0..crate::chara::party::REGISTRY {
+            if self.spcs.registry[i].id == code {
+                self.spcs.del_spc(i);
+            }
+        }
+        self.combat.drop_party_member(code, &mut self.area.core_mut().hits);
+        self.combat.set_party(self.spcs.party());
+        true
     }
 
     /// Whether the Administrator asked for `ccMenu.interNoiz = 2` since the
@@ -2564,7 +2905,7 @@ impl FieldWorld {
                 return;
             }
         };
-        let center = self.area.boss_centre().unwrap_or(self.player.body.pos);
+        let center = self.area.boss_centre().unwrap_or(self.kite().pos());
         let disc = self.area.report().disc.unwrap_or_default();
         let env = piney_battle::chara::Env {
             count: self.count,
@@ -2609,25 +2950,32 @@ impl FieldWorld {
 
     /// The battle's characters where their frames left them: Kite and the
     /// members (`ccChar::Draw` after `SetMatrix_PosRotZYX`), the enemies at
-    /// `dispEnemy`'s matrix, the magic portals.
-    fn draw_cast(&self, ctx: &mut Ctx, to_screen: glam::Mat4) {
+    /// `dispEnemy`'s matrix, the magic portals; their weapon trails from
+    /// their Main (none asleep, nor Kite's while his task sleeps on a
+    /// town's Grunty), then the cast's. Each is lit by the group as the
+    /// tasks before its draw left it ([`lights`]).
+    fn draw_cast(&self, ctx: &mut Ctx, to_screen: glam::Mat4, awake: bool) {
         self.draw_rays(ctx);
         self.draw_trails(ctx);
         self.draw_boss(ctx, to_screen);
-        // The party's weapon trails (ccSpcChar::ArmsEffect's Disp).
-        for w in self.combat.cast.actors.values().filter_map(|a| a.weapon.as_ref()) {
-            w.send(&mut ctx.layers, &self.camera.world_screen);
-        }
-        let lit = self.cast_lights();
-        let lights = &*lit;
-        self.npcs.draw(&mut ctx.layers, to_screen, lights);
+        let now = self.light_sources();
+        let lit = lights::FrameLights::new(self, self.lights_before.as_ref().unwrap_or(&now));
+        let held = lit.party();
         // The riding Grunty and Kite on it (ccThPucciguso's draws).
-        self.combat.ride.draw(&mut ctx.layers, to_screen, lights);
+        self.combat.ride.draw(&mut ctx.layers, to_screen, &held);
         let looks = &self.combat.cast.looks;
-        for a in self.combat.cast.actors.values() {
-            if !a.drawn {
-                continue;
-            }
+        let party = |a: &crate::combat::Actor| matches!(a.look, Look::Kite | Look::Member(_));
+        let asleep = |a: &crate::combat::Actor| a.look == Look::Kite && self.combat.kite_asleep;
+        let mut drawn: Vec<_> = self.combat.cast.actors.iter().filter(|(_, a)| a.drawn && !asleep(a)).collect();
+        drawn.sort_by_key(|(_, a)| !party(a));
+        for (&who, a) in drawn {
+            let seen = match a.look {
+                Look::Enemy(_) => Some(lit.enemy(who)),
+                Look::Boss => Some(lit.boss()),
+                Look::Circle | Look::Gimmick(_) | Look::Other => Some(lit.walk_object(who)),
+                Look::Kite | Look::Member(_) => None,
+            };
+            let lights = seen.as_deref().unwrap_or(&held);
             match (a.look, &a.matrix) {
                 // ccChar::Draw at dispEnemy's matrix, as it decided.
                 (Look::Enemy(row), Some(m)) => {
@@ -2661,7 +3009,7 @@ impl FieldWorld {
                 // matrix.
                 (Look::Gimmick(_), Some(m)) => {
                     let shaded = a.ch.hit_attribute & crate::chara::char::SHADED != 0;
-                    draw::char_shadow(&mut ctx.layers, a.alpha, a.ch.height, |layers| {
+                    draw::char_shadow(&mut ctx.layers, a.shadow, a.ch.height, |layers| {
                         a.ch.body.draw_fog(
                             layers,
                             draw::CHAR_LAYER,
@@ -2691,7 +3039,7 @@ impl FieldWorld {
                     let arms = a.arms.unwrap_or(1.0);
                     let alpha = ee::f(a.alpha);
                     let (p, d) = (a.ch.pos, a.ch.dirc);
-                    draw::char_shadow(&mut ctx.layers, a.alpha, a.ch.height, |l| {
+                    draw::char_shadow(&mut ctx.layers, a.shadow, a.ch.height, |l| {
                         a.ch.body.draw_char_arms(l, to_screen, &a.ch.play, p, d, alpha, lights, shaded, &a.swaps, arms)
                     });
                 }
@@ -2715,7 +3063,7 @@ impl FieldWorld {
                 // tint: piros_colour on Piros).
                 _ => {
                     let shaded = a.ch.hit_attribute & crate::chara::char::SHADED != 0;
-                    draw::char_shadow(&mut ctx.layers, a.alpha, a.ch.height, |layers| {
+                    draw::char_shadow(&mut ctx.layers, a.shadow, a.ch.height, |layers| {
                         a.ch.body.draw_char_fog(
                             layers,
                             to_screen,
@@ -2732,41 +3080,14 @@ impl FieldWorld {
                 }
             }
         }
-    }
-
-    /// The light group the characters are drawn with: the map's, and the
-    /// effects' own lights while they are in it.
-    fn cast_lights(&self) -> std::borrow::Cow<'_, crate::town::TownLights> {
-        let extra = self.fx.lights();
-        let symbols = &self.combat.symbol_lights;
-        let springs = &self.combat.spring_lights;
-        let rays = &self.combat.rad_lights;
-        let flashes = &self.combat.weapons.lights;
-        let boss_light = self.combat.boss.as_ref().and_then(|r| r.light);
-        if extra.is_empty()
-            && symbols.is_empty()
-            && springs.is_empty()
-            && rays.is_empty()
-            && flashes.is_empty()
-            && boss_light.is_none()
-        {
-            return std::borrow::Cow::Borrowed(&self.area.core().lights);
+        // ccSpcChar::ArmsEffect's Disp, from the party's Main.
+        if awake {
+            let trails = self.combat.cast.actors.values().filter(|a| party(a) && !asleep(a));
+            for w in trails.filter_map(|a| a.weapon.as_ref()) {
+                w.send(&mut ctx.layers, &self.camera.world_screen);
+            }
         }
-        let mut l = self.area.core().lights.clone();
-        for &(p, intensity) in symbols.values().rev() {
-            l.lights.insert(0, symbol_light(p, intensity));
-        }
-        // The spring's, the rays' and the flashes': `ccLight(4, 1)`, their colour
-        // (`ccSetColor`'s low byte red) and fall-off as their frame left it.
-        for o in springs.values().flatten().chain(rays.values()).chain(flashes.values()).rev() {
-            l.lights.insert(0, omni_light(o));
-        }
-        l.lights.extend(extra);
-        // The boss's own (Macha's light ball's).
-        if let Some(o) = &boss_light {
-            l.lights.insert(0, omni_light(o));
-        }
-        std::borrow::Cow::Owned(l)
+        self.cast.draw(self, ctx, to_screen, &lit.npc_list());
     }
 
     /// The boss's own pictures besides its body: `DrawAfterImages` (each
@@ -3108,9 +3429,14 @@ impl FieldWorld {
     /// A camera instruction (`Host::camera`): the event camera's task
     /// started, or stopped and the field camera given back.
     pub fn event_camera(&mut self, c: piney_event::host::CameraCommand) {
+        self.with_cast(|cast, w| w.event_camera_with(cast, c));
+    }
+
+    /// [`World::event_camera`] with the cast lent (a cast's own code).
+    pub(crate) fn event_camera_with(&mut self, cast: &dyn cast::Cast, c: piney_event::host::CameraCommand) {
         let mut ev = std::mem::take(&mut self.evcam);
         let mut cam = self.camera.clone();
-        ev.command(c, &mut cam, self);
+        ev.command(c, &mut cam, &EvScene { w: self, cast });
         self.evcam = ev;
         self.camera = cam;
     }
@@ -3126,7 +3452,7 @@ impl FieldWorld {
     }
 
     /// `ccThCameraExecute` (33): the event camera's frame while it runs.
-    fn event_camera_task(&mut self, pad: &CamPad) {
+    pub(crate) fn event_camera_task(&mut self, cast: &dyn cast::Cast, pad: &CamPad) {
         if !self.evcam.running() {
             return;
         }
@@ -3140,7 +3466,7 @@ impl FieldWorld {
         };
         let mut ev = std::mem::take(&mut self.evcam);
         let mut cam = self.camera.clone();
-        ev.frame(&mut cam, self, &input);
+        ev.frame(&mut cam, &EvScene { w: self, cast }, &input);
         self.evcam = ev;
         self.camera = cam;
     }
@@ -3152,33 +3478,35 @@ impl FieldWorld {
         self.with_party(|spcs, chars, _| spcs.delete_fellows(chars, keep_recalled));
     }
 
-    /// The party's characters as the event instructions see them
-    /// ([`crate::combat::spc::BattleChars`]), `f` run on them, written back.
-    fn with_party<R>(
+    /// The registry's characters (`ccSpcManager`'s `charPtr`s: Kite and
+    /// the members, the battle's characters in every area) as the event
+    /// instructions see them, `f` run on them with the area's collision and
+    /// written back; then the battle's `ccPartyManager` brought up to date
+    /// (`SetParty`: the game has one, the port two copies).
+    pub(crate) fn with_party<R>(
         &mut self,
-        f: impl FnOnce(&mut crate::chara::party::Spcs, &mut combat::spc::BattleChars, &mut Hits) -> R,
+        f: impl FnOnce(&mut crate::chara::party::Spcs, &mut dyn crate::chara::party::SpcChars, &mut Hits) -> R,
     ) -> R {
         let c = &self.combat;
-        let td = |w: usize| c.cast.get(w).is_none_or(|a| a.trans_dist);
+        let td = |who: usize| c.cast.get(who).is_none_or(|a| a.trans_dist);
         let mut chars = combat::spc::BattleChars::read(&c.scene, &c.crew, &c.members, c.kite, &td);
-        let hits = &mut self.area.core_mut().hits;
-        let r = f(&mut self.spcs, &mut chars, hits);
+        let r = f(&mut self.spcs, &mut chars, &mut self.area.core_mut().hits);
         let cast = &mut self.combat.cast;
-        chars.finish(&mut self.combat.scene, &mut self.combat.crew, &mut |w, t| {
-            if let Some(a) = cast.get_mut(w) {
+        chars.finish(&mut self.combat.scene, &mut self.combat.crew, &mut |who, t| {
+            if let Some(a) = cast.get_mut(who) {
                 a.trans_dist = t;
             }
         });
-        for &(_, w) in &self.combat.members {
-            piney_battle::fellow::sync_in(&self.combat.scene, &mut self.combat.crew, w);
+        for &(_, who) in &self.combat.members {
+            piney_battle::fellow::sync_in(&self.combat.scene, &mut self.combat.crew, who);
         }
+        self.combat.set_party(self.spcs.party());
         r
     }
 
     /// `cameraShake(power, cycle, time, dirc)` (main 0x00162cd0) from the
     /// effects: a turning shake (`dirc` 2) draws `rand()`.
     pub fn camera_shake(&mut self, s: [i32; 4]) {
-        use piney_battle::rand::Rng as _;
         let rand = &mut self.combat.rand;
         self.camera.shake.shake(s[0], s[1], s[2], s[3], &mut || rand.rand());
     }
@@ -3202,7 +3530,6 @@ impl FieldWorld {
             members.iter().map(|&(_, w)| self.combat.scene.chars[w].cond[piney_battle::param::cond::DEAD]).collect();
         let annihilated = self.combat.annihilated();
         self.with_party(|_, chars, hits| {
-            use crate::chara::party::SpcChars as _;
             for &(id, _) in &members {
                 let Some(mut c) = chars.spc(id) else { continue };
                 c.manual_mode_ai(1, annihilated, hits);
@@ -3275,7 +3602,7 @@ impl FieldWorld {
     /// `ccMenuCtrl::SetFountainCamera()` (gcmn 0x00526c60): the event
     /// camera on the spring (`cmndTargetPrev`) from behind Kite.
     pub fn fountain_camera(&mut self) {
-        let Some(spring) = self.target_index(self.targeting.prev) else { return };
+        let Some(spring) = self.targeting.prev.and_then(|t| self.scene_index(t)) else { return };
         let Some(k) = self.combat.kite else { return };
         let (s, p) = (self.combat.scene.chars[spring].pos, self.combat.scene.chars[k].pos);
         self.camera.set_fountain(s, p);
@@ -3306,15 +3633,25 @@ impl FieldWorld {
 
     /// `party_add pc` (`ccEvent::Execute` case 77, main 0x001af270) and
     /// the field UI's `AddMember`: `ccParty::AddMember(pc)` (gcmn
-    /// 0x0059ce80) over the battle's characters: the first free slot,
-    /// `inviteSpc` (the registry's and the character's `partyFlag` 1, a
-    /// leaving one recalled); the slot, or -1 (no slot, or no character
-    /// built here: `inviteSpc`'s new character at the Chaos Gate is a
-    /// town's). The HUD's party follows (`SetParty`).
+    /// 0x0059ce80): the first free slot, `inviteSpc` (the registry's and
+    /// the character's `partyFlag` 1, a leaving one recalled); a character
+    /// not registered is first built by the cast ([`cast::Cast::invite_new`],
+    /// at a town's Chaos Gate). The slot, or -1 (no slot, or no character).
+    /// The HUD's party follows (`SetParty`).
     pub fn party_add(&mut self, pc: i32) -> i32 {
-        let slot = self.with_party(|spcs, chars, _| spcs.party_add(pc, chars));
-        self.combat.set_party(self.spcs.party());
-        slot
+        if self.spcs.member_id.contains(&-1)
+            && self.spcs.find(pc).is_none()
+            && !self.with_cast(|c, w| c.invite_new(w, pc))
+        {
+            return -1;
+        }
+        self.with_party(|spcs, chars, _| spcs.party_add(pc, chars))
+    }
+
+    /// `pc_mode pc param` (case 65): a registered character's `bootParam`,
+    /// for when the area's set-up builds it (callable before and after).
+    pub fn set_boot_param(&mut self, pc: i16, param: i16) {
+        self.spcs.pc_mode(i32::from(pc), i32::from(param));
     }
 
     /// The console's `invite_party` in a field or dungeon, where the party
@@ -3341,7 +3678,6 @@ impl FieldWorld {
     /// a recalled one goes (`ccFellow::Main`'s exit, [`Self::fellows_gone`]).
     pub fn party_remove(&mut self, pc: i32) {
         self.with_party(|spcs, chars, _| spcs.party_remove(pc, chars));
-        self.combat.set_party(self.spcs.party());
     }
 
     /// `ccSpcChar::TransferOut` on party character `code` (0 Kite), as the
@@ -3349,7 +3685,6 @@ impl FieldWorld {
     /// the body off the collision, off the command list unless manual.
     /// False when there is no such character here.
     pub fn transfer_out(&mut self, code: i32) -> bool {
-        use crate::chara::party::SpcChars as _;
         self.with_party(|_, chars, hits| match chars.spc(code) {
             Some(mut c) => {
                 c.transfer_out(hits);
@@ -3366,7 +3701,7 @@ impl FieldWorld {
     /// `expulsionSpc(listNum)` (gcmn 0x005a1070: out of its slot) and the
     /// task's delete (its registry slot freed unless it is a member again:
     /// `DelSpc`), its frames and its draw stopped.
-    fn fellows_gone(&mut self) {
+    pub(crate) fn fellows_gone(&mut self) {
         use piney_battle::fellow::flag::EXIT;
         let gone: Vec<(i32, usize)> = self
             .combat
@@ -3382,8 +3717,10 @@ impl FieldWorld {
                     spcs.expulsion(list_num, pf, chars);
                 }
             });
-            self.combat.members.retain(|m| m.1 != w);
-            self.combat.cast.actors.remove(&w);
+            // The task's delete: off the command lists and the character
+            // list, not drawn (checked against the game in a town:
+            // tools/test_evchar_rs.py).
+            self.combat.drop_member(w, &mut self.area.core_mut().hits);
             self.combat.set_party(self.spcs.party());
         }
     }
@@ -3398,7 +3735,7 @@ impl FieldWorld {
                 crate::chara::party::pc_act(spcs, chars, hits, i32::from(pc), i32::from(act))
             }),
             PcCommand::Mode { pc, param } => {
-                self.spcs.pc_mode(i32::from(pc), i32::from(param));
+                self.set_boot_param(pc, param);
                 true
             }
             PcCommand::Turn { pc, dirc, chg } => self.ev_party(|p| p.pc_turn(pc, dirc, chg)),
@@ -3421,7 +3758,7 @@ impl FieldWorld {
     /// An event's NPC instruction on one of its NPCs
     /// ([`crate::field::npcs`]), as the town does it: the class's event mode
     /// first (`npc_act`, `npc_walk_*`, a gradual turn), else a put or an
-    /// instant turn here. A marker is the event position of that number.
+    /// instant turn here.
     pub fn npc_command(&mut self, c: piney_event::host::NpcCommand) -> bool {
         use piney_event::host::NpcCommand;
         let code = match c {
@@ -3439,18 +3776,22 @@ impl FieldWorld {
             NpcCommand::Face { ty, code, .. } => self.char_pos(ty, code),
             _ => None,
         };
+        // A marker: a Root Town's markerEvTbl dummy, elsewhere the event
+        // position of that number.
         let marker = match c {
-            NpcCommand::PutMarker { marker, .. } | NpcCommand::WalkMarker { marker, .. } => self
-                .event_entries
-                .2
-                .iter()
-                .take(16)
-                .find(|p| p.num == i32::from(marker))
-                .map(|p| ([p.pos[0], p.pos[1], p.pos[2], ONE], p.dirc)),
+            NpcCommand::PutMarker { marker, .. } | NpcCommand::WalkMarker { marker, .. } => match self.scene.area {
+                kind::TOWN => self.marker_bits(marker),
+                _ => self
+                    .event_entries
+                    .2
+                    .iter()
+                    .take(16)
+                    .find(|p| p.num == i32::from(marker))
+                    .map(|p| ([p.pos[0], p.pos[1], p.pos[2], ONE], p.dirc)),
+            },
             _ => None,
         };
-        let Some(n) = self.npcs.by_code_mut(code) else { return false };
-        let n = n.npc_mut();
+        let Some(n) = self.cast.npc_mut(code) else { return false };
         if n.command(&c, marker, target) {
             return true;
         }
@@ -3480,37 +3821,74 @@ impl FieldWorld {
         }
     }
 
-    /// `trans_on` / `trans_off` on an event NPC (type 3 or 4): `ccChar`
-    /// +0x90, `ccChar::Draw`'s fade as the camera comes close.
+    /// `trans_off` / `trans_on` (`ccEvent::Execute` cases 161 and 162, main
+    /// 0x001b2248, 0x001b22f4): the character's `transDist` (+0x90),
+    /// `ccChar::Draw`'s near fade, found by [`World::find_char_pos`]'s
+    /// lookup: 4 `GetSpc` (Kite the cast's), 0x18 `GetNpc`, 0x60
+    /// `GetEnemy`. False when there is no such character.
     pub fn set_trans(&mut self, ty: i16, code: i16, on: bool) -> bool {
-        let bit = 1u32.checked_shl(ty as u32).unwrap_or(0);
-        if bit & 0x18 == 0 {
-            return false;
+        let bit = 1u32 << (ty as u32 & 31);
+        let code = i32::from(code);
+        if bit & 4 != 0 {
+            let Some(id) = self.spcs.get_spc(code) else { return false };
+            return self.with_party(|_, chars, _| match chars.spc(id) {
+                Some(c) => {
+                    *c.trans_dist = on;
+                    true
+                }
+                None => false,
+            });
         }
-        match self.npcs.by_code_mut(i32::from(code)) {
-            Some(n) => {
-                n.npc_mut().char_mut().trans_dist = on;
-                true
+        if bit & 0x18 != 0 {
+            return match self.cast.npc_mut(code) {
+                Some(n) => {
+                    n.char_mut().trans_dist = on;
+                    true
+                }
+                None => false,
+            };
+        }
+        if bit & 0x60 != 0 {
+            let c = &mut self.combat;
+            let Some(who) = piney_battle::evparty::get_enemy(&c.ctrl, &c.scene, code) else { return false };
+            if let Some(a) = c.cast.get_mut(who) {
+                a.trans_dist = on;
             }
-            None => false,
+            return true;
         }
+        false
     }
 }
 
-/// What the event camera looks up outside the towns: the party by code,
-/// Kite as the leader; the field's event positions are not ported.
-impl crate::camera::evcam::Scene for FieldWorld {
+/// What the event camera looks up: the world with its cast (lent while
+/// the camera runs, so a cast's own frame can run the camera too).
+pub(crate) struct EvScene<'a> {
+    pub w: &'a World,
+    pub cast: &'a dyn cast::Cast,
+}
+
+impl crate::camera::evcam::Scene for EvScene<'_> {
     fn char_pos(&self, ty: i32, code: i32) -> Option<V4> {
-        FieldWorld::char_pos(self, ty as i16, code as i16)
+        self.w.camera_char_pos(self.cast, ty as i16, code as i16)
     }
     fn leader_pos(&self) -> V4 {
-        self.player.body.pos
+        self.w.kite().pos()
     }
-    fn marker_pos(&self, _marker: i16) -> Option<V4> {
-        None
+    /// `cam_look_marker` and `cam_pan_marker` (main 0x001aaec0) by
+    /// `game.area`: a town's `markerEvTbl[marker]` dummy (+0x10), a
+    /// field's or dungeon's `evPos` of that number (eventMng +0x1c0, 16 of
+    /// 0x20 bytes: number +0x04, position +0x10), anything else nothing.
+    fn marker_pos(&self, marker: i16) -> Option<V4> {
+        match self.w.scene.area {
+            kind::TOWN => self.w.marker_bits(marker).map(|(p, _)| p),
+            kind::FIELD | kind::DUNGEON => {
+                self.w.event_entries.2.iter().take(16).find(|e| e.num == i32::from(marker)).map(|e| e.pos)
+            }
+            _ => None,
+        }
     }
     fn player_dirc(&self) -> V4 {
-        self.player.body.dirc
+        self.w.kite().dirc()
     }
 }
 
@@ -3534,11 +3912,8 @@ impl talk::Host for CtrlHost<'_> {
         let act = c.scene.chars[self.kite].spc_char.act_num;
         c.skills.borrow().check(&c.data.t, &c.scene, self.kite, act)
     }
-    fn skill_request(&mut self, kind: crate::event::entry::Kind, code: i32) {
-        let t = match kind {
-            crate::event::entry::Kind::Spc => self.combat.who(code),
-            _ => usize::try_from(code).ok(),
-        };
+    fn skill_request(&mut self, who: CharId) {
+        let t = self.combat.scene_of(who);
         self.combat.skill_request(self.kite, t, 1);
     }
     fn recovery(&mut self) {
@@ -3605,6 +3980,7 @@ fn tasks<'a>(
         path_map: false,
         effect_sw: i.effect_sw,
         spcs: None,
+        own: None,
     }
 }
 
@@ -3816,6 +4192,8 @@ pub trait FieldFx {
     /// draws: what the effects' sprites and fogged models read.
     fn set_fog(&mut self, _fog: Option<crate::town::FogParams>) {}
     fn draw(&mut self, _view: &FxView, _ctx: &mut Ctx) {}
+    /// `ccThParticle`'s draws, after the area's draw (96).
+    fn draw_particles(&mut self, _view: &FxView, _ctx: &mut Ctx) {}
     /// Whether it draws the magic portals (then the world does not).
     fn draws_circles(&self) -> bool {
         false
@@ -3857,9 +4235,9 @@ pub trait FieldFx {
     /// its draw.
     fn sprites(&mut self, _sprites: &[EffSprite], _camera: &Camera, _ctx: &mut Ctx) {}
     /// The smoke puffs a frame the tasks ran started (`effSmoke`: a
-    /// field's steam and fires, the enemies' breaths), for the next
-    /// effect task.
-    fn smoke(&mut self, _smoke: &[Smoke]) {}
+    /// field's steam and fires, the enemies' breaths; `effSmokeN`: a town's
+    /// airship), for this frame's `ccThParticle`.
+    fn smoke(&mut self, _smoke: &[MapEvent]) {}
     /// The lights the effects have put in the light group (the boss's
     /// `ccBossEffLight`), which the characters are lit by with the map's.
     fn lights(&self) -> Vec<crate::town::Light> {
@@ -3918,5 +4296,90 @@ pub struct FxCensus {
 impl FieldFx for combat::NoFx {
     fn tasks(&mut self) -> &mut dyn combat::FxTasks {
         self
+    }
+}
+
+/// What every area's world has that the town's façade had first: the
+/// rand count, sleep, the sorted command list, the area's fog and clear,
+/// Kite, the event camera, the spcs, the party's present and the
+/// transfers asked.
+impl World {
+    /// The set-up's `ccInitRand` with `ccSys+0x358` at `count`
+    /// ([`Arrival::rand_count`]): the one `ccRand` anew (the walking PCs
+    /// draw from it), and `ccRandS` moved on by it. 0 unless set before the tasks start.
+    pub fn init_rand(&mut self, count: u32) {
+        self.rand_count = count;
+        self.combat.cc = piney_battle::rand::init_rand(count, &mut self.combat.rnds);
+    }
+
+    pub fn asleep(&self) -> bool {
+        self.asleep
+    }
+
+    /// `cmndSortRoot`'s chain after the last frame's `ccSortCmnd`: (who,
+    /// `cmndDist`, `cmndDirc` in radians), nearest first; the target is
+    /// [`World::command_target`], the one before it `targeting().prev`.
+    pub fn command_sorted(&self) -> &[(CharId, F, F)] {
+        &self.targeting.sorted
+    }
+
+    /// `cc3d`'s fog as the town's constructor set it (`SetFog`).
+    pub fn fog(&self) -> Option<crate::town::FogParams> {
+        self.area.core().lights.fog
+    }
+
+    /// Kite's model files, his blades on his hands.
+    pub fn kite_model(&self) -> &KiteModel {
+        &self.kite
+    }
+
+    /// The event camera's state (`eventMng.cam`, the task, `normalCamID`;
+    /// `puppetShow` is [`Camera::puppet_show`]).
+    pub fn event_cam(&self) -> &crate::camera::evcam::EventCam {
+        &self.evcam
+    }
+
+    /// The event camera the last area left ([`evcam::EventCam::next_area`]):
+    /// `eventMng` outlives the area, its camera state with it.
+    pub fn set_event_cam(&mut self, ev: crate::camera::evcam::EventCam) {
+        self.evcam = ev;
+    }
+
+    /// The registry and the party the last area left (`ccSpcManager` and
+    /// `ccPartyManager` are the game's globals): taken before the town's
+    /// set-up builds them (`rebootSpcManager`), with every `bootParam` 0 as
+    /// the old area's `ccThSpcDelete` left them.
+    pub fn set_spcs(&mut self, mut spcs: crate::chara::party::Spcs) {
+        spcs.th_spc_delete();
+        self.spcs = spcs;
+    }
+
+    /// `ccSpcMessagePresentOtherFellow(ch)` (gcmn 0x005a1a70) after party
+    /// member `code` was given a present: with three in the party, the
+    /// other member (not Kite, not `code`) is sent message 0x10011
+    /// (`ccAISysMsgSendP(0x10011, -1, id, id, 0, 30, -1, ch)`, its own
+    /// sys-msg id), which its AI answers with
+    /// `ChatMessagePresentOtherFellow(ch)`.
+    pub fn present_other(&mut self, code: i32) {
+        let ids = self.spcs.party();
+        if self.spcs.num < 3 {
+            return;
+        }
+        let Some(me) = ids.iter().position(|&i| i == code) else { return };
+        let Some(ch) = self.combat.who(code) else { return };
+        for (slot, &id) in ids.iter().enumerate() {
+            if slot == 0 || slot == me {
+                continue;
+            }
+            let Some(m) = self.combat.who(id) else { continue };
+            let c = &mut self.combat;
+            let sid = c.crew.sys_msg_id(m) as u16;
+            c.crew.send(0x10011, sid, sid, 0, 30, -1, Some(ch));
+        }
+    }
+
+    /// A party member's affect tint, when it is in the town.
+    pub fn fellow_affect(&self, code: i32) -> Option<crate::chara::char::AffectColour> {
+        self.combat.member_actor(code).map(|f| f.ch.affect)
     }
 }

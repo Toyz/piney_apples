@@ -409,7 +409,7 @@ impl Combat {
         ch.affect.func = AffectFunc::Boss;
         let me = self.scene.add(ch, 3);
         let kite_pos = self.scene.chars[kite].pos;
-        let kite_dirc = self.kite_dirc();
+        let kite_dirc = self.kite_ref().map_or(ee::VF0, |k| k.spc.dirc);
         let clips = look.clips.clone();
         let clip = |name: &str| clips.get(name).copied();
         let party = self.party;
@@ -967,7 +967,7 @@ impl Combat {
         if let Some(a) = self.cast.actors.get_mut(&me) {
             pose(a, &b.base.anm, body_draw.pos, body_draw.dirc);
             a.drawn = body_draw.shown && !exited && b.base.drawn;
-            a.alpha = b.base.transparency;
+            a.set_alpha(b.base.transparency);
             a.trans_dist = false;
             a.ch.play.hidden = objects_named(&a.ch.body, &a.ch.play, &b.output.hidden);
         }
@@ -1100,7 +1100,7 @@ impl Combat {
             }
             pose(a, &f.anm, pos, f.dirc);
             a.drawn = shown;
-            a.alpha = f.alpha;
+            a.set_alpha(f.alpha);
             a.trans_dist = false;
         }
     }
@@ -1147,7 +1147,7 @@ impl Combat {
             };
             pose(a, &anm, pos, dirc);
             a.drawn = shown;
-            a.alpha = alpha;
+            a.set_alpha(alpha);
             a.trans_dist = false;
             a.matrix = matrix;
             if let Some(blend) = blends.get(&p) {

@@ -79,9 +79,9 @@ fn stick(n: u32, walk: u32) -> Raw {
 }
 
 /// The area world, while the session is in one.
-fn world_mut(s: &mut Session) -> Option<&mut piney_world::field::world::FieldWorld> {
+fn world_mut(s: &mut Session) -> Option<&mut piney_world::world::World> {
     match &mut s.stage {
-        Stage::Area(a) => Some(a.world_mut()),
+        Stage::Area(a) if !a.in_town() => Some(a.world_mut()),
         _ => None,
     }
 }
@@ -204,7 +204,7 @@ fn tobj_fields_of(disc_name: &str, dir: &str) {
 /// The dungeon of `s` once it plays.
 fn dungeon(s: &Session) -> Option<&piney_world::dungeon::DungeonArea> {
     match &s.stage {
-        Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 2) => {
+        Stage::Area(a) if !a.in_town() && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 2) => {
             match a.world().area().kind() {
                 MapKind::Dungeon(d) => Some(d),
                 _ => None,
@@ -252,9 +252,9 @@ fn rooms_of(s: &mut Session, rec: &mut Record, rooms: impl Fn(&piney_world::dung
 }
 
 /// The world of a session in an area.
-fn world_mut_ref(s: &Session) -> &piney_world::field::world::FieldWorld {
+fn world_mut_ref(s: &Session) -> &piney_world::world::World {
     match &s.stage {
-        Stage::Area(a) => a.world(),
+        Stage::Area(a) if !a.in_town() => a.world(),
         _ => panic!("not in an area"),
     }
 }

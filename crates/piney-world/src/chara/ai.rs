@@ -1,9 +1,8 @@
 //! `ccAI` (gcmn ai.cpp, 0x260 bytes) as the event scripts drive it: a party
 //! character in manual mode (`manualSW`) standing, turning and transferring by
 //! remote command. Ported: `ManualMode` (0x00583270), `SetRemoteCmd`
-//! (0x005832e0), `SetDircZ` (0x00581500), `ChangeMode` (0x00589740), `Brains`
-//! (0x0057ca00) on its talk and manual paths, `ManualControl` (0x00580ef0), the
-//! `ccSpcChar` transfers; `ccSetDirc` / `ccGetDircChg` (main 0x001da0b0 /
+//! (0x005832e0), `SetDircZ` (0x00581500), `ChangeMode` (0x00589740), the
+//! `ccSpcChar` transfers (`Brains` and `ManualControl` run as the battle's); `ccSetDirc` / `ccGetDircChg` (main 0x001da0b0 /
 //! 0x001d9eb0). Not: the non-manual paths and the AI's message system. The
 //! layout and the AI proper are in docs/engine/battle.md.
 
@@ -157,9 +156,8 @@ pub fn set_dirc(r: &mut F, to: F, spd: i32) {
     *r = ee::deg2rad(s.wrapping_add(chg as i16));
 }
 
-/// The `ccSpcChar` members the AI's manual paths and the event
-/// instructions touch, borrowed from the player ([`crate::chara::player::Player`])
-/// or a party member (the battle's record of it,
+/// The `ccSpcChar` members the event instructions touch, borrowed from
+/// Kite or a party member (the battle's record of it,
 /// [`crate::combat::spc::SpcRec`]).
 pub struct SpcRef<'a> {
     /// +0x128 `ai` (none before `ccSPC::Reboot` makes it).
@@ -331,19 +329,6 @@ impl SpcRef<'_> {
     }
 }
 
-/// What the manual paths read of the rest of the game.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct BrainsInput {
-    /// `checkPartyAnnihilation()`: every member down.
-    pub annihilated: bool,
-    /// `ccSpcChar::SpcListNum` (+0xe8): the registry slot (0 Kite).
-    pub list_num: i32,
-    /// `game->inBattle` (+0x58).
-    pub in_battle: i32,
-    /// The disc's volume ([`piney_battle::party_ai::mode_of`]).
-    pub volume: piney_data::volume::Volume,
-}
-
 /// What remote command 5 asks of the party (`resignParty` or `disbandSpc`
 /// of the character's id), done by the caller on the party manager
 /// ([`crate::chara::party::Spcs::leave`]); the character's own `partyFlag` is
@@ -354,242 +339,6 @@ pub enum PartyLeave {
     Resign,
     /// `disbandSpc(id)`.
     Disband,
-}
-
-/// `ccAI::ManualControl` (0x00580ef0), the remote command's frame: 0 stand and
-/// turn toward `gDeg` (read unsigned, so a heading of 0x8000 or more never
-/// counts as reached), 3 the arrival, 4 out through the gate, 5 leaving the
-/// party, 6 out of sight, 7 back in sight; 1 (running) and 2 (walking) step
-/// toward `gPos` by `MoveP2P` and stand within 50. Returns what command 5 asks
-/// of the party (docs/engine/battle.md).
-pub fn manual_control(ch: &mut SpcRef, hits: &mut Hits) -> Option<PartyLeave> {
-    let cmd = ch.ai.as_ref().map_or(-1, |a| a.remote_cmd);
-    let mut leave = None;
-    match cmd {
-        1 | 2 => {
-            let (g_point, g_pos) = ch.ai.as_ref().map_or((0, [0; 4]), |a| (a.g_point, a.g_pos));
-            if g_point == -1 {
-                let dirc = *ch.dirc;
-                let r = move_p2p(hits.volume, ch, g_pos, cmd != 2);
-                if ee::lt(r, F_50) {
-                    *ch.move_flag = false;
-                    *ch.run_flag = false;
-                    if let Some(ai) = ch.ai.as_deref_mut() {
-                        ai.remote_cmd = 0;
-                        ai.remote_flag = true;
-                        ai.g_deg = ee::rad2deg(dirc[2]) as u16;
-                    }
-                }
-            }
-        }
-        0 => {
-            *ch.move_flag = false;
-            *ch.run_flag = false;
-            let ai = ch.ai.as_deref_mut().expect("remote command 0 needs the AI");
-            let mut z = ch.dirc[2];
-            set_dirc(&mut z, ee::deg2rad(ai.g_deg as i16), i32::from(ai.g_rot_sp));
-            let reached = i64::from(ai.g_deg) == i64::from(ee::rad2deg(z));
-            ai.remote_flag = !(*ch.stop_flag && reached);
-            ch.dirc[2] = z;
-        }
-        3 => {
-            if *ch.act == 2 {
-                done(ch);
-            } else {
-                if *ch.act == 14 {
-                    ch.transfer_in();
-                }
-                busy(ch);
-            }
-        }
-        4 => {
-            if *ch.act == 14 {
-                done(ch);
-            } else {
-                if *ch.act != 12 {
-                    ch.transfer_out(hits);
-                }
-                busy(ch);
-            }
-        }
-        5 => {
-            if *ch.act == 14 {
-                return None;
-            }
-            if *ch.act != 12 {
-                ch.transfer_out(hits);
-                leave = Some(if *ch.party_flag == 1 { PartyLeave::Resign } else { PartyLeave::Disband });
-                *ch.party_flag = -2;
-            }
-            busy(ch);
-        }
-        6 => {
-            if *ch.act != 14 {
-                *ch.act = 14;
-                *ch.act_old = -1;
-            }
-            *ch.transparency = 0;
-            *ch.set_transparency = 0;
-            *ch.cloak = 0;
-            done(ch);
-        }
-        7 => {
-            if *ch.act == 14 {
-                *ch.act = 2;
-                *ch.act_old = -1;
-                if matches!(*ch.dead, 0 | 5) {
-                    ch.hit_enable(hits);
-                }
-            }
-            *ch.transparency = ONE;
-            *ch.set_transparency = ONE;
-            *ch.cloak = ONE;
-            *ch.disp = true;
-            done(ch);
-        }
-        _ => {}
-    }
-    leave
-}
-
-/// 50.0, where a remote walk ends.
-const F_50: F = 0x4248_0000;
-
-/// `ccSpcChar::CheckAction(n)` (gcmn 0x0059ec80) for the two tests
-/// `MoveP2P` makes: 1 may start moving, 2 may turn.
-fn check_action(ch: &SpcRef, n: i32) -> bool {
-    let (id, st, a) = (*ch.skill_id, *ch.skill_status, *ch.act);
-    match n {
-        1 => id < 2 && st == 0 && a < 5,
-        2 => !matches!(a, 7..=9 | 15 | 16),
-        _ => false,
-    }
-}
-
-/// `ccAI::MoveP2P(pos, p2, runFlag)` (gcmn 0x00582d50): a step toward `p2`.
-/// The distance on the ground less the body's radius, truncated to a whole
-/// number, is returned; the body turns to face `p2` when it may turn and is
-/// not within its stride, starts walking (and running as asked) when it may
-/// move and is beyond it, and a body already walking starts running when
-/// asked.
-pub fn move_p2p(volume: piney_data::volume::Volume, ch: &mut SpcRef, p2: V4, run: bool) -> F {
-    let p1 = *ch.pos;
-    let mut tmp = *ch.dirc;
-    let mut d = ee::vsub(p2, p1);
-    let ang = ee::deg2rad(ee::rad2deg(ee::atan2f(d[0], ee::neg(d[1]))));
-    d[2] = 0;
-    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
-    let r = ee::from_int(ee::to_int(ee::sub(dist, ch.hit.radius)));
-    let vel = ch.velocity;
-    if check_action(ch, 2) && !ee::lt(r, vel) {
-        tmp[2] = ang;
-    }
-    if *ch.move_flag {
-        if run {
-            *ch.run_flag = true;
-        }
-    } else if check_action(ch, 1) && !ee::le(r, vel) {
-        *ch.move_flag = true;
-        *ch.run_flag = run;
-    }
-    *ch.dirc = tmp;
-    r
-}
-
-/// The command done: `remoteCmd` 0, `remoteFlag` clear.
-fn done(ch: &mut SpcRef) {
-    if let Some(ai) = ch.ai.as_deref_mut() {
-        ai.remote_cmd = 0;
-        ai.remote_flag = false;
-    }
-}
-
-fn busy(ch: &mut SpcRef) {
-    if let Some(ai) = ch.ai.as_deref_mut() {
-        ai.remote_flag = true;
-    }
-}
-
-/// `ccAI::Brains` (0x0057ca00) for a character in manual mode or talking
-/// (`talkFlag`: the body turns toward `gDeg` at 64), the ways the event scripts
-/// drive it: the level check, `ChatCommand` for a party member, the death
-/// modes, `ManualControl`, then `ChatMessageSender` and the counters. Not in
-/// manual mode, only the counters run. Returns `ManualControl`'s party request.
-pub fn brains(ch: &mut SpcRef, hits: &mut Hits, input: &BrainsInput) -> Option<PartyLeave> {
-    let party_flag = *ch.party_flag;
-    let dead = *ch.dead;
-    let ghost = *ch.ghost;
-    {
-        let ai = ch.ai.as_deref_mut()?;
-        if ai.mode == 0 {
-            return None;
-        }
-        if ai.talk_flag {
-            let mut z = ch.dirc[2];
-            set_dirc(&mut z, ee::deg2rad(ai.g_deg as i16), i32::from(ROT_QUARTER));
-            ch.dirc[2] = z;
-            return None;
-        }
-        if party_flag == 1 {
-            chat_command(ai, input.list_num);
-        } else {
-            ai.skill_mask = 3;
-        }
-    }
-    let control = match dead {
-        0 => {
-            let ai = ch.ai.as_deref_mut().expect("checked above");
-            if ai.mode == piney_battle::party_ai::mode_of(input.volume, 6) {
-                ai.change_mode(1);
-            }
-            true
-        }
-        4 | 5 if ghost => {
-            let ai = ch.ai.as_deref_mut().expect("checked above");
-            let down = piney_battle::party_ai::mode_of(input.volume, 6);
-            if ai.mode != down {
-                ai.change_mode(down);
-            }
-            true
-        }
-        _ => false,
-    };
-    let mut leave = None;
-    if control && ch.manual() {
-        leave = manual_control(ch, hits);
-    }
-    let ai = ch.ai.as_deref_mut().expect("checked above");
-    chat_message_sender(ai, input);
-    ai.count = ai.count.wrapping_add(1);
-    if ai.detour_cnt > 0 {
-        ai.detour_cnt -= 1;
-    }
-    leave
-}
-
-/// `ccAI::ChatCommand` (0x00583d60) with no chat command given (`chatCmd`
-/// -1, `chatCmdFlag` 0) out of battle (`spcBattleCondition` 0): only the
-/// leader's (`SpcListNum` 0) `strategy` is cleared.
-fn chat_command(ai: &mut Ai, list_num: i32) {
-    if list_num == 0 && ai.strategy != 0 {
-        ai.strategy = 0;
-    }
-}
-
-/// `ccAI::ChatMessageSender` (0x00586420) for the player under his AI:
-/// the arrival's chat line counted down (`arrivalChatCnt`, from 150 in a
-/// town); `ChatMessageEnteredTown` (0x0058f810) says nothing in manual
-/// mode, the only mode this runs in (the members' lines are
-/// `piney_battle::party_chat`'s).
-fn chat_message_sender(ai: &mut Ai, input: &BrainsInput) {
-    if input.annihilated {
-        return;
-    }
-    ai.chat_request = false;
-    if ai.arrival_chat_cnt < 0 {
-        return;
-    }
-    ai.arrival_chat_cnt -= 1;
 }
 
 #[cfg(test)]

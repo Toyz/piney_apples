@@ -645,12 +645,6 @@ impl DesktopMode {
         Ok(desktop)
     }
 
-    /// `ccSys.count` for the next frame: the frames since power-on, which the
-    /// cursor blink and the staff roll's `srand` read.
-    pub fn set_sys_frames(&mut self, n: u32) {
-        self.sys_frames = Some(n);
-    }
-
     /// Where the Data screen's card cursor starts: the title's `ccSaveSys`
     /// is the desktop's too.
     pub fn set_card_position(&mut self, (port, file): (i32, i32)) {
@@ -833,6 +827,11 @@ pub fn event(r: &Request) -> Option<Event> {
 }
 
 impl Mode for DesktopMode {
+    /// The cursor blink and the staff roll's `srand` read it.
+    fn set_sys_frames(&mut self, n: u32) {
+        self.sys_frames = Some(n);
+    }
+
     fn step(&mut self, pad: &Pad) -> Frame {
         self.frames += 1;
         self.st.pad = *pad;

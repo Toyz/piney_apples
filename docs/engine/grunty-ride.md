@@ -3,7 +3,7 @@ title: The riding Grunty - ccPucciguso, the Grunty Flute and pgRideFlag
 status: partial
 volumes: INF, MUT, OUT, QUA
 covers: INF gcmn.prg:0x00510650 ccPgAdultCheck, 0x005109c0 ccPuccigusoStart, 0x00510880 ccThPucciguso, 0x00510990 ccThPuccigusoDelete, 0x00510bd0 ccPuccigusoExit, 0x00510f30 ccPucciguso::ccPucciguso, 0x00511410 ccPucciguso::~ccPucciguso, 0x005114e0 ccPucciguso::Main, 0x005119c0 ControlMove, 0x00511ed0 PadLeverPower, 0x00511f80 AnimCtrl, 0x00512360 CollisionTest, 0x005123f0 MapLoopAdjustPos, 0x005124b0 CameraPosCalc, 0x00512540 CameraPosSet, 0x00512670 PawSmoke, 0x00512c80 DrawPG, 0x00512fb0 ccPuccigusoCheckNote, 0x005ee810 pcgsTbl, 0x005ee840 puccigusoCharTbl, 0x005ee870 puccigusoAnimTblPG, 0x006aea50 puccigusoAnimTbl, 0x005ee908 puccigusoAngleTbl, 0x005a0760 ccSpcSleep, 0x005a0850 ccSpcWakeup, 0x005a02e0 ccSPC::Wakeup, 0x005a08b0 ccSpcGetCharPtr, 0x00530264 ImportantItemMenu's proccess 20, 0x0057bc84 ccUseItemRequest's ride wait; INF SLUS_202.67:0x001801d0 ccPgBgmInit, 0x00180360 ccPgBgmEnd, 0x0017e680 ccBgmPlay, 0x001604d0 ccScFade::CheckFade, 0x00160510 ccScFade::DeleteFade, 0x0015c210 ccSprite::Trans, 0x00378cdc pgRideFlag, 0x00378c28 pgR, 0x00378c2c pgDIN, 0x00378c24 pcgs, 0x00378978 camTypeLock; MUT gcmn.prg:0x0052d540 ccThPucciguso, 0x0052d6f0 ccPuccigusoStart, 0x0052d960 ccPuccigusoExit, 0x0052dd10 ccPucciguso::ccPucciguso, 0x0052e3a0 Main, 0x0052e970 ControlMove, 0x0052fd10 AnimCtrl, 0x00530160 CollisionTest, 0x005cbb40 ccSpcSleep, 0x005cbb70 ccSpcWakeup, 0x00531090 the ride is up, 0x005310b0 the ride put down, 0x0052f250 the search's run, 0x0052f790 the search, 0x0052f800 its foods, 0x0052f9d0 its dungeon, 0x0052faa0 its portals, 0x00530e50 the Grunty's line, 0x00530dd0 its balloon, 0x0061d180 the search by kind, 0x0061d1a8 its ranges, 0x00684b50 the Grunty's lines; MUT SLUS_205.62:0x001b1600 the fields with a dungeon; OUT gcmn.prg:0x00529834 Triangle's search
-worklog: 166, 395, 403
+worklog: 166, 395, 403, 582
 ---
 
 # The riding Grunty - ccPucciguso, the Grunty Flute and pgRideFlag
@@ -329,9 +329,10 @@ for the Flag Race ([flag-race.md](flag-race.md)):
   and heading (the race's finish).
 
 The port: `piney_battle::ride`'s `Ride::later`, `main_later`,
-`control_move_later` and `RaceRide`, and `piney_world::town::ride`
-(`ride_start_town`, `ride_slot`, `ride_exit_town`, `ride_place`, the
-town's `RideWorld`).
+`control_move_later` and `RaceRide`, and the one ride of every area,
+`piney_world::combat::ride` (`Riding`, its `frame` at `ccThPucciguso`'s
+slot after `ccThPlayer`, `exit_town`), started in a town by
+`World::ride_start_town` and put by `World::ride_place`.
 
 ### The search in a field
 
@@ -401,7 +402,7 @@ The port: `seek` and `seek_move` in `piney_battle::ride`, with
 `ControlMove`), `Out::EntryCmnd` and `Out::Chat`. The field's
 `RideWorld` reads the entry control's lists, the event area and
 `dungeonPos` (`piney_world::combat::ride::SeekView`). piney-game opens the
-balloon over the ride (handle `3 << 24`, `FieldWorld::ride_chat_point`).
+balloon over the ride (`CharId::Ride`, handle `3 << 24`, through `World::chat_point`).
 
 ## The port
 
@@ -424,7 +425,7 @@ sounds (`ccSeSetParamInu`) and dust (`effSmoke`) are `Show::Ride`s for
 piney-game's sound and effects; its two clumps are drawn with the cast
 (`Char::draw`, each with its shadow).
 
-`FieldWorld`'s `ride_start`, `ride_sleep_party`, `ride_create`,
+`World`'s `ride_start`, `ride_sleep_party`, `ride_create`,
 `ride_start_done`, `ride_exit_begin`, `ride_exit_wake` and `ride_end` are
 the slices of `ccPuccigusoStart` and `ccPuccigusoExit` that touch the
 field; piney-game's `area/ride.rs` runs the sequence on `scFadeDef`, the

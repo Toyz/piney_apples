@@ -38,13 +38,18 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame)) -
     let (mut came, mut seen) = (None, Vec::new());
     for n in 0..frames + 16000 {
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         pad.read(&if talking && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         let frame = s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
             c.scene.chars[k].max_hp = 9999;
@@ -135,13 +140,18 @@ fn gorre_on_a_zero_word_shows_the_managers_own_blur() {
     let (mut came, mut shown) = (None, Vec::new());
     for n in 0..20000u32 {
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         pad.read(&if talking && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         s.step(&pad);
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let c = a.world_mut().combat_mut();
         let Some(run) = c.boss.as_ref() else {
             c.heap_exit = 0;

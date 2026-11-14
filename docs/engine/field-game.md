@@ -3,7 +3,7 @@ title: Entering The World - Kite in Mac Anu
 status: partial
 volumes: INF, MUT
 covers: MUT SLUS_205.62:0x00168ae0 ccSetupGameCtrl; INF SLUS_202.67:0x001687a0 ccSetupNewGame, 0x00175d30 ccSaveData::InitSpcParam, 0x00177010 ccSaveData::ChangeEquipment, 0x00176200 ccSaveData::SetSpcBaseMsg, 0x00168960 ccSetupGameCtrl, 0x001674a0 ccGame::ChangeArea, 0x00167380 ccGame::ChangeScene, 0x0019f8e0 WORLD_MAN::GO, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a4430 ccThFieldDisp, 0x00160610 ccThCamera, 0x00160a00 cameraInit, 0x00160cc0 cameraMain, 0x001611a0 setCameraCtrlType, 0x00161870 cameraPosCalc, 0x00162020 cameraSetEyeLevel, 0x00162fb0 checkCameraDistModValue, 0x00161260 cameraSet, 0x00162cd0 cameraShake, 0x001629b0 cameraShockAbsorber, 0x00162f10 checkCameraShakeRange, 0x00383e30 sfList, 0x0034b390 shakePowerTbl, 0x0034b3a0 shakeCycleTbl, 0x00161610 cameraGetRot, 0x001387a0 ccCam::SetMatrix_PosTarget, 0x00110ca0 sceVu0CameraMatrix, 0x001052c0 ccView::SetView, 0x0014ce50 ccStream::Decode_Hit, 0x00149990 ccSetHitData, 0x00153930 _ccHitCheckLM, 0x00153f60 collisionLM, 0x00153ce0 setNearest, 0x001545e0 collisionQM, 0x001552e0 ccHitResultGrouping, 0x00155600 ccModelHitCheckQ, 0x00155930 ccModelHitCheckQZ, 0x00153e80 checkHitResultAttlibute, 0x00153470 ccCharHit::CollisionDetection, 0x001da8b0 ccGetCameraTransparency, 0x001dab50 RAD2DEG, 0x001dabb0 DEG2RAD, 0x00127c28 sinf, 0x001278e0 cosf, 0x00124330 __ieee754_atan2f, 0x00127600 atanf, 0x001246e8 __ieee754_rem_pio2f, 0x00127d10 tanf, 0x00126728 __kernel_tanf, 0x00127e18 fmodf, 0x00124518 __ieee754_fmodf, 0x00162430 avoidObstacle, 0x001a10c0 WORLD_MAN::GetHeight, 0x00151cb0 ccAnm::SetLightEnv, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x0019d410 WORLD_MAN::RequestCCS, 0x0013d300 ccClump::GetObjAdrsF, 0x0013b8f0 ccObj::SetModel, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x00133a38 rand, 0x001b62e0 ccEntryEventMng, 0x00150670 ccAnm::SetAnmCtrlWork, 0x001397e0 ccOmniLight::Init, 0x00139060 ccLightGrp::AddGrp, 0x001b2bb0 ccEvent::GetSpc, 0x001b2cc0 ccEvent::GetNpc, 0x001b2d50 ccEvent::GetEnemy, 0x001ae7d8 ccEvPcPos, 0x001aed5c ccEvPcRot, 0x001d9ce0 ccGetDirc, 0x00317da0 markerEvTbl, 0x001743d0 ccSaveData::Init, 0x001da710 ccCheckCameraDeg, 0x001da0b0 ccSetDirc, 0x001d9eb0 ccGetDircChg, 0x001d9900 ccInitRand, 0x001b7660 ccRegisterRandomNpc, 0x001b6cf0 ccEntryRandomNpc; INF gcmn.prg:0x0059ff50 ccGetStartPositions, 0x00597850 ccPlayerStart, 0x00597910 ccPlayer::ccPlayer, 0x00598310 ccPlayer::Main, 0x00598af0 ControlMove, 0x005992b0 PadLeverPower, 0x005993c0 AnimCtrl, 0x0059ba20 CameraPosCalc, 0x0059bac0 CameraPosSet, 0x0059b340 CollisionTest, 0x0059ee20 ccSpcChar::HitCheck, 0x0059b900 ccTransPosW2M, 0x0059b8d0 ccSetGroundHeight, 0x005b61d0 ROOTTOWN::GetHeight, 0x00571e00 ccLandHitCheck, 0x006f0560 playerAnimTbl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00423b10 ROOTTOWN01::Draw, 0x00422ba0 DrawFloor, 0x004224c0 DrawObj, 0x00422900 DrawObj2, 0x00422250 DrawBG, 0x0056b1c0 ccChar::Draw, 0x0059d650 ccSpcChar::EquipWeapon, 0x005a1530 ccMakeModelName, 0x00458df0 ccSetChaosGate, 0x00458ec0 ccEntryGimGate, 0x00458f60 ccChgate::ccChgate, 0x00459280 ccChgate::main, 0x004593e0 ccChgate::gateAnm, 0x00459570 chaosGateInfluence, 0x00570d30 ccGetGimmickParam, 0x0061e0f0 gimmickTbl, 0x0059b5a0 ccPlayer::W2PPos, 0x0042fa60 ccEntryObj::routine, 0x00431970 ccThEntryCtrl, 0x00505e20 ccMerchan::main, 0x00517800 ccThGameCtrl, 0x0059cd70 ccPlayerMenuCheck, 0x0059f550 ccSpcChar::CheckControlMode, 0x00518af0 ccSortCmnd, 0x00518cc0 ccSelectTarget, 0x00519240 ccCheckTargetRange, 0x00519630 ccEntryCmnd, 0x005198c0 ccChangeCmndTarget, 0x00519920 ccCheckTarget, 0x00581500 ccAI::SetDircZ, 0x00619460 npcTbl, 0x005057f0 ccSetMerchant, 0x00505590 setMerchant, 0x00505a50 ccEntryRtownMerchant, 0x00505aa0 ccMerchan::ccMerchan, 0x00505fc0 breederAct, 0x005065d0 breederInfluence, 0x00430c90 ccEntryCtrl::entryObject, 0x004317b0 ccEntryCtrl::entryNpc, 0x00430ec0 ccEntryCtrl::initObject, 0x00519700 ccDeleteCmnd, 0x005711f0 ccGetJobWeaponCategory, 0x00647cc0 playerDefaultItemList, 0x00647d20 playerDefaultImportantItemList, 0x00647d80 spcDefaultItemList, 0x005269d0 SetMerchantCamera, 0x005ed880 breederCamPos, 0x005ed8c0 breederCamView, 0x005ed870 merchanAnmPtr, 0x005d4050 fellowAnimTbl, 0x00506640 ccSetRtownPC, 0x005067f0 ccRtownPC::ccRtownPC, 0x00507c20 ccRtownPC::main, 0x00507de0 ccRtownPC::normalMode, 0x005077f0 ccRtownPC::move, 0x005076c0 ccRtownPC::changeTEX, 0x005091c0 rTownNPCInfluence, 0x005130b0 ccSetNaviMap, 0x00513720 ccNavi::RouteSearchByMap, 0x005ee120 markPosTbl, 0x005ed900 rtpcCcsName, 0x005edeb0 rtpcAnmTbl, 0x0051a500 ccCalcTagPosChar, 0x0051a640 ccCalcTagPos, 0x0056b020 ccChar::EntryAffect; INF demo.prg charTbl, 0x001b4ff0 ccThCameraExecute, 0x001b3680 ccEvent::CamCtrl, 0x001b4780 CamzCtrl, 0x001b48e0 CamzMovMain, 0x001b4b20 CamzInpCtrl, 0x001b4c80 CamzInpMain, 0x001617f0 changeCamera, 0x001614d0 cameraSetPos, 0x00161510 cameraSetView, 0x00161550 cameraSetRot, 0x00110b80 sceVu0RotMatrixY, 0x002fb6f0 cameraList, 0x00383dc0 ecam, 0x00383d50 bcam, 0x00161610 cameraGetRot, 0x00161820 cameraSetManual, 0x001631d0 cameraSoftReset, 0x00163230 cameraSoftResetParam, 0x001b2460 ccEvent::MenuBan, 0x001b25c0 MenuClr, 0x001b6d70 ccRegisterEventMng, 0x00159ed0 ccStartThread, 0x00159d40 GoThread, 0x0015a5c0 ccThControl, 0x001d9eb0 ccGetDircChg; INF gcmn.prg:0x004381d0 eneSplineB, 0x004382a0 eneSplineH, 0x0057c5f0 ccAI::ccAI, 0x0057ca00 ccAI::Brains, 0x00580ef0 ManualControl, 0x00583270 ManualMode, 0x005832e0 SetRemoteCmd, 0x00589740 ChangeMode, 0x0059eba0 ccSpcChar::ManualModeAI, 0x0059e950 SetBootStatus, 0x0059ea60 TransferIn, 0x0059ea80 TransferOut, 0x0059f5f0 ccSPC::Initialise, 0x0059f740 EntrySpc, 0x005a00d0 Reboot, 0x0059fe80 SetParty, 0x0059ce00 ccParty::InitParty, 0x0059ce80 AddMember, 0x0059cf60 DelMember, 0x005a08e0 inviteSpc, 0x005a0f50 disbandSpc, 0x00730340 ccSpcManager, 0x00730310 ccPartyManager, 0x0041ae80 ccFellow::Initialize, 0x0041b5f0 ccFellow::Main, 0x0041bc50 ccFellow::Move, 0x0041c670 ccFellow::Action, 0x0059b710 ccPlayer::P2WPos, 0x0057f660 ccAI::ActInTown, 0x00586420 ccAI::ChatMessageSender, 0x0058f810 ccAI::ChatMessageEnteredTown, 0x0041ed60 ccThFellow02, 0x0041ee90 ccThFellow02Delete, 0x0041ad60 ccFellow::~ccFellow, 0x0059d230 ccSpcChar::ccSpcChar, 0x00653c80 naviPointNameTable; MUT SLUS_205.62:0x001cb990 ccEntryEventMng, 0x001cc480 ccRegisterEventMng; MUT gcmn.prg:0x00520910 ccSetMerchant, 0x005205c0 setMerchant, 0x00520c90 ccMerchan::ccMerchan, 0x005210b0 ccMerchan::main, 0x00521cf0 ccSetRtownPC, 0x00521e50 the SEARCH PCs' set-up, 0x00522040 ccRtownPC::ccRtownPC, 0x00523760 ccRtownPC::main, 0x00523990 normalMode, 0x005243f0 searchMode, 0x00523320 move, 0x00524d50 eventMode, 0x00521a00 the Event NPC's act, 0x00521990 its affect; MUT SLUS_205.62:0x001ccdf0 ccRegisterRandomNpc; INF SLUS_202.67:0x001b5670 ccEventStream
-worklog: 59, 328, 333, 356, 386, 393, 424, 490, 574, 575, 576
+worklog: 59, 328, 333, 356, 386, 393, 424, 490, 574, 575, 576, 581, 582, 587, 590
 ---
 
 # Entering The World - Kite in Mac Anu
@@ -781,6 +781,24 @@ characters the same way.
   built with the game's `ccCreateLight` and `AddGrp`, then
   `SetLightMatrix` at a point, over random groups of distant, omni and
   boss lights. The slots, directions and colours match.
+- **When.** `ccModel::Draw` (main 0x0013eab0) calls `SetLightMatrix`
+  (0x0013ec14) as the draw is made, so a character is lit by the group as
+  the tasks before its draw left it. Kite (`ccPlayer::Main`, gcmn
+  0x00598988, priority 49) and the members (`ccFellow::Main`, 50) see the
+  last frame's lights. `ccThEntryCtrl` (64, 0x00431970) walks enemies,
+  circles, gimmicks, then NPCs: an enemy draws in `dispEnemy`
+  (0x00432f34) before its `exclusive()` moves its weapon's flashes
+  (0x00432f48), so it sees the flashes of the enemies before it as this
+  frame moved them and everything else as the last frame left it; a
+  gimmick sees the gimmicks before it this frame; the NPC list sees the
+  walk's lights and the Chaos Gate's (on the object list) this frame.
+  The gate's own `ccChar::Draw` (0x00459348) comes before its circle's
+  `_AnimateForward` (0x0045937c) moves the circle's light. The boss's
+  effects (`ccThBossEffect`, 66) move theirs before the boss's task, so
+  only the boss sees them this frame. Tasks asleep draw nothing new: the
+  frozen layers show the last awake frame's picture. The port:
+  `world::lights` (`LightSources`, `FrameLights`) and
+  `combat::lights::WalkLights`.
 
 `gateAnm` (0x004593e0) by state (+0x1ec), which `chaosGateInfluence`
 (0x00459570) sets from the gate menu's command (+0x9c):
@@ -1077,8 +1095,9 @@ Kite asks "Where's everyone else?". Only Carmina Gadelica empties:
   walk as usual through both events, as the issue's shot shows.
 
 The port: `EventMng::register_npcs` keeps the count between the passes
-(`WorldMode`'s set-up), `World::set_regist_npc_num` takes it, and
-`World::place_entries` adds `Spcs::registry_num`. Before issue #70 the
+(the area mode's event passes), `World::set_regist_npc_num` takes it after
+pass 0 in every area, and a town's `TownCast::place_entries` adds
+`Spcs::registry_num`. Before issue #70 the
 op set the event manager's count and nothing read it.
 
 The routes (gcmn `ccnavi.cpp`, tables in `navitbl.cpp`): a town is a
@@ -1192,9 +1211,9 @@ to the player on the ground. While he rides a carrier
 move instead (`W2P(GetTransCenter()) + diskOffset`). Event 13 waits on it in
 Mac Anu (marker 31, 80) and event 17 in area 18's dungeon (marker 1, 250:
 Mia's line sending Kite to the magic portal, block 14, before the Data
-Drain's lesson). The port's town answers it with `World::player_distance`,
-the fields and dungeons with `FieldWorld::player_distance` through
-`EvHost`; `event_17_walks_kite_to_the_portal` plays event 17 from its
+Drain's lesson). The port answers it in every area with
+`World::player_distance` through `EvHost` (`ccTransPosW2P` wraps through
+`WORLD_MAN` +0x420..+0x42c everywhere, a town's bounds +-24000); `event_17_walks_kite_to_the_portal` plays event 17 from its
 dungeon's entrance through block 14, the portal's fight and block 17.
 
 `item_add_menu` while an event plays opens the item-get menu (29; the
@@ -1343,7 +1362,7 @@ party's instructions, and the character the effects follow. Its body stays
 out of the hit list. The world holds the class itself (`RtownPc` over a
 `TownPcs::outside` with no landmarks; `Merchant::at`), which steps after
 the battle's tasks with the field's collision, is drawn with the field's
-lights and fog, and takes the NPC instructions (`FieldWorld::npc_command`,
+lights and fog, and takes the NPC instructions (`World::npc_command`,
 `set_trans`; `EvHost::npc`, `trans`). Each frame the stand-in is put
 where the class stands, on or off the command lists as the class is; the
 starts (a PC's `PcEvent::Transfer`, the Administrator's `SysopEvent`s) go
@@ -1356,7 +1375,7 @@ Talking to one goes through `ccThGameCtrl` as in a town. The action
 button's `CheckOperate(9)` makes the command target `operateTarget`, and
 a target on `eventMng.target[]` (`add_target`) is the event's: no menu
 opens, and the event's `talked_to` holds for that frame. The port's
-field does the same test (`FieldWorld::set_event_targets`, the target's
+field does the same test (`World::set_event_targets`, the target's
 base type flags and id), and the area hands the event the target
 (`operate_target`). `event_17_talks_to_the_administrator` walks Kite up to
 the Administrator after event 17's block 8 and talks to him twice; block
@@ -1544,33 +1563,31 @@ ended-act table (0x006a50d0; acts 12 and 13 also zero actCnt), frameSpd
 256 speedRate speedValue walking and 256 (1.375 speedRate) speedValue
 running; transparency = cloak, then Draw.
 
-The port: party.rs, ai.rs, `Player::build` and the manual branch of
-`Player::main` for Kite; the members are the battle's characters (see
-below).
+The port: Kite is the battle's character in every area
+(`piney_battle::kite`, built by `Combat::add_kite` at `ccSPC::Reboot`, run
+at `ccThPlayer`'s slot, 49, by `Combat::frame_to_entry`); the members are
+the battle's characters too (see below).
 
 ### The party in a town
 
 The town's party members are the battle's characters, run by
-`piney-battle`'s machinery as the fields run theirs
-(`piney_world::town::party::TownParty`, `combat::town`): a `Combat` of area
-0 holds them, each built by `Combat::add_member` (`ccFellow::Initialize`
-and Reboot's AI, `arrivalChatCnt` 150), and each frame (`TownParty::frame`,
-after `ccThPlayer`) runs `ccThSpc`, `ccThAISystem` and each member's
-`ccFellow::Main` (`piney_battle::fellow::Frame::main` with the
+`piney-battle`'s machinery as everywhere: the area's one `World` holds a
+`Combat` (in a town, the party alone), each member built by
+`Combat::add_member` (`ccFellow::Initialize` and Reboot's AI,
+`arrivalChatCnt` 150), and each frame `Combat::frame_to_entry` runs
+`ccThSpc`, `ccThAISystem`, Kite's `ccPlayer::Main` (49) and each member's
+`ccFellow::Main` (50; `piney_battle::fellow::Frame::main` with the
 `party_motion::Movement` runtime), whose `ccAI::Brains` takes a member out
 of manual control through `ccAI::ActInTown` (gcmn 0x0057f660,
 `piney_battle::ai_move`) and one under it through `ManualControl`. The
-event instructions reach them as the field's do: `TownChars` lends Kite
-(the town's `Player`) by id 0 and the members through the battle's records
-(`combat::spc::SpcRec`), written back after.
+event instructions reach them as everywhere: `World::with_party` lends
+Kite and the members through the battle's records (`combat::spc::SpcRec`),
+written back after.
 
-Kite stays the town's own `Player`. The battle's scene holds a stand-in
-for him (`Combat::add_leader`: his record, his AI, on the command list
-unless bootParam bit 2) that `Combat::mirror_leader` brings up to date
-before the members' frames: his place (posP z only, as his own frame
-leaves it), heading, act, the step's flags, `dead`, partyFlag, dispSW, his
-command list membership and his AI's manualSW. It has no body on the
-character list (the player's is there) and no animation.
+Kite is the one `ccPlayer` in a town as in a field (`ccEvent::GetSpc`,
+INF main 0x001b2bb0, returns `ccSpcManager`'s charPtr in every area):
+`Combat::add_kite` builds him at Reboot (his record, his AI, on the
+command list unless bootParam bit 2, his body on the character list).
 
 `ActInTown` out of manual control (checked in eemu by
 `tools/test_battle_navi_rs.py`): `actType` 95 then 96 waits for Kite; with
@@ -1596,15 +1613,13 @@ The constructors draw `rand()` in order: `ccSpcChar::ccSpcChar` (0x0059d230)
 `cycle = rand() >> 3`; `ccFellow::Initialize` `atkDellay = (rand() >> 3) &
 31`, then (not hacked) `transferLag = (rand() % 4) * 5`; Reboot's `ccAI`
 `count = rand() >> 3` and the message counters from one more. The port
-draws the same for the members and Kite, in the fields and the town (the
-town's Kite takes his cycle and his AI's count from his stand-in's draws).
+draws the same for the members and Kite in every area.
 
 Each member's `ccFellow::Main` ends as in a field: `ArmsEffect` while it
 is drawn and alive and not in acts 12-14, else `ClearArmsEffect`, so a
 member's rare weapon trails its aura in the town too. The port runs those
-calls (`Combat::arms_shown`) at the end of `Combat::town_frame` and the
-town sends the strips (`TownParty::send_trails`). The town's Kite keeps
-his own (`World::kite_arms_frame` over `Player::arms`).
+calls for Kite and the members (`Combat::arms_shown`) after the party's
+frames and sends the strips with the party's draws (`World::draw_cast`).
 
 `piney-game`'s `piros_walks_mac_anu_on_his_own` and
 `piros_follows_kite_in_mac_anu` take Piros back to Mac Anu (event 22's
@@ -1999,8 +2014,8 @@ real `ccAISystem` and the `ccAI` constructor with `ChangeMode(1, 1)` and
 instruction through `ccEvent::Execute` at level 2; each frame
 `cameraMain`, `ccPlayer::Main` and Orca's task, `ccThFellow02`
 (`ccFellow::Main`, or its end once exitFlag is set: `expulsionSpc`,
-`~ccFellow`, `DelSpc`). The port's side is the town's party as the World
-runs it (`TownParty::build`, `with_chars`, `frame`). Compared every frame:
+`~ccFellow`, `DelSpc`). The port's side is the party as the one World
+runs it in a town (`Combat::add_kite`, `add_member`, `Combat::frame`). Compared every frame:
 Kite's position, heading, move, speeds, flags, act and counters,
 transferLag, cloak, transparencies, animation time, frameSpd, ground
 attribute, whether drawn, dispSW, transDist, noDeathFlag, partyFlag and
@@ -2026,15 +2041,16 @@ runs event 2's character flow through the World API.
 - The town's fog is VU1's by each vertex's depth (`piney_draw::DepthFog`
   on the town's `TownLights`, worklog 0145) but is not compared with the
   game's pictures. Kite's running steps raise their dust in a town as in
-  the fields (`CheckNote`'s `ccEffPawSmoke` at his feet, `Kite::feet`,
-  `World::take_paw_smokes`). The town's sounds that are ported: the
+  the fields (`CheckNote`'s `ccEffPawSmoke` at his feet, `Char::feet`, the
+  one effect host's `Show::Kite` `PawSmoke`; the members' through
+  `ccFellow::CheckNote`, gcmn 0x0041e3f0, likewise). The town's sounds that are ported: the
   members' lines (`ChatMessageEnteredTown`,
   `piros_says_his_arrival_line_in_mac_anu`), the Administrator's
   `sysopeAct` 217, the Chaos Gate's circle (71 as it opens, 72 as it
-  closes, at the gate: `World::take_gate_sounds`,
+  closes, at the gate: the cast's `Out::GateSound`,
   `the_gates_circle_sounds`), and Kite's footsteps (his notes 1 and 2
   through `ccPlayer::CheckNote`'s `ccSeSetParamSPC`, by the ground's
-  attribute: `World::take_steps`, `kite_has_footsteps_in_mac_anu`).
+  attribute: `kite::Out::Sound`, `kite_has_footsteps_in_mac_anu`).
 - The lights' values as the areas' animations leave them (positions,
   colours, fall-off at frame 1) are not checked against the game; the
   group's order and slots are (the light group, above).
@@ -2044,7 +2060,7 @@ runs event 2's character flow through the World API.
   pictures. What they show: their `changeTEX` variants (`MAT_tex` takes
   the row's texture through `Body::tex_swaps` and the draw list's
   `ModelDraw::tex_swaps`, `ccClump::ChangeTex`); their chat bubbles and
-  gate transfers (`World::take_pc_events`); their steps, `rtpcCheckNote`
+  gate transfers (the cast's `Out::Pc`); their steps, `rtpcCheckNote`
   (gcmn 0x00509160) on notes 1 and 2, `ccSeSetParamPC(param, pc,
   ccsType)` for the sound and `ccEffPawSmoke(pc, +0x2c0)` for the dust on
   every step (`PcEvent::Step`, `the_walking_pcs_have_footsteps`).

@@ -1,6 +1,6 @@
 //! Answers `tools/test_merchcam_rs.py`: the shop's camera
 //! (`Camera::set_merchant`, `SetMerchantCamera`) and `changeCamera(1)` over
-//! the field's camera and player tasks, as `world_probe` runs them. One
+//! the camera and the battle's tasks (Kite), as `world_probe` runs them. One
 //! request a line (numbers in hex), one JSON line back: `merchants` (Mac
 //! Anu's as `ccSetMerchant(0)` places them), `start`, `frame`, `merchant`
 //! (`set_merchant` on that character), `change N` and `getrot N S0..S3`.
@@ -11,13 +11,14 @@ use std::sync::Arc;
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
-use piney_desktop::assets::SceneFile;
-use piney_world::camera::{self, Cam, CamPad, Camera, MerchantView, Scheme};
-use piney_world::chara::motion::PLAYER_ANIM_TBL;
-use piney_world::chara::player::Player;
+use piney_world::camera::{self, Cam, CamPad, Camera, MerchantView};
+use piney_world::ee;
 use piney_world::event::entry::Npc;
 use piney_world::hit::{HitModel, Hits};
-use piney_world::{Rand, ee, tasks};
+
+#[path = "common/kite_run.rs"]
+mod kite_run;
+use kite_run::{KiteRun, Start};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -45,10 +46,7 @@ fn cameras(c: &Camera) -> String {
 
 struct Run {
     hits: Hits,
-    player: Player,
-    camera: Camera,
-    rand: Rand,
-    mode: i8,
+    kite: KiteRun,
 }
 
 fn main() {
@@ -56,9 +54,7 @@ fn main() {
     let mut iso = Iso::open(&iso_path).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let volume = iso.volume().unwrap();
-    let kite = SceneFile::read(&archive, "ctu1body").unwrap();
-    let anims: Vec<&piney_data::anim::Animation> =
-        PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
+    let (data, body) = (kite_run::data(&mut iso), kite_run::body(&archive));
     let models = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let mut run: Option<Run> = None;
     for line in std::io::stdin().lock().lines() {
@@ -97,16 +93,18 @@ fn main() {
                 println!("[{}]", out.join(", "));
             }
             Some("start") => {
-                let pos = [n(2), n(3), n(4), ee::ONE];
-                let dirc = [0, 0, n(5), 0];
-                let mode = n(7) as i8;
-                run = Some(Run {
-                    hits: Hits::new(volume, models.clone()),
-                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(volume, pos, dirc, mode, Scheme::new(n(6) as i32)),
-                    rand: Rand(u64::from(n(8))),
-                    mode,
-                });
+                let mut hits = Hits::new(volume, models.clone());
+                let start = Start {
+                    pos: [n(2), n(3), n(4), ee::ONE],
+                    dirc_z: n(5),
+                    scheme: n(6) as i32,
+                    mode: n(7) as i8,
+                    seed: n(8),
+                    area: 0,
+                    arriving: true,
+                };
+                let kite = KiteRun::new(&data, &body, &mut hits, &start);
+                run = Some(Run { hits, kite });
                 println!("{{}}");
             }
             Some("frame") => {
@@ -123,8 +121,8 @@ fn main() {
                         pow: std::array::from_fn(|k| n(7 + k) as u8),
                     };
                 }
-                tasks(&mut r.camera, &mut r.player, &mut r.hits, &anims, &mut r.rand, &pad, &mut r.mode);
-                println!("{}", cameras(&r.camera));
+                r.kite.frame(pad, &mut r.hits);
+                println!("{}", cameras(&r.kite.camera));
             }
             Some("merchant") => {
                 let r = run.as_mut().unwrap();
@@ -133,17 +131,17 @@ fn main() {
                 } else {
                     MerchantView::Char { pos: v4(3), dirc: v4(7) }
                 };
-                r.camera.set_merchant(target);
-                println!("{}", cameras(&r.camera));
+                r.kite.camera.set_merchant(target);
+                println!("{}", cameras(&r.kite.camera));
             }
             Some("change") => {
                 let r = run.as_mut().unwrap();
-                r.camera.change_camera(n(1) as i16);
-                println!("{}", cameras(&r.camera));
+                r.kite.camera.change_camera(n(1) as i16);
+                println!("{}", cameras(&r.kite.camera));
             }
             Some("getrot") => {
                 let r = run.as_mut().unwrap();
-                println!("{}", list(&r.camera.get_rot(n(1) as i16, v4(2))));
+                println!("{}", list(&r.kite.camera.get_rot(n(1) as i16, v4(2))));
             }
             _ => panic!("bad request: {line}"),
         }

@@ -33,10 +33,13 @@ fn stare_at_a_walking_pc() -> Option<(Session, i32, i32, Frame)> {
     use crate::session::area15::{disc, hold, start};
     let (iso, archive) = disc()?;
     let mut s = start(&iso, &archive, None);
-    let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    let in_town = |s: &Session| matches!(&s.stage, Stage::Area(w) if w.in_town() && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
     hold(&mut s, 128, 128, 900, in_town);
-    let Stage::World(w) = &mut s.stage else { unreachable!() };
-    let here: Vec<i32> = w.world().all_npcs().map(|n| n.code()).filter(|c| (30..80).contains(c)).collect();
+    let Stage::Area(w) = &mut s.stage else { unreachable!() };
+    if !w.in_town() {
+        unreachable!()
+    }
+    let here: Vec<i32> = town_cast(w.world()).all_npcs().map(|n| n.code()).filter(|c| (30..80).contains(c)).collect();
     let pc = *here.iter().find(|&&c| c >= 66).or(here.first()).expect("no walking PC in Mac Anu");
     let away = (30..80).find(|c| !here.contains(c)).expect("everyone in town");
     // Met: these two only (`pcTradeCount`, -1 never met).

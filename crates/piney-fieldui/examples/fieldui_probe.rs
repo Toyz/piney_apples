@@ -527,7 +527,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "run" => {
                 let frames = n(1) as usize;
                 // The constructor's areaLevel 0 in a town (game+0x14 0),
-                // which the town's WorldMode starts each scene with.
+                // which the area's mode starts each scene with.
                 if world.game.area == 0 {
                     world.game.area_level = 0;
                 }

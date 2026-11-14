@@ -47,7 +47,9 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             levels_for_boss(s);
         }
         let talking = match &s.stage {
-            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            Stage::Area(a) if !a.in_town() => {
+                a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1
+            }
             _ => false,
         };
         pad.read(&if talking && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
@@ -66,7 +68,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         }
         if std::env::var_os("PINEY_DEBUG_KYVIA").is_some() && n.is_multiple_of(100) {
             let what = match &s.stage {
-                Stage::Area(a) => {
+                Stage::Area(a) if !a.in_town() => {
                     let c = a.world().combat();
                     let b = c.boss.as_ref().map(|r| {
                         let bb = c.scene.chars[r.me].foe_state().and_then(|f| f.boss.as_ref());
@@ -80,6 +82,9 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             eprintln!("KYVIA {n} {what}");
         }
         let Stage::Area(a) = &mut s.stage else { continue };
+        if a.in_town() {
+            continue;
+        }
         let census = a.world().fx().census();
         let cam_id = a.world().camera().cam_id;
         let c = a.world_mut().combat_mut();
@@ -181,7 +186,7 @@ fn kyvia_third_shots() {
         g.set_overlay(Mode::archive(s));
         g.render(frame);
         let ball = match &s.stage {
-            Stage::Area(a) => a.world().combat().boss.as_ref().is_some_and(|r| {
+            Stage::Area(a) if !a.in_town() => a.world().combat().boss.as_ref().is_some_and(|r| {
                 a.world().combat().scene.chars[r.me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| {
                     b.base.effects.slots.iter().flatten().any(|e| matches!(e.fx, Some(piney_battle::boss::Fx::Ball(_))))
                 })
