@@ -80,6 +80,9 @@ pub struct EnterCx<'a> {
 /// `DrawMap`, `ROOTTOWN0n::DrawMap`) after `ccThMenu` set its alpha.
 pub struct MapFrame<'a> {
     pub st: &'a mut MapState,
+    /// The executable's statics (`SaveState::scroll_statics`), where each
+    /// draw's arrow pulse lives from power-on: the draw steps its own.
+    pub statics: &'a mut crate::systems::Statics,
     pub scene: &'a Scene,
     pub pos: V4,
     pub dirc: V4,

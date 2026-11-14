@@ -19,6 +19,7 @@ use piney_world::ee::ONE;
 use piney_world::field::area::FieldArea;
 use piney_world::map::sprite::{Out, Place, corners};
 use piney_world::map::{self, dungeon, field, town};
+use piney_world::town::scroll_statics::{DUNGEON_PULSE, WORLD_PULSE};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -88,6 +89,9 @@ fn main() {
     let mut tmap: Option<town::TownMap> = None;
     let mut fmap: Option<field::FieldMap> = None;
     let mut darea: Option<DungeonArea> = None;
+    // The executable's statics, the maps' pulses among them: from the
+    // probe's start, never reset, as the game's from power-on.
+    let mut statics = [0; piney_desktop::SCROLL_STATICS];
     let tables = piney_data::area::AreaTables::of(iso.volume().unwrap());
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
@@ -120,7 +124,7 @@ fn main() {
                     dirc: [0, 0, n(6), 0],
                     race,
                 };
-                let o = t.draw(&inp);
+                let o = t.draw(&inp, &mut statics[t.def.pulse]);
                 let t = tmap.as_ref().unwrap();
                 println!("{{\"outs\": {}, \"icons\": {}}}", outs(&o, &|s| t.place(s).cloned()), icons(t));
             }
@@ -181,7 +185,7 @@ fn main() {
                     fountain: n(8) != 0,
                     circles: &mut circles,
                 };
-                let o = m.draw(&mut inp);
+                let o = m.draw(&mut inp, &mut statics[WORLD_PULSE]);
                 let m = fmap.as_ref().unwrap();
                 println!(
                     "{{\"outs\": {}, \"circles\": {}}}",
@@ -287,7 +291,7 @@ fn main() {
                     circles: &circles,
                     gims: &gims,
                 };
-                let d = m.draw(f, &inp);
+                let d = m.draw(f, &inp, &mut statics[DUNGEON_PULSE]);
                 let m = a.map.as_ref().unwrap();
                 let sum: u64 = m.pixels.iter().enumerate().map(|(i, &p)| (i as u64 + 1) * u64::from(p)).sum();
                 println!(

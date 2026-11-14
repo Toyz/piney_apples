@@ -1934,8 +1934,10 @@ impl Mode for AreaMode {
             let mut unseen = Ctx::new(View::default());
             let map_ctx = if self.world_hidden { &mut unseen } else { &mut ctx };
             self.map_st.hud_scale = self.ui.hud_scale;
+            let (area, statics) = self.world.map_parts();
             let mut f = piney_world::area::MapFrame {
                 st: &mut self.map_st,
+                statics,
                 scene: &scene,
                 pos,
                 dirc,
@@ -1945,7 +1947,7 @@ impl Mode for AreaMode {
                 ents: &mut ents,
                 ctx: map_ctx,
             };
-            let shown = piney_world::map::area_frame(self.world.area_mut(), &mut f);
+            let shown = piney_world::map::area_frame(area, &mut f);
             if shown {
                 self.ui.map_on();
             }

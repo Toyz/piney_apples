@@ -95,7 +95,6 @@ pub struct Floor {
 #[derive(Clone, Debug)]
 pub struct DungeonMap {
     pub spr: [Spr; 4],
-    pub r: F,
     /// A lake (`DUNGEON.type` 8 or 9): its map shows the lake's own
     /// sprites.
     pub lake: bool,
@@ -203,7 +202,6 @@ impl DungeonMap {
             .collect();
         Ok(DungeonMap {
             spr: [Spr::mask(MAP, 2, 0), Spr::mask(MAP1, 50, 5), Spr::mask(MAP2, 2, 0), Spr::mask(MAP3, 50, 5)],
-            r: 0,
             lake,
             floors,
             small: vec![0; count * SIDE * SIDE],
@@ -314,8 +312,9 @@ impl DungeonMap {
         self.floors.get(f)?.rooms.iter().position(|r| r.made && !r.seen)
     }
 
-    /// `DUNGEON::DrawMap` on floor `f` for one frame.
-    pub fn draw(&mut self, f: usize, inp: &Input) -> Drawn {
+    /// `DUNGEON::DrawMap` on floor `f` for one frame, its pulse `r`
+    /// (`r$8238`, `scroll_statics::DUNGEON_PULSE`).
+    pub fn draw(&mut self, f: usize, inp: &Input, r: &mut F) -> Drawn {
         let mut d = Drawn::default();
         if inp.mode == 1 || inp.special_room != -1 {
             return d;
@@ -330,7 +329,7 @@ impl DungeonMap {
         for s in &mut self.spr {
             s.transp = inp.alpha;
         }
-        let pulse = pulse(&mut self.r);
+        let pulse = pulse(r);
         let px = 200 - ee::to_int(ee::div(inp.pos[0], k(300.0)));
         let py = ee::to_int(ee::div(inp.pos[1], k(300.0)));
         let s1 = ee::to_int(ee::sub(ee::from_int(px << 1), k(80.0)));

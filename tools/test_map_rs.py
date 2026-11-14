@@ -784,11 +784,10 @@ class DungeonMap(Game):
 
     def attach(self):
         """The sprites into the DUNGEON dg.make just made (the constructor's
-        map, map1, map2, map3, kanji), the pulse from 0 as a new DUNGEON's
-        port starts it."""
+        map, map1, map2, map3, kanji). The pulse is DrawMap's static: it
+        goes on from the last dungeon's, as the probe's does."""
         for k, a in enumerate(self.masks):
             self.m.store(dr().D(0xD388C) + 4 * k, 4, a)
-        self.m.store(self.pulse, 4, 0)
 
     def squares(self, f):
         m = self.m

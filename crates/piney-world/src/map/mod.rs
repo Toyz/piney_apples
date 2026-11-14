@@ -19,6 +19,7 @@ use piney_desktop::view::LayerView;
 
 use crate::area::kind;
 use crate::ee::{self, F};
+use crate::town::scroll_statics::{DUNGEON_PULSE, WORLD_PULSE};
 use sprite::Out;
 
 /// `mapLayer`'s priority (`ccLayer::Init(50, 0)`).
@@ -187,7 +188,7 @@ pub(crate) fn town_minimap(map: &mut town::TownMap, f: &mut crate::area::MapFram
     let st = &mut *f.st;
     if f.awake {
         let input = town::Input { mode: st.modes.town, alpha: st.alpha, pos: f.pos, dirc: f.dirc, race: f.ents.racers };
-        st.last = map.draw(&input);
+        st.last = map.draw(&input, &mut f.statics[map.def.pulse]);
     }
     let place = |spr: u8| map.place(spr).cloned();
     render(&st.last, &place, &|_| None, None, f.ctx);
@@ -287,7 +288,7 @@ pub(crate) fn field_minimap(fa: &mut crate::field::area::FieldArea, f: &mut crat
             fountain: f.ents.fountain,
             circles: &mut f.ents.circles,
         };
-        st.last = map.draw(&mut inp);
+        st.last = map.draw(&mut inp, &mut f.statics[WORLD_PULSE]);
     }
     map.render(&st.last, f.fonts, f.ctx);
     false
@@ -317,7 +318,7 @@ pub(crate) fn dungeon_minimap(d: &mut crate::dungeon::DungeonArea, f: &mut crate
             circles: &f.ents.dungeon_circles,
             gims: &f.ents.gims,
         };
-        let drawn = map.draw(d.level, &inp);
+        let drawn = map.draw(d.level, &inp, &mut f.statics[DUNGEON_PULSE]);
         status = drawn.map_status;
         st.last = drawn.outs;
     }
@@ -342,13 +343,15 @@ mod tests {
         let mut town = crate::town::Town::open(&archive, volume, 0, false).unwrap();
         town.setup_map(&archive, volume, &scene).unwrap();
         let mut draw = |k: f32| {
-            let mut st = MapState::new(&SaveState::fresh());
+            let mut save = SaveState::fresh();
+            let mut st = MapState::new(&save);
             st.set_alpha(1.0);
             st.hud_scale = k;
             let mut ctx = Ctx::new(piney_desktop::view::View::default());
             let mut ents = Entries::default();
             let mut f = crate::area::MapFrame {
                 st: &mut st,
+                statics: &mut save.scroll_statics,
                 scene: &scene,
                 pos: crate::START_POS,
                 dirc: [0; 4],

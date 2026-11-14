@@ -147,6 +147,7 @@ static MINIMAP: MinimapDef = MinimapDef {
     balloons: Balloons::Never,
     dim: Some([0, 54, 10, 49]),
     hold_fade: false,
+    pulse: statics::TOWN02_PULSE,
 };
 
 /// `ROOTTOWN02` (`town02`, `town02d` in crisis; `town_z` for the lens

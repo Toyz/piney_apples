@@ -91,6 +91,7 @@ static MINIMAP: MinimapDef = MinimapDef {
     balloons: Balloons::OutsideRace,
     dim: Some([8, 46, 10, 45]),
     hold_fade: false,
+    pulse: statics::TOWN05_PULSE,
 };
 
 /// `ROOTTOWN05` (`town05`, whatever the crisis byte says): its `Draw` is

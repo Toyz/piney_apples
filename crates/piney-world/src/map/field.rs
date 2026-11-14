@@ -101,8 +101,6 @@ pub struct FieldMap {
     pub spr: [Spr; 2],
     /// `WORLD.mapFlag` (+0x6170): `WORLD::ShowMap` has run.
     pub map_flag: bool,
-    /// `r$3072`: the arrow's pulse.
-    pub r: F,
     pub field_type: i32,
     /// `fobj2[0 .. KeyObjNum]`.
     pub fobj2: Vec<Obj>,
@@ -206,7 +204,6 @@ impl FieldMap {
         Ok(FieldMap {
             spr: [Spr::mask(MINIMAP, 512, 64), Spr::mask(ARROW, 16, 16)],
             map_flag: false,
-            r: 0,
             field_type: ft,
             fobj2,
             fobj: grid.into_iter().flatten().collect(),
@@ -226,8 +223,9 @@ impl FieldMap {
         self.places.get(spr as usize)
     }
 
-    /// `WORLD::DrawMiniMap` for one frame: what it sent, in order.
-    pub fn draw(&mut self, inp: &mut Input) -> Vec<Out> {
+    /// `WORLD::DrawMiniMap` for one frame, its pulse `r` (`r$3072`,
+    /// `scroll_statics::WORLD_PULSE`): what it sent, in order.
+    pub fn draw(&mut self, inp: &mut Input, r: &mut F) -> Vec<Out> {
         if inp.mode == 2 {
             return Vec::new();
         }
@@ -246,7 +244,7 @@ impl FieldMap {
             rgba: colour(LABEL_COLOUR, 128),
             transp: inp.alpha,
         }));
-        let pulse = pulse(&mut self.r);
+        let pulse = pulse(r);
         let px = ee::to_int(ee::div(inp.pos[0], k(300.0)));
         let py = ee::to_int(ee::div(inp.pos[1], k(300.0)));
         let s0 = 80 - px;

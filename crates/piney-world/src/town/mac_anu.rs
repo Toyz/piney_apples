@@ -121,6 +121,7 @@ static MINIMAP: MinimapDef = MinimapDef {
     balloons: Balloons::Never,
     dim: None,
     hold_fade: false,
+    pulse: statics::TOWN01_PULSE,
 };
 
 /// `ROOTTOWN01` (`town01`, `town01d` in crisis): `ROOTTOWN01::Draw` is the

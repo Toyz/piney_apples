@@ -536,6 +536,18 @@ pub mod scroll_statics {
     /// flag (0x0038ba7c): the first call sets it to 1.0.
     pub const DISC_BG: usize = 26;
     pub const DISC_BG_FIRST: usize = 27;
+    /// The minimaps' arrow pulses, `ccRotate`'s angles: `ROOTTOWN01`-`05`'s
+    /// `DrawMap` `r$1560`, `r$1488`, `r$1569`, `r$1407`, `r$1313` (INF
+    /// 0x00378b4c-0x00378ba0), `WORLD::DrawMiniMap`'s `r$3072` (0x00378d04)
+    /// and `DUNGEON::DrawMap`'s `r$8238` (0x00378d78). Infection's and
+    /// Mutation's first call sets each to 0 (`init$1561` ..), as it loads.
+    pub const TOWN01_PULSE: usize = 28;
+    pub const TOWN02_PULSE: usize = 29;
+    pub const TOWN03_PULSE: usize = 30;
+    pub const TOWN04_PULSE: usize = 31;
+    pub const TOWN05_PULSE: usize = 32;
+    pub const WORLD_PULSE: usize = 33;
+    pub const DUNGEON_PULSE: usize = 34;
 
     /// The statics from `at` into `dst`.
     pub fn take(dst: &mut [u32], src: &[u32; SCROLL_STATICS], at: usize) {

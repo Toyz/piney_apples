@@ -134,6 +134,9 @@ pub struct MinimapDef {
     pub dim: Option<[i32; 4]>,
     /// The signs hold their fade while the race runs (Fort Ouph).
     pub hold_fade: bool,
+    /// The class's arrow pulse (`r$1560`, `r$1488`, ..) in the executable's
+    /// statics (`town::scroll_statics`).
+    pub pulse: usize,
 }
 
 /// A town's map as its `ROOTTOWN` class keeps it.
@@ -148,8 +151,6 @@ pub struct TownMap {
     /// `RT01ICONPOS` (`RT02ICONPOS`, `RT03ICONPOS`) as the draws leave it (a
     /// global: the game keeps it across visits).
     pub icons: [IconPos; 6],
-    /// `r$1560` (`r$1488`, ..): the arrow's pulse angle.
-    pub r: F,
     pub mapw: i32,
     pub maph: i32,
     pub stepw: F,
@@ -222,7 +223,6 @@ impl TownMap {
                 Spr::mask(MARKS, def.mark_mask.0, def.mark_mask.1),
             ],
             icons,
-            r: 0,
             mapw: 140,
             maph: 256,
             stepw,
@@ -237,14 +237,15 @@ impl TownMap {
     }
 
     /// `ROOTTOWN01::DrawMap` (or `ROOTTOWN02`'s, `ROOTTOWN03`'s) for one
-    /// frame: what it sent, in order.
-    pub fn draw(&mut self, inp: &Input) -> Vec<Out> {
+    /// frame, its pulse `r` (the class's static, [`MinimapDef::pulse`]):
+    /// what it sent, in order.
+    pub fn draw(&mut self, inp: &Input, r: &mut F) -> Vec<Out> {
         let mut addy = 0;
         let mut cy = (self.maph - 160) / 2;
         if inp.mode == 1 {
             return Vec::new();
         }
-        let alpha = pulse(&mut self.r);
+        let alpha = pulse(r);
         if cy < 0 {
             cy = 0;
         }

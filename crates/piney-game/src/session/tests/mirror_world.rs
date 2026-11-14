@@ -521,7 +521,9 @@ fn the_holy_grounds_scroll_carries_across_visits() {
 /// `v2$1347`, `u$1777`) are statics of the executable's own data, set by
 /// no load. The town left for field 66 and come back to by Gate Out goes
 /// on where it was, and log in (GCMN.PRG loaded) leaves them. Before,
-/// each visit started them at 0.
+/// each visit started them at 0. Its map's pulse (`DrawMap`'s `r$1488`)
+/// is such a static too, and goes on as well: before, each map started it
+/// at 0.
 #[test]
 fn dun_loireags_scrolls_carry_across_visits() {
     use piney_world::systems::scrolls::Scrolls;
@@ -537,8 +539,15 @@ fn dun_loireags_scrolls_carry_across_visits() {
         }
         _ => None,
     };
+    // The live statics, where the town's map steps its pulse.
+    let pulse = |s: &Session| match &s.stage {
+        Stage::Area(w) => w.world().state().scroll_statics[statics::TOWN02_PULSE],
+        _ => panic!("{}", Mode::title(s)),
+    };
     let left = town(&s).expect("Dun Loireag");
     assert_ne!(left, ([0, 0], 0, 0), "the scrolls never moved");
+    let pulse_left = pulse(&s);
+    assert_ne!(pulse_left, 0, "the map's pulse never moved");
     let (_, _) = gate_to_66(&mut s, tables);
     let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(&s)) };
     if a.in_town() {
@@ -559,6 +568,7 @@ fn dun_loireags_scrolls_carry_across_visits() {
         }
     }
     let back = back.expect("back in Dun Loireag");
+    let pulse_back = pulse(&s);
     // u$1777 steps 0.005 a frame and wraps at 1: the town back goes on
     // from what the field carried, a few steps on, not from 0.
     let carried_u = f32::from_bits(carried[statics::TOWN02_WATER]);
@@ -568,6 +578,20 @@ fn dun_loireags_scrolls_carry_across_visits() {
     let carried_v = f32::from_bits(carried[statics::TOWN02_BG]);
     let v_on = (f32::from_bits(back.0[0]) - carried_v).rem_euclid(1.0);
     assert!(v_on < 0.1, "v$1346 restarted: {carried_v} then {}", f32::from_bits(back.0[0]));
+    // r$1488 steps with each drawn frame: the field (a story map, no
+    // minimap) carried the town's last one, and the town back steps on
+    // from it, not from 0.
+    let steps = |mut r: u32| {
+        (0..8).map(move |_| {
+            let at = r;
+            piney_world::map::pulse(&mut r);
+            at
+        })
+    };
+    let carried_pulse = carried[statics::TOWN02_PULSE];
+    assert!(!steps(0).any(|r| r == carried_pulse), "the field carried no r$1488: {carried_pulse:#x}");
+    assert!(steps(carried_pulse).any(|r| r == pulse_back), "r$1488 did not go on: {pulse_back:#x}");
+    assert!(!steps(0).any(|r| r == pulse_back), "r$1488 restarted: {pulse_back:#x}");
     let mut state = match &s.stage {
         Stage::Area(w) if w.in_town() => w.world().state_out(),
         _ => unreachable!(),

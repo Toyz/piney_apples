@@ -1164,6 +1164,12 @@ impl World {
         &mut *self.area
     }
 
+    /// The area and the executable's statics, for its minimap's frame
+    /// ([`crate::area::MapFrame::statics`]).
+    pub fn map_parts(&mut self) -> (&mut dyn AreaMap, &mut crate::systems::Statics) {
+        (&mut *self.area, &mut self.save.scroll_statics)
+    }
+
     /// `WORLD_MAN.specialRoom` (+0x160): the dungeon's (0 in a story
     /// area's event room), -1 anywhere else.
     pub fn special_room(&self) -> i32 {
