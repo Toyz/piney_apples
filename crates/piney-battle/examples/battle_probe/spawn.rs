@@ -382,23 +382,21 @@ impl MotionWorld for ScriptWorld {
 }
 
 /// The objects' mains and the other constructors as the harness answers
-/// them: the mains' results from scripts (recorded), a gimmick or NPC made
-/// as `ccGimmick::ccGimmick` leaves it with the entry copied in.
+/// them: the mains' results from scripts (recorded), a gimmick made as
+/// `ccGimmick::ccGimmick` leaves it with the entry copied in.
 #[derive(Default)]
 struct ScriptSeam {
     enemy_main: Vec<bool>,
     gimmick_main: Vec<bool>,
-    npc_main: Vec<bool>,
     calls: RefCell<Vec<String>>,
 }
 
-fn made_obj(cx: &mut Cx, ent: &EntryParam, who: usize, npc: bool) -> (Char, EntryObj) {
-    let mut ch = if npc { entry::npc_char(cx.st, ent.id) } else { entry::gimmick_char(cx.st, ent.id) };
+fn made_obj(cx: &mut Cx, ent: &EntryParam) -> (Char, EntryObj) {
+    let mut ch = entry::gimmick_char(cx.st, ent.id);
     ch.ent_root = ent.ent_root as u32;
     ch.pos = ent.pos;
     ch.pos_p = cx.world.w2p(ent.pos);
     let o = EntryObj { ent: *ent, dirc: ent.dirc, gim_id: ent.id, ..EntryObj::default() };
-    let _ = who;
     (ch, o)
 }
 
@@ -416,20 +414,12 @@ impl Seam for ScriptSeam {
         self.calls.borrow_mut().push(format!("[\"gimmick_main\",{who}]"));
         pop(&mut self.gimmick_main)
     }
-    fn npc_main(&mut self, _: &mut EntryCtrl, _: &mut Cx, who: usize) -> bool {
-        self.calls.borrow_mut().push(format!("[\"npc_main\",{who}]"));
-        pop(&mut self.npc_main)
-    }
     fn make_enemy(&mut self, _: &mut Cx, race: i32, _: &EntryParam, _: usize) -> (Char, Enemy) {
         panic!("an enemy of race {race}, which the checks do not spawn");
     }
     fn make_gimmick(&mut self, cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, EntryObj) {
         self.calls.borrow_mut().push(format!("[\"make_gimmick\",{},{}]", who, list(ent_vec(ent))));
-        made_obj(cx, ent, who, false)
-    }
-    fn make_npc(&mut self, cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, EntryObj) {
-        self.calls.borrow_mut().push(format!("[\"make_npc\",{},{}]", who, list(ent_vec(ent))));
-        made_obj(cx, ent, who, true)
+        made_obj(cx, ent)
     }
 }
 
@@ -799,7 +789,7 @@ fn parts_hash(mc: &MagicCircle) -> u64 {
 
 /// A character: `KIND BASE pos[4] posP[4] HP SP maxHP maxSP cond[16]
 /// speedValue conditionNum skillID skillStatus entRoot`, `BASE` the type
-/// (kind 0), the `enemyTbl` row (1), the gimmick (2, 3) or NPC (4) id.
+/// (kind 0), the `enemyTbl` row (1), the gimmick (2, 3) id.
 fn read_char(t: &mut Toks, t_: &Tables, st: &SpawnTables, kind: i64) -> Char {
     let b = t.i32();
     let mut c = match kind {
@@ -809,7 +799,6 @@ fn read_char(t: &mut Toks, t_: &Tables, st: &SpawnTables, kind: i64) -> Char {
             c
         }
         2 | 3 => entry::gimmick_char(st, b),
-        4 => entry::npc_char(st, b),
         _ => Char::other(Base { ty: b, ..Base::default() }, Elm::default()),
     };
     c.pos = v4(t);
@@ -947,7 +936,6 @@ fn read_scene(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> Setup {
     let seam = ScriptSeam {
         enemy_main: (0..t.int()).map(|_| t.int() != 0).collect(),
         gimmick_main: (0..t.int()).map(|_| t.int() != 0).collect(),
-        npc_main: (0..t.int()).map(|_| t.int() != 0).collect(),
         ..ScriptSeam::default()
     };
     let n = t.int() as usize;
@@ -985,7 +973,6 @@ fn read_scene(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> Setup {
                 c.affect.person = idx(t.int());
                 ctrl.objs[i] = Obj::Gimmick(Box::new(o));
             }
-            4 => ctrl.objs[i] = Obj::Npc(Box::new(read_obj_common(t))),
             _ => {}
         }
     }
@@ -1093,7 +1080,6 @@ fn obj_json(s: &Setup, i: usize, full: bool) -> String {
                 list([i64::from(c.affect.ty), ix(c.affect.person)])
             )
         }
-        Obj::Npc(o) => format!("{{\"kind\":4,\"char\":{ch},\"link\":{link},\"obj\":{}}}", list(obj_vec(o))),
     }
 }
 
@@ -1192,10 +1178,7 @@ fn cc_json(g: &Genrand) -> String {
 
 /// The scene after an operation.
 fn scene_json(s: &Setup, out: &[Out], full: bool) -> String {
-    let lists: Vec<String> = [Kind::Enemy, Kind::Circle, Kind::Gimmick, Kind::Npc]
-        .iter()
-        .map(|&k| list(s.ctrl.list(k).iter().map(|&i| i as i64)))
-        .collect();
+    let lists: Vec<String> = Kind::ALL.iter().map(|&k| list(s.ctrl.list(k).iter().map(|&i| i as i64))).collect();
     let objs: Vec<String> = (0..s.scene.chars.len()).map(|i| obj_json(s, i, full)).collect();
     let mut calls = s.world.calls.clone();
     calls.extend(s.seam.calls.borrow().iter().cloned());
@@ -1380,8 +1363,7 @@ fn spawn_request(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> String {
             run(t_, st, &mut s, &mut out, |c, cx, _| match k {
                 0 => c.delete_enemy(cx, w),
                 1 => c.delete_magic_circle(cx, w),
-                2 => c.delete_gimmick(cx, w),
-                _ => c.delete_npc(cx, w),
+                _ => c.delete_gimmick(cx, w),
             });
         }
         "active" => {
@@ -1566,7 +1548,7 @@ fn spawn_request(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> String {
             extra = format!(",\"saved\":{}", list(saved.iter().flat_map(list_vec)));
         }
         "restore" => {
-            let saved: [List; 4] = std::array::from_fn(|_| read_list(t));
+            let saved: [List; entry::LISTS] = std::array::from_fn(|_| read_list(t));
             run(t_, st, &mut s, &mut out, |c, cx, _| c.restore_entry(cx, saved));
         }
         _ => panic!("unknown spawn op {op}"),

@@ -10,6 +10,14 @@ use piney_data::tables::types::EntryFunc;
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 
+use crate::chara::char::Char;
+use crate::chara::entry_obj::EntryObj;
+use crate::ee::{self, F, V4};
+use crate::hit::Hits;
+
+/// Half a radian: [`Touch::avoid`]'s turn.
+const HALF: F = 0x3f00_0000;
+
 /// Base type flags.
 pub const TYPE_PC: u32 = 0x08;
 pub const TYPE_SYSOPE: u32 = 0x10;
@@ -93,6 +101,147 @@ impl NpcRow {
             EntryFunc::RtownMerchant => Some(EventClass::Merchant),
             _ => None,
         }
+    }
+}
+
+/// The parts every NPC class has: `ccChar` with its base (the `npcTbl`
+/// row) and `affectType` (+0x9c), `ccEntryObj`, and the act machine and
+/// body touch that `ccMerchan`, `ccRtownPC`, `ccDog` and `ccPGuso` each
+/// declare over `ccGimmick`'s and run the same way. A class holds its core
+/// and adds its own.
+#[derive(Clone)]
+pub struct Core {
+    pub row: NpcRow,
+    pub ch: Char,
+    pub entry: EntryObj,
+    /// +0x9c `affectType`: the command `EntryAffect` last passed.
+    pub affect_type: i16,
+    pub acts: Acts,
+    pub touch: Touch,
+}
+
+impl Core {
+    /// The core of an NPC made from `row` with the character `ch`, as
+    /// `ccEntryObj::ccEntryObj` and the class's constructor leave it.
+    /// The entry (`entParam.id`) is the row's.
+    pub fn new(row: NpcRow, ch: Char) -> Core {
+        let entry = EntryObj { ent_id: i32::from(row.id), ..EntryObj::default() };
+        Core { row, ch, entry, affect_type: 0, acts: Acts::default(), touch: Touch::default() }
+    }
+
+    /// Its base id (+0x0c): `ccEvent::GetNpc`'s code.
+    pub fn code(&self) -> i32 {
+        i32::from(self.row.id)
+    }
+
+    /// The row its entry made it from (`entParam.id`, +0x124): the NPC's
+    /// name in the port ([`crate::world::CharId::Npc`]) and what the
+    /// menus read of the list. A Grunty's base changes as it grows; this
+    /// does not.
+    pub fn id(&self) -> i32 {
+        self.entry.ent_id
+    }
+}
+
+/// A class's act machine: `actNum`, `actProcess` (the step within the act)
+/// and `actCnt` (frames counted in it; the merchant's is `ccGimmick`'s
+/// +0x1d8).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Acts {
+    pub num: i32,
+    pub process: i32,
+    pub cnt: i32,
+}
+
+/// `bodyHitFlag` and `bodyHitCnt`: touching another body, and for how many
+/// frames running.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Touch {
+    pub flag: i16,
+    pub cnt: i16,
+}
+
+impl Touch {
+    /// A class's `main`'s `bodyHit.CollisionDetection()` (gcmn 0x00153470)
+    /// at `ch`'s place on `hits`: touching sets the flag and counts up,
+    /// else both clear; with `push` the class takes the push (its place and
+    /// `posP` moved by the offset). True when touching.
+    pub fn collide(&mut self, ch: &mut Char, hits: &mut Hits, push: bool) -> bool {
+        ch.hit.pos = ch.pos;
+        if hits.collision_detection(&mut ch.hit) == 0 {
+            *self = Touch::default();
+            return false;
+        }
+        if push {
+            let off = ch.hit.offset;
+            ch.pos = ee::vadd(ch.pos, off);
+            ch.pos_p = ee::vadd(ch.pos_p, off);
+            ch.hit.pos = ch.pos;
+            hits.sync(&ch.hit);
+        }
+        self.flag = 1;
+        self.cnt = self.cnt.wrapping_add(1);
+        true
+    }
+
+    /// Each class's `move` (`ccRtownPC` 0x005077f0, `ccDog` 0x00509a80,
+    /// `ccPGuso` 0x0050bca0) stepping round a body it touches: the heading
+    /// `dir` half a radian right for 40 frames, left from 60 to 100, and
+    /// the count over again from 120.
+    pub fn avoid(&mut self, dir: F) -> F {
+        if self.flag == 0 {
+            return dir;
+        }
+        match self.cnt {
+            ..40 => ee::sub(dir, HALF),
+            60..100 => ee::add(dir, HALF),
+            120.. => {
+                self.cnt = 0;
+                dir
+            }
+            _ => dir,
+        }
+    }
+}
+
+/// `posCnt` and `oldPos` of `ccDog` (+0x21c, +0x1f0) and `ccPGuso` (+0x298,
+/// +0x210): the stuck check at the end of their `move` (0x00509a80,
+/// 0x0050bca0), the same code in both. (`ccRtownPC`'s is its own: 60
+/// frames, a distance, `returnRoute`.)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Stuck {
+    pub cnt: i16,
+    pub old: V4,
+}
+
+impl Stuck {
+    /// Frames before the check, and the reach on any axis that counts as
+    /// moved (50).
+    pub const FRAMES: i16 = 120;
+    const MOVED: F = 0x4248_0000;
+
+    /// After the move, the class at `pos`: at 120 frames, moved more than
+    /// 50 on any axis since the count began starts it over; at 0 the place
+    /// is kept; the count goes on.
+    pub fn check(&mut self, pos: V4) {
+        if self.cnt == Self::FRAMES {
+            let far = |a: F, b: F| {
+                let d = ee::sub(a, b);
+                !ee::le(d, Self::MOVED) || ee::lt(d, ee::neg(Self::MOVED))
+            };
+            if (0..3).any(|k| far(pos[k], self.old[k])) {
+                self.cnt = 0;
+            }
+        }
+        if self.cnt == 0 {
+            self.old = pos;
+        }
+        self.cnt = self.cnt.wrapping_add(1);
+    }
+
+    /// Still under way: not yet past the check's frame.
+    pub fn going(&self) -> bool {
+        self.cnt <= Self::FRAMES
     }
 }
 

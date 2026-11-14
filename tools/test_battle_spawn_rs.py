@@ -4,7 +4,9 @@
 gmcircle.cpp and enemy*.cpp run in the EE interpreter (the Rust machine).
 
 Each check lays a scene out in the interpreter's memory: g_entCtrl and its
-four lists (enemies, magic circles, gimmicks, NPCs), the objects (Kite, and
+lists (enemies, magic circles, gimmicks; the fourth, the NPCs', stays empty:
+it is the world's one NPC list, piney-world's systems::npcs, and no battle
+object is one), the objects (Kite, and
 ccEnemy, ccMagicCircle, ccGimmick objects at OBJS + 0x8000 * i with their
 particles' effects and animation players), the command lists, the
 registered rows, game, worldman, plw, the save's event entries, fountains
@@ -18,8 +20,8 @@ those queries are recorded as the world's calls; sounds, the trap-removal
 effect, ccStartThread, the draws (SetActiveLayer, ccAnm::Draw, ccEff::Draw),
 the weapon and dust controllers, palette swaps and the destructors' hooks
 are recorded as outputs; every object's main but the magic circle's
-(ccEnemy::main, the gimmicks' and NPCs') is stubbed to record the call and
-answer from a script, and the gimmicks' and NPCs' constructors make a bare
+(ccEnemy::main, the gimmicks') is stubbed to record the call and
+answer from a script, and the gimmicks' constructors make a bare
 ccGimmick with the entry copied in (the probe's seam does the same) - but
 the classes piney-battle holds, whose constructors run natively (ccGimBox,
 ccGimIdol, ccGimSymbol, ccGimFood: their own members compared) and whose
@@ -37,7 +39,7 @@ Checks (SPAWN maps a name to fn(checks, rnd) -> (request, game, label)):
                  gimmick
   check          ccEntryCtrl::entryObjectCheck (0x00430530)
   entry          entryObject(ep) (0x00430c90), entryObject(ep, n)
-                 (0x004307f0), entryEnemy, entryGimmick, entryNpc,
+                 (0x004307f0), entryEnemy, entryGimmick,
                  entryMagicCircle (0x004313f0), initObject, the race and
                  circle constructors
   race           every row of races B, G, K, P, V through ccEntryRaceTbl's
@@ -46,7 +48,7 @@ Checks (SPAWN maps a name to fn(checks, rnd) -> (request, game, label)):
   circle_object  entryCircleObject (0x00430360)
   enemy_object   entryEnemyObject (0x00430250)
   init_object    initObject (0x00430ec0)
-  delete         deleteEnemy, deleteMagicCircle, deleteGimmick, deleteNpc
+  delete         deleteEnemy, deleteMagicCircle, deleteGimmick
   active         ccCheckActiveEnemy, ccCheckActiveObject(), (floor, block)
   circle_main    ccMagicCircle::main (0x00455b60) with createPart, setPart,
                  ccMcPart::main and fade
@@ -117,7 +119,7 @@ import test_battle_enemy_ai_rs as EA  # noqa: E402
 
 F_ONE = 0x3F800000
 ENEMY_TBL, ROW = inf_va(0x005F1E70), 0x1C0
-GIMMICK_TBL, NPC_TBL = inf_va(0x0061E0F0), inf_va(0x00619460)
+GIMMICK_TBL = inf_va(0x0061E0F0)
 RACE_TBL = inf_va(0x005F1D60)
 MT, MTI = inf_va(0x003FF400), inf_va(0x00377FD0)
 CCENEMY_VT = inf_va(0x003760C0)
@@ -140,8 +142,11 @@ KITE_BASE = 0x013C1000
 WMAN = 0x013C2000
 EVT = 0x013C3000
 WP = 0x013C4000                     # worldman->wordparam
-VT_GIM, VT_NPC = 0x013C5000, 0x013C5100
-STUB_GIM, STUB_NPC = 0x013C5200, 0x013C5300
+VT_GIM = 0x013C5000
+STUB_GIM = 0x013C5200
+# g_entCtrl's lists the battle holds (+0x10, 12 bytes each); the fourth
+# (+0x34, the NPCs') is the world's.
+LISTS = 3
 TRAMP, TSCB = 0x013C6000, 0x013C6100
 EP = 0x013C7000                     # an entry param handed to the functions
 ENTRY = 0x013C7100                  # a ccEntry for the race constructors
@@ -295,11 +300,9 @@ class Harness:
             self.race_funcs.append(m.load(RACE_TBL + 12 * r, 4))
         self.gim_funcs = ({m.load(GIMMICK_TBL + 0x70 * i + 0x2C, 4) for i in range(45)}
                           - {CIRCLE_FUNC, BOX_FUNC, IDOL_FUNC, FOOD_FUNC, ETC_FUNC, SYMBOL_FUNC, 0})
-        self.npc_funcs = {m.load(NPC_TBL + 0x70 * i + 0x2C, 4) for i in range(175)} - {0}
         self.gim_esize = [s32(m.load(GIMMICK_TBL + 0x70 * i + 0x30, 4)) for i in range(45)]
         self.affect_funcs = {1: sym("ccEnemyInfluence__FP6ccChar"), 2: sym("Influence__8ccFellowFv"),
                              3: sym("Influence__FP6ccChar")}
-        self.npc_esize = [s32(m.load(NPC_TBL + 0x70 * i + 0x30, 4)) for i in range(175)]
         self.esize = [m.load(ENEMY_TBL + ROW * i + 0x70, 4) for i in range(303)]
         self.addr = {n: sym(n) for n in (
             "g_entCtrl", "game", "saveData", "worldman", "eventMng", "plw", "ccRegisterEnemyTbl",
@@ -314,7 +317,6 @@ class Harness:
         for k, w in enumerate(code):
             m.store(TRAMP + 4 * k, 4, w)
         m.store(VT_GIM + 8, 4, STUB_GIM)
-        m.store(VT_NPC + 8, 4, STUB_NPC)
         # the enemy AI harness's reads of pointers: our objects by index
         self.ea.index = lambda a: -1 if a == 0 else self.idx.get(a & 0xFFFFFFFF, a)
         self.motion = False
@@ -325,7 +327,7 @@ class Harness:
     def reset_state(self):
         self.g.names = {}
         self.idx = {}           # object address -> index
-        self.kinds = []         # index -> kind (0 plain, 1 enemy, 2 circle, 3 gimmick, 4 npc)
+        self.kinds = []         # index -> kind (0 plain, 1 enemy, 2 circle, 3 gimmick)
         self.addrs = []
         self.deleted = set()
         self.new_at = NEWR
@@ -338,7 +340,7 @@ class Harness:
         self.camdeg = []
         self.camtr = []
         self.fwd = []
-        self.emain, self.gmain, self.nmain = [], [], []
+        self.emain, self.gmain = [], []
         self.breaths = 0
 
     def index_of(self, a):
@@ -694,10 +696,6 @@ class Harness:
             H.scalls.append(["gimmick_main", H.index_of(obj)])
             return int(pop(H.gmain, False))
 
-        def main_npc(mm, obj, *_):
-            H.scalls.append(["npc_main", H.index_of(obj)])
-            return int(pop(H.nmain, False))
-
         def maker(table, vt, kind):
             def f(mm, entry, *_):
                 ep = mm.load(entry + 0xC, 4)
@@ -706,7 +704,7 @@ class Harness:
                 mm.mem[a:a + 0x200] = bytes(0x200)
                 i = H.add_obj(a, kind)
                 ent = H.read_ent(ep)
-                H.scalls.append(["make_gimmick" if kind == 3 else "make_npc", i, ent])
+                H.scalls.append(["make_gimmick", i, ent])
                 row = entry - 0x28
                 H.put_bare(a, row, ent, vt)
                 return a
@@ -785,11 +783,8 @@ class Harness:
             m.hooks[sym(n)] = (lambda aa: lambda mm, obj, *_: (H.outs.append(
                 ["destroyed", H.index_of(obj), aa]), 0)[1])(a)
         m.hooks[STUB_GIM] = main_gim
-        m.hooks[STUB_NPC] = main_npc
         for f in self.gim_funcs:
             m.hooks[f] = maker(GIMMICK_TBL, VT_GIM, 3)
-        for f in self.npc_funcs:
-            m.hooks[f] = maker(NPC_TBL, VT_NPC, 4)
         del dest
 
     # memory helpers ------------------------------------------------------------------
@@ -811,7 +806,7 @@ class Harness:
         self.m.mem[a + 0x58:a + 0x60] = bytes(8)
 
     def put_bare(self, a, row, ent, vt):
-        """What a gimmick or NPC constructor stands-in leaves (the probe's
+        """What a gimmick constructor stands-in leaves (the probe's
         seam makes the same): ccChar, ccEntryObj and ccGimmick as their
         constructors leave them, the entry copied, placed at its position
         and heading."""
@@ -1035,10 +1030,8 @@ class Harness:
             base = KITE_BASE
         elif kind == 1:
             base = ENEMY_TBL + ROW * b
-        elif kind in (2, 3):
-            base = GIMMICK_TBL + 0x70 * b
         else:
-            base = NPC_TBL + 0x70 * b
+            base = GIMMICK_TBL + 0x70 * b
         m.store(va, 4, base)
         m.store(va + 4, 4, va + 0x1D0 if kind == 1 else 0)
         self.put(va + 8, "<16h", *ch[13:29])
@@ -1174,7 +1167,7 @@ class Harness:
         return v
 
     # the scene -----------------------------------------------------------------------
-    def rnd_scene(self, rnd, ne=None, nc=None, ng=None, nn=None, area=None, field=None):
+    def rnd_scene(self, rnd, ne=None, nc=None, ng=None, area=None, field=None):
         """A random scene: returns a dict the game and the probe are set up
         from."""
         sc = {}
@@ -1214,7 +1207,6 @@ class Harness:
         sc["fwd"] = [int(rnd.random() < 0.3) for _ in range(rnd.randrange(0, 12))]
         sc["emain"] = [int(rnd.random() < 0.15) for _ in range(rnd.randrange(0, 12))]
         sc["gmain"] = [int(rnd.random() < 0.2) for _ in range(rnd.randrange(0, 12))]
-        sc["nmain"] = [int(rnd.random() < 0.2) for _ in range(rnd.randrange(0, 12))]
         objs = []
         kite_type = rnd.choice((1, 1, 7))
         kz = rf(rnd, -100, 400)
@@ -1222,13 +1214,12 @@ class Harness:
         ne = rnd.randrange(0, 4) if ne is None else ne
         nc = rnd.randrange(0, 3) if nc is None else nc
         ng = rnd.randrange(0, 3) if ng is None else ng
-        nn = rnd.randrange(0, 2) if nn is None else nn
-        for kind, n in ((1, ne), (2, nc), (3, ng), (4, nn)):
+        for kind, n in ((1, ne), (2, nc), (3, ng)):
             for _ in range(n):
                 objs.append(self.rnd_obj(rnd, kind, sc))
         sc["objs"] = objs
         lists = []
-        for kind in (1, 2, 3, 4):
+        for kind in (1, 2, 3):
             members = [i for i, o in enumerate(objs) if o["kind"] == kind and rnd.random() < 0.92]
             rnd.shuffle(members)
             for a, b in zip([None] + members, members + [None]):
@@ -1240,7 +1231,7 @@ class Harness:
         sc["lists"] = lists
         pcs = [0] if rnd.random() < 0.75 else []
         enes = [i for i, o in enumerate(objs) if o["kind"] == 1 and rnd.random() < 0.6]
-        obs = [i for i, o in enumerate(objs) if o["kind"] in (2, 3, 4) and rnd.random() < 0.4]
+        obs = [i for i, o in enumerate(objs) if o["kind"] in (2, 3) and rnd.random() < 0.4]
         rnd.shuffle(enes)
         rnd.shuffle(obs)
         sc["cmnd"] = [pcs, enes, obs]
@@ -1277,14 +1268,12 @@ class Harness:
         pos = pos or self.rnd_pos(rnd, sc)
         dirc = [0, 0, rf(rnd, -math.pi, math.pi), F_ONE]
         if ty is None:
-            ty = rnd.choice((0, 1, 1, 2))
+            ty = rnd.choice((0, 1, 1))
         if id_ is None:
             if ty == 0:
                 id_ = rnd.choice(self.ported_rows() + [-1])
-            elif ty == 1:
-                id_ = rnd.choice((0, 1, 2, 3, 4, 5, 6, 15, 15, 20, 38, 40, 44, rnd.randrange(0, 45)))
             else:
-                id_ = rnd.randrange(0, 175)
+                id_ = rnd.choice((0, 1, 2, 3, 4, 5, 6, 15, 15, 20, 38, 40, 44, rnd.randrange(0, 45)))
         c = sc["ctrl"]
         here = rnd.random() < 0.8
         area = [c[0], c[1], c[2], c[3]] if here else [rnd.randrange(0, 3), rnd.randrange(0, 60),
@@ -1300,15 +1289,16 @@ class Harness:
         return ent
 
     def rnd_gift(self, rnd):
-        """A circle's param[1] (what it gives) and param[2] (which)."""
-        kind = rnd.choice((-1, -1, 0, 0, 1, 2))
+        """A circle's param[1] (what it gives) and param[2] (which): -1
+        (WORLD::SetMagicCircle, DUNGEON::SetMagicCircle) or an event's
+        entryMc type, 0 or 1 (ccEntryEventMng, INF main 0x001b69d8), so
+        never 2, an NPC."""
+        kind = rnd.choice((-1, -1, 0, 0, 1))
         if kind == -1:
             return -1, -1
         if kind == 0:
             return 0, rnd.choice((-1, rnd.choice(self.ported_rows())))
-        if kind == 1:
-            return 1, rnd.choice((-1, 0, 1, 2, 5, 6, 15, 20, 38, 44, rnd.randrange(0, 45)))
-        return 2, rnd.randrange(0, 175)
+        return 1, rnd.choice((-1, 0, 1, 2, 5, 6, 15, 20, 38, 44, rnd.randrange(0, 45)))
 
     def rnd_hit(self, rnd, pos):
         return [rnd.choice((0, 1)), rnd.choice((0xFFFFFFFF, 0x40000002)), rnd.choice((0xFFFFFFFF, 0)),
@@ -1359,8 +1349,8 @@ class Harness:
                   + [rnd.choice((0, 0x00446010, 0x0044A780))] + self.rnd_hit(rnd, pos) + [0])
             return {"kind": 1, "char": self.rnd_char(rnd, 1, row, pos, sc), "link": [-1, -1], "enemy": e,
                     "extra": ex}
-        gid = {2: 15, 3: rnd.choice([i for i in range(45) if i != 15]), 4: rnd.randrange(0, 175)}[kind]
-        ent = self.rnd_ent(rnd, sc, 1 if kind != 4 else 2, gid)
+        gid = 15 if kind == 2 else rnd.choice([i for i in range(45) if i != 15])
+        ent = self.rnd_ent(rnd, sc, 1, gid)
         pos = ent[:4]
         o = {"kind": kind, "char": self.rnd_char(rnd, kind, gid, pos, sc), "link": [-1, -1],
              "obj": self.rnd_common(rnd, sc, kind, ent, gid)}
@@ -1378,7 +1368,7 @@ class Harness:
         for o in sc["objs"]:
             if o["kind"] == 1:
                 o["char"][33] = o["enemy"]["ent"][16] & 0xFFFFFFFF
-            elif o["kind"] in (2, 3, 4):
+            elif o["kind"] in (2, 3):
                 o["char"][33] = o["obj"][30] & 0xFFFFFFFF
 
     def put_scene(self, sc):
@@ -1435,7 +1425,7 @@ class Harness:
         # scripts
         self.land, self.attr = list(sc["land"]), list(sc["attr"])
         self.camdeg, self.camtr, self.fwd = list(sc["camdeg"]), list(sc["camtr"]), list(sc["fwd"])
-        self.emain, self.gmain, self.nmain = list(sc["emain"]), list(sc["gmain"]), list(sc["nmain"])
+        self.emain, self.gmain = list(sc["emain"]), list(sc["gmain"])
         # objects
         objs = sc["objs"]
         for i, o in enumerate(objs):
@@ -1450,13 +1440,13 @@ class Harness:
             self.put_char(va, o["kind"], o["char"])
             if o["kind"] == 1:
                 self.put_enemy(va, o["enemy"], o["extra"])
-            elif o["kind"] in (2, 3, 4):
+            elif o["kind"] in (2, 3):
                 w = list(o["obj"])
                 # a radiator's param[3]: its user (index + 1) as the pointer
                 if o["kind"] == 3 and o.get("cls", [0])[0] == 5 and radiator_words(w):
                     w[35] = self.ptr(w[35] - 1) if w[35] > 0 else 0
                 self.put_common(va, w)
-                m.store(va + 0x1CC, 4, {2: inf_va(0x003763F0), 3: VT_GIM, 4: VT_NPC}[o["kind"]])
+                m.store(va + 0x1CC, 4, {2: inf_va(0x003763F0), 3: VT_GIM}[o["kind"]])
                 if o["kind"] == 3:
                     gid = o["obj"][48]
                     self.put_class(va, o.get("cls", [0]), gim_clip(gid, o["obj"][49]))
@@ -1515,7 +1505,7 @@ class Harness:
         v += reg["cells"] + [reg["num"], reg["dnum"], reg["range"], len(reg["exist"])] + reg["exist"]
         v += sc["rng"]
         v += sc["save"]
-        for key in ("land", "attr", "camdeg", "camtr", "fwd", "emain", "gmain", "nmain"):
+        for key in ("land", "attr", "camdeg", "camtr", "fwd", "emain", "gmain"):
             v += [len(sc[key])] + sc[key]
         v.append(len(sc["objs"]))
         parts = [" ".join(str(x) for x in v)]
@@ -1527,7 +1517,7 @@ class Harness:
             s = " ".join(str(x) for x in w)
             if o["kind"] == 1:
                 s += " " + EA.ser_enemy(o["enemy"]) + " " + " ".join(str(x) for x in o["extra"])
-            elif o["kind"] in (2, 3, 4):
+            elif o["kind"] in (2, 3):
                 s += " " + " ".join(str(x) for x in o["obj"])
                 if o["kind"] == 3:
                     s += " " + " ".join(str(x) for x in o.get("cls", [0]) + o.get("aff", [0, -1]))
@@ -1559,8 +1549,9 @@ class Harness:
     def read_scene(self, full=True):
         m, a = self.m, self.addr
         ctrl = self.get(CTRL, "<4i")
+        assert self.get(CTRL + 0x10 + 12 * LISTS, "<iII") == [0, 0, 0], "the game's NPC list is the world's"
         lists = []
-        for k in range(4):
+        for k in range(LISTS):
             num, head, foot = self.get(CTRL + 0x10 + 12 * k, "<iII")
             ctrl += [num, self.index_of(head) if head else -1, self.index_of(foot) if foot else -1]
             lists.append(self.walk(head))
@@ -1581,7 +1572,7 @@ class Harness:
                 if self.motion:
                     o["char"] = self.read_full(i, True)
                     o["extra"] += self.get(va + 0x190, "<4I") + [m.load(va + 0x1A0, 4)]
-            elif kind in (2, 3, 4):
+            elif kind in (2, 3):
                 o["obj"] = self.read_common(va)
                 if kind == 3:
                     o["cls"] = self.read_class(va)
@@ -1695,10 +1686,10 @@ def ent_str(ent):
 
 def check_routine(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 2), nc=rnd.randrange(0, 2), ng=rnd.randrange(0, 2), nn=0)
+    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 2), nc=rnd.randrange(0, 2), ng=rnd.randrange(0, 2))
     cands = [i for i, o in enumerate(sc["objs"]) if o["kind"] in (1, 2, 3)]
     if not cands:
-        sc = h.rnd_scene(rnd, ne=1, nc=0, ng=0, nn=0)
+        sc = h.rnd_scene(rnd, ne=1, nc=0, ng=0)
         cands = [1]
     w = rnd.choice(cands)
     o = sc["objs"][w]
@@ -1735,7 +1726,7 @@ def check_obj_check(checks, rnd):
 
 def check_entry(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 3), nc=rnd.randrange(0, 2), ng=rnd.randrange(0, 2), nn=0)
+    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 3), nc=rnd.randrange(0, 2), ng=rnd.randrange(0, 2))
     ent = h.rnd_ent(rnd, sc)
     op = rnd.choice(("entry", "entry", "entryn", "mc"))
     n = rnd.choice((1, 1, 2, 3, 4, 5, 0))
@@ -1756,7 +1747,7 @@ def check_entry(checks, rnd):
 
 def check_race(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0)
     rows = h.ported_rows()
     k = getattr(checks, "_race_k", 0)
     row = rows[k % len(rows)]
@@ -1809,8 +1800,8 @@ def check_enemy_object(checks, rnd):
 
 def check_init_object(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=1, nc=1, ng=1, nn=rnd.randrange(0, 2))
-    w = rnd.choice([i for i, o in enumerate(sc["objs"]) if o["kind"] in (1, 2, 3, 4)])
+    sc = h.rnd_scene(rnd, ne=1, nc=1, ng=1)
+    w = rnd.choice([i for i, o in enumerate(sc["objs"]) if o["kind"] in (1, 2, 3)])
     o = sc["objs"][w]
     ent = o["enemy"]["ent"] if o["kind"] == 1 else o["obj"][14:36]
     if rnd.random() < 0.6:
@@ -1827,9 +1818,8 @@ def check_init_object(checks, rnd):
 
 def check_delete(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=rnd.randrange(1, 4), nc=rnd.randrange(1, 3), ng=rnd.randrange(1, 3),
-                     nn=rnd.randrange(1, 2))
-    kind = rnd.choice((1, 2, 3, 4))
+    sc = h.rnd_scene(rnd, ne=rnd.randrange(1, 4), nc=rnd.randrange(1, 3), ng=rnd.randrange(1, 3))
+    kind = rnd.choice((1, 2, 3))
     lst = sc["lists"][kind - 1]
     members, a = [], lst[1]
     while a != -1 and len(members) < 20:
@@ -1839,7 +1829,7 @@ def check_delete(checks, rnd):
         return check_delete(checks, rnd)
     w = rnd.choice(members)
     h.put_scene(sc)
-    fn = {1: "deleteEnemy", 2: "deleteMagicCircle", 3: "deleteGimmick", 4: "deleteNpc"}[kind]
+    fn = {1: "deleteEnemy", 2: "deleteMagicCircle", 3: "deleteGimmick"}[kind]
     h.call(fn + "__11ccEntryCtrlFP10ccEntryObj", (CTRL, h.addrs[w]))
     out = h.read_scene()
     h.restore()
@@ -1848,7 +1838,7 @@ def check_delete(checks, rnd):
 
 def check_active(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 4), nc=rnd.randrange(0, 3), ng=rnd.randrange(0, 2), nn=0)
+    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 4), nc=rnd.randrange(0, 3), ng=rnd.randrange(0, 2))
     for o in sc["objs"]:
         if o["kind"] == 1 and rnd.random() < 0.5:
             o["enemy"]["eflags"] &= ~5
@@ -1906,7 +1896,7 @@ def check_circle_main(checks, rnd):
 def check_frame(checks, rnd):
     h = harness(checks)
     sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 3), nc=rnd.randrange(1, 4), ng=rnd.randrange(0, 2),
-                     nn=rnd.randrange(0, 2), area=rnd.choice((1, 2)))
+                     area=rnd.choice((1, 2)))
     for w, o in enumerate(sc["objs"]):
         if o["kind"] == 2:
             circle_tweak(h, rnd, sc, w)
@@ -1934,7 +1924,6 @@ def check_frame(checks, rnd):
     sc["fwd"] = [int(rnd.random() < 0.05) for _ in range(400)]
     sc["emain"] = [int(rnd.random() < 0.02) for _ in range(400)]
     sc["gmain"] = [int(rnd.random() < 0.02) for _ in range(400)]
-    sc["nmain"] = [int(rnd.random() < 0.02) for _ in range(400)]
     h.put_scene(sc)
     frames = []
     for f in range(n):
@@ -1957,7 +1946,7 @@ def check_frame(checks, rnd):
 
 def check_world_mc(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=1)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=1)
     sc["game"][2] = rnd.choice((0, 0, 14, rnd.randrange(1, 60)))
     sc["ctrl"] = [1, sc["game"][2], sc["game"][4], sc["game"][5]]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
@@ -2003,7 +1992,7 @@ def check_world_mc(checks, rnd):
 
 def check_dungeon_mc(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=2)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=2)
     sc["ctrl"] = [2, sc["game"][3], rnd.randrange(0, 3), rnd.randrange(0, 5)]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
     dtype = rnd.choice((0, 1, 3, 8, 9))
@@ -2065,7 +2054,7 @@ def rnd_evpos(rnd):
 
 def check_event_mc(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=rnd.choice((1, 2)))
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=rnd.choice((1, 2)))
     sc["game"][9] = 0
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
     sc["attr"] = [inf_va(0x00304050)] * 40
@@ -2111,7 +2100,7 @@ def check_event_mc(checks, rnd):
 def check_entry_gimmick(checks, rnd):
     h = harness(checks)
     # Field 27 half the time: Mutation's dungeon there gets no portals.
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=rnd.choice((1, 2)), field=rnd.choice((27, None)))
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=rnd.choice((1, 2)), field=rnd.choice((27, None)))
     flag = rnd.choice((1, 2, 0))
     ef = [rnd.choice((0, 0, 1)) for _ in range(4)]
     eaf = rnd.choice((0, 0, 1))
@@ -2148,19 +2137,18 @@ def check_entry_gimmick(checks, rnd):
 
 def check_restore(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 3), nc=rnd.randrange(0, 3), ng=rnd.randrange(0, 2),
-                     nn=rnd.randrange(0, 2))
+    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 3), nc=rnd.randrange(0, 3), ng=rnd.randrange(0, 2))
     for o in sc["objs"]:
-        ent = o["enemy"]["ent"] if o["kind"] == 1 else (o["obj"][14:36] if o["kind"] in (2, 3, 4) else None)
+        ent = o["enemy"]["ent"] if o["kind"] == 1 else (o["obj"][14:36] if o["kind"] in (2, 3) else None)
         if ent is not None and rnd.random() < 0.6:
             ent[10:14] = list(sc["ctrl"])
             if o["kind"] != 1:
                 o["obj"][14:36] = ent
     saved = [list(l) for l in sc["lists"]]
-    sc["lists"] = [[0, -1, -1] for _ in range(4)]
+    sc["lists"] = [[0, -1, -1] for _ in range(LISTS)]
     h.put_scene(sc)
     gl = h.addr["g_entryList"]
-    for k, l in enumerate(saved):
+    for k, l in enumerate(saved + [[0, -1, -1]]):
         h.put(gl + 4 + 12 * k, "<iII", l[0], h.ptr(l[1]), h.ptr(l[2]))
     h.call("restoreEntry__11ccEntryCtrlFv", (CTRL,))
     out = h.read_scene()
@@ -2170,12 +2158,11 @@ def check_restore(checks, rnd):
 
 def check_leave(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 4), nc=rnd.randrange(0, 3), ng=rnd.randrange(0, 3),
-                     nn=rnd.randrange(0, 2))
+    sc = h.rnd_scene(rnd, ne=rnd.randrange(0, 4), nc=rnd.randrange(0, 3), ng=rnd.randrange(0, 3))
     for o in sc["objs"]:
         if o["kind"] == 1:
             o["enemy"]["ent"][16] = rnd.choice((-1, 0, 1, 2))
-        elif o["kind"] in (2, 3, 4):
+        elif o["kind"] in (2, 3):
             o["obj"][30] = rnd.choice((-1, 0, 1, 2))
             o["obj"][10] = rnd.choice((0, 1, 2))
     replace, mode = rnd.choice((0, 0, 1)), rnd.choice((5, 5, 6))
@@ -2194,13 +2181,14 @@ def check_leave(checks, rnd):
     out = h.read_scene()
     gl = h.addr["g_entryList"]
     sv = []
-    for k in range(4):
+    assert h.get(gl + 4 + 12 * LISTS, "<iII") == [0, 0, 0], "the game's NPC list is the world's"
+    for k in range(LISTS):
         num, head, foot = h.get(gl + 4 + 12 * k, "<iII")
         sv += [num, h.index_of(head) if head else -1, h.index_of(foot) if foot else -1]
     out["saved"] = sv
     # the control itself is freed; the probe keeps its lists as they were
     out["ctrl"] = out["ctrl"][:4] + sv
-    out["lists"] = [h.walk(h.ptr(l[1])) for l in [sv[3 * k:3 * k + 3] for k in range(4)]]
+    out["lists"] = [h.walk(h.ptr(l[1])) for l in [sv[3 * k:3 * k + 3] for k in range(LISTS)]]
     h.restore()
     keep = int(replace == 0 and mode == 5)
     return request(h, sc, "leave", str(keep)), out, "leave"
@@ -2474,7 +2462,7 @@ def motion_hooks(h):
     def hit_switch(on):
         def f(mm, this, *_):
             i = H.idx.get(this - 0x160)
-            if i is not None and H.kinds[i] in (1, 2, 3, 4):
+            if i is not None and H.kinds[i] in (1, 2, 3):
                 H.wcalls.append(["hit", i, on])
                 mm.store(this, 4, on)
             else:
@@ -2606,7 +2594,7 @@ def check_frame_enemies(checks, rnd):
     h.collide_p = rnd.choice((0.35, 0.35, 0.8))
     h.running = rnd.choice((0, 0, 1, 2))
     area = rnd.choice((1, 1, 2))
-    sc = h.rnd_scene(rnd, ne=0, nc=rnd.randrange(1, 4), ng=rnd.randrange(0, 2), nn=rnd.randrange(0, 2), area=area)
+    sc = h.rnd_scene(rnd, ne=0, nc=rnd.randrange(1, 4), ng=rnd.randrange(0, 2), area=area)
     game = sc["game"]
     game[9] = 0
     num = rnd.randrange(1, 8)
@@ -2701,7 +2689,6 @@ def check_frame_enemies(checks, rnd):
         ent[18:22] = [-1, -1, rnd.choice((-1, 0)), -1]
         entries.append(ent)
     sc["gmain"] = [int(rnd.random() < 0.02) for _ in range(400)]
-    sc["nmain"] = [int(rnd.random() < 0.02) for _ in range(400)]
     sc["emain"], sc["fwd"] = [], []
     for k in ("land", "attr", "camdeg", "camtr"):
         sc[k] = []
@@ -2852,7 +2839,7 @@ def scene_from_memory(h, sc):
                      "aff": [s16(m.load(va + 0x9C, 2)), h.index_of(person) if person else -1]})
     out["objs"] = objs
     lists = []
-    for k in range(4):
+    for k in range(LISTS):
         num, head, foot = h.get(CTRL + 0x10 + 12 * k, "<iII")
         lists.append([num, h.index_of(head) if head else -1, h.index_of(foot) if foot else -1])
     out["lists"] = lists
@@ -2886,7 +2873,7 @@ def check_radiator_entry(checks, rnd):
     somewhere near him: ccGimEtc's constructor, the ccGimRadiator and
     setGimRadPos."""
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=rnd.randrange(0, 2), nn=0, area=rnd.choice((0, 1, 2)))
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=rnd.randrange(0, 2), area=rnd.choice((0, 1, 2)))
     sc["hand"] = rnd_hand(rnd, sc["k"], sc["objs"][0]["char"][3])
     sc["hand"][0] = rnd.choice((0, 1))
     ent = h.rnd_ent(rnd, sc, 1, 19)
@@ -2912,7 +2899,7 @@ def check_gim_frame(checks, rnd):
     ccGimIdol::main) against entry::EnemySeam."""
     h = harness(checks)
     area = rnd.choice((1, 2))
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=area)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=area)
     sc["rng"][1] = rnd.randrange(0, 300)
     sc["cmnd"] = [[0], [], []]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
@@ -2987,7 +2974,7 @@ def check_etc_frame(checks, rnd):
     its rays follow his right hand, moved each frame, until his AI leaves
     manual mode (ctrlGimRadiator, ccGimRadiator::ctrl)."""
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=2)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=2)
     sc["rng"][1] = rnd.randrange(0, 300)
     sc["cmnd"] = [[0], [], []]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
@@ -3211,7 +3198,7 @@ def check_item_box(checks, rnd):
     story dungeon's GIMMICKDATA boxes and traps (no boss room's object:
     kind 6 rows are left out)."""
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=2)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=2)
     sc["ctrl"] = [2, sc["game"][3], rnd.randrange(0, 3), rnd.randrange(0, 12)]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(60)]
     sc["rng"][1] = rnd.randrange(0, 200)
@@ -3223,7 +3210,7 @@ def check_idol(checks, rnd):
     """DUNGEON::SetIDOL (0x005be750): an idol (or the spring, or the Zeit
     statue) on every statue slot, with a story room's item."""
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=2)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=2)
     sc["ctrl"] = [2, sc["game"][3], rnd.randrange(0, 3), rnd.randrange(0, 12)]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(60)]
     d = rnd_dungeon(h, rnd, sc, (2, 2, 0, 1))
@@ -3238,7 +3225,7 @@ def check_field_gims(checks, rnd):
     nodes' coords carry their places, _SetLWMatrix leaves them), a lake
     or none (water), the in-points and the area (NO_ENTRANCE's too)."""
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=1)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=1)
     sc["game"][2] = rnd.choice((0, 0, 28, 41, 57, 80, 111, rnd.randrange(1, 120)))
     sc["ctrl"] = [1, sc["game"][2], sc["game"][4], sc["game"][5]]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]

@@ -13,7 +13,7 @@ use super::super::systems::{BossSystem, Hook, Others};
 use super::super::{ANM_WAVE, Anm, Boss, BossBase, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
 use super::{Brothers, G, Gorre, Kerse};
 use crate::boss::{Part, Parts};
-use crate::enemy_ai::get_dirc;
+use crate::geom::get_dirc;
 use crate::geom::{self, V4};
 use crate::param::cond;
 

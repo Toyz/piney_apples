@@ -23,7 +23,7 @@ use super::{
     Anm, BaseActs, Boss, BossBase, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
     base_exec_pattern_index, word,
 };
-use crate::enemy_ai::get_dirc;
+use crate::geom::get_dirc;
 use crate::geom::{self, V4};
 use crate::item;
 use crate::param::cond;

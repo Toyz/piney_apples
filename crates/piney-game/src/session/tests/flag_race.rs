@@ -83,14 +83,14 @@ fn speak_to_breeder(s: &mut impl Frames) -> Option<piney_draw::Frame> {
             let open = ui.menu == BREEDER_MENU && ui.menu_status == 2;
             let placed = matches!(world.phase(), piney_world::Phase::Play(n) if n >= 60);
             let kite = world.kite().pos().map(f32::from_bits);
-            let breeder = town_cast(world).merchants().iter().find(|m| m.flags & BREEDER != 0);
+            let breeder = town_cast(world).npcs().merchants().find(|m| m.core.row.flags & BREEDER != 0);
             let raw = match breeder {
                 _ if !placed || open => still(Buttons::NONE),
-                Some(m) if world.command_target_id() == Some(CharId::Npc(m.id)) => {
+                Some(m) if world.command_target_id() == Some(CharId::Npc(m.core.code())) => {
                     still(if f % 20 == 0 { Buttons::CROSS } else { Buttons::NONE })
                 }
                 Some(m) => {
-                    let q = m.ch.pos.map(f32::from_bits);
+                    let q = m.core.ch.pos.map(f32::from_bits);
                     let w = walk.get_or_insert_with(|| super::town_walk::TownWalker::new([q[0], q[1]], 300.0));
                     w.stick(world, f).unwrap_or_else(|| {
                         let (dx, dy) = (q[0] - kite[0], q[1] - kite[1]);
@@ -121,9 +121,9 @@ fn speak_to_breeder(s: &mut impl Frames) -> Option<piney_draw::Frame> {
             "phase {:?} merchants {:?} target {:?} kite {:?} menu {}",
             world.phase(),
             town_cast(world)
+                .npcs()
                 .merchants()
-                .iter()
-                .map(|m| (m.id, m.flags, m.ch.pos.map(f32::from_bits)))
+                .map(|m| (m.core.code(), m.core.row.flags, m.core.ch.pos.map(f32::from_bits)))
                 .collect::<Vec<_>>(),
             world.command_target(),
             world.kite().pos().map(f32::from_bits),

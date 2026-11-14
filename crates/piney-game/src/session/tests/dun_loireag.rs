@@ -364,9 +364,9 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
             panic!("left the town")
         }
         town_cast(w.world())
+            .npcs()
             .dogs()
-            .iter()
-            .map(|d| (piney_world::event::entry::Npc::code(d), d.ch.pos.map(f32::from_bits), d.cur, d.act))
+            .map(|d| (d.core.code(), d.core.ch.pos.map(f32::from_bits), d.cur, d.core.acts.num))
             .collect()
     };
     let start = dogs(&s);
@@ -399,7 +399,7 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
         let target = w.world().command_target_id();
         let b = if target == Some(CharId::Npc(143)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
         if target != Some(CharId::Npc(143)) {
-            let p = town_cast(w.world()).dogs()[2].ch.pos.map(f32::from_bits);
+            let p = town_cast(w.world()).npcs().dogs().nth(2).unwrap().core.ch.pos.map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
             let world = w.world_mut();
             assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
@@ -480,7 +480,7 @@ fn a_dogs_talk_line_draws_the_towns_ccrand() {
         let target = w.world().command_target_id();
         let b = if target == Some(CharId::Npc(143)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
         if target != Some(CharId::Npc(143)) {
-            let p = town_cast(w.world()).dogs()[2].ch.pos.map(f32::from_bits);
+            let p = town_cast(w.world()).npcs().dogs().nth(2).unwrap().core.ch.pos.map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
             let world = w.world_mut();
             assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
@@ -513,9 +513,9 @@ fn grunties(s: &Session) -> Vec<(i32, [f32; 4], i32, i8, i16)> {
         panic!("left the town")
     }
     town_cast(w.world())
+        .npcs()
         .grunties()
-        .iter()
-        .map(|g| (g.code, g.ch.pos.map(f32::from_bits), g.act, g.growth_num, g.dmylevel))
+        .map(|g| (g.core.id(), g.core.ch.pos.map(f32::from_bits), g.core.acts.num, g.growth_num, g.dmylevel))
         .collect()
 }
 
@@ -535,8 +535,8 @@ fn open_grunty(s: &mut Session, pad: &mut Pad, code: i32, menu: i32) -> Option<u
         let target = w.world().command_target_id();
         let b = if target == Some(CharId::Npc(code)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
         if target != Some(CharId::Npc(code)) {
-            let g = town_cast(w.world()).grunty(code).expect("the Grunty");
-            let p = g.ch.pos.map(f32::from_bits);
+            let g = town_cast(w.world()).npcs().grunty(code).expect("the Grunty");
+            let p = g.core.ch.pos.map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 15, (p[2] / 10.0) as i16);
             let world = w.world_mut();
             assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
@@ -653,7 +653,7 @@ fn the_grunty_eats_and_grows() {
         eprintln!("record: {g:?}");
         assert_eq!((g.level, g.size), (1, 6));
         assert_eq!(w.world().state().save.u8(0x0cfc + 26), 0, "the food was not taken");
-        assert_eq!(town_cast(w.world()).grunty(154).unwrap().row.id, 155);
+        assert_eq!(town_cast(w.world()).npcs().grunty(154).unwrap().core.row.id, 155);
     }
     // Talk (the first row): its food line, then the list again.
     step(&mut s, &mut pad, Buttons::UP);
@@ -727,7 +727,7 @@ fn a_grown_grunty_talks_and_trades_as_its_kind() {
             if !w.in_town() {
                 panic!("left the town")
             }
-            (w.ui().menu_type(), w.ui().ctrl.proccess, town_cast(w.world()).grunty(code).map(|g| g.row.id))
+            (w.ui().menu_type(), w.ui().ctrl.proccess, town_cast(w.world()).npcs().grunty(code).map(|g| g.core.row.id))
         };
         if row == Some(145) && menu == -1 {
             break;
@@ -748,8 +748,8 @@ fn a_grown_grunty_talks_and_trades_as_its_kind() {
         if !w.in_town() {
             panic!("left the town")
         }
-        let g = town_cast(w.world()).grunty(code).expect("the grown one stays (a new kind)");
-        assert_eq!(g.row.id, 145, "it did not grow up");
+        let g = town_cast(w.world()).npcs().grunty(code).expect("the grown one stays (a new kind)");
+        assert_eq!(g.core.row.id, 145, "it did not grow up");
         assert_eq!(w.ui().menu_type(), -1);
     }
     for _ in 0..60 {
@@ -850,7 +850,7 @@ fn grunty_shots() {
         if !w.in_town() {
             panic!("left the town")
         }
-        let p = town_cast(w.world()).grunty(154).unwrap().ch.pos.map(f32::from_bits);
+        let p = town_cast(w.world()).npcs().grunty(154).unwrap().core.ch.pos.map(f32::from_bits);
         let (x, y, z) = ((p[0] / 10.0) as i16 + 25, (p[1] / 10.0) as i16 + 5, (p[2] / 10.0) as i16);
         let world = w.world_mut();
         assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
@@ -973,7 +973,7 @@ fn the_grown_grunty_talks() {
         if !w.in_town() {
             panic!("left the town")
         }
-        assert_eq!(town_cast(w.world()).grunty(145).unwrap().msg_num, 7);
+        assert_eq!(town_cast(w.world()).npcs().grunty(145).unwrap().msg_num, 7);
     }
     step(&mut s, &mut pad, Buttons::CROSS);
     let mut talked = false;
@@ -1010,7 +1010,6 @@ fn the_grown_grunty_talks() {
 #[test]
 fn a_walker_stands_through_its_talk() {
     use piney_event::host::PcCommand;
-    use piney_world::event::entry::Npc as _;
     let Some((iso, archive)) = disc() else { return };
     let mut d = Iso::open(&iso).unwrap();
     let mut state = crate::world::new_game_state(&mut d).unwrap();
@@ -1029,7 +1028,11 @@ fn a_walker_stands_through_its_talk() {
         if let Stage::Area(w) = &s.stage
             && w.in_town()
         {
-            code = town_cast(w.world()).pcs().iter().find(|n| n.think_type == 0 && n.act_num == 3).map(|n| n.code());
+            code = town_cast(w.world())
+                .npcs()
+                .walkers()
+                .find(|n| n.think_type == 0 && n.core.acts.num == 3)
+                .map(|n| n.core.code());
             if code.is_some() {
                 break;
             }
@@ -1041,8 +1044,8 @@ fn a_walker_stands_through_its_talk() {
         if !w.in_town() {
             panic!("left the town")
         }
-        let n = town_cast(w.world()).pcs().iter().find(|n| n.code() == code).expect("the walker");
-        (n.act_num, n.char.pos.map(|v| f32::from_bits(v) as i32), w.ui().menu_type())
+        let n = town_cast(w.world()).npcs().walkers().find(|n| n.core.code() == code).expect("the walker");
+        (n.core.acts.num, n.core.ch.pos.map(|v| f32::from_bits(v) as i32), w.ui().menu_type())
     };
     let mut opened = false;
     for f in 0..900u64 {
@@ -1057,7 +1060,15 @@ fn a_walker_stands_through_its_talk() {
         let target = w.world().command_target_id();
         let on = target == Some(CharId::Npc(code));
         if !on {
-            let p = town_cast(w.world()).pcs().iter().find(|n| n.code() == code).unwrap().char.pos.map(f32::from_bits);
+            let p = town_cast(w.world())
+                .npcs()
+                .walkers()
+                .find(|n| n.core.code() == code)
+                .unwrap()
+                .core
+                .ch
+                .pos
+                .map(f32::from_bits);
             let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
             let world = w.world_mut();
             world.pc_command(PcCommand::Put { pc: 0, x, y, z });

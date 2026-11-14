@@ -22,7 +22,8 @@ use super::blur::Set;
 use super::systems::{BossSystem, Hook, Others, Systems};
 use super::{AfterImageParams, Anm, BodyDraw, Boss, BossBase, Cx, EffKind, Fx, Out, Output, PassMode, VF0};
 use crate::boss::{Follow, Part};
-use crate::enemy_ai::{get_dirc, rand_f};
+use crate::enemy_ai::rand_f;
+use crate::geom::get_dirc;
 use crate::geom::{self, M4, V4};
 use crate::param::cond;
 

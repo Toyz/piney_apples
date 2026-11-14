@@ -11,7 +11,7 @@ pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub,
 pub use piney_data::libm::{atan2f, cosf, fabsf, neg, sinf, sqrtf};
 use piney_data::volume::Volume;
 
-pub use crate::enemy_ai::{get_dirc, get_dist, get_dist_on, rad_disperse, rand_f};
+pub use crate::enemy_ai::{get_dist, get_dist_on, rad_disperse, rand_f};
 
 /// A float as bits.
 pub type F = u32;
@@ -138,6 +138,30 @@ pub fn get_dirc_chg(from: i16, to: i16, mode: i32) -> i32 {
         x = 24576;
     }
     if neg { -x as i32 } else { x as i32 }
+}
+
+/// `ccGetDirc(a, b)` (main 0x001d9ce0): the heading from `a` to `b` on the
+/// ground (0 faces -y), `atan2f(dy, dx) + pi/2` through [`pi_limit`].
+pub fn get_dirc(a: V4, b: V4) -> F {
+    pi_limit(add(HALF_PI, atan2f(sub(b[1], a[1]), sub(b[0], a[0]))))
+}
+
+/// `ccGetDirc0(a, b)` (main 0x001d9c50): the same through the 16-bit
+/// angle, `DEG2RAD(RAD2DEG(atan2f(dy, dx)) + 16384)`.
+pub fn get_dirc0(a: V4, b: V4) -> F {
+    let s = rad2deg(atan2f(sub(b[1], a[1]), sub(b[0], a[0])));
+    deg2rad((i32::from(s) + 16384) as i16)
+}
+
+/// `ccCheckCameraDeg(pos, deg)` (main 0x001da710) on its three points
+/// already through the caller's `W2PPos`: is `p` within `deg` either side
+/// of the line from the eye `c` to the point `v` it looks at, on the
+/// ground? The bounds are open.
+pub fn camera_deg(p: V4, c: V4, v: V4, deg: i16) -> bool {
+    let a = rad2deg(atan2f(sub(p[1], c[1]), sub(p[0], c[0])));
+    let b = rad2deg(atan2f(sub(v[1], c[1]), sub(v[0], c[0])));
+    let d = (i32::from(deg) + (i32::from(a) - i32::from(b))) as i16;
+    d > 0 && i32::from(d) < 2 * i32::from(deg)
 }
 
 /// `ccSetDirc(&r, to, mode)` (main 0x001da0b0): `r` turned toward `to` by
@@ -403,6 +427,26 @@ pub fn trans_matrix(m: &M4, t: V4) -> M4 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dirc_chg_quirks() {
+        // A quarter of the way, at least 1.
+        assert_eq!(get_dirc_chg(0, 1024, 64), 256);
+        assert_eq!(get_dirc_chg(0, 3, 64), 1);
+        assert_eq!(get_dirc_chg(0, -1024, 64), -256);
+        // Past half a turn the other way round.
+        assert_eq!(get_dirc_chg(-30000, 30000, 64), -(16 * 5536) / 64);
+        // The switch on `mode & 0xf0000` compares with 2, 1 and 0 (main
+        // 0x001d9f20): only 0 can match, so 0x10000 and 0x20000 are not
+        // told apart: the whole step, capped at 24576.
+        assert_eq!(get_dirc_chg(0, 1000, 0x1_0000), 16_000);
+        assert_eq!(get_dirc_chg(0, 3000, -5), 24576);
+        // A rate of 0 (the game traps): the whole step, not a panic.
+        assert_eq!(get_dirc_chg(0, 1000, 0), 16_000);
+        // RAD2DEG truncates: 2048 comes back as 2047, and DEG2RAD of that
+        // as 2046.
+        assert_eq!(rad2deg(set_dirc(0, deg2rad(8192), 64)), 2046);
+    }
 
     #[test]
     fn angles_round_trip_in_sixteen_bits() {

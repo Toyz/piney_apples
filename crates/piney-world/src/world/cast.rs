@@ -2,31 +2,29 @@
 //! differs between a Root Town and everywhere else. The game has one task
 //! list for every area (`ccThSpc`, `ccThFellow`, `ccThEntryCtrl`, ...); what
 //! its tasks hold differs: Kite (`ccPlayer`, the battle's character) and the
-//! party are every area's; in a town the entry control's NPC list holds the
-//! merchants, dogs, Grunties and walking PCs, outside the towns enemies,
-//! portals and gimmicks, with the event's NPCs as its stand-ins.
-//! [`Cast`] is that difference; the world holds one as `Box<dyn Cast>`.
+//! party are every area's, and so is the entry control's NPC list
+//! ([`Npcs`]); a town's holds its merchants, dogs, Grunties and walking PCs
+//! with the event's NPCs, a field's or a dungeon's the event's NPCs after
+//! the battle's enemies, portals and gimmicks. [`Cast`] is that
+//! difference; the world holds one as `Box<dyn Cast>`.
 
 use std::any::Any;
 
 use piney_desktop::anm::Ctx;
 
-use super::{CharId, World, tasks};
-use crate::camera::CamPad;
+use super::{CharId, World};
 use crate::combat::Show;
-use crate::ee::{F, ONE, V4};
-use crate::event::entry::Npc;
-use crate::field::npcs::FieldNpcs;
+use crate::ee::{F, V4};
 use crate::grunty::GruntyEvent;
 use crate::grunty::race::{RaceEvent, RaceHost};
-use crate::town::dog::DogEvent;
-use crate::town::pc::PcEvent;
+use crate::systems::npcs::{NpcCtx, NpcEvent, Npcs};
+use crate::town::merchant::SysopEvent;
 
-/// What a town's own characters started at the entry control's slot - a
+/// What an area's own characters started at the entry control's slot - a
 /// sound, an effect, a line, an ask of the game - in the frame's task
-/// order: the Flag Race's (63), then the entry control's list (64: the
-/// gate, the race's flags, the merchants, dogs, Grunties, walking PCs).
-/// They go out as [`Show::Cast`] with the battle's shows.
+/// order: the Flag Race's (63), then the entry control's lists (64: the
+/// gate, the race's flags, the NPC list). They go out as [`Show::Cast`]
+/// with the battle's shows.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Out {
     Race(RaceEvent),
@@ -35,23 +33,10 @@ pub enum Out {
         n: i32,
         pos: V4,
     },
-    Dog {
+    /// An NPC's ([`NpcEvent`]), by its name (`CharId::Npc(code)`).
+    Npc {
         code: i32,
-        e: DogEvent,
-    },
-    Grunty {
-        code: i32,
-        e: GruntyEvent,
-    },
-    Pc {
-        code: i32,
-        e: PcEvent,
-    },
-    /// A line in a balloon over one of its NPCs (a grown Grunty's
-    /// `pgChatTbl` line).
-    Chat {
-        code: i32,
-        text: Vec<u8>,
+        e: NpcEvent,
     },
 }
 
@@ -119,10 +104,13 @@ pub struct Own {
 /// method is one place where the world reaches its characters; a cast with
 /// no such characters keeps the default.
 pub trait Cast: Any {
-    /// `ccEvent::GetNpc(code)`: the event NPC (types 3 and 4) whose base id
-    /// is `code`.
-    fn npc(&self, code: i32) -> Option<&dyn Npc>;
-    fn npc_mut(&mut self, code: i32) -> Option<&mut dyn Npc>;
+    /// The entry control's NPC list, where the cast keeps one.
+    fn npcs(&self) -> Option<&Npcs> {
+        None
+    }
+    fn npcs_mut(&mut self) -> Option<&mut Npcs> {
+        None
+    }
     /// The area's own character `id` names, on the cast's lists (none
     /// where the battle's scene holds every character).
     fn own(&self, _w: &World, _id: CharId) -> Option<Own> {
@@ -160,12 +148,10 @@ pub trait Cast: Any {
         false
     }
     /// `ccChar::EntryAffect(who, plw, cmnd, p0, p1, 0)` on one of its own
-    /// characters (the battle's are the world's): an NPC's `Influence`.
-    fn affect(&mut self, _w: &mut World, who: CharId, cmnd: i16, _p: [i16; 2]) {
-        if let CharId::Npc(code) = who
-            && let Some(n) = self.npc_mut(code)
-        {
-            n.influence(cmnd);
+    /// characters (the battle's are the world's): an NPC's `affectFunc`.
+    fn affect(&mut self, w: &mut World, who: CharId, cmnd: i16, p: [i16; 2]) {
+        if let (CharId::Npc(id), Some(npcs)) = (who, self.npcs_mut()) {
+            npc_affect(npcs, w, id, cmnd, p);
         }
     }
     /// One of the menus' asks ([`Ask`]); false when it holds nothing the
@@ -204,66 +190,87 @@ impl dyn Cast {
 /// Held in the world's place while a cast's method has the world.
 pub(super) struct Lent;
 
-impl Cast for Lent {
-    fn npc(&self, _code: i32) -> Option<&dyn Npc> {
-        None
+impl Cast for Lent {}
+
+/// [`Npcs::affect`] with the world's `ccRand` and Kite's heading, a
+/// Grunty's camera writes and Kite's place carried out at once.
+pub(crate) fn npc_affect(npcs: &mut Npcs, w: &mut World, id: i32, cmnd: i16, p: [i16; 2]) {
+    let dirc = w.kite().dirc();
+    npcs.affect(id, cmnd, p, &mut w.combat.cc, dirc);
+    apply_after(w, npcs.take_after());
+}
+
+/// What the NPC list asked this slot, out with the battle's shows in its
+/// order (the Administrator's `noise2` the menu's), then the Grunties'
+/// camera writes and Kite's place.
+pub(crate) fn npc_outs(w: &mut World, npcs: &mut Npcs) {
+    for (code, e) in npcs.take_events() {
+        match e {
+            NpcEvent::Merchant(SysopEvent::Noise) => w.noise = true,
+            e => w.combat.shows.push(Show::Cast(Out::Npc { code, e })),
+        }
     }
-    fn npc_mut(&mut self, _code: i32) -> Option<&mut dyn Npc> {
-        None
+    apply_after(w, npcs.take_after());
+}
+
+/// A Grunty's `changeCamera`, `cameraSetPos` and `cameraSetView` on
+/// `camID`'s camera, and Kite put where it says.
+fn apply_after(w: &mut World, events: Vec<GruntyEvent>) {
+    for e in events {
+        match e {
+            GruntyEvent::Camera(n) => w.camera.change_camera(n),
+            GruntyEvent::CamPos(v) => w.camera.active_mut().pos = v,
+            GruntyEvent::CamView(v) => w.camera.active_mut().view = v,
+            GruntyEvent::Player { pos, dirc_z } => {
+                let mut dirc = w.kite().dirc();
+                dirc[2] = dirc_z;
+                w.put_kite(pos, dirc);
+            }
+            _ => {}
+        }
     }
 }
 
 /// Outside the towns: Kite and the party are the battle's characters, the
-/// entry control's lists the battle's ([`crate::combat::Combat`]); the
-/// event's NPCs are their classes over the entry control's stand-ins
-/// ([`crate::field::npcs`]).
+/// entry control's enemy, circle and gimmick lists the battle's
+/// ([`crate::combat::Combat`]); its NPC list the event's NPCs, which
+/// `ccEntryEventMng` makes among the event's enemies in entry order
+/// ([`crate::combat::Combat::start_entries`]).
 #[derive(Default)]
 pub struct BattleCast {
-    /// The event's NPCs' classes.
-    pub npcs: FieldNpcs,
+    pub npcs: Npcs,
 }
 
 impl Cast for BattleCast {
-    fn npc(&self, code: i32) -> Option<&dyn Npc> {
-        self.npcs.by_code(code).map(|n| n.npc())
+    fn npcs(&self) -> Option<&Npcs> {
+        Some(&self.npcs)
     }
 
-    fn npc_mut(&mut self, code: i32) -> Option<&mut dyn Npc> {
-        self.npcs.by_code_mut(code).map(|n| n.npc_mut())
+    fn npcs_mut(&mut self) -> Option<&mut Npcs> {
+        Some(&mut self.npcs)
     }
 
-    /// The classes of the event's NPCs the entry control has just made,
-    /// where `ccEntryEventMng` put their stand-ins.
-    fn placed(&mut self, w: &mut World) {
-        let placed = w.combat.npcs.clone();
-        if placed.is_empty() {
-            return;
-        }
-        let (area, town) = (w.scene.area, w.scene.town);
-        let player = w.kite().pos();
-        let chars = &w.combat.scene.chars;
-        let objs = &w.combat.ctrl.objs;
-        let at = |who: usize| {
-            let dirc = match objs.get(who) {
-                Some(piney_battle::entry::Obj::Npc(o)) => o.dirc,
-                _ => [0, 0, 0, ONE],
-            };
-            (chars[who].pos, dirc)
-        };
-        let hits = &mut w.area.core_mut().hits;
-        let (archive, volume, cc) = (&w.archive, w.volume, &mut w.combat.cc);
-        let missing = self.npcs.build(archive, volume, &placed, area, town, hits, player, cc, at);
-        for m in missing {
-            tracing::warn!("the event's NPCs: {m}");
+    fn own(&self, _w: &World, id: CharId) -> Option<Own> {
+        match id {
+            CharId::Npc(id) => self.npcs.own(id),
+            _ => None,
         }
     }
 
-    /// One frame of the event's NPCs, at the end of the entry control's
-    /// walk: each class steps, its stand-in follows (position, heading, the
-    /// command lists), their starts go to this frame's effects, and a class
-    /// done with its NPC has the stand-in deleted.
+    /// The NPC list's listed ones, after the battle's lists.
+    fn cmnds(&self, _player: V4, out: &mut Vec<crate::event::talk::Cmnd>) {
+        self.npcs.cmnds(out);
+    }
+
+    /// The NPC list's turn at the end of the entry control's walk (after
+    /// the enemies, circles and gimmicks); what it started goes to this
+    /// frame's shows after what the menus' `EntryAffect` asked since the
+    /// last slot.
     fn entry_slot(&mut self, w: &mut World, _fades: &mut dyn RaceHost) {
-        if self.npcs.list.is_empty() {
+        for (code, e) in self.npcs.take_events() {
+            w.combat.shows.push(Show::Cast(Out::Npc { code, e }));
+        }
+        if self.npcs.is_empty() {
             return;
         }
         let a = w.camera.active();
@@ -274,51 +281,27 @@ impl Cast for BattleCast {
             eye: a.kind == crate::camera::kind::EYE,
         };
         let (player, player_dirc) = (w.kite().pos(), w.kite().dirc());
-        let hits = &mut w.area.core_mut().hits;
-        let mut cx = crate::event::entry::NpcCtx {
+        let mut cx = NpcCtx {
             player,
             player_dirc,
             view,
             cam: w.camera.active(),
-            hits,
+            hits: &mut w.area.core_mut().hits,
             rand: &mut w.combat.rand,
             cc: &mut w.combat.cc,
+            save: &mut w.save.save,
+            race: None,
         };
-        let out = self.npcs.step(&mut cx);
-        for n in &self.npcs.list {
-            let c = &mut w.combat;
-            let Some(ch) = c.scene.chars.get_mut(n.who) else { continue };
-            ch.pos = n.npc().char().pos;
-            ch.pos_p = n.npc().char().pos_p;
-            if let Some(piney_battle::entry::Obj::Npc(o)) = c.ctrl.objs.get_mut(n.who) {
-                o.dirc = n.dirc();
-            }
-            let listed = c.scene.listed(n.who);
-            if n.npc().listed() && !listed {
-                piney_battle::fellow::entry_cmnd(&mut c.scene, n.who);
-            } else if !n.npc().listed() && listed {
-                piney_battle::fellow::delete_cmnd(&mut c.scene, n.who);
-            }
-        }
-        for (who, e) in out.starts {
-            match e {
-                crate::town::merchant::SysopEvent::Noise => w.noise = true,
-                _ => w.combat.shows.push(Show::Npc(who, e)),
-            }
-        }
-        if !out.gone.is_empty() {
-            let info = w.task_info();
-            let mut x = tasks(&mut *w.area, &mut w.camera, &mut w.save.save, CamPad::default(), &info);
-            w.combat.with_entry_cx(&mut x, |ctrl, cx| {
-                for &who in &out.gone {
-                    ctrl.delete_npc(cx, who);
-                }
-            });
-            w.combat.npcs.retain(|n| !out.gone.contains(&n.who));
-        }
+        self.npcs.step(&mut cx);
+        npc_outs(w, &mut self.npcs);
     }
 
     fn draw(&self, _w: &World, ctx: &mut Ctx, to_screen: glam::Mat4, lights: &super::CastLights) {
         self.npcs.draw(&mut ctx.layers, to_screen, &lights.group());
+    }
+
+    /// The menus' reads of the NPC list.
+    fn seen(&self, _shown: [Option<CharId>; 2]) -> Seen {
+        Seen { npcs: self.npcs.ids(), ..Seen::default() }
     }
 }

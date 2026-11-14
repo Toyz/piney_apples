@@ -806,20 +806,7 @@ pub fn get_dist3d(volume: Volume, a: V4, b: V4) -> F {
     ee::sqrtf_on(volume, ee::dot(d, d))
 }
 
-/// `ccGetDirc(a, b)` (main 0x001d9ce0): the heading from `a` to `b`
-/// (atan2 + pi/2, wrapped to [-pi, pi]).
-pub fn get_dirc(a: V4, b: V4) -> F {
-    let dx = ee::sub(b[0], a[0]);
-    let dy = ee::sub(b[1], a[1]);
-    let mut r = ee::add(HALF_PI, ee::atan2f(dy, dx));
-    if !ee::le(r, PI) {
-        r = ee::sub(r, TWO_PI);
-    }
-    if ee::lt(r, 0xc049_0fdb) {
-        r = ee::add(r, TWO_PI);
-    }
-    r
-}
+use piney_battle::geom::get_dirc;
 
 /// `effExplode3(pos, spd, scale, n)` (gcmn 0x005000b0): an explosion of
 /// kind n (0-5, else a random one: abs(ccRand() % 6)) at `pos` moving by

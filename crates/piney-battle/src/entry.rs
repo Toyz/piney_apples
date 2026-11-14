@@ -3,9 +3,10 @@
 //! (`gmcircle.cpp`, `ccMagicCircle`, 0x00454840-0x0045621c) and where the
 //! portals come from (`WORLD_MAN::EntryGimmick` main 0x001a1f20,
 //! `WORLD::SetMagicCircle` 0x005ab610, `DUNGEON::SetMagicCircle` 0x005bf590,
-//! `ccEntryEventMng` main 0x001b62e0). [`EntryCtrl`] keeps the four lists; the
-//! objects' `main`s go through [`Seam`], an enemy's through [`EnemySeam`]. The
-//! rules are in docs/engine/battle.md ("Enemies appearing").
+//! `ccEntryEventMng` main 0x001b62e0). [`EntryCtrl`] keeps the battle's three
+//! lists (the fourth, the NPCs', is the world's one NPC list); the objects'
+//! `main`s go through [`Seam`], an enemy's through [`EnemySeam`]. The rules
+//! are in docs/engine/battle.md ("Enemies appearing").
 
 use piney_data::save::SaveData;
 use piney_data::tables::types::EntryFunc;
@@ -36,8 +37,6 @@ pub const ENEMY_ROWS: usize = tables::ENEMIES;
 /// `gimmickTbl`'s rows (INF gcmn 0x0061e0f0: `ccGimmickTable[45]`, 0x70
 /// bytes each, the `ccGimmickParam` base, then a `ccEntry` at +0x28).
 pub const GIMMICKS: usize = 45;
-/// `npcTbl`'s rows (INF gcmn 0x00619460: 0x70 bytes, a `ccEntry` at +0x28).
-pub const NPCS: usize = 175;
 /// The gimmick id of the magic circle.
 pub const MAGIC_CIRCLE: i32 = 15;
 /// `ccMagicCircle`'s particles.
@@ -65,7 +64,7 @@ pub fn entry_param_clear() -> EntryParam {
 
 // tables ------------------------------------------------------------------------------
 
-/// A `gimmickTbl` or `npcTbl` row: the base parameters `SetBaseParam`
+/// A `gimmickTbl` row: the base parameters `SetBaseParam`
 /// points its `ccChar.base` at, and its `ccEntry`'s constructor and `esize`
 /// (how many `entryObject(ep)` makes).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -75,14 +74,13 @@ pub struct SpawnRow {
     pub esize: i32,
 }
 
-/// The tables the entry control reads besides [`Tables`]: `gimmickTbl`,
-/// `npcTbl` and `ccEnemyListInfo` (5 servers x 7 types of `{int *list; int
+/// The tables the entry control reads besides [`Tables`]: `gimmickTbl`
+/// and `ccEnemyListInfo` (5 servers x 7 types of `{int *list; int
 /// num}`), the volume's (`battle`).
 #[derive(Clone)]
 pub struct SpawnTables {
     pub volume: Volume,
     pub gimmicks: Vec<SpawnRow>,
-    pub npcs: Vec<SpawnRow>,
     /// `ccEnemyListInfo[server][type]`: the `enemyTbl` rows by rank.
     pub enemy_lists: Vec<Vec<Vec<i32>>>,
 }
@@ -99,7 +97,6 @@ impl SpawnTables {
         SpawnTables {
             volume,
             gimmicks: t.gimmicks.iter().map(|g| row(&g.param.base, &g.entry)).collect(),
-            npcs: t.npcs.iter().map(|n| row(&n.param.base, &n.entry)).collect(),
             enemy_lists: t
                 .enemy_lists
                 .iter()
@@ -348,7 +345,7 @@ pub struct Game {
 
 /// What the constructors of the objects that are not enemies leave in
 /// `ccEntryObj` (and the `ccChar` and `ccGimmick` members the entry control
-/// and the circle use): a gimmick's, an NPC's, a magic circle's base.
+/// and the circle use): a gimmick's, a magic circle's base.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EntryObj {
     /// `ccChar.dirc`, `transparency`, `setTransparency`.
@@ -469,14 +466,23 @@ pub struct MagicCircle {
     pub parts: Vec<McPart>,
 }
 
-/// Which of the entry control's lists.
+/// Which of the entry control's lists. Its fourth, the NPCs' (`npcNum`
+/// +0x34), is the world's one NPC list (piney-world's `systems::npcs::Npcs`,
+/// walked after these in the same slot), its classes the world's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
     Enemy = 0,
     Circle = 1,
     Gimmick = 2,
-    Npc = 3,
 }
+
+impl Kind {
+    /// The lists in `ccThEntryCtrl`'s order.
+    pub const ALL: [Kind; LISTS] = [Kind::Enemy, Kind::Circle, Kind::Gimmick];
+}
+
+/// The entry control's lists the battle holds.
+pub const LISTS: usize = 3;
 
 /// A list: `enNum`/`enHead`/`enFoot` and the others.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -491,14 +497,14 @@ pub struct List {
 /// [`EntryCtrl::keep`]).
 #[derive(Clone, Debug, Default)]
 pub struct KeptEntries {
-    pub lists: [Vec<(Char, Obj, Option<Enemy>)>; 4],
+    pub lists: [Vec<(Char, Obj, Option<Enemy>)>; LISTS],
     /// Each kept object's scene index in the area it left.
-    pub olds: [Vec<usize>; 4],
+    pub olds: [Vec<usize>; LISTS],
 }
 
 impl KeptEntries {
     /// How many objects each list keeps.
-    pub fn counts(&self) -> [usize; 4] {
+    pub fn counts(&self) -> [usize; LISTS] {
         std::array::from_fn(|k| self.lists[k].len())
     }
 }
@@ -520,10 +526,9 @@ pub enum Obj {
     Enemy,
     Circle(Box<MagicCircle>),
     Gimmick(Box<EntryObj>),
-    Npc(Box<EntryObj>),
 }
 
-/// `ccEntryCtrl` (0x40 bytes): where it runs and its four lists.
+/// `ccEntryCtrl` (0x40 bytes): where it runs and its lists.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EntryCtrl {
     /// `area`, `areaNum`, `floor`, `block`: `game.area`, the town, field or
@@ -533,8 +538,8 @@ pub struct EntryCtrl {
     pub area_num: i32,
     pub floor: i32,
     pub block: i32,
-    /// Enemies, magic circles, gimmicks, NPCs.
-    pub lists: [List; 4],
+    /// Enemies, magic circles, gimmicks.
+    pub lists: [List; LISTS],
     /// By scene index.
     pub links: Vec<Link>,
     pub objs: Vec<Obj>,
@@ -675,16 +680,12 @@ pub trait Seam {
     /// A gimmick's `main` (its class's; `ccEntryObj::main`, 0x00431360,
     /// returns 0).
     fn gimmick_main(&mut self, ctrl: &mut EntryCtrl, cx: &mut Cx, who: usize) -> bool;
-    /// An NPC's `main`.
-    fn npc_main(&mut self, ctrl: &mut EntryCtrl, cx: &mut Cx, who: usize) -> bool;
     /// `ccEntryRaceTbl[race].func(entry)` for a race [`crate::races`] does
     /// not construct: the enemy of `ent` as its constructor leaves it.
     fn make_enemy(&mut self, cx: &mut Cx, race: i32, ent: &EntryParam, who: usize) -> (Char, Enemy);
     /// `gimmickTbl[id].entry.func(entry)` for a gimmick other than the
     /// magic circle (`ccEntryGimBox` ...).
     fn make_gimmick(&mut self, cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, EntryObj);
-    /// `npcTbl[id].entry.func(entry)`.
-    fn make_npc(&mut self, cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, EntryObj);
 }
 
 /// What the entry control works on: the tables, the characters and the
@@ -1209,18 +1210,6 @@ pub fn gimmick_char(st: &SpawnTables, id: i32) -> Char {
     ch
 }
 
-/// An NPC's character as `ccMerchan`'s and `ccRtownPC`'s constructors
-/// start it over `ccGimmick`: `SetBaseParam(ccGetNpcParam(id))` (the
-/// `npcTbl` row's base), no condition, no affect.
-pub fn npc_char(st: &SpawnTables, id: i32) -> Char {
-    let base = usize::try_from(id).ok().and_then(|i| st.npcs.get(i)).map(|n| n.base).unwrap_or_default();
-    let mut ch = Char::other(base, Elm::default());
-    ch.condition_num = -1;
-    ch.skill_status = 0;
-    ch.affect.func = AffectFunc::None;
-    ch
-}
-
 impl EntryCtrl {
     /// The control as `ccThEntryCtrl` makes it: where the game is, empty
     /// lists.
@@ -1261,7 +1250,7 @@ impl EntryCtrl {
     pub fn entry_obj(&self, who: usize) -> Option<&EntryObj> {
         match self.objs.get(who)? {
             Obj::Circle(c) => Some(&c.obj),
-            Obj::Gimmick(o) | Obj::Npc(o) => Some(o),
+            Obj::Gimmick(o) => Some(o),
             _ => None,
         }
     }
@@ -1269,7 +1258,7 @@ impl EntryCtrl {
     pub fn entry_obj_mut(&mut self, who: usize) -> Option<&mut EntryObj> {
         match self.objs.get_mut(who)? {
             Obj::Circle(c) => Some(&mut c.obj),
-            Obj::Gimmick(o) | Obj::Npc(o) => Some(o),
+            Obj::Gimmick(o) => Some(o),
             _ => None,
         }
     }
@@ -1331,7 +1320,7 @@ impl EntryCtrl {
             }
             // ccDestMagicCircle frees the particles' effects.
             Obj::Circle(c) => (c.obj.dest_func, c.obj.hit),
-            Obj::Gimmick(o) | Obj::Npc(o) => (o.dest_func, o.hit),
+            Obj::Gimmick(o) => (o.dest_func, o.hit),
             Obj::None => return,
         };
         cx.out.push(Out::Destroyed { who, dest_func });
@@ -1360,11 +1349,6 @@ impl EntryCtrl {
     /// `ccEntryCtrl::deleteGimmick(obj)` (gcmn 0x004316a0).
     pub fn delete_gimmick(&mut self, cx: &mut Cx, who: usize) {
         self.delete(Kind::Gimmick, cx, who);
-    }
-
-    /// `ccEntryCtrl::deleteNpc(obj)` (gcmn 0x00431860).
-    pub fn delete_npc(&mut self, cx: &mut Cx, who: usize) {
-        self.delete(Kind::Npc, cx, who);
     }
 
     /// `ccCheckActiveEnemy()` (gcmn 0x0042df10): the enemies on the list
@@ -1444,7 +1428,7 @@ impl EntryCtrl {
         } else {
             let o = match &mut self.objs[who] {
                 Obj::Circle(c) => &mut c.obj,
-                Obj::Gimmick(o) | Obj::Npc(o) => o,
+                Obj::Gimmick(o) => o,
                 _ => unreachable!(),
             };
             ((&mut o.obj_flag, &mut o.init_flag), &mut o.hit)
@@ -1463,7 +1447,7 @@ impl EntryCtrl {
         match &mut self.objs[who] {
             Obj::Enemy => cx.foes[who].as_mut().expect("an enemy's state").ent.pos = t,
             Obj::Circle(c) => c.obj.ent.pos = t,
-            Obj::Gimmick(o) | Obj::Npc(o) => o.ent.pos = t,
+            Obj::Gimmick(o) => o.ent.pos = t,
             Obj::None => {}
         }
         let ch = &mut cx.scene.chars[who];
@@ -1544,18 +1528,6 @@ impl EntryCtrl {
         who
     }
 
-    /// `ccEntryCtrl::entryNpc(ep)` (gcmn 0x004317b0).
-    pub fn entry_npc(&mut self, cx: &mut Cx, seam: &mut dyn Seam, ep: &EntryParam) -> usize {
-        let who = Self::new_index(cx);
-        self.grow(who + 1);
-        let (ch, o) = seam.make_npc(cx, ep, who);
-        Self::put_char(cx, who, ch);
-        self.objs[who] = Obj::Npc(Box::new(o));
-        self.init_object(cx, who);
-        self.append(Kind::Npc, who);
-        who
-    }
-
     /// `ccEntryCtrl::entryObjectCheck(ep)` (gcmn 0x00430530): true when the
     /// entry is handled here and nothing more is made. An enemy of row -1
     /// takes a registered row at random. A gimmick an event placed
@@ -1623,7 +1595,6 @@ impl EntryCtrl {
                     Some(self.entry_enemy(cx, seam, ep))
                 }
                 1 => Some(self.entry_gimmick(cx, seam, ep)),
-                2 => Some(self.entry_npc(cx, seam, ep)),
                 _ => None,
             };
             return obj;
@@ -1662,7 +1633,6 @@ impl EntryCtrl {
                     }
                 }
                 1 => obj = Some(self.entry_gimmick(cx, seam, ep)),
-                2 => obj = Some(self.entry_npc(cx, seam, ep)),
                 _ => {}
             }
         }
@@ -1674,7 +1644,8 @@ impl EntryCtrl {
     /// registered row at random for row -1) makes one more than
     /// `abs(ccRand() % esize)` by its row's `esize`: 1 always one; 3 one to three, a one
     /// becoming two when `(ccRand() >> 2) & 1`; 4 one to four, a one
-    /// becoming two. A gimmick or an NPC makes its table row's `esize`. (Of
+    /// becoming two. A gimmick makes its table row's `esize`. An NPC (type
+    /// 2, `entryNpc`) is the world's NPC list's, made by its class. (Of
     /// another type the game passes an unset register; the port makes
     /// none.)
     pub fn entry_object(&mut self, cx: &mut Cx, seam: &mut dyn Seam, ep: &mut EntryParam) -> Option<usize> {
@@ -1694,7 +1665,6 @@ impl EntryCtrl {
                 n
             }
             1 => cx.st.gimmicks.get(ep.id as usize).map_or(0, |g| g.esize),
-            2 => cx.st.npcs.get(ep.id as usize).map_or(0, |n| n.esize),
             _ => 0,
         };
         self.entry_object_n(cx, seam, ep, n)
@@ -1769,9 +1739,9 @@ impl EntryCtrl {
     /// `ccEntryCtrl::restoreEntry()` (gcmn 0x00431070): the lists kept in
     /// `g_entryList` when the area was left, each object `initObject`ed
     /// again (only those of the current place come back on).
-    pub fn restore_entry(&mut self, cx: &mut Cx, saved: [List; 4]) {
+    pub fn restore_entry(&mut self, cx: &mut Cx, saved: [List; LISTS]) {
         self.lists = saved;
-        for k in [Kind::Enemy, Kind::Circle, Kind::Gimmick, Kind::Npc] {
+        for k in Kind::ALL {
             let mut cur = self.lists[k as usize].head;
             for _ in 0..self.lists[k as usize].num {
                 let Some(c) = cur else { break };
@@ -1783,13 +1753,14 @@ impl EntryCtrl {
 
     /// `ccThEntryCtrlDelete(ctrl)` (gcmn 0x00431d10), when the task ends: with
     /// `keep` (the area left for a moment) the enemies and gimmicks circles and
-    /// corpses made (`entRoot` not -1 or 0), the gimmicks fading out and every
-    /// NPC are deleted, the rest kept; otherwise every object is deleted.
+    /// corpses made (`entRoot` not -1 or 0) and the gimmicks fading out are
+    /// deleted, the rest kept (every NPC goes too: the world's list goes with
+    /// the area); otherwise every object is deleted.
     /// Returns the lists as `g_entryList` keeps them for
     /// [`EntryCtrl::restore_entry`].
-    pub fn leave(&mut self, cx: &mut Cx, keep: bool) -> [List; 4] {
+    pub fn leave(&mut self, cx: &mut Cx, keep: bool) -> [List; LISTS] {
         let owned = |r: i32| r != -1 && r != 0;
-        for k in [Kind::Enemy, Kind::Circle, Kind::Gimmick, Kind::Npc] {
+        for k in Kind::ALL {
             if keep && k == Kind::Circle {
                 continue;
             }
@@ -1830,7 +1801,7 @@ impl EntryCtrl {
                 let mut obj = self.objs.get(c).cloned().unwrap_or_default();
                 match &mut obj {
                     Obj::Circle(m) => m.obj.hit.sw = false,
-                    Obj::Gimmick(o) | Obj::Npc(o) => o.hit.sw = false,
+                    Obj::Gimmick(o) => o.hit.sw = false,
                     _ => {}
                 }
                 let mut foe = cx.foes.get(c).cloned().flatten();
@@ -1848,14 +1819,14 @@ impl EntryCtrl {
 
     /// `ccEntryCtrl::restoreEntry()` over [`KeptEntries`]: each kept object
     /// back into this control's scene at the end (new scene indices), the
-    /// four lists rebuilt in their order, then each object `initObject`ed
+    /// lists rebuilt in their order, then each object `initObject`ed
     /// (only those of the current place come back on).
     /// Returns each object's new scene index, list by list in order (as
     /// [`KeptEntries::olds`] has the old ones).
     pub fn restore_kept(&mut self, cx: &mut Cx, kept: KeptEntries) -> Vec<usize> {
         let mut made = Vec::new();
         for (k, list) in kept.lists.into_iter().enumerate() {
-            let kind = [Kind::Enemy, Kind::Circle, Kind::Gimmick, Kind::Npc][k];
+            let kind = Kind::ALL[k];
             for (ch, obj, foe) in list {
                 let who = Self::new_index(cx);
                 self.grow(who + 1);
@@ -1864,7 +1835,7 @@ impl EntryCtrl {
                 self.objs[who] = obj;
                 // The object's own class names it by its new index (a
                 // box's or an idol's rays follow it).
-                if let Obj::Gimmick(o) | Obj::Npc(o) = &mut self.objs[who] {
+                if let Obj::Gimmick(o) = &mut self.objs[who] {
                     o.class.moved_to(who);
                 }
                 self.append(kind, who);
@@ -1878,14 +1849,14 @@ impl EntryCtrl {
     }
 
     /// One frame of `ccThEntryCtrl` (gcmn 0x00431970, the loop after
-    /// `ccTscb::Breath`): the enemies, the magic circles, the gimmicks and
-    /// the NPCs, each list from its head for as many objects as it held when
-    /// its turn began (the next object taken before each runs): with
-    /// `objFlag`, [`routine`] then its `main` (an enemy's, a gimmick's and
-    /// an NPC's through [`Seam`], a circle's [`EntryCtrl::circle_main`]);
-    /// a true `main` deletes it.
+    /// `ccTscb::Breath`): the enemies, the magic circles and the gimmicks
+    /// (the NPCs after them are the world's list), each list from its head
+    /// for as many objects as it held when its turn began (the next object
+    /// taken before each runs): with `objFlag`, [`routine`] then its `main`
+    /// (an enemy's and a gimmick's through [`Seam`], a circle's
+    /// [`EntryCtrl::circle_main`]); a true `main` deletes it.
     pub fn frame(&mut self, cx: &mut Cx, seam: &mut dyn Seam) {
-        for k in [Kind::Enemy, Kind::Circle, Kind::Gimmick, Kind::Npc] {
+        for k in Kind::ALL {
             let mut cur = self.lists[k as usize].head;
             let n = self.lists[k as usize].num;
             for _ in 0..n {
@@ -1897,7 +1868,6 @@ impl EntryCtrl {
                         Kind::Enemy => seam.enemy_main(self, cx, c),
                         Kind::Circle => self.circle_main(cx, seam, c),
                         Kind::Gimmick => seam.gimmick_main(self, cx, c),
-                        Kind::Npc => seam.npc_main(self, cx, c),
                     };
                     if done {
                         self.delete(k, cx, c);
@@ -1917,9 +1887,7 @@ impl EntryCtrl {
                 routine(cx.t.volume, &mut enemy_routine_ref(e), pos, who, cx.scene, cx.world, cx.out);
             }
             Obj::Circle(c) => routine(cx.t.volume, &mut c.obj.routine_ref(), pos, who, cx.scene, cx.world, cx.out),
-            Obj::Gimmick(o) | Obj::Npc(o) => {
-                routine(cx.t.volume, &mut o.routine_ref(), pos, who, cx.scene, cx.world, cx.out)
-            }
+            Obj::Gimmick(o) => routine(cx.t.volume, &mut o.routine_ref(), pos, who, cx.scene, cx.world, cx.out),
             Obj::None => {}
         }
     }
@@ -2653,7 +2621,7 @@ pub fn event_enemy(e: [i16; 4], positions: &[EvPos], kite: V4, game: &Game) -> (
 /// motion's world. The enemy book's record of a Data Drain goes into the save
 /// at once; a corpse taken away (`entryEnemyObject`) and a drain's spawn of
 /// the drained form are done as `main` returns, as the game does them last.
-/// The gimmicks' and NPCs' `main`s go to [`EnemySeam::inner`]; a race
+/// The gimmicks' `main`s go to [`EnemySeam::inner`]; a race
 /// [`crate::enemy_motion`] does not move should not be spawned.
 pub struct EnemySeam<'s> {
     /// The animation names and sound categories.
@@ -2676,7 +2644,7 @@ pub struct EnemySeam<'s> {
     /// `worldman`'s area words A, B, C (+0x14c): where the enemy book
     /// records a kill.
     pub book_area: [i32; 3],
-    /// The gimmicks' and NPCs' mains and the other constructors.
+    /// The gimmicks' mains and the other constructors.
     pub inner: &'s mut dyn Seam,
 }
 
@@ -2816,17 +2784,11 @@ impl Seam for EnemySeam<'_> {
         }
         self.inner.gimmick_main(ctrl, cx, who)
     }
-    fn npc_main(&mut self, ctrl: &mut EntryCtrl, cx: &mut Cx, who: usize) -> bool {
-        self.inner.npc_main(ctrl, cx, who)
-    }
     fn make_enemy(&mut self, cx: &mut Cx, race: i32, ent: &EntryParam, who: usize) -> (Char, Enemy) {
         self.inner.make_enemy(cx, race, ent, who)
     }
     fn make_gimmick(&mut self, cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, EntryObj) {
         self.inner.make_gimmick(cx, ent, who)
-    }
-    fn make_npc(&mut self, cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, EntryObj) {
-        self.inner.make_npc(cx, ent, who)
     }
 }
 

@@ -161,6 +161,13 @@ pub struct View {
     pub eye: bool,
 }
 
+/// `ccCheckCameraDeg(pos, deg)` (main 0x001da710) with the camera `cam`
+/// and Kite at `player`: `pos`, the eye and the point looked at through
+/// `W2PPos` ([`w2p`]), then [`piney_battle::geom::camera_deg`].
+pub fn check_camera_deg(pos: V4, deg: i16, cam: &crate::camera::Cam, player: V4) -> bool {
+    piney_battle::geom::camera_deg(w2p(pos, player), w2p(cam.pos, player), w2p(cam.view, player), deg)
+}
+
 /// A character's drawable state.
 #[derive(Clone)]
 pub struct Char {
@@ -183,8 +190,6 @@ pub struct Char {
     pub set_transparency: F,
     /// +0x90 1: `ccChar::Draw`'s near fade on (`ccChar::ccChar` sets 1).
     pub trans_dist: bool,
-    /// `ccEntryObj::dispSW`.
-    pub disp: bool,
     /// What the last [`Char::fade`] decided.
     pub drawn: bool,
     /// And the transparency its shadow's alpha comes from:
@@ -247,7 +252,6 @@ impl Char {
             transparency: ONE,
             set_transparency: ONE,
             trans_dist: true,
-            disp: true,
             drawn: false,
             shadow_t: ONE,
             hit: hit::Body { pos, ..hit::Body::default() },
@@ -316,7 +320,7 @@ impl Char {
         let f = CharFade::new(self.set_transparency, t, hide);
         self.transparency = f.transparency;
         self.shadow_t = f.shadow;
-        self.drawn = self.disp && f.drawn;
+        self.drawn = f.drawn;
         self.blend = self.affect.blend();
         self.drawn
     }

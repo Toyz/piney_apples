@@ -86,7 +86,7 @@ fn the_event_npcs_turned_marker_lasts_while_the_towns_file_does() {
         play_in(&mut s, i32::from(town));
         let turned = piney_world::ee::deg2rad(deg);
         assert!(
-            town_cast(world(&s)).merchants().iter().any(|m| m.id == row),
+            town_cast(world(&s)).npcs().merchants().any(|m| m.core.code() == row),
             "the Event NPC {row} stands in town {town}"
         );
         assert_eq!(heading(&s, marker), turned, "row {row} turns {marker}");
@@ -98,7 +98,10 @@ fn the_event_npcs_turned_marker_lasts_while_the_towns_file_does() {
             _ => unreachable!(),
         }
         to_town(&mut s, i16::from(town));
-        assert!(!town_cast(world(&s)).merchants().iter().any(|m| m.id == row), "no Event NPC without the status");
+        assert!(
+            !town_cast(world(&s)).npcs().merchants().any(|m| m.core.code() == row),
+            "no Event NPC without the status"
+        );
         assert_eq!(heading(&s, marker), turned, "town {town}'s file kept keeps the turned dummy");
         // Mac Anu, then back: the town's file is read again.
         to_town(&mut s, 0);

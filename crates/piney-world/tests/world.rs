@@ -227,7 +227,12 @@ fn talking_to_the_recorder() {
     }
     assert!(world.take_talk().is_empty());
     assert!(world.pc_command(PcCommand::Put { pc: 0, x: -70, y: 360, z: 30 }));
-    assert!(world.pc_command(PcCommand::Face { pc: 0, ty: 3, code: 4, chg: 0 }));
+    // GetNpc finds only a PC or the Administrator (a base type bit 3 or
+    // 4): pc_face cannot name the Recorder, so Kite is turned to it.
+    assert!(!world.pc_command(PcCommand::Face { pc: 0, ty: 3, code: 4, chg: 0 }));
+    let recorder = world.cast().npcs().and_then(|l| l.get(4)).map(|n| n.core().ch.pos).unwrap();
+    let dirc = piney_world::event::dirc_to(world.kite().pos(), recorder);
+    assert!(world.pc_command(PcCommand::Turn { pc: 0, dirc, chg: 0 }));
     for _ in 0..3 {
         step(&mut world, &mut pad, Raw::default());
     }
@@ -277,21 +282,28 @@ fn the_entry_controls_set_up() {
     assert!(world.event_entry([4, 29, 5, 0]));
     assert!(!world.event_entry([4, 40, 5, 0]), "ccSetMerchant makes only 29 and 158");
     world.set_regist_npc_num(3);
-    assert!(town(&world).merchants().is_empty() && town(&world).pcs().is_empty());
+    assert!(town(&world).npcs().merchants().next().is_none() && town(&world).npcs().walkers().next().is_none());
     let mut pad = Pad::default();
     for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 1) {
         step(&mut world, &mut pad, Raw::default());
     }
     let (at, rot) = world.marker_dummy(3).unwrap();
-    let ids: Vec<i32> = town(&world).merchants().iter().map(|m| m.id).collect();
+    let ids: Vec<i32> = town(&world).npcs().merchants().map(|m| m.core.code()).collect();
     assert_eq!(ids, [29, 0, 1, 2, 3, 4]);
     assert_eq!(
-        (town(&world).merchants()[0].ch.pos, town(&world).merchants()[0].ch.dirc),
+        (
+            town(&world).npcs().merchants().next().unwrap().core.ch.pos,
+            town(&world).npcs().merchants().next().unwrap().core.ch.dirc
+        ),
         world.marker_dummy(5).unwrap()
     );
-    assert_eq!(town(&world).pcs().len(), 13);
+    assert_eq!(town(&world).npcs().walkers().count(), 13);
     assert_eq!(
-        (town(&world).pcs()[0].row.row, town(&world).pcs()[0].char.pos, town(&world).pcs()[0].char.dirc),
+        (
+            town(&world).npcs().walkers().next().unwrap().core.row.row,
+            town(&world).npcs().walkers().next().unwrap().core.ch.pos,
+            town(&world).npcs().walkers().next().unwrap().core.ch.dirc
+        ),
         (40, at, rot)
     );
     let kinds: Vec<u32> = world.area().core().hits.chars.iter().map(|b| b.kind).collect();

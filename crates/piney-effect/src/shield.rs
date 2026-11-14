@@ -39,23 +39,7 @@ pub struct ResistantShield {
     pub target: CharRef,
 }
 
-/// `ccGetDirc(a, b)` (main 0x001d9ce0).
-pub fn get_dirc(a: V4, b: V4) -> F {
-    const PI: F = 0x4049_0fdb;
-    const HALF_PI: F = 0x3fc9_0fdb;
-    const TWO_PI: F = 0x40c9_0fdb;
-    const NEG_PI: F = 0xc049_0fdb;
-    let x = ee::sub(b[0], a[0]);
-    let y = ee::sub(b[1], a[1]);
-    let mut r = ee::add(HALF_PI, ee::atan2f(y, x));
-    if !ee::le(r, PI) {
-        r = ee::sub(r, TWO_PI);
-    }
-    if ee::lt(r, NEG_PI) {
-        r = ee::add(r, TWO_PI);
-    }
-    r
-}
+use piney_battle::geom::get_dirc;
 
 /// The shield's size by `n`: 1 -> 7, 3 -> 4, 4 -> 2, else 0.
 fn size_of(n: i32) -> F {

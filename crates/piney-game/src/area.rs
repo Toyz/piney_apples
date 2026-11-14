@@ -1051,13 +1051,8 @@ impl AreaMode {
         };
         let speaker = spoken_to.and_then(|who| match who {
             CharId::Member(code) => Some((who, Speaker::Spc(code))),
-            // An event NPC's stand-in: its npcTbl row.
-            CharId::Scene(i) => {
-                let npcs = &self.world.combat().npcs;
-                Some((who, Speaker::Npc(npcs.iter().find(|n| n.who == i).map_or(i as i32, |n| i32::from(n.code)))))
-            }
             CharId::Npc(code) => Some((who, Speaker::Npc(code))),
-            CharId::Ride | CharId::Object(_) => None,
+            CharId::Scene(_) | CharId::Ride | CharId::Object(_) => None,
         });
         if let Some((who, speaker)) = speaker {
             self.ui.talk_to(Some(TalkTarget { handle: who.handle(), who: speaker }));
@@ -1241,10 +1236,9 @@ impl AreaMode {
         }
     }
 
-    /// What a town's own characters started at the entry control's slot
-    /// (Show::Cast): the race's asks, the gate's sounds, the dogs', the
-    /// Grunties' and the walking PCs' sounds and lines (their effects are
-    /// the effect task's).
+    /// What an area's own characters started at the entry control's slot
+    /// (Show::Cast): the race's asks, the gate's sounds, the NPC list's
+    /// sounds and lines (their effects are the effect task's).
     fn cast_out(
         &mut self,
         o: &piney_world::world::cast::Out,
@@ -1260,45 +1254,54 @@ impl AreaMode {
                     self.events.push(Event::Se3d { n, pos, note: None, ear });
                 }
             }
-            // Dun Loireag's dogs: inuCheckNote's ccSeSetParamInu.
-            Out::Dog { e, .. } => {
-                if let piney_world::town::dog::DogEvent::Note { param, pos, attribute } = e
-                    && let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute)
-                {
+            Out::Npc { code, e } => self.npc_out(code, e, names, ear),
+        }
+    }
+
+    /// An NPC's ask of the frame ([`piney_world::systems::npcs::NpcEvent`]):
+    /// the Administrator's act -5 (`ccSeOn(217)`); Dun Loireag's dogs'
+    /// `inuCheckNote` (`ccSeSetParamInu`); the Grunties' notes, sounds,
+    /// voices and a grown one's line over its head; the walking PCs' chat
+    /// lines, the crystal's and the drain's sounds and their steps (their
+    /// effects are the effect task's).
+    fn npc_out(
+        &mut self,
+        code: i32,
+        e: piney_world::systems::npcs::NpcEvent,
+        names: &piney_desktop::kanji::Names,
+        ear: Option<piney_audio::se3d::Listener>,
+    ) {
+        use piney_world::systems::npcs::NpcEvent;
+        use piney_world::town::merchant::SysopEvent;
+        use piney_world::town::pc::PcEvent;
+        match e {
+            NpcEvent::Merchant(SysopEvent::Vanish) => self.events.push(Event::Se(217)),
+            NpcEvent::Merchant(_) => {}
+            NpcEvent::Dog(piney_world::town::dog::DogEvent::Note { param, pos, attribute }) => {
+                if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
                     self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
                 }
             }
-            // Dun Loireag's Grunties: their notes, ccSeOn3Ds, voices and
-            // lines.
-            Out::Grunty { e, .. } => self.grunty_event(&e, ear),
-            // A grown Grunty's line over its head.
-            Out::Chat { code, text } => self.ui.open_chat(CharId::Npc(code).handle(), &text, names),
-            // The walking PCs (ccRtownPC): chat lines, the crystal's and
-            // the drain's sounds, their steps.
-            Out::Pc { code, e } => {
-                use piney_world::town::pc::PcEvent;
-                match e {
-                    PcEvent::Chat(text) => {
-                        let text = piney_data::tables::sjis::encode(text);
-                        self.ui.open_chat(CharId::Npc(code).handle(), &text, names);
-                    }
-                    PcEvent::Transfer => {}
-                    PcEvent::Vanish { pos, crystal } => {
-                        if crystal {
-                            self.events.push(Event::Se3d { n: 167, pos, note: Some(40), ear });
-                        }
-                    }
-                    PcEvent::Drained { .. } => {
-                        self.events.push(Event::Se(79));
-                        self.events.push(Event::Se(60));
-                    }
-                    PcEvent::Step { param, ccs_type, pos, attribute, .. } => {
-                        if let Some(se) = piney_audio::se3d::pc_note(param, ccs_type, attribute) {
-                            self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
-                        }
-                    }
+            NpcEvent::Dog(_) => {}
+            NpcEvent::Grunty(e) => self.grunty_event(&e, ear),
+            NpcEvent::Line(text) => self.ui.open_chat(CharId::Npc(code).handle(), &text, names),
+            NpcEvent::Pc(PcEvent::Chat(text)) => {
+                let text = piney_data::tables::sjis::encode(text);
+                self.ui.open_chat(CharId::Npc(code).handle(), &text, names);
+            }
+            NpcEvent::Pc(PcEvent::Vanish { pos, crystal: true }) => {
+                self.events.push(Event::Se3d { n: 167, pos, note: Some(40), ear });
+            }
+            NpcEvent::Pc(PcEvent::Drained { .. }) => {
+                self.events.push(Event::Se(79));
+                self.events.push(Event::Se(60));
+            }
+            NpcEvent::Pc(PcEvent::Step { param, ccs_type, pos, attribute, .. }) => {
+                if let Some(se) = piney_audio::se3d::pc_note(param, ccs_type, attribute) {
+                    self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
                 }
             }
+            NpcEvent::Pc(_) => {}
         }
     }
 
@@ -1338,8 +1341,8 @@ impl AreaMode {
                 }
                 E::VoiceStop => self.events.push(Event::VoiceStop),
                 E::ChatClose => self.ui.close_chat(),
-                // Carried out by the world (its line as Out::Chat); off the
-                // lists (its own flag).
+                // Carried out by the world (its line as NpcEvent::Line); off
+                // the lists (its own flag).
                 E::Chat(_)
                 | E::Camera(_)
                 | E::CamPos(_)
@@ -2322,7 +2325,7 @@ impl HostWorld for World {
         true
     }
 
-    /// The event's NPCs outside the towns (`piney_world::field::npcs`).
+    /// The event's NPCs (`piney_world::systems::npcs`).
     fn npc_command(&mut self, c: piney_event::host::NpcCommand) -> bool {
         World::npc_command(self, c)
     }
@@ -2717,11 +2720,6 @@ pub(crate) fn show_sounds(
             Show::Ride(piney_battle::ride::Out::Sound { param, attribute }) => {
                 let at = c.ride.obj.as_ref().map_or([0, 0, 0, 0x3f80_0000], |o| o.ride.pos);
                 (se3d::inu_note(v, *param, *attribute), at)
-            }
-            // The Administrator's act -5: ccSeOn(217).
-            Show::Npc(_, piney_world::town::merchant::SysopEvent::Vanish) => {
-                out.push(Event::Se(217));
-                (None, [0; 4])
             }
             Show::SkillSounds { caster, target_pos, heal, notes } => {
                 if *heal {

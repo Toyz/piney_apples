@@ -68,7 +68,7 @@ fn way(a: V4, b: V4) -> (F, F, F) {
     let dz = ee::sub(b[2], a[2]);
     let d3 = ee::sqrt(ee::add(ee::mul(d, d), ee::mul(dz, dz)));
     let pitch = libm::atan2f(ee::sub(a[2], b[2]), d);
-    (d3, pitch, crate::enemy_ai::get_dirc(a, b))
+    (d3, pitch, crate::geom::get_dirc(a, b))
 }
 
 /// The two objects of a laser segment, the second in the red fog.

@@ -1057,7 +1057,7 @@ impl World {
         if bit & 4 != 0 {
             self.spc_pos(code)
         } else if bit & 0x18 != 0 {
-            cast.npc(code).map(|n| n.char().pos)
+            cast.npcs()?.get_npc(code).map(|n| n.core().ch.pos)
         } else if bit & 0x60 != 0 {
             let who = piney_battle::evparty::get_enemy(&self.combat.ctrl, &self.combat.scene, code)?;
             self.scene_pos(who)
@@ -1685,10 +1685,10 @@ impl World {
                 // 13, a gimmick, can be one), its code the base id; the
                 // event's then, no menu. A cast's NPC spoken to (22) says
                 // its line; a shop's (24-26) opens with one.
-                let id = self.base_id(a.who);
+                let id = self.base_id_in(cast, a.who);
                 let event = self.event_targets.iter().any(|&(t, c)| a.flags & (1u32 << (t & 31)) != 0 && Some(c) == id);
                 let npc = match a.who {
-                    CharId::Npc(code) => cast.npc(code).map(|n| (code, n)),
+                    CharId::Npc(code) => cast.npcs().and_then(|l| l.get(code)).map(|n| (code, n)),
                     _ => None,
                 };
                 self.talks.push(match (event, a.menu, npc, talk::Shop::of(a.flags)) {
@@ -2091,7 +2091,7 @@ impl World {
         let bar_res = crate::chara::char::calc_tag_pos(ws, pos, [0, 0, 0x4320_0000, 0], 1).map_or(0, |t| t.2);
         let bar = crate::chara::char::calc_tag_pos(ws, pos, [0, 0, ee::mul(h, 0x3f66_6666), 0], 1)
             .map_or((0, 0), |t| (t.0, t.1));
-        let d = piney_battle::enemy_ai::get_dirc(player, c.pos);
+        let d = piney_battle::geom::get_dirc(player, c.pos);
         let r = ee::sub(d, self.camera.active().rot[2]);
         let arrow = (
             ee::to_int(ee::add(0x4380_0000, ee::mul(0xc3c0_0000, ee::sinf(r)))),
@@ -2205,12 +2205,18 @@ impl World {
     }
 
     /// `id`'s base id (+0x0c): a party member's `charTbl` row, an NPC's
-    /// `npcTbl` row, an object's `gimmickTbl` row.
+    /// `npcTbl` row as its base is now (a grown Grunty's), an object's
+    /// `gimmickTbl` row.
     pub fn base_id(&self, id: CharId) -> Option<i16> {
+        self.base_id_in(&*self.cast, id)
+    }
+
+    /// [`World::base_id`] with the cast `cast` (lent out of the world).
+    fn base_id_in(&self, cast: &dyn cast::Cast, id: CharId) -> Option<i16> {
         match id {
             CharId::Member(_) | CharId::Scene(_) => Some(self.combat.scene.chars.get(self.scene_index(id)?)?.id()),
             CharId::Ride => None,
-            CharId::Npc(code) => Some(code as i16),
+            CharId::Npc(id) => Some(cast.npcs()?.get(id)?.core().row.id),
             CharId::Object(row) => Some(row),
         }
     }
@@ -2496,7 +2502,7 @@ impl World {
         let town_marker = |m: i16| usize::try_from(m).ok().and_then(|i| markers.get(i).copied().flatten());
         // GetNpc on the cast's NPCs (a Root Town's are not the battle's).
         let cast = &self.cast;
-        let npc_pos = |code: i32| cast.npc(code).map(|n| n.char().pos);
+        let npc_pos = |code: i32| cast.npcs()?.get_npc(code).map(|n| n.core().ch.pos);
         let hits = &mut self.area.core_mut().hits;
         let (r, out) =
             self.combat.with_ev_party(hits, &mut self.camera, area, &roster, &positions, &town_marker, &npc_pos, f);
@@ -2743,17 +2749,40 @@ impl World {
             // and gimmicks, a field's foods and objects).
             let entries = self.area.entries(&self.scene, &self.world_man);
             let info = self.task_info();
+            // An event's NPC: its row made as its class onto the cast's
+            // NPC list, with the walking PCs' state outside the towns.
+            let (archive, volume, scene, player) = (self.archive.clone(), self.volume, self.scene, self.kite().pos());
+            let mut files = crate::town::pc::Files::new();
+            let mut npcs = cast.npcs_mut();
+            let mut npc = |hits: &mut crate::hit::Hits, cc: &mut piney_battle::rand::Genrand, e: [i16; 4], at| {
+                let Some(npcs) = npcs.as_deref_mut() else { return };
+                let row = usize::try_from(e[1]).ok().and_then(|r| crate::chara::npc::NpcRow::of(volume, r).ok());
+                let Some((row, class)) = row.and_then(|r| r.event_class(e[0]).map(|c| (r, c))) else { return };
+                let outside = || crate::town::pc::TownPcs::outside(volume, scene.area, scene.town);
+                let made = match class {
+                    crate::chara::npc::EventClass::Pc => npcs.pcs_or(outside).map(|_| ()),
+                    crate::chara::npc::EventClass::Merchant => Ok(()),
+                }
+                .and_then(|()| {
+                    npcs.enter_event(&archive, &mut files, &row, class, hits, cc, scene.town, player, Some(at))
+                });
+                if let Err(err) = made {
+                    tracing::warn!("the event's NPC entry {} {}: {err}", e[0], e[1]);
+                }
+            };
             let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, *cpad, &info);
-            let rng = self.combat.start_entries(&mut x, rank, ty, &mc, &en, &pos, entries.dungeon, entries.field);
+            let entered =
+                self.combat.start_entries(&mut x, rank, ty, &mc, &en, &pos, entries.dungeon, entries.field, &mut npc);
             drop(x);
-            if let Some(rng) = rng {
+            if let Some(rng) = entered.field_rng {
                 self.area.core_mut().field_rand = Some(rng);
             }
             cast.placed(self);
-            // An `entry 7 code`: ccEntryEventMng's ccBossEntryStart(code),
-            // the boss at the arena's centre (DMY_center01).
-            if let Some(e) = en.iter().find(|e| e[0] == 7) {
-                self.start_boss(i32::from(e[1]));
+            // The boss's task (66) its `entry 7` started, in its first pass
+            // after the entry control's slice: the boss at the arena's
+            // centre (DMY_center01).
+            if let Some(code) = entered.boss {
+                self.start_boss(code);
             }
             let n = mc.iter().filter(|e| e[0] >= 0).count() + en.iter().filter(|e| matches!(e[0], 5 | 6)).count();
             let (f, b) = (self.scene.floor, self.scene.block);
@@ -2824,12 +2853,13 @@ impl World {
     /// cast is left.
     pub fn set_merchant_camera(&mut self, who: CharId, server: i32) {
         let CharId::Npc(code) = who else { return };
-        let Some(n) = self.cast.npc(code) else { return };
-        let target = if n.flags() & crate::chara::npc::TYPE_BREEDER != 0 {
+        let Some(n) = self.cast.npcs().and_then(|l| l.get(code)) else { return };
+        let c = n.core();
+        let target = if c.row.flags & crate::chara::npc::TYPE_BREEDER != 0 {
             let Some(v) = crate::camera::breeder_view(self.volume, server) else { return };
             v
         } else {
-            crate::camera::MerchantView::Char { pos: n.char().pos, dirc: n.char().dirc }
+            crate::camera::MerchantView::Char { pos: c.ch.pos, dirc: c.ch.dirc }
         };
         self.camera.set_merchant(target);
     }
@@ -2901,8 +2931,9 @@ impl World {
         std::mem::take(&mut self.noise)
     }
 
-    /// `ccBossEntryStart(code)`: the boss's look read and its tasks
-    /// started.
+    /// The first pass of the tasks `ccBossEntryStart(code)` started:
+    /// `ccThBossEffect`'s manager and `bossFunc[code]`'s boss (INF
+    /// `ccThBoss01` gcmn 0x0047b340: new, then `Breath`), its look read.
     fn start_boss(&mut self, code: i32) {
         let look = match combat::boss::BossLook::load(&self.archive, code, self.combat.data.volume, self.scene.field) {
             Ok(l) => Rc::new(l),
@@ -3761,10 +3792,10 @@ impl World {
         }
     }
 
-    /// An event's NPC instruction on one of its NPCs
-    /// ([`crate::field::npcs`]), as the town does it: the class's event mode
-    /// first (`npc_act`, `npc_walk_*`, a gradual turn), else a put or an
-    /// instant turn here.
+    /// An event's NPC instruction on the NPC `GetNpc` finds
+    /// ([`crate::systems::npcs::Npcs::get_npc`]) in any area: the class's
+    /// event mode first (`npc_act`, `npc_walk_*`, a gradual turn), else a
+    /// put or an instant turn here.
     pub fn npc_command(&mut self, c: piney_event::host::NpcCommand) -> bool {
         use piney_event::host::NpcCommand;
         let code = match c {
@@ -3797,11 +3828,11 @@ impl World {
             },
             _ => None,
         };
-        let Some(n) = self.cast.npc_mut(code) else { return false };
+        let Some(n) = self.cast.npcs_mut().and_then(|l| l.get_npc_mut(code)) else { return false };
         if n.command(&c, marker, target) {
             return true;
         }
-        let ch = n.char_mut();
+        let ch = &mut n.core_mut().ch;
         match c {
             NpcCommand::Put { x, y, z, .. } => {
                 let s = |v: i16| ee::mul(ee::from_int(i32::from(v)), 0x4120_0000);
@@ -3846,9 +3877,9 @@ impl World {
             });
         }
         if bit & 0x18 != 0 {
-            return match self.cast.npc_mut(code) {
+            return match self.cast.npcs_mut().and_then(|l| l.get_npc_mut(code)) {
                 Some(n) => {
-                    n.char_mut().trans_dist = on;
+                    n.core_mut().ch.trans_dist = on;
                     true
                 }
                 None => false,

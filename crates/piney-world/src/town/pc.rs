@@ -7,7 +7,6 @@
 //! routes by [`RtownPc::route_move`]); what it asks of the game comes out as
 //! [`PcEvent`]s (docs/engine/field-game.md, "The walking PCs").
 
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -17,14 +16,14 @@ use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
-use crate::camera::Cam;
 use crate::chara::body::{Body, TRALL};
-use crate::chara::char::{Char, w2p};
+use crate::chara::char::{Char, check_camera_deg, w2p};
 use crate::chara::navi::{Navi, NaviMap};
-use crate::chara::npc::NpcRow;
-use crate::ee::{self, F, ONE, V4, add, atan2f, cosf, deg2rad, dot, lt, mul, rad2deg, sinf, sqrtf_on, sub, vadd, vsub};
-use crate::event::entry::{Npc, NpcCtx};
+use crate::chara::npc::{Core, NpcRow};
+use crate::ee::{self, F, ONE, V4, add, cosf, deg2rad, dot, lt, mul, rad2deg, sinf, sqrtf_on, sub, vsub};
 use crate::hit::{self, Hits, WALL_MASK};
+use crate::systems::npcs::NpcCtx;
+use piney_battle::geom::{get_dirc, get_dirc_chg, get_dirc0, set_dirc};
 use piney_battle::rand::{Genrand, Rng as _};
 use piney_event::host::NpcCommand;
 
@@ -51,12 +50,6 @@ const WALK_SPD: F = 0x4128_0000; // 10.5
 const EV_WALK_SPD: F = 0x4060_0000; // 3.5
 const EV_ARRIVED: F = 0x42a0_0000; // 80
 const FADE_STEP: F = 0x3ca3_d70a; // 0.02
-const HALF: F = 0x3f00_0000;
-const PI_2: F = 0x3fc9_0fdb;
-const TWO_PI: F = 0x40c9_0fdb;
-const MINUS_ONE: F = 0xbf80_0000;
-const DISP: F = 0x45da_c000; // 7000
-const FREEZE: F = 0x461c_4000; // 10000
 /// Most PCs shown at once (`eventMng+0x18`).
 const MAX_SHOWN: i32 = 10;
 /// The gate's landmark in Mac Anu: act 7.
@@ -220,57 +213,11 @@ pub fn register_random_npc(mt: &mut Genrand, reserved: i32, pool: &Pool) -> [i16
     rows
 }
 
-/// `ccGetDirc(a, b)` (main 0x001d9ce0): the heading from `a` to `b` (0
-/// faces -y), in (-pi, pi].
-pub fn get_dirc(a: V4, b: V4) -> F {
-    let dx = sub(b[0], a[0]);
-    let dy = sub(b[1], a[1]);
-    let mut r = add(PI_2, atan2f(dy, dx));
-    if !ee::le(r, ee::PI) {
-        r = sub(r, TWO_PI);
-    }
-    if lt(r, ee::neg(ee::PI)) {
-        r = add(r, TWO_PI);
-    }
-    r
-}
-
-/// `ccGetDirc0(a, b)` (0x001d9c50): the same through the 16-bit angle.
-pub fn get_dirc0(a: V4, b: V4) -> F {
-    let dx = sub(b[0], a[0]);
-    let dy = sub(b[1], a[1]);
-    let s = rad2deg(atan2f(dy, dx));
-    deg2rad((i32::from(s) + 16384) as i16)
-}
-
 /// `ccGetDist3D(a, b)` (0x001d9e40), by the volume's `sqrtf` (`sqrt.s`
 /// from Outbreak on).
 pub fn get_dist3d(volume: Volume, a: V4, b: V4) -> F {
     let d = vsub(b, a);
     sqrtf_on(volume, dot(d, d))
-}
-
-/// `ccGetDircChg(from, to, mode)` (0x001d9eb0): with a mode below 0x10000,
-/// `(to - from) / (mode / 16)`, at least 1 (64: a quarter of the way).
-pub use piney_battle::geom::get_dirc_chg;
-
-/// `ccSetDirc(&r, to, mode)` (0x001da0b0): `r` turned toward `to`.
-pub fn set_dirc(r: &mut F, to: F, mode: i32) {
-    let s = rad2deg(*r);
-    let chg = get_dirc_chg(s, rad2deg(to), mode);
-    *r = deg2rad((i32::from(s) + chg) as i16);
-}
-
-/// `ccCheckCameraDeg(pos, deg)` (0x001da710): `pos` within `deg` of where
-/// the active camera looks, in the plane, all taken relative to the player.
-pub fn check_camera_deg(pos: V4, deg: i16, cam: &Cam, player: V4) -> bool {
-    let c = w2p(cam.pos, player);
-    let v = w2p(cam.view, player);
-    let p = w2p(pos, player);
-    let a = rad2deg(atan2f(sub(p[1], c[1]), sub(p[0], c[0])));
-    let b = rad2deg(atan2f(sub(v[1], c[1]), sub(v[0], c[0])));
-    let x = (i32::from(deg) + (i32::from(a) - i32::from(b))) as i16;
-    x > 0 && i32::from(x) < 2 * i32::from(deg)
 }
 
 /// What a PC's frame asks of the rest of the game.
@@ -297,7 +244,7 @@ pub enum PcEvent {
 }
 
 /// The one `npcTbl` row `eventMode`'s -3 acts on (`+0x124 == 139`).
-pub const DRAIN_ROW: usize = 139;
+pub const DRAIN_ROW: i32 = 139;
 
 /// The town's walking PCs' shared state: the globals of `rtownnpc.cpp` and
 /// what they read of the rest of the game.
@@ -326,9 +273,6 @@ pub struct TownPcs {
     /// From Mutation on, `ccSnd +0x13a`: the Flag Race is on (the world's,
     /// each frame).
     pub race_hold: bool,
-    /// `saveData.eventStatus[80]` (+0x64f8) as the frame starts: a SEARCH
-    /// PC's vanishing reads its row's.
-    pub event_status: [u8; 80],
 }
 
 impl TownPcs {
@@ -356,7 +300,6 @@ impl TownPcs {
             talk_flag: false,
             placed: 0,
             race_hold: false,
-            event_status: [0; 80],
         })
     }
 
@@ -377,7 +320,6 @@ impl TownPcs {
             talk_flag: false,
             placed: 0,
             race_hold: false,
-            event_status: [0; 80],
         })
     }
 
@@ -388,34 +330,15 @@ impl TownPcs {
     }
 }
 
-/// A walking PC: `ccRtownPC` over `ccEntryObj` over `ccChar`.
+/// A walking PC: `ccRtownPC` over `ccEntryObj` over `ccChar`, its core
+/// ([`Core`]: base, model, `bodyHit` +0x160, entry state, `actNum` +0x2a4,
+/// `actProcess` +0x2a6, `actCnt` +0x2ac, `bodyHitFlag` +0x2b0 and
+/// `bodyHitCnt` +0x2b2) and its own.
 #[derive(Clone)]
 pub struct RtownPc {
-    pub town: Rc<RefCell<TownPcs>>,
+    pub core: Core,
     /// The disc's volume (its collision's): its code's square root.
     pub volume: Volume,
-    /// Its `npcTbl` row (base parameters and entry).
-    pub row: NpcRow,
-    /// The model, position (+0x40), `posP`, heading, animation,
-    /// transparency, ground attribute and `bodyHit` (+0x160).
-    pub char: Char,
-    /// `ccEntryObj` +0xe0: `objFlag`, `freezeFlag`, `dispSW`, `cmndFlag`.
-    pub obj_flag: bool,
-    pub freeze: bool,
-    pub disp_sw: bool,
-    pub cmnd_flag: bool,
-    /// On the command list (`ccEntryCmnd`): it can be targeted and spoken to.
-    pub listed: bool,
-    /// +0xe4 `plDist` (in the plane), +0xe8 `plDirc` (the heading facing
-    /// Kite).
-    pub pl_dist: F,
-    pub pl_dirc: F,
-    /// +0xf0 `fadeFlag`, +0xf2 `fadeCnt`, +0xf4 `grotDeg`, +0xf6 `grotSpd`
-    /// (events').
-    pub fade_flag: i16,
-    pub fade_cnt: i16,
-    pub grot_deg: i16,
-    pub grot_spd: i16,
     /// +0x100 `entParam.pos`.
     pub ent_pos: V4,
     /// +0x1e0 `thinkMode`: 0 its own (`normalMode`), 1 an event's.
@@ -435,17 +358,11 @@ pub struct RtownPc {
     /// +0x29c `npcNum` (the marker), +0x2a0 `ccsType`.
     pub npc_num: i32,
     pub ccs_type: i32,
-    /// +0x2a4 `actNum`, +0x2a6 `actProcess`, +0x2a8 `evActNum`, +0x2aa
-    /// `evActProcess`, +0x2ac `actCnt`.
-    pub act_num: i16,
-    pub act_process: i16,
+    /// +0x2a8 `evActNum`, +0x2aa `evActProcess`.
     pub ev_act_num: i16,
     pub ev_act_process: i16,
-    pub act_cnt: i32,
-    /// +0x2b0 `bodyHitFlag`, +0x2b2 `bodyHitCnt`, +0x2b4 `posCnt`, +0x2b6
-    /// `changeRouteCnt`, +0x2b8 `chatCnt`, +0x2ba `shopNum`.
-    pub body_hit_flag: i16,
-    pub body_hit_cnt: i16,
+    /// +0x2b4 `posCnt`, +0x2b6 `changeRouteCnt`, +0x2b8 `chatCnt`, +0x2ba
+    /// `shopNum`.
     pub pos_cnt: i16,
     pub change_route_cnt: i16,
     pub chat_cnt: i16,
@@ -580,7 +497,7 @@ impl RtownPc {
     /// start landmark (or, with a negative marker, at the origin for an
     /// event to place), its body in the character list; Kite at `player`.
     pub fn place(
-        town: &Rc<RefCell<TownPcs>>,
+        t: &mut TownPcs,
         row: &NpcRow,
         model: &PcModel,
         marker: i32,
@@ -589,14 +506,14 @@ impl RtownPc {
         cc: &mut Genrand,
     ) -> RtownPc {
         let origin = if marker >= 0 { Origin::Slot(marker) } else { Origin::Event };
-        RtownPc::place_as(town, row, model, origin, player, hits, cc)
+        RtownPc::place_as(t, row, model, origin, player, hits, cc)
     }
 
     /// [`RtownPc::place`] from any [`Origin`]: a SEARCH PC is made at its
     /// stage's place and set to walk its route (`markPos`) or stand (stage
     /// 5 on), off the character list, glimmering (MUT gcmn 0x00523058).
     pub fn place_as(
-        town: &Rc<RefCell<TownPcs>>,
+        t: &mut TownPcs,
         row: &NpcRow,
         model: &PcModel,
         origin: Origin,
@@ -604,7 +521,6 @@ impl RtownPc {
         hits: &mut Hits,
         cc: &mut Genrand,
     ) -> RtownPc {
-        let mut t = town.borrow_mut();
         let marker = match origin {
             Origin::Slot(m) => m,
             Origin::Event | Origin::Search(_) => -1,
@@ -648,22 +564,11 @@ impl RtownPc {
             ..hit::Body::default()
         };
         t.placed += 1;
+        let mut core = Core::new(row.clone(), ch);
+        core.acts.num = 3;
         let mut pc = RtownPc {
-            town: town.clone(),
+            core,
             volume: hits.volume,
-            row: row.clone(),
-            char: ch,
-            obj_flag: false,
-            freeze: false,
-            disp_sw: true,
-            cmnd_flag: false,
-            listed: false,
-            pl_dist: 0,
-            pl_dirc: 0,
-            fade_flag: 0,
-            fade_cnt: 0,
-            grot_deg: 0,
-            grot_spd: 0,
             ent_pos: pos,
             think_mode: 0,
             navi: Navi::default(),
@@ -675,13 +580,8 @@ impl RtownPc {
             merchan_deg: 0,
             npc_num: marker,
             ccs_type: model.ccs_type,
-            act_num: 3,
-            act_process: 0,
             ev_act_num: 0,
             ev_act_process: 0,
-            act_cnt: 0,
-            body_hit_flag: 0,
-            body_hit_cnt: 0,
             pos_cnt: 0,
             change_route_cnt: 0,
             chat_cnt: 0,
@@ -719,11 +619,11 @@ impl RtownPc {
             pc.target_num_start = mark_pos[0];
             pc.think_type = 0;
             if pc.target_num != -1 {
-                pc.act_num = 6;
+                pc.core.acts.num = 6;
             } else {
-                pc.act_num = 5;
+                pc.core.acts.num = 5;
                 let a = deg2rad(((marker << 14) & 0xffff) as u16 as i16);
-                let p = &mut pc.char.pos;
+                let p = &mut pc.core.ch.pos;
                 p[0] = add(p[0], mul(0x4348_0000, sinf(a)));
                 p[1] = sub(p[1], mul(0x4348_0000, cosf(a)));
                 t.landmark(mark_pos[0], &mut pc.next_pos);
@@ -738,7 +638,7 @@ impl RtownPc {
                 }
             }
             pc.think_mode = 0;
-            pc.char.dirc[2] = get_dirc(pc.char.pos, pc.next_pos);
+            pc.core.ch.dirc[2] = get_dirc(pc.core.ch.pos, pc.next_pos);
             // From Mutation on the slots of 4 and up, even, leave the town
             // while the Flag Race runs (MUT gcmn 0x00523010).
             pc.race_hide = t.tables.later && marker >= 3 && marker % 2 == 0;
@@ -753,167 +653,81 @@ impl RtownPc {
                 pc.target_num = s.mark_pos[1];
                 pc.target_num_old = pc.target_num;
                 pc.target_num_start = s.mark_pos[0];
-                pc.act_num = 6;
+                pc.core.acts.num = 6;
             } else {
-                pc.act_num = 8;
+                pc.core.acts.num = 8;
             }
-            hits.set_hit_sw(&mut pc.char.hit, false);
+            hits.set_hit_sw(&mut pc.core.ch.hit, false);
         } else {
             pc.think_mode = 1;
             pc.ev_act_num = 2;
         }
         // deleteCmnd(1): off the list, and the entry control leaves it off.
-        pc.cmnd_flag = true;
-        pc.listed = false;
-        pc.ent_pos = pc.char.pos;
+        pc.core.entry.cmnd_flag = true;
+        pc.core.entry.listed = false;
+        pc.ent_pos = pc.core.ch.pos;
         // initObject: in its area; the body in the list; on the ground.
-        pc.obj_flag = true;
-        hits.set_hit_sw(&mut pc.char.hit, true);
-        let mut p = pc.char.pos;
+        pc.core.entry.obj_flag = true;
+        hits.set_hit_sw(&mut pc.core.ch.hit, true);
+        let mut p = pc.core.ch.pos;
         p[2] = hits.land(p, ENTRY_LAND_MASK);
         pc.ent_pos = p;
-        pc.char.pos = p;
-        pc.char.pos_p = w2p(p, player);
+        pc.core.ch.pos = p;
+        pc.core.ch.pos_p = w2p(p, player);
         pc
     }
 
     fn set_anm(&mut self, k: usize) {
         if let Some(name) = self.anm_tbl.get(k).cloned() {
-            self.char.set_anim(&name);
-        }
-    }
-
-    fn entry_cmnd(&mut self) {
-        self.listed = true;
-    }
-
-    fn delete_cmnd_list(&mut self) {
-        self.listed = false;
-    }
-
-    /// `ccEntryObj::deleteCmnd(flg)`.
-    fn delete_cmnd(&mut self, flg: bool) {
-        if !self.cmnd_flag {
-            self.listed = false;
-            self.cmnd_flag = flg;
-        }
-    }
-
-    /// `ccEntryObj::routine` (gcmn 0x0042fa60) for Kite at `player`.
-    pub fn routine(&mut self, player: V4) {
-        if self.grot_spd != 0 {
-            let mut d = self.char.dirc;
-            let to = deg2rad(self.grot_deg);
-            set_dirc(&mut d[2], to, i32::from(self.grot_spd));
-            self.char.dirc = d;
-            if f64::from(ee::f(sub(d[2], to))).abs() < f64::from_bits(0x3f68_9374_c000_0000) {
-                self.grot_spd = 0;
-            }
-        }
-        let p = w2p(self.char.pos, player);
-        let v = [mul(p[0], MINUS_ONE), mul(p[1], MINUS_ONE), 0, ONE];
-        self.pl_dist = sqrtf_on(self.volume, dot(v, v));
-        let mut a = add(PI_2, atan2f(v[1], v[0]));
-        if !ee::le(a, ee::PI) {
-            a = sub(a, TWO_PI);
-        }
-        if lt(a, ee::neg(ee::PI)) {
-            a = add(a, TWO_PI);
-        }
-        self.pl_dirc = a;
-        self.disp_sw = ee::le(self.pl_dist, DISP);
-        if !ee::le(self.pl_dist, FREEZE) {
-            self.freeze = true;
-            // entParam+0x40 is -1 for a town's PCs.
-            self.delete_cmnd(false);
-        } else {
-            self.freeze = false;
-            if !self.cmnd_flag {
-                self.entry_cmnd();
-            }
-        }
-        match self.fade_flag {
-            1 => {
-                let mut t = add(self.char.set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
-                if !ee::le(t, ONE) {
-                    t = ONE;
-                    self.fade_flag = 0;
-                }
-                self.char.transparency = t;
-                self.char.set_transparency = t;
-            }
-            2 => {
-                let mut t = sub(self.char.set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
-                if lt(t, 0) {
-                    t = 0;
-                    self.fade_flag = 0;
-                }
-                self.char.transparency = t;
-                self.char.set_transparency = t;
-            }
-            _ => {}
+            self.core.ch.set_anim(&name);
         }
     }
 
     /// `ccRtownPC::main` (gcmn 0x00507c20; MUT 0x00523760): from Mutation
     /// on a SEARCH PC runs its `searchMode`, meets no one, makes no steps'
     /// sounds, and while it goes keeps the fade `routine` runs.
-    pub fn main(&mut self, ctx: &mut NpcCtx) {
-        self.char.pos_p = w2p(self.char.pos, ctx.player);
+    pub fn main(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs) {
+        self.core.ch.pos_p = w2p(self.core.ch.pos, ctx.player);
         let hidden = match (self.think_mode, self.search) {
-            (0, false) => self.normal_mode(ctx),
-            (0, true) => self.search_mode(ctx),
-            _ => self.event_mode(ctx),
+            (0, false) => self.normal_mode(ctx, t),
+            (0, true) => self.search_mode(ctx, t),
+            _ => self.event_mode(ctx, t),
         };
         if hidden {
-            self.char.drawn = false;
+            self.core.ch.drawn = false;
             return;
         }
         if !self.search {
             self.collide(ctx);
         }
-        if check_camera_deg(self.char.pos, 12288, ctx.cam, ctx.player) {
+        if check_camera_deg(self.core.ch.pos, 12288, ctx.cam, ctx.player) {
             // _AnimateForward, then NoteProcess through rtpcCheckNote.
-            let (_, notes) = self.char.play.forward_notes(&self.char.body.file);
+            let (_, notes) = self.core.ch.play.forward_notes(&self.core.ch.body.file);
             for (event, param) in notes {
                 if matches!(event, 1 | 2) && !self.search {
                     self.step_note(param);
                 }
             }
             if !(self.search && self.ev_act_num == 5) {
-                self.char.transparency = self.transrate;
-                self.char.set_transparency = self.transrate;
+                self.core.ch.transparency = self.transrate;
+                self.core.ch.set_transparency = self.transrate;
             }
-            self.char.fade(ctx.hits.volume, &ctx.view);
+            self.core.ch.fade(ctx.hits.volume, &ctx.view);
         } else {
-            self.char.drawn = false;
+            self.core.ch.drawn = false;
         }
     }
 
     /// `main`'s `CollisionDetection` (its walls only near Kite), and in its
     /// own mode the push.
     fn collide(&mut self, ctx: &mut NpcCtx) {
-        self.char.hit.mask2 = if lt(self.pl_dist, NEAR_KITE) { WALL_MASK } else { 1 };
-        self.char.hit.pos = self.char.pos;
-        if ctx.hits.collision_detection(&mut self.char.hit) != 0 {
-            if self.think_mode == 0 {
-                let off = self.char.hit.offset;
-                self.char.pos = vadd(self.char.pos, off);
-                self.char.pos_p = vadd(self.char.pos_p, off);
-                self.char.hit.pos = self.char.pos;
-                ctx.hits.sync(&self.char.hit);
-            }
-            self.body_hit_flag = 1;
-            self.body_hit_cnt = self.body_hit_cnt.wrapping_add(1);
-        } else {
-            self.body_hit_flag = 0;
-            self.body_hit_cnt = 0;
-        }
+        self.core.ch.hit.mask2 = if lt(self.core.entry.pl_dist, NEAR_KITE) { WALL_MASK } else { 1 };
+        self.core.touch.collide(&mut self.core.ch, ctx.hits, self.think_mode == 0);
     }
 
     /// `rtpcCheckNote` on a step note: its sound and dust.
     fn step_note(&mut self, param: u32) {
-        let c = &self.char;
+        let c = &self.core.ch;
         let worlds = c.body.worlds(&c.play, c.root());
         let foot = |name: &str| {
             let t = worlds.get(&c.body.file.ccs.find_object(name)?)?.w_axis;
@@ -933,30 +747,27 @@ impl RtownPc {
 
     /// |posP|: the distance to Kite in the plane and the PC's own height.
     fn pos_p_len(&self) -> F {
-        sqrtf_on(self.volume, dot(self.char.pos_p, self.char.pos_p))
+        sqrtf_on(self.volume, dot(self.core.ch.pos_p, self.core.ch.pos_p))
     }
 
     /// `ccRtownPC::normalMode` (0x00507de0): true when the PC is hidden this
     /// frame (nothing collides or draws).
-    fn normal_mode(&mut self, ctx: &mut NpcCtx) -> bool {
-        let town = self.town.clone();
-        match self.act_num {
+    fn normal_mode(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs) -> bool {
+        match self.core.acts.num {
             0 => {
-                let t = town.borrow();
                 if t.shown < MAX_SHOWN {
                     let d = self.pos_p_len();
                     self.dist = d;
                     if lt(d, SHOW) {
-                        self.act_num = 1;
-                        t.landmark(self.mark_pos[0], &mut self.char.pos);
-                        drop(t);
-                        self.change_route(false, ctx.hits, ctx.cc);
+                        self.core.acts.num = 1;
+                        t.landmark(self.mark_pos[0], &mut self.core.ch.pos);
+                        self.change_route(t, false, ctx.hits, ctx.cc);
                     }
                 }
                 true
             }
             1 => {
-                let shown = town.borrow().shown;
+                let shown = t.shown;
                 if shown < MAX_SHOWN {
                     let d = self.pos_p_len();
                     if lt(d, SHOW) && !ee::le(d, SHOW_NEAR) {
@@ -964,89 +775,87 @@ impl RtownPc {
                             self.dist = d;
                             return true;
                         }
-                        self.act_num = 3;
-                        self.act_process = 0;
-                        ctx.hits.hit_enable(&mut self.char.hit);
-                        town.borrow_mut().shown += 1;
-                        self.entry_cmnd();
+                        self.core.acts.num = 3;
+                        self.core.acts.process = 0;
+                        ctx.hits.hit_enable(&mut self.core.ch.hit);
+                        t.shown += 1;
+                        self.core.entry.entry_cmnd();
                         self.transrate = ONE;
                         return false;
                     }
                 }
-                self.act_num = 0;
+                self.core.acts.num = 0;
                 true
             }
             6 => {
                 let mut goal = [0; 4];
-                town.borrow().landmark(self.target_num, &mut goal);
-                self.route_search(goal, ctx.hits);
+                t.landmark(self.target_num, &mut goal);
+                self.route_search(t, goal, ctx.hits);
                 self.navi.landmark += 1;
-                self.destination();
-                self.act_num = 3;
-                self.entry_cmnd();
-                ctx.hits.hit_enable(&mut self.char.hit);
-                town.borrow_mut().shown += 1;
+                self.destination(t);
+                self.core.acts.num = 3;
+                self.core.entry.entry_cmnd();
+                ctx.hits.hit_enable(&mut self.core.ch.hit);
+                t.shown += 1;
                 false
             }
             2 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     self.set_anm(0);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
-                set_dirc(&mut self.char.dirc[2], self.pl_dirc, 64);
+                self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], self.core.entry.pl_dirc, 64);
                 false
             }
             3 => {
-                match self.act_process {
+                match self.core.acts.process {
                     0 => {
                         self.set_anm(2);
-                        self.act_process += 1;
+                        self.core.acts.process += 1;
                     }
                     1 => {
                         let d = self.pos_p_len();
                         self.dist = d;
                         if !ee::le(d, SHOW) {
-                            self.act_num = 0;
-                            self.act_process = 0;
-                            ctx.hits.hit_disable(&mut self.char.hit);
-                            town.borrow_mut().shown -= 1;
-                            self.delete_cmnd_list();
+                            self.core.acts.num = 0;
+                            self.core.acts.process = 0;
+                            ctx.hits.hit_disable(&mut self.core.ch.hit);
+                            t.shown -= 1;
+                            self.core.entry.delete_cmnd_list();
                             return true;
                         }
                     }
                     _ => {}
                 }
-                self.route_move(ctx);
+                self.route_move(ctx, t);
                 // From Mutation on, after its move, one the Flag Race hides
                 // leaves while it runs (MUT gcmn 0x00523cac).
-                if self.race_hide && town.borrow().race_hold {
-                    self.act_num = 9;
-                    self.act_process = 0;
+                if self.race_hide && t.race_hold {
+                    self.core.acts.num = 9;
+                    self.core.acts.process = 0;
                 }
                 false
             }
-            4 => self.shop_visit(ctx),
+            4 => self.shop_visit(ctx, t),
             5 => {
-                if town.borrow().talk_flag {
+                if t.talk_flag {
                     return false;
                 }
-                match self.act_process {
+                match self.core.acts.process {
                     0 => {
-                        ctx.hits.hit_enable(&mut self.char.hit);
-                        let mut t = town.borrow_mut();
+                        ctx.hits.hit_enable(&mut self.core.ch.hit);
                         t.shown += 1;
-                        self.entry_cmnd();
+                        self.core.entry.entry_cmnd();
                         self.set_anm(0);
-                        self.act_process += 1;
-                        self.act_cnt = 0;
+                        self.core.acts.process += 1;
+                        self.core.acts.cnt = 0;
                         t.chat_num = 0;
                         false
                     }
                     1 => {
-                        if lt(self.pl_dist, SHOW) {
-                            let to = get_dirc0(self.char.pos, self.next_pos);
-                            set_dirc(&mut self.char.dirc[2], to, 64);
-                            let mut t = town.borrow_mut();
+                        if lt(self.core.entry.pl_dist, SHOW) {
+                            let to = get_dirc0(self.core.ch.pos, self.next_pos);
+                            self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], to, 64);
                             let (id, num) = self.chat_gp;
                             if num == 0 {
                                 let g = id as usize;
@@ -1058,7 +867,7 @@ impl RtownPc {
                                     if let Some(x) = t.chat_cnt.get_mut(g) {
                                         *x = 0;
                                     }
-                                    self.act_cnt = 0;
+                                    self.core.acts.cnt = 0;
                                 } else if c == 120 {
                                     t.chat_num += 1;
                                     if t.chat_num >= 13 {
@@ -1069,19 +878,19 @@ impl RtownPc {
                                 }
                             }
                             if t.chat_num % 3 == i32::from(num) {
-                                if self.act_cnt == 0 {
+                                if self.core.acts.cnt == 0 {
                                     let text = t.tables.chat_mes[t.chat_mes][t.chat_num as usize];
                                     self.events.push(PcEvent::Chat(text));
-                                    self.act_cnt = 1;
+                                    self.core.acts.cnt = 1;
                                 }
                             } else {
-                                self.act_cnt = 0;
+                                self.core.acts.cnt = 0;
                             }
                         }
                         false
                     }
                     2 => {
-                        let shown = town.borrow().shown;
+                        let shown = t.shown;
                         if shown < MAX_SHOWN {
                             let d = self.pos_p_len();
                             if lt(d, SHOW) && !ee::le(d, SHOW_NEAR) {
@@ -1089,7 +898,7 @@ impl RtownPc {
                                     self.dist = d;
                                     return true;
                                 }
-                                self.act_process = 0;
+                                self.core.acts.process = 0;
                             }
                         }
                         false
@@ -1097,24 +906,24 @@ impl RtownPc {
                     _ => false,
                 }
             }
-            7 => self.gate_visit(ctx, true),
+            7 => self.gate_visit(ctx, t, true),
             // From Mutation on (MUT gcmn 0x00524320): out of the town while
             // the Flag Race runs, back to walking after it.
-            9 => match self.act_process {
+            9 => match self.core.acts.process {
                 0 => {
-                    ctx.hits.hit_disable(&mut self.char.hit);
-                    town.borrow_mut().shown -= 1;
-                    self.delete_cmnd_list();
-                    self.act_process += 1;
+                    ctx.hits.hit_disable(&mut self.core.ch.hit);
+                    t.shown -= 1;
+                    self.core.entry.delete_cmnd_list();
+                    self.core.acts.process += 1;
                     false
                 }
                 1 => {
-                    if !town.borrow().race_hold {
-                        self.act_num = 3;
-                        self.act_process = 0;
-                        self.entry_cmnd();
-                        ctx.hits.hit_enable(&mut self.char.hit);
-                        town.borrow_mut().shown += 1;
+                    if !t.race_hold {
+                        self.core.acts.num = 3;
+                        self.core.acts.process = 0;
+                        self.core.entry.entry_cmnd();
+                        ctx.hits.hit_enable(&mut self.core.ch.hit);
+                        t.shown += 1;
                     }
                     true
                 }
@@ -1129,14 +938,13 @@ impl RtownPc {
     /// spoken to; an event's `npc_act` 2 turns it to Kite, 5 makes it go
     /// (`effOpenBox`, the crystal at its last stage), 6 hides it. Its walk
     /// is `normalMode`'s, slower, off the character list. True when hidden.
-    fn search_mode(&mut self, ctx: &mut NpcCtx) -> bool {
+    fn search_mode(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs) -> bool {
         const GLIMMER: F = 0x3e99_999a; // 0.3
         const FAINTEST: F = 0x3dcc_cccd; // 0.1
         const BRIGHTEST: F = 0x3f4c_cccd; // 0.8
-        let town = self.town.clone();
-        if self.ev_act_num != 5 && self.act_num != 2 {
-            let t = mul(GLIMMER, sinf(deg2rad(self.glimmer)));
-            self.transrate = if lt(t, FAINTEST) { FAINTEST } else { t };
+        if self.ev_act_num != 5 && self.core.acts.num != 2 {
+            let tr = mul(GLIMMER, sinf(deg2rad(self.glimmer)));
+            self.transrate = if lt(tr, FAINTEST) { FAINTEST } else { tr };
             self.glimmer = self.glimmer.wrapping_add(256) & 0x7fff;
         }
         match self.ev_act_num {
@@ -1147,22 +955,21 @@ impl RtownPc {
             5 => match self.ev_act_process {
                 0 => {
                     self.transrate = 0;
-                    ctx.hits.hit_disable(&mut self.char.hit);
-                    town.borrow_mut().shown -= 1;
-                    self.delete_cmnd_list();
+                    ctx.hits.hit_disable(&mut self.core.ch.hit);
+                    t.shown -= 1;
+                    self.core.entry.delete_cmnd_list();
                     self.ev_act_process += 1;
-                    self.act_cnt = 0;
-                    self.act_num = -1;
-                    self.fade_flag = 2;
-                    self.fade_cnt = 30;
-                    let status = usize::try_from(self.row.id - 117)
-                        .ok()
-                        .and_then(|k| town.borrow().event_status.get(k).copied());
-                    self.events.push(PcEvent::Vanish { pos: self.char.pos, crystal: status == Some(5) });
+                    self.core.acts.cnt = 0;
+                    self.core.acts.num = -1;
+                    self.core.entry.fade_flag = 2;
+                    self.core.entry.fade_cnt = 30;
+                    // saveData.eventStatus[row - 117] (+0x6483 + row).
+                    let status = usize::try_from(self.core.row.id - 117).ok().map(|k| ctx.save.event_status(k));
+                    self.events.push(PcEvent::Vanish { pos: self.core.ch.pos, crystal: status == Some(5) });
                 }
                 1 | 2 => {
-                    let c = self.act_cnt;
-                    self.act_cnt += 1;
+                    let c = self.core.acts.cnt;
+                    self.core.acts.cnt += 1;
                     if c >= if self.ev_act_process == 1 { 6 } else { 26 } {
                         self.ev_act_process += 1;
                     }
@@ -1171,85 +978,83 @@ impl RtownPc {
                 _ => {}
             },
             2 => {
-                self.act_num = 2;
-                self.act_process = 0;
+                self.core.acts.num = 2;
+                self.core.acts.process = 0;
                 self.ev_act_num = -1;
             }
             _ => {}
         }
-        match self.act_num {
+        match self.core.acts.num {
             0 => {
-                let t = town.borrow();
                 if t.shown < MAX_SHOWN {
                     let d = self.pos_p_len();
                     self.dist = d;
                     if lt(d, SHOW) {
-                        self.act_num = 1;
-                        t.landmark(self.mark_pos[0], &mut self.char.pos);
-                        drop(t);
-                        self.change_route(false, ctx.hits, ctx.cc);
+                        self.core.acts.num = 1;
+                        t.landmark(self.mark_pos[0], &mut self.core.ch.pos);
+                        self.change_route(t, false, ctx.hits, ctx.cc);
                     }
                 }
                 true
             }
             1 => {
-                if town.borrow().shown < MAX_SHOWN {
+                if t.shown < MAX_SHOWN {
                     let d = self.pos_p_len();
                     if lt(d, SHOW) && !ee::le(d, SHOW_NEAR) {
                         if lt(self.dist, d) {
                             self.dist = d;
                             return true;
                         }
-                        self.act_num = 3;
-                        self.act_process = 0;
-                        town.borrow_mut().shown += 1;
-                        self.entry_cmnd();
+                        self.core.acts.num = 3;
+                        self.core.acts.process = 0;
+                        t.shown += 1;
+                        self.core.entry.entry_cmnd();
                         self.transrate = GLIMMER;
                         return false;
                     }
                 }
-                self.act_num = 0;
+                self.core.acts.num = 0;
                 true
             }
             2 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     self.set_anm(0);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
-                let t = add(self.transrate, FADE_STEP);
-                self.transrate = if ee::le(t, BRIGHTEST) { t } else { BRIGHTEST };
-                set_dirc(&mut self.char.dirc[2], self.pl_dirc, 64);
+                let tr = add(self.transrate, FADE_STEP);
+                self.transrate = if ee::le(tr, BRIGHTEST) { tr } else { BRIGHTEST };
+                self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], self.core.entry.pl_dirc, 64);
                 false
             }
             3 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     self.set_anm(1);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
-                self.route_move(ctx);
+                self.route_move(ctx, t);
                 false
             }
-            4 => self.shop_visit(ctx),
+            4 => self.shop_visit(ctx, t),
             6 => {
                 let mut goal = [0; 4];
-                town.borrow().landmark(self.target_num, &mut goal);
-                self.route_search(goal, ctx.hits);
+                t.landmark(self.target_num, &mut goal);
+                self.route_search(t, goal, ctx.hits);
                 self.navi.landmark += 1;
-                self.destination();
-                self.act_num = 3;
-                self.entry_cmnd();
-                ctx.hits.hit_disable(&mut self.char.hit);
-                town.borrow_mut().shown += 1;
+                self.destination(t);
+                self.core.acts.num = 3;
+                self.core.entry.entry_cmnd();
+                ctx.hits.hit_disable(&mut self.core.ch.hit);
+                t.shown += 1;
                 false
             }
-            7 => self.gate_visit(ctx, false),
+            7 => self.gate_visit(ctx, t, false),
             8 => {
-                if self.act_process == 0 {
-                    self.entry_cmnd();
-                    ctx.hits.hit_disable(&mut self.char.hit);
-                    town.borrow_mut().shown += 1;
+                if self.core.acts.process == 0 {
+                    self.core.entry.entry_cmnd();
+                    ctx.hits.hit_disable(&mut self.core.ch.hit);
+                    t.shown += 1;
                     self.set_anm(0);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
                 false
             }
@@ -1259,38 +1064,36 @@ impl RtownPc {
 
     /// `normalMode`'s and `searchMode`'s act 4: at a shop's landmark, a
     /// look at the shop for 61 frames, then on with a line.
-    fn shop_visit(&mut self, ctx: &mut NpcCtx) -> bool {
-        let town = self.town.clone();
-        match self.act_process {
+    fn shop_visit(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs) -> bool {
+        match self.core.acts.process {
             0 => {
-                if self.what_shop() {
+                if self.what_shop(t) {
                     self.set_anm(0);
-                    self.act_process += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.process += 1;
+                    self.core.acts.cnt = 0;
                 } else {
-                    self.act_process = 1;
-                    self.act_num = 3;
-                    self.act_cnt = 0;
-                    self.change_route(true, ctx.hits, ctx.cc);
+                    self.core.acts.process = 1;
+                    self.core.acts.num = 3;
+                    self.core.acts.cnt = 0;
+                    self.change_route(t, true, ctx.hits, ctx.cc);
                 }
             }
             1 => {
-                set_dirc(&mut self.char.dirc[2], self.merchan_deg, 64);
-                let c = self.act_cnt;
-                self.act_cnt += 1;
+                self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], self.merchan_deg, 64);
+                let c = self.core.acts.cnt;
+                self.core.acts.cnt += 1;
                 if c >= 61 {
-                    self.act_cnt = 0;
-                    self.change_route(true, ctx.hits, ctx.cc);
-                    self.act_process += 1;
+                    self.core.acts.cnt = 0;
+                    self.change_route(t, true, ctx.hits, ctx.cc);
+                    self.core.acts.process += 1;
                 }
             }
             2 => {
-                let c = self.act_cnt;
-                self.act_cnt += 1;
+                let c = self.core.acts.cnt;
+                self.core.acts.cnt += 1;
                 if c >= 31 {
-                    self.act_process = 0;
-                    self.act_num = 3;
-                    let t = town.borrow();
+                    self.core.acts.process = 0;
+                    self.core.acts.num = 3;
                     let r = (ctx.cc.rand() & 3) as usize;
                     let text = t.tables.chat_shop.get(self.shop_num as usize).map_or("", |s| s[r]);
                     self.events.push(PcEvent::Chat(text));
@@ -1304,105 +1107,94 @@ impl RtownPc {
     /// Act 7: at Mac Anu's gate, out through it, a breath, and back in;
     /// in `normalMode` back onto the character list (`hit`), a SEARCH PC
     /// not.
-    fn gate_visit(&mut self, ctx: &mut NpcCtx, hit: bool) -> bool {
-        let town = self.town.clone();
-        match self.act_process {
+    fn gate_visit(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs, hit: bool) -> bool {
+        match self.core.acts.process {
             0 => {
                 self.set_anm(0);
-                self.act_process += 1;
+                self.core.acts.process += 1;
             }
             1 => {
-                ctx.hits.hit_disable(&mut self.char.hit);
-                town.borrow_mut().shown -= 1;
-                self.delete_cmnd_list();
+                ctx.hits.hit_disable(&mut self.core.ch.hit);
+                t.shown -= 1;
+                self.core.entry.delete_cmnd_list();
                 self.events.push(PcEvent::Transfer);
-                self.act_process += 1;
+                self.core.acts.process += 1;
             }
             2 => {
-                let t = sub(self.transrate, FADE_STEP);
-                self.transrate = t;
-                if lt(t, 0) {
+                let tr = sub(self.transrate, FADE_STEP);
+                self.transrate = tr;
+                if lt(tr, 0) {
                     self.transrate = 0;
-                    self.act_process += 1;
-                    self.act_cnt = 0;
-                    self.change_route(true, ctx.hits, ctx.cc);
+                    self.core.acts.process += 1;
+                    self.core.acts.cnt = 0;
+                    self.change_route(t, true, ctx.hits, ctx.cc);
                 }
             }
             3 => {
-                let c = self.act_cnt;
-                self.act_cnt += 1;
+                let c = self.core.acts.cnt;
+                self.core.acts.cnt += 1;
                 if c >= 91 {
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                     self.events.push(PcEvent::Transfer);
                 }
-                let to = get_dirc0(self.char.pos, self.next_pos);
-                set_dirc(&mut self.char.dirc[2], to, 64);
+                let to = get_dirc0(self.core.ch.pos, self.next_pos);
+                self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], to, 64);
             }
             4 => {
-                let t = add(self.transrate, FADE_STEP);
-                self.transrate = t;
-                if !ee::le(t, ONE) {
+                let tr = add(self.transrate, FADE_STEP);
+                self.transrate = tr;
+                if !ee::le(tr, ONE) {
                     self.transrate = ONE;
-                    self.act_process += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.process += 1;
+                    self.core.acts.cnt = 0;
                 }
             }
             5 => {
-                self.act_num = 3;
-                self.act_process = 0;
-                self.entry_cmnd();
+                self.core.acts.num = 3;
+                self.core.acts.process = 0;
+                self.core.entry.entry_cmnd();
                 if hit {
-                    ctx.hits.hit_enable(&mut self.char.hit);
+                    ctx.hits.hit_enable(&mut self.core.ch.hit);
                 }
-                town.borrow_mut().shown += 1;
+                t.shown += 1;
             }
             _ => {}
         }
         false
     }
 
-    fn route_search(&mut self, goal: V4, hits: &mut Hits) {
-        let town = self.town.borrow();
-        self.navi.route_search(&town.map, self.char.pos, goal, hits);
+    fn route_search(&mut self, t: &TownPcs, goal: V4, hits: &mut Hits) {
+        self.navi.route_search(&t.map, self.core.ch.pos, goal, hits);
     }
 
-    fn destination(&mut self) {
-        let town = self.town.borrow();
-        self.navi.destination(&town.map, &mut self.next_pos);
+    fn destination(&mut self, t: &TownPcs) {
+        self.navi.destination(&t.map, &mut self.next_pos);
     }
 
     /// `ccRtownPC::move` (0x005077f0).
-    pub fn route_move(&mut self, ctx: &mut NpcCtx) {
-        let d = get_dist3d(self.volume, self.char.pos, self.next_pos);
-        let mut a = get_dirc(self.char.pos, self.next_pos);
-        let mut s1 = rad2deg(self.char.dirc[2]) as u16 as i32;
+    pub fn route_move(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs) {
+        let d = get_dist3d(self.volume, self.core.ch.pos, self.next_pos);
+        let mut a = get_dirc(self.core.ch.pos, self.next_pos);
+        let mut s1 = rad2deg(self.core.ch.dirc[2]) as u16 as i32;
         let s2 = rad2deg(a) as u16 as i32;
         let chg = get_dirc_chg(s1 as u16 as i16, s2 as u16 as i16, 64);
         s1 = (s1 + (chg & 0xffff)) & 0xffff;
-        self.char.dirc[2] = deg2rad(s1 as u16 as i16);
+        self.core.ch.dirc[2] = deg2rad(s1 as u16 as i16);
         let step = |pc: &mut RtownPc, a: F| {
-            let p = &mut pc.char.pos;
+            let p = &mut pc.core.ch.pos;
             p[0] = add(p[0], mul(pc.walk_spd, sinf(a)));
             p[1] = sub(p[1], mul(pc.walk_spd, cosf(a)));
         };
         if (s2 - s1 + 4096) & 0xffff < 8192 {
             if !ee::le(d, ARRIVED) && self.pos_cnt < 61 {
-                if self.body_hit_flag != 0 && self.change_route_flag == 0 {
-                    let c = self.body_hit_cnt;
-                    if c < 40 {
-                        a = sub(a, HALF);
-                    } else if (60..100).contains(&c) {
-                        a = add(a, HALF);
-                    } else if c >= 120 {
-                        self.body_hit_cnt = 0;
-                    }
+                if self.change_route_flag == 0 {
+                    a = self.core.touch.avoid(a);
                 }
                 step(self, a);
                 if self.chat_cnt == 0 {
                     // From Mutation on a SEARCH PC greets no one (MUT gcmn
                     // 0x005234fc).
-                    if lt(self.pl_dist, CHAT_NEAR) && !self.search {
-                        let t = self.town.borrow();
+                    if lt(self.core.entry.pl_dist, CHAT_NEAR) && !self.search {
                         let r = (ctx.cc.rand() & 3) as usize;
                         if !t.chat_hold {
                             let text = t.tables.chat[r];
@@ -1417,33 +1209,32 @@ impl RtownPc {
                     }
                 }
             } else if self.pos_cnt >= 61 {
-                self.change_route(false, ctx.hits, ctx.cc);
+                self.change_route(t, false, ctx.hits, ctx.cc);
                 self.pos_cnt = 0;
             } else {
                 self.navi.landmark += 1;
                 if self.navi.landmark < self.navi.step {
-                    self.destination();
+                    self.destination(t);
                     self.pos_cnt = 0;
                     step(self, a);
                 } else {
-                    self.act_num = 4;
-                    self.act_process = 0;
+                    self.core.acts.num = 4;
+                    self.core.acts.process = 0;
                     self.pos_cnt = 0;
-                    let town = self.town.borrow();
-                    if self.target_num == GATE_LANDMARK && town.town == 0 {
-                        self.act_num = 7;
+                    if self.target_num == GATE_LANDMARK && t.town == 0 {
+                        self.core.acts.num = 7;
                     }
                 }
             }
         }
         // ccTransPosW2M (no wrap in a town) and the ground.
-        let mut p = self.char.pos;
+        let mut p = self.core.ch.pos;
         p[3] = ONE;
-        self.char.pos[2] = ctx.hits.land(p, ENTRY_LAND_MASK);
-        self.char.hit_attribute = ctx.hits.attribute();
+        self.core.ch.pos[2] = ctx.hits.land(p, ENTRY_LAND_MASK);
+        self.core.ch.hit_attribute = ctx.hits.attribute();
         if self.pos_cnt == 60 {
-            if ee::le(get_dist3d(self.volume, self.char.pos, self.old_pos), ARRIVED) {
-                self.return_route(ctx.hits);
+            if ee::le(get_dist3d(self.volume, self.core.ch.pos, self.old_pos), ARRIVED) {
+                self.return_route(t, ctx.hits);
                 self.pos_cnt = 0;
                 self.change_route_flag = 1;
             } else {
@@ -1453,21 +1244,20 @@ impl RtownPc {
             }
         }
         if self.pos_cnt == 0 {
-            self.old_pos = self.char.pos;
+            self.old_pos = self.core.ch.pos;
         }
         self.pos_cnt += 1;
     }
 
     /// `ccRtownPC::whatShop` (0x00508e50): at a merchant's landmark, the
     /// heading to its dummy and the shop.
-    fn what_shop(&mut self) -> bool {
-        let town = self.town.borrow();
-        let row = town.tables.merchan_num.get(town.town as usize).copied().unwrap_or([-1; 5]);
+    fn what_shop(&mut self, t: &TownPcs) -> bool {
+        let row = t.tables.merchan_num.get(t.town as usize).copied().unwrap_or([-1; 5]);
         let k = row.iter().position(|&m| m == self.target_num);
         self.shop_num = -1;
         let Some(k) = k else { return false };
-        let dummy = town.merchants[k].unwrap_or([0, 0, 0, ONE]);
-        self.merchan_deg = get_dirc0(self.char.pos, dummy);
+        let dummy = t.merchants[k].unwrap_or([0, 0, 0, ONE]);
+        self.merchan_deg = get_dirc0(self.core.ch.pos, dummy);
         self.shop_num = k as i16;
         true
     }
@@ -1475,7 +1265,7 @@ impl RtownPc {
     /// `ccRtownPC::changeRoute(changetype)` (0x00509000): a new target among
     /// the four landmarks, never the last one, and the route there;
     /// `changetype` skips its first landmark.
-    fn change_route(&mut self, skip_first: bool, hits: &mut Hits, cc: &mut Genrand) {
+    fn change_route(&mut self, t: &TownPcs, skip_first: bool, hits: &mut Hits, cc: &mut Genrand) {
         self.navi.finish = 1;
         loop {
             let r = (cc.rand() & 3) as usize;
@@ -1487,33 +1277,32 @@ impl RtownPc {
         self.target_num_start = self.target_num_old;
         self.target_num_old = self.target_num;
         let mut goal = [0; 4];
-        self.town.borrow().landmark(self.target_num, &mut goal);
-        self.route_search(goal, hits);
+        t.landmark(self.target_num, &mut goal);
+        self.route_search(t, goal, hits);
         if skip_first {
             self.navi.landmark += 1;
         }
-        self.destination();
+        self.destination(t);
     }
 
     /// `ccRtownPC::returnRoute` (0x005090c0): back toward where it came from.
-    fn return_route(&mut self, hits: &mut Hits) {
+    fn return_route(&mut self, t: &TownPcs, hits: &mut Hits) {
         self.navi.finish = 1;
         let mut goal = [0; 4];
-        self.town.borrow().landmark(self.target_num_start, &mut goal);
+        t.landmark(self.target_num_start, &mut goal);
         self.target_num = self.target_num_start;
         self.target_num_start = self.target_num_old;
         self.target_num_old = self.target_num;
-        self.char.pos[3] = ONE;
-        self.route_search(goal, hits);
+        self.core.ch.pos[3] = ONE;
+        self.route_search(t, goal, hits);
         self.navi.landmark += 1;
-        self.destination();
+        self.destination(t);
     }
 
     /// `ccRtownPC::eventMode` (0x00508760): the PC under an event's
     /// `evActNum` (+0x2a8), always drawn.
-    fn event_mode(&mut self, ctx: &mut NpcCtx) -> bool {
-        let town = self.town.clone();
-        let s0 = rad2deg(self.char.dirc[2]) as u16 as i32;
+    fn event_mode(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs) -> bool {
+        let s0 = rad2deg(self.core.ch.dirc[2]) as u16 as i32;
         match self.ev_act_num {
             -2 | -1 => match self.ev_act_process {
                 0 => {
@@ -1528,13 +1317,13 @@ impl RtownPc {
                     }
                 }
                 1 => {
-                    let d = get_dist3d(self.volume, self.char.pos, self.ev_next_pos);
-                    let a = get_dirc(self.char.pos, self.ev_next_pos);
+                    let d = get_dist3d(self.volume, self.core.ch.pos, self.ev_next_pos);
+                    let a = get_dirc(self.core.ch.pos, self.ev_next_pos);
                     let s2 = rad2deg(a);
                     let chg = get_dirc_chg(s0 as u16 as i16, s2, 64);
                     let s = (s0 + (chg & 0xffff)) & 0xffff;
-                    self.char.dirc[2] = deg2rad(s as u16 as i16);
-                    let p = &mut self.char.pos;
+                    self.core.ch.dirc[2] = deg2rad(s as u16 as i16);
+                    let p = &mut self.core.ch.pos;
                     p[0] = add(p[0], mul(self.walk_spd, sinf(a)));
                     p[1] = sub(p[1], mul(self.walk_spd, cosf(a)));
                     if ee::le(d, EV_ARRIVED) {
@@ -1551,44 +1340,44 @@ impl RtownPc {
                     self.ev_act_process += 1;
                     // From Mutation on it comes in through the gate's
                     // effect (MUT gcmn 0x0052515c).
-                    if town.borrow().tables.later {
+                    if t.tables.later {
                         self.events.push(PcEvent::Transfer);
                     }
                 }
                 1 => {
-                    let t = add(self.transrate, FADE_STEP);
-                    self.transrate = t;
-                    if !ee::le(t, ONE) {
+                    let tr = add(self.transrate, FADE_STEP);
+                    self.transrate = tr;
+                    if !ee::le(tr, ONE) {
                         self.transrate = ONE;
                         self.ev_act_process += 1;
-                        self.act_cnt = 0;
+                        self.core.acts.cnt = 0;
                     }
                 }
                 2 => {
-                    self.entry_cmnd();
-                    ctx.hits.hit_enable(&mut self.char.hit);
-                    town.borrow_mut().shown += 1;
+                    self.core.entry.entry_cmnd();
+                    ctx.hits.hit_enable(&mut self.core.ch.hit);
+                    t.shown += 1;
                 }
                 _ => {}
             },
             4 | 5 => match self.ev_act_process {
                 0 => {
                     self.transrate = ONE;
-                    ctx.hits.hit_disable(&mut self.char.hit);
-                    town.borrow_mut().shown -= 1;
-                    self.delete_cmnd_list();
+                    ctx.hits.hit_disable(&mut self.core.ch.hit);
+                    t.shown -= 1;
+                    self.core.entry.delete_cmnd_list();
                     self.events.push(PcEvent::Transfer);
                     self.ev_act_process += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.cnt = 0;
                 }
                 1 => {
-                    let t = sub(self.transrate, FADE_STEP);
-                    self.transrate = t;
-                    if lt(t, 0) {
+                    let tr = sub(self.transrate, FADE_STEP);
+                    self.transrate = tr;
+                    if lt(tr, 0) {
                         self.transrate = 0;
                     }
-                    let c = self.act_cnt;
-                    self.act_cnt += 1;
+                    let c = self.core.acts.cnt;
+                    self.core.acts.cnt += 1;
                     if c >= 141 {
                         if self.ev_act_num == 5 {
                             return true;
@@ -1600,7 +1389,7 @@ impl RtownPc {
             },
             6 => {
                 if self.ev_act_process == 0 {
-                    ctx.hits.hit_disable(&mut self.char.hit);
+                    ctx.hits.hit_disable(&mut self.core.ch.hit);
                     self.set_anm(0);
                     self.transrate = 0;
                 }
@@ -1608,12 +1397,12 @@ impl RtownPc {
             7 => {
                 self.transrate = ONE;
                 self.ev_act_num = 2;
-                ctx.hits.hit_enable(&mut self.char.hit);
+                ctx.hits.hit_enable(&mut self.core.ch.hit);
             }
             // -3, row 139's drain (MUT gcmn 0x00525264): shown whole on
             // anmTbl[5], then anmTbl[6] with the drain's sounds and
             // effects, then a fade by 0.02 a frame; no other row moves.
-            -3 if self.row.row == DRAIN_ROW => match self.ev_act_process {
+            -3 if self.core.id() == DRAIN_ROW => match self.ev_act_process {
                 0 => {
                     self.transrate = ONE;
                     self.set_anm(5);
@@ -1623,16 +1412,16 @@ impl RtownPc {
                     if self.ev_act_process == 1 {
                         self.set_anm(6);
                     }
-                    self.events.push(PcEvent::Drained { pos: self.char.pos });
+                    self.events.push(PcEvent::Drained { pos: self.core.ch.pos });
                     self.ev_act_process = 3;
                 }
                 3 => {
-                    let t = sub(self.transrate, FADE_STEP);
-                    self.transrate = t;
-                    if lt(t, 0) {
+                    let tr = sub(self.transrate, FADE_STEP);
+                    self.transrate = tr;
+                    if lt(tr, 0) {
                         self.transrate = 0;
                         self.ev_act_process = 4;
-                        self.act_cnt = 0;
+                        self.core.acts.cnt = 0;
                     }
                 }
                 _ => {}
@@ -1642,16 +1431,16 @@ impl RtownPc {
                 if self.ev_act_process == 0 {
                     self.set_anm(0);
                     self.ev_act_process = 1;
-                    ctx.hits.hit_enable(&mut self.char.hit);
-                    town.borrow_mut().shown += 1;
-                    self.entry_cmnd();
+                    ctx.hits.hit_enable(&mut self.core.ch.hit);
+                    t.shown += 1;
+                    self.core.entry.entry_cmnd();
                 }
             }
         }
-        let mut p = self.char.pos;
+        let mut p = self.core.ch.pos;
         p[3] = ONE;
-        self.char.pos[2] = ctx.hits.land(p, ENTRY_LAND_MASK);
-        self.char.hit_attribute = ctx.hits.attribute();
+        self.core.ch.pos[2] = ctx.hits.land(p, ENTRY_LAND_MASK);
+        self.core.ch.hit_attribute = ctx.hits.attribute();
         false
     }
 
@@ -1659,32 +1448,45 @@ impl RtownPc {
     /// menu's command: 14 (`PcMenu` opening) and 15 (`TalkMenu`) turn it to
     /// face Kite (act 2; 14 also holds a chat group's talk), 0 (the menu
     /// closing) sends it back to walking or to its group.
-    pub fn influence(&mut self, cmd: i16) {
-        let mut t = self.town.borrow_mut();
+    pub fn influence(&mut self, cmd: i16, t: &mut TownPcs) {
         match cmd {
             0 => {
                 if self.think_type == 0 {
-                    self.act_num = 3;
-                    self.act_process = 0;
+                    self.core.acts.num = 3;
+                    self.core.acts.process = 0;
                 } else {
-                    self.act_num = 5;
-                    self.act_process = 1;
+                    self.core.acts.num = 5;
+                    self.core.acts.process = 1;
                     t.talk_flag = false;
                 }
             }
             14 => {
-                self.act_num = 2;
-                self.act_process = 0;
+                self.core.acts.num = 2;
+                self.core.acts.process = 0;
                 if self.think_type != 0 {
                     t.talk_flag = true;
                 }
             }
             15 => {
-                self.act_num = 2;
-                self.act_process = 0;
+                self.core.acts.num = 2;
+                self.core.acts.process = 0;
             }
             _ => {}
         }
+    }
+
+    /// `ccEntryObj::routine`, then `ccRtownPC::main`, with the town's
+    /// walking PCs' state `t`.
+    pub fn step(&mut self, ctx: &mut NpcCtx, t: &mut TownPcs) {
+        self.events.clear();
+        self.core.entry.routine(self.volume, &mut self.core.ch, ctx.player);
+        self.main(ctx, t);
+    }
+
+    /// `ccMenuCtrl::PcMenu` (gcmn 0x00541e90) for rows 30-79: the first
+    /// entry of the row's message table (`base->msg[0]`).
+    pub fn talk_line(&self) -> Option<(u32, i32)> {
+        (self.core.row.msg != 0).then_some((self.core.row.msg, 0))
     }
 
     /// `ccEvent::Execute`'s NPC instructions on a walking PC (main
@@ -1719,7 +1521,7 @@ impl RtownPc {
             NpcCommand::WalkDir { rot, dist, .. } => {
                 self.ev_act_num = -1;
                 self.ev_act_process = 0;
-                self.ev_next_pos = along(self.char.pos, rot, dist);
+                self.ev_next_pos = along(self.core.ch.pos, rot, dist);
             }
             NpcCommand::WalkMarker { .. } => {
                 let Some((p, _)) = marker else { return false };
@@ -1734,63 +1536,17 @@ impl RtownPc {
                 self.ev_next_pos = along(t, rot, dist);
             }
             NpcCommand::Turn { dirc, chg, .. } if chg != 0 => {
-                self.grot_deg = dirc;
-                self.grot_spd = spd(chg);
+                self.core.entry.grot_deg = dirc;
+                self.core.entry.grot_spd = spd(chg);
             }
             NpcCommand::Face { chg, .. } if chg != 0 => {
                 let Some(t) = target else { return false };
-                self.grot_deg = rad2deg(get_dirc(self.char.pos, t));
-                self.grot_spd = spd(chg);
+                self.core.entry.grot_deg = rad2deg(get_dirc(self.core.ch.pos, t));
+                self.core.entry.grot_spd = spd(chg);
             }
             _ => return false,
         }
         true
-    }
-}
-
-impl Npc for RtownPc {
-    fn code(&self) -> i32 {
-        i32::from(self.row.id)
-    }
-
-    fn flags(&self) -> u32 {
-        self.row.flags
-    }
-
-    fn char(&self) -> &Char {
-        &self.char
-    }
-
-    fn char_mut(&mut self) -> &mut Char {
-        &mut self.char
-    }
-
-    /// `ccEntryObj::routine`, then `ccRtownPC::main`.
-    fn step(&mut self, ctx: &mut NpcCtx) {
-        self.events.clear();
-        if !self.obj_flag {
-            return;
-        }
-        self.routine(ctx.player);
-        self.main(ctx);
-    }
-
-    fn listed(&self) -> bool {
-        self.listed
-    }
-
-    fn influence(&mut self, cmd: i16) {
-        RtownPc::influence(self, cmd);
-    }
-
-    /// `ccMenuCtrl::PcMenu` (gcmn 0x00541e90) for rows 30-79: the first
-    /// entry of the row's message table (`base->msg[0]`).
-    fn talk_line(&self) -> Option<(u32, i32)> {
-        (self.row.msg != 0).then_some((self.row.msg, 0))
-    }
-
-    fn command(&mut self, c: &NpcCommand, marker: Option<(V4, F)>, target: Option<V4>) -> bool {
-        RtownPc::command(self, c, marker, target)
     }
 }
 
@@ -1809,9 +1565,9 @@ pub fn enter(
     pool: &Pool,
     player: V4,
     hits: &mut Hits,
-) -> Result<(Rc<RefCell<TownPcs>>, Vec<RtownPc>)> {
+) -> Result<(TownPcs, Vec<RtownPc>)> {
     let rows = register_random_npc(cc, reserved, pool);
-    let town = Rc::new(RefCell::new(TownPcs::new(volume, town_no, town_file)?));
+    let mut town = TownPcs::new(volume, town_no, town_file)?;
     let mut pcs = Vec::new();
     let mut files = Files::new();
     for (slot, &r) in rows.iter().enumerate() {
@@ -1819,11 +1575,8 @@ pub fn enter(
             continue;
         }
         let row = NpcRow::of(volume, r as usize)?;
-        let model = {
-            let t = town.borrow();
-            load_model(archive, &mut files, &t.tables, &row)?
-        };
-        pcs.push(RtownPc::place(&town, &row, &model, slot as i32, player, hits, cc));
+        let model = load_model(archive, &mut files, &town.tables, &row)?;
+        pcs.push(RtownPc::place(&mut town, &row, &model, slot as i32, player, hits, cc));
     }
     Ok((town, pcs))
 }
@@ -1934,24 +1687,32 @@ mod tests {
         let Some(mut m) = mac_anu() else { return };
         // ccSys+0x358 0, Kite alone: the rows the game picks (eemu).
         let mut cc = piney_battle::rand::init_rand(0, &mut 0);
-        let (town, mut pcs) =
+        let (mut town, mut pcs) =
             enter(&m.archive, Volume::Inf, &m.town, 0, &mut cc, 1, &Pool::default(), crate::START_POS, &mut m.hits)
                 .unwrap();
-        let rows: Vec<i16> = pcs.iter().map(|p| p.row.id).collect();
+        let rows: Vec<i16> = pcs.iter().map(|p| p.core.row.id).collect();
         assert_eq!(rows, [37, 39, 49, 57, 44, 45, 47, 38, 79, 56, 62, 58, 61, 50, 63]);
         // Markers 0-2: Mac Anu's chat group round landmark 38; the rest walk.
-        let acts: Vec<i16> = pcs.iter().map(|p| p.act_num).collect();
+        let acts: Vec<i32> = pcs.iter().map(|p| p.core.acts.num).collect();
         assert_eq!(acts[..4], [5, 5, 5, 6]);
         assert!(acts[3..].iter().all(|&a| a == 6));
-        assert!(pcs.iter().all(|p| p.char.hit.sw && p.char.hit.kind == pc_kind(Volume::Inf) && !p.listed));
+        assert!(
+            pcs.iter().all(|p| p.core.ch.hit.sw && p.core.ch.hit.kind == pc_kind(Volume::Inf) && !p.core.entry.listed)
+        );
         assert_eq!(m.hits.chars.len(), 15);
         // Weapons on their hands: row 57 (Koji, ctwm3, a staff) in the right.
         let koji = &pcs[3];
         assert_eq!(koji.weapons, [("OBJ_t0 r hand".to_string(), "MDL_cw1hst04".to_string())]);
         assert_eq!(koji.tex_swap.as_deref(), Some("TEX_cwm3bod1v3"));
-        let file = &koji.char.body.file;
-        let swaps: Vec<_> =
-            koji.char.body.tex_swaps.iter().map(|&(m, t)| (file.ccs.object_name(m), file.ccs.object_name(t))).collect();
+        let file = &koji.core.ch.body.file;
+        let swaps: Vec<_> = koji
+            .core
+            .ch
+            .body
+            .tex_swaps
+            .iter()
+            .map(|&(m, t)| (file.ccs.object_name(m), file.ccs.object_name(t)))
+            .collect();
         assert_eq!(swaps, [(Some("MAT_tex"), Some("TEX_cwm3bod1v3"))], "changeTEX");
         // Kite standing at the gate: the two walkers from the plaza head
         // south down the stairs, shown and on the command list.
@@ -1963,31 +1724,34 @@ mod tests {
             crate::camera::Scheme::new(0),
         );
         let mut rand = crate::Rand(1);
+        let mut save = piney_data::save::SaveData::default();
         for _ in 0..120 {
-            let t = cam.tcam.clone();
+            let c = cam.tcam.clone();
             for pc in pcs.iter_mut() {
                 let mut ctx = NpcCtx {
                     player: crate::START_POS,
                     player_dirc: crate::START_DIRC,
-                    view: crate::chara::char::View { player: crate::START_POS, cam: t.pos, deg1: t.deg[1], eye: false },
-                    cam: &t,
+                    view: crate::chara::char::View { player: crate::START_POS, cam: c.pos, deg1: c.deg[1], eye: false },
+                    cam: &c,
                     hits: &mut m.hits,
                     rand: &mut rand,
                     cc: &mut cc,
+                    save: &mut save,
+                    race: None,
                 };
-                Npc::step(pc, &mut ctx);
+                pc.step(&mut ctx, &mut town);
             }
         }
         for k in [3, 10] {
             let p = &pcs[k];
-            assert_eq!((p.act_num, p.target_num), (3, 48));
-            assert!(ee::f(p.char.pos[1]) < 3500.0 && p.listed && p.char.drawn, "{k}");
+            assert_eq!((p.core.acts.num, p.target_num), (3, 48));
+            assert!(ee::f(p.core.ch.pos[1]) < 3500.0 && p.core.entry.listed && p.core.ch.drawn, "{k}");
         }
-        assert!(town.borrow().shown >= 2);
+        assert!(town.shown >= 2);
         // Spoken to: facing Kite; let go: walking on.
-        pcs[3].influence(14);
-        assert_eq!(pcs[3].act_num, 2);
-        pcs[3].influence(0);
-        assert_eq!((pcs[3].act_num, pcs[3].act_process), (3, 0));
+        pcs[3].influence(14, &mut town);
+        assert_eq!(pcs[3].core.acts.num, 2);
+        pcs[3].influence(0, &mut town);
+        assert_eq!((pcs[3].core.acts.num, pcs[3].core.acts.process), (3, 0));
     }
 }

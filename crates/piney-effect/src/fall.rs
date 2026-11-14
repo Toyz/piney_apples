@@ -595,7 +595,7 @@ impl FallElement {
                 let epw = space::p2w(ep, player, bounds);
                 let d = drawelm::get_dist(cx.assets.volume, tp, ep);
                 let tilt = ee::atan2f(ee::sub(tp[2], ep[2]), d);
-                let dirc = drawelm::get_dirc(tp, ep);
+                let dirc = piney_battle::geom::get_dirc(tp, ep);
                 let m = vu::rot_z(&vu::rot_z(&vu::rot_y(&vu::UNIT, tilt), dirc), 0xbfc9_0fdb);
                 let slot = &mut e.elements[i];
                 let a = &mut slot.elm.base.anim;

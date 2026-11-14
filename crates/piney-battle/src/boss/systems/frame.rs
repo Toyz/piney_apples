@@ -6,8 +6,8 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::super::{BodyDraw, BossBase, Cx, Out, dist, p2w, w2p};
-use crate::enemy_ai::get_dirc;
 use crate::geom;
+use crate::geom::get_dirc;
 
 impl BossBase {
     /// `CalcReal`, `CalcTargetInfo` and the centre ([`Self::centre`]).

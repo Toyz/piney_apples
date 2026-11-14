@@ -276,7 +276,7 @@ impl BossCam {
     /// player, and (0, 0, the heading from him to the boss, 1).
     fn pos_view_dirc(&mut self, player: V4, view_at: V4) -> V4 {
         self.pos = player;
-        [0, 0, crate::town::merchant::get_dirc(self.pos, view_at), ONE]
+        [0, 0, piney_battle::geom::get_dirc(self.pos, view_at), ONE]
     }
 
     /// `ccBossCam::SetTransfer()` (0x00460930): the pad, or a reset easing

@@ -798,78 +798,72 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::Boss(_, piney_battle::boss::Out::SkillStart { who, sid }) => {
             fx.skill_start(h, cref(*who), *sid, 0, 0);
         }
-        // An event NPC's effTransfer as it comes or goes (a PC's act 4,
-        // the Administrator's sysopeAct); his act -5's
-        // effSkillExecForceRing(this, 4, 1),
-        // effSkillExecForceRing2(this, 4, 1) and effSkillTornadeRings(this,
-        // 4, 3) at his place.
-        Show::Npc(who, SysopEvent::Transfer) => {
-            fx.transfer(h, cref(*who));
-        }
-        Show::Npc(who, SysopEvent::Vanish) => {
-            let c = cref(*who);
-            let pos = h.char_pos(c);
-            let (ctrl, mut cx) = fx.split(h);
-            piney_effect::skillstart::eff_skill_exec_force_ring(ctrl, &mut cx, c, 4, 1);
-            piney_effect::skillstart::eff_skill_exec_force_ring2(ctrl, &mut cx, c, 4, 1);
-            piney_effect::tornado::eff_skill_tornade_rings_pos(ctrl, &mut cx, pos, 4, 3);
-        }
         Show::Cast(o) => cast_start(fx, h, o),
         _ => {}
     }
 }
 
-/// The starters a town's own characters called at the entry control's
-/// slot, on each by its handle: a flag's `effOpenBox`, a dog's dust
+/// The starters an area's own characters called at the entry control's
+/// slot, on each by its handle: a flag's `effOpenBox`; the NPC list's: the
+/// Administrator's `effTransfer` as he comes or goes and his act -5's
+/// `effSkillExecForceRing(this, 4, 1)`, `effSkillExecForceRing2(this, 4,
+/// 1)` and `effSkillTornadeRings(this, 4, 3)` at his place, a dog's dust
 /// (`ccDog::effect`'s effSmoke), a Grunty's puffs and growing up
 /// (`burpEff`, `evoEff`, `effect`, `pgDead`), a walking PC's
 /// `effTransfer`, box, crystal, drain and running dust (ccRtownPC).
 fn cast_start(fx: &mut Effects, h: &mut BattleHost, o: &piney_world::world::cast::Out) {
     use piney_world::grunty::GruntyEvent as G;
     use piney_world::grunty::race::RaceEvent;
+    use piney_world::systems::npcs::NpcEvent;
     use piney_world::town::dog::DogEvent;
     use piney_world::town::pc::PcEvent;
     use piney_world::world::cast::Out;
-    let own_ref = |code: i32| CharId::Npc(code).handle();
-    match *o {
+    match o {
         Out::Race(RaceEvent::OpenBox(pos)) => {
-            fx.open_box(h, pos);
+            fx.open_box(h, *pos);
         }
-        Out::Dog { e: DogEvent::Smoke { pos, v }, .. } => {
-            fx.smoke(h, pos, v, 0x4040_0000, 10, 1, 512, 32);
-        }
-        Out::Grunty { code, ref e } => match *e {
-            G::Smoke { pos, v, scale, life, kind } => {
-                fx.smoke(h, pos, v, scale, life, kind, 512, 32);
-            }
-            G::Evolve { .. } => {
-                fx.evolve_pg(h, own_ref(code));
-            }
-            G::Grow { pos, height } => {
-                fx.grow_pg(h, pos, height);
-            }
-            _ => {}
-        },
-        Out::Pc { code, ref e } => match *e {
-            PcEvent::Transfer => {
-                fx.transfer(h, own_ref(code));
-            }
-            PcEvent::Vanish { pos, crystal } => {
-                fx.open_box(h, pos);
-                if crystal {
-                    fx.virus_crystal(h, pos);
+        Out::Npc { code, e } => {
+            let me = CharId::Npc(*code).handle();
+            match *e {
+                NpcEvent::Merchant(SysopEvent::Transfer) | NpcEvent::Pc(PcEvent::Transfer) => {
+                    fx.transfer(h, me);
                 }
+                NpcEvent::Merchant(SysopEvent::Vanish) => {
+                    let pos = h.char_pos(me);
+                    let (ctrl, mut cx) = fx.split(h);
+                    piney_effect::skillstart::eff_skill_exec_force_ring(ctrl, &mut cx, me, 4, 1);
+                    piney_effect::skillstart::eff_skill_exec_force_ring2(ctrl, &mut cx, me, 4, 1);
+                    piney_effect::tornado::eff_skill_tornade_rings_pos(ctrl, &mut cx, pos, 4, 3);
+                }
+                NpcEvent::Dog(DogEvent::Smoke { pos, v }) => {
+                    fx.smoke(h, pos, v, 0x4040_0000, 10, 1, 512, 32);
+                }
+                NpcEvent::Grunty(G::Smoke { pos, v, scale, life, kind }) => {
+                    fx.smoke(h, pos, v, scale, life, kind, 512, 32);
+                }
+                NpcEvent::Grunty(G::Evolve { .. }) => {
+                    fx.evolve_pg(h, me);
+                }
+                NpcEvent::Grunty(G::Grow { pos, height }) => {
+                    fx.grow_pg(h, pos, height);
+                }
+                NpcEvent::Pc(PcEvent::Vanish { pos, crystal }) => {
+                    fx.open_box(h, pos);
+                    if crystal {
+                        fx.virus_crystal(h, pos);
+                    }
+                }
+                NpcEvent::Pc(PcEvent::Drained { pos }) => {
+                    fx.after_drain(h, me, 0);
+                    fx.virus_crystal(h, pos);
+                    fx.remove_trap(h, pos, 103, 121);
+                }
+                NpcEvent::Pc(PcEvent::Step { feet: Some(feet), dirc_z, speed, .. }) => {
+                    fx.paw_smoke(h, feet, dirc_z, speed);
+                }
+                _ => {}
             }
-            PcEvent::Drained { pos } => {
-                fx.after_drain(h, own_ref(code), 0);
-                fx.virus_crystal(h, pos);
-                fx.remove_trap(h, pos, 103, 121);
-            }
-            PcEvent::Step { feet: Some(feet), dirc_z, speed, .. } => {
-                fx.paw_smoke(h, feet, dirc_z, speed);
-            }
-            _ => {}
-        },
+        }
         _ => {}
     }
 }
@@ -1035,9 +1029,9 @@ fn char_pos(scene: &Scene, c: CharRef) -> V4 {
 
 /// The area's own character `c` names ([`CharId::Npc`]'s handle),
 /// `ccEvent::GetNpc`'s.
-fn npc<'a>(w: &'a FxWorld, c: CharRef) -> Option<&'a dyn piney_world::event::entry::Npc> {
+fn npc<'a>(w: &'a FxWorld, c: CharRef) -> Option<&'a piney_world::systems::npcs::Npc> {
     match CharId::from_handle(c)? {
-        CharId::Npc(code) => w.own?.npc(code),
+        CharId::Npc(id) => w.own?.npcs()?.get(id),
         _ => None,
     }
 }
@@ -1082,7 +1076,7 @@ impl Host for BattleHost<'_, '_> {
     }
     fn char_pos(&self, c: CharRef) -> V4 {
         match npc(self.w, c) {
-            Some(n) => n.char().pos,
+            Some(n) => n.core().ch.pos,
             None => char_pos(self.w.scene, c),
         }
     }
@@ -1095,7 +1089,7 @@ impl Host for BattleHost<'_, '_> {
     }
     fn char_height(&self, c: CharRef) -> u32 {
         if let Some(n) = npc(self.w, c) {
-            return n.char().height;
+            return n.core().ch.height;
         }
         self.w.scene.chars.get(c as usize).map_or(0, |ch| ch.base().height)
     }

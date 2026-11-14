@@ -169,7 +169,7 @@ fn clump(cx: &mut Cx, file: &str, name: &str, matrix: vu::M4, alpha: F, clut: Op
 fn way(a: V4, b: V4) -> (F, F) {
     let (dx, dy) = (ee::sub(b[0], a[0]), ee::sub(b[1], a[1]));
     let d = ee::sqrt(ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
-    (ee::atan2f(ee::sub(a[2], b[2]), d), piney_battle::enemy_ai::get_dirc(a, b))
+    (ee::atan2f(ee::sub(a[2], b[2]), d), piney_battle::geom::get_dirc(a, b))
 }
 
 /// A laser head's clump matrix (`_Init`'s +0x2c0, moved to the head).
@@ -207,7 +207,7 @@ fn thunder(cx: &mut Cx, pts: &[V4], alpha: F, width: F) {
         (m[0][0], m[1][1], m[2][2]) = (width, ee::mul(0x3a91_a2b4, d3), width);
         let m = vu::rot_z(&m, NEG_HALF_PI);
         let m = vu::rot_y(&m, pt);
-        let m = vu::rot_z(&m, piney_battle::enemy_ai::get_dirc(a, b));
+        let m = vu::rot_z(&m, piney_battle::geom::get_dirc(a, b));
         let mut m = vu::rot_z(&m, NEG_HALF_PI);
         m[3] = [a[0], a[1], a[2], ONE];
         clump(cx, "particle", "CMP_x012", m, alpha, None);

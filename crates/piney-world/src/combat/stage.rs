@@ -100,13 +100,9 @@ pub enum Show {
     /// effects, the menu's locks, the camera, the stage), with its scene
     /// index.
     Boss(usize, piney_battle::boss::Out),
-    /// An event NPC's start, with its stand-in's scene index
-    /// ([`crate::field::npcs`]): `effTransfer` as a PC or the Administrator
-    /// comes or goes, the Administrator's act -5 (its rings and sound).
-    Npc(usize, crate::town::merchant::SysopEvent),
     /// What the area's own characters started at the entry control's slot
-    /// (a town's race task and NPC list: [`crate::world::cast::Out`]), in
-    /// their order; a character in it is named by its code.
+    /// (a town's race task, the NPC list: [`crate::world::cast::Out`]), in
+    /// their order; an NPC in it is named by its code.
     Cast(crate::world::cast::Out),
     /// The riding Grunty's sounds and dust (`piney_battle::ride::Out`'s
     /// `Sound` and `Smoke`; [`super::ride`]).
@@ -272,13 +268,7 @@ impl Stage<'_> {
     /// on the ground, all three through `W2PPos`.
     pub fn check_camera_deg(&self, pos: V4, deg: i16) -> bool {
         let cam = self.camera.active();
-        let p = self.w2p_of(pos);
-        let c = self.w2p_of(cam.pos);
-        let v = self.w2p_of(cam.view);
-        let a = ee::rad2deg(ee::atan2f(ee::sub(p[1], c[1]), ee::sub(p[0], c[0])));
-        let b = ee::rad2deg(ee::atan2f(ee::sub(v[1], c[1]), ee::sub(v[0], c[0])));
-        let d = (i32::from(deg) + (i32::from(a) - i32::from(b))) as i16;
-        d > 0 && i32::from(d) < 2 * i32::from(deg)
+        geom::camera_deg(self.w2p_of(pos), self.w2p_of(cam.pos), self.w2p_of(cam.view), deg)
     }
 
     /// `ccGetCameraTransparency(pos, width, height, far, len, &hide)`

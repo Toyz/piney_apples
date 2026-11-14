@@ -402,7 +402,7 @@ struct Merchants {
 fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &str, ms: &mut Merchants) -> bool {
     use piney_world::camera::kind;
     use piney_world::chara::char::View;
-    use piney_world::event::entry::{Npc, NpcCtx};
+    use piney_world::systems::npcs::NpcCtx;
     use piney_world::town::merchant;
     let n = |i: usize| hex(w[i]);
     let v3 = |i: usize| [n(i), n(i + 1), n(i + 2), ee::ONE];
@@ -435,14 +435,14 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
                             "{{\"id\": {}, \"name\": {:?}, \"pos\": {}, \"pos_p\": {}, \"dirc\": {}, ",
                             "\"default_dirc\": {}, \"anim\": {:?}, \"hit_sw\": {}}}"
                         ),
-                        m.id,
-                        m.name,
-                        list(&m.ch.pos),
-                        list(&m.ch.pos_p),
-                        list(&m.ch.dirc),
+                        m.core.code(),
+                        m.core.row.name,
+                        list(&m.core.ch.pos),
+                        list(&m.core.ch.pos_p),
+                        list(&m.core.ch.dirc),
                         list(&m.default_dirc),
-                        m.ch.anim_name().unwrap_or(""),
-                        u8::from(m.ch.hit.sw)
+                        m.core.ch.anim_name().unwrap_or(""),
+                        u8::from(m.core.ch.hit.sw)
                     )
                 })
                 .collect();
@@ -458,15 +458,15 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
                     "inf" => m.influence(n(k + 2) as i16),
                     "breed" => m.breeder_influence(n(k + 2) as i16),
                     "grot" => {
-                        (m.entry.grot_deg, m.entry.grot_spd) = (n(k + 2) as i16, n(k + 3) as i16);
+                        (m.core.entry.grot_deg, m.core.entry.grot_spd) = (n(k + 2) as i16, n(k + 3) as i16);
                         k += 1;
                     }
                     "fade" => {
-                        (m.entry.fade_flag, m.entry.fade_cnt) = (n(k + 2) as i16, n(k + 3) as i16);
+                        (m.core.entry.fade_flag, m.core.entry.fade_cnt) = (n(k + 2) as i16, n(k + 3) as i16);
                         k += 1;
                     }
                     // The event's `npc_act` on him: actNum N, actProcess 0.
-                    "act" => (m.act_num, m.act_process) = (n(k + 2) as i32, 0),
+                    "act" => (m.core.acts.num, m.core.acts.process) = (n(k + 2) as i32, 0),
                     op => panic!("merch: {op}?"),
                 }
                 k += 3;
@@ -486,18 +486,31 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
             hits.set_hit_sw(&mut ms.kite, kite_hit);
             hits.sync(&ms.kite);
             let mut cc = piney_battle::rand::Genrand::default();
-            let mut ctx = NpcCtx { player, player_dirc: [0; 4], view, cam: &cam, hits, rand: &mut rand, cc: &mut cc };
+            let mut save = piney_data::save::SaveData::default();
+            let mut ctx = NpcCtx {
+                player,
+                player_dirc: [0; 4],
+                view,
+                cam: &cam,
+                hits,
+                rand: &mut rand,
+                cc: &mut cc,
+                save: &mut save,
+                race: None,
+            };
             for m in &mut ms.list {
                 m.status_on = ms.status;
             }
-            merchant::step_all(&mut ms.list, &mut ctx);
+            for m in &mut ms.list {
+                m.step(&mut ctx);
+            }
             // A merchant whose main returned 1 is deleted from the list.
             ms.list.retain(|m| !m.gone);
             let out: Vec<String> = ms
                 .list
                 .iter()
                 .map(|m| {
-                    let (e, c, f) = (&m.entry, &m.ch, &m.frame);
+                    let (e, c, f) = (&m.core.entry, &m.core.ch, &m.frame);
                     format!(
                         concat!(
                             "{{\"pos\": {}, \"pos_p\": {}, \"dirc\": {}, \"pl_dist\": {}, \"pl_dirc\": {}, ",
@@ -525,11 +538,11 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
                         u8::from(f.drawn),
                         c.anim_name().unwrap_or(""),
                         c.play.time,
-                        m.act_num,
-                        m.act_process,
+                        m.core.acts.num,
+                        m.core.acts.process,
                         m.anm_old,
-                        m.body_hit_flag,
-                        m.body_hit_cnt,
+                        m.core.touch.flag,
+                        m.core.touch.cnt,
                         list(&c.hit.offset),
                         if f.stepped { mat(&m.root()) } else { "null".into() }
                     )
@@ -566,9 +579,11 @@ struct PcRun {
     kite: KiteRun,
     /// The one `ccRand`.
     cc: piney_battle::rand::Genrand,
-    town: std::rc::Rc<std::cell::RefCell<piney_world::town::pc::TownPcs>>,
+    town: piney_world::town::pc::TownPcs,
     pcs: Vec<piney_world::town::pc::RtownPc>,
     kite_char: u32,
+    /// `saveData` (the walking PCs read none of it).
+    save: piney_data::save::SaveData,
 }
 
 #[derive(Default)]
@@ -611,7 +626,7 @@ fn pcs_json(
     let p: Vec<String> = pcs
         .iter()
         .map(|pc| {
-            let c = &pc.char;
+            let c = &pc.core.ch;
             let route: Vec<u32> =
                 pc.navi.route[..=(pc.navi.step.clamp(0, 47) as usize)].iter().map(|&b| u32::from(b)).collect();
             let events: Vec<String> = pc
@@ -637,16 +652,16 @@ fn pcs_json(
                     "\"hitpos\": {}, \"offset\": {}, \"mask2\": {}, \"shop\": {}, \"mdeg\": {}, \"crflag\": {}, ",
                     "\"events\": [{}]{}}}"
                 ),
-                pc.row.id,
+                pc.core.row.id,
                 list(&c.pos),
                 list(&c.pos_p),
                 list(&c.dirc),
-                pc.act_num,
-                pc.act_process,
-                pc.act_cnt,
+                pc.core.acts.num,
+                pc.core.acts.process,
+                pc.core.acts.cnt,
                 pc.pos_cnt,
-                pc.body_hit_flag,
-                pc.body_hit_cnt,
+                pc.core.touch.flag,
+                pc.core.touch.cnt,
                 pc.chat_cnt,
                 pc.target_num,
                 pc.target_num_old,
@@ -660,12 +675,12 @@ fn pcs_json(
                 c.transparency,
                 c.set_transparency,
                 c.hit_attribute,
-                pc.pl_dist,
-                pc.pl_dirc,
+                pc.core.entry.pl_dist,
+                pc.core.entry.pl_dirc,
                 pc.dist,
-                u8::from(pc.disp_sw),
-                u8::from(pc.freeze),
-                u8::from(pc.listed),
+                u8::from(pc.core.entry.disp_sw),
+                u8::from(pc.core.entry.freeze),
+                u8::from(pc.core.entry.listed),
                 u8::from(c.drawn),
                 c.anim_name().unwrap_or(""),
                 c.play.time,
@@ -697,7 +712,7 @@ fn later(pc: &piney_world::town::pc::RtownPc) -> String {
         u8::from(pc.race_hide),
         pc.ev_act_num,
         pc.ev_act_process,
-        pc.char.hit.kind
+        pc.core.ch.hit.kind
     )
 }
 
@@ -779,8 +794,8 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let mut cc = piney_battle::rand::init_rand(count, &mut 0);
             let (town, list_) =
                 pc::enter(archive, volume, town01, 0, &mut cc, reserved, &pool, pos, &mut hits).unwrap();
-            let r = PcRun { hits, kite, cc, town, pcs: list_, kite_char: 0 };
-            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
+            let r = PcRun { hits, kite, cc, town, pcs: list_, kite_char: 0, save: Default::default() };
+            println!("{{{}}}", pcs_json(&r.town, &r.cc, &r.pcs));
             pcs.run = Some(r);
         }
         "pchit" => {
@@ -812,62 +827,53 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
         }
         "pcpos" => {
             let r = pcs.run.as_mut().unwrap();
-            r.pcs[n(1) as usize].char.pos = [n(2), n(3), n(4), n(5)];
+            r.pcs[n(1) as usize].core.ch.pos = [n(2), n(3), n(4), n(5)];
             println!("{{}}");
         }
         "pcinfl" => {
             let r = pcs.run.as_mut().unwrap();
-            r.pcs[n(1) as usize].influence(n(2) as i16);
+            r.pcs[n(1) as usize].influence(n(2) as i16, &mut r.town);
             println!("{{}}");
         }
         "pcadd" => {
             let r = pcs.run.as_mut().unwrap();
             let row = piney_world::chara::npc::NpcRow::of(volume, n(1) as usize).unwrap();
-            let model = {
-                let t = r.town.borrow();
-                let mut files = pc::Files::new();
-                pc::load_model(archive, &mut files, &t.tables, &row).unwrap()
-            };
+            let model = pc::load_model(archive, &mut pc::Files::new(), &r.town.tables, &row).unwrap();
             let pos = r.kite.pos();
-            let pc = pc::RtownPc::place(&r.town, &row, &model, n(2) as i32, pos, &mut r.hits, &mut r.cc);
+            let pc = pc::RtownPc::place(&mut r.town, &row, &model, n(2) as i32, pos, &mut r.hits, &mut r.cc);
             r.pcs.push(pc);
-            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
+            println!("{{{}}}", pcs_json(&r.town, &r.cc, &r.pcs));
         }
         "pcsearch" => {
             let r = pcs.run.as_mut().unwrap();
             let (code, stage) = (n(1) as i32, n(2) as i16);
             let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
-            let set_up = pc::Search::set_up(&r.town.borrow(), town01, code, stage).unwrap();
-            let model = {
-                let t = r.town.borrow();
-                let mut files = pc::Files::new();
-                pc::load_model(archive, &mut files, &t.tables, &row).unwrap()
-            };
+            let set_up = pc::Search::set_up(&r.town, town01, code, stage).unwrap();
+            let model = pc::load_model(archive, &mut pc::Files::new(), &r.town.tables, &row).unwrap();
             let (pos, origin) = (r.kite.pos(), pc::Origin::Search(set_up));
-            let pc = pc::RtownPc::place_as(&r.town, &row, &model, origin, pos, &mut r.hits, &mut r.cc);
+            let pc = pc::RtownPc::place_as(&mut r.town, &row, &model, origin, pos, &mut r.hits, &mut r.cc);
             r.pcs.push(pc);
-            println!("{{{}}}", pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
+            println!("{{{}}}", pcs_json(&r.town, &r.cc, &r.pcs));
         }
         "pcsearchat" => {
             // The SEARCH set-up alone in town TOWN, Kite at (0, 0, 0, 0).
             let (no, code, stage) = (n(1) as i32, n(2) as i32, n(3) as i16);
             let mut town = piney_world::town::Town::open(archive, volume, no, false).unwrap();
-            let t = pc::TownPcs::new(volume, no, &town.core.file).unwrap();
+            let mut t = pc::TownPcs::new(volume, no, &town.core.file).unwrap();
             let mut cc = piney_battle::rand::init_rand(0, &mut 0);
-            let t = std::rc::Rc::new(std::cell::RefCell::new(t));
-            let set_up = pc::Search::set_up(&t.borrow(), &town.core.file, code, stage).unwrap();
+            let set_up = pc::Search::set_up(&t, &town.core.file, code, stage).unwrap();
             let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
-            let model = pc::load_model(archive, &mut pc::Files::new(), &t.borrow().tables, &row).unwrap();
+            let model = pc::load_model(archive, &mut pc::Files::new(), &t.tables, &row).unwrap();
             let origin = pc::Origin::Search(set_up);
-            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.core.hits, &mut cc);
-            println!("{{{}}}", pcs_json(&t.borrow(), &cc, &[pc]));
+            let pc = pc::RtownPc::place_as(&mut t, &row, &model, origin, [0; 4], &mut town.core.hits, &mut cc);
+            println!("{{{}}}", pcs_json(&t, &cc, &[pc]));
         }
         "pcrace" => {
-            pcs.run.as_mut().unwrap().town.borrow_mut().race_hold = n(1) != 0;
+            pcs.run.as_mut().unwrap().town.race_hold = n(1) != 0;
             println!("{{}}");
         }
         "pcstatus" => {
-            pcs.run.as_mut().unwrap().town.borrow_mut().event_status[n(1) as usize] = n(2) as u8;
+            pcs.run.as_mut().unwrap().save.set_event_status(n(1) as usize, n(2) as u8);
             println!("{{}}");
         }
         "pcev" => {
@@ -875,7 +881,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let r = pcs.run.as_mut().unwrap();
             let pc = &mut r.pcs[n(1) as usize];
             let (a, b, c) = (n(3) as i16, n(4) as i16, n(5) as i16);
-            let npc = pc.row.id;
+            let npc = pc.core.row.id;
             let cmd = match n(2) {
                 0 => NpcCommand::Act { npc, param: a },
                 1 => NpcCommand::WalkPos { npc, x: a, y: b, z: c },
@@ -885,7 +891,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             println!("{{\"ok\": {}}}", u8::from(pc.command(&cmd, None, None)));
         }
         "pcpad" => {
-            use piney_world::event::entry::{Npc, NpcCtx};
+            use piney_world::systems::npcs::NpcCtx;
             let r = pcs.run.as_mut().unwrap();
             r.kite.frame(kite_run::pad_at(w, 1), &mut r.hits);
             r.kite_char = r.hits.char_type;
@@ -906,10 +912,12 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
                     hits: &mut r.hits,
                     rand: &mut r.kite.combat.rand,
                     cc: &mut r.cc,
+                    save: &mut r.save,
+                    race: None,
                 };
-                pc.step(&mut ctx);
+                pc.step(&mut ctx, &mut r.town);
             }
-            println!("{{\"kite\": {}, {}}}", kite_json(r), pcs_json(&r.town.borrow(), &r.cc, &r.pcs));
+            println!("{{\"kite\": {}, {}}}", kite_json(r), pcs_json(&r.town, &r.cc, &r.pcs));
         }
         _ => return false,
     }

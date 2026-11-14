@@ -143,19 +143,6 @@ impl Ai {
     }
 }
 
-/// `ccGetDircChg(cur, tgt, spd)` (main 0x001d9eb0); the game's switch on
-/// `spd & 0xf0000` can never match 1 or 2, so any other rate takes the
-/// whole step.
-pub use piney_battle::geom::get_dirc_chg;
-
-/// `ccSetDirc(&r, to, spd)` (main 0x001da0b0): `r` turned toward `to`, both
-/// through `RAD2DEG`, the result through `DEG2RAD`.
-pub fn set_dirc(r: &mut F, to: F, spd: i32) {
-    let s = ee::rad2deg(*r);
-    let chg = get_dirc_chg(s, ee::rad2deg(to), spd);
-    *r = ee::deg2rad(s.wrapping_add(chg as i16));
-}
-
 /// The `ccSpcChar` members the event instructions touch, borrowed from
 /// Kite or a party member (the battle's record of it,
 /// [`crate::combat::spc::SpcRec`]).
@@ -344,22 +331,6 @@ pub enum PartyLeave {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn dirc_chg_quirks() {
-        // A quarter of the way, at least 1.
-        assert_eq!(get_dirc_chg(0, 1024, 64), 256);
-        assert_eq!(get_dirc_chg(0, 3, 64), 1);
-        assert_eq!(get_dirc_chg(0, -1024, 64), -256);
-        // Past half a turn the other way round.
-        assert_eq!(get_dirc_chg(-30000, 30000, 64), -(16 * 5536) / 64);
-        // Modes 0x10000 and 0x20000 are not told apart: the whole step,
-        // capped at 24576.
-        assert_eq!(get_dirc_chg(0, 1000, 0x1_0000), 16_000);
-        assert_eq!(get_dirc_chg(0, 3000, -5), 24576);
-        // A rate of 0 (the game traps): the whole step, not a panic.
-        assert_eq!(get_dirc_chg(0, 1000, 0), 16_000);
-    }
 
     #[test]
     fn manual_mode_keeps_the_heading() {

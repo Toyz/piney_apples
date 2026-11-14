@@ -6,6 +6,8 @@ pub mod ai;
 pub mod arms;
 pub mod body;
 pub mod char;
+#[doc(alias = "ccEntryObj")]
+pub mod entry_obj;
 pub mod foe;
 pub mod kite;
 pub mod motion;

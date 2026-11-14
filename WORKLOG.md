@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-592 entries: audio 46, battle 158, build 34, content 3, decomp 35, disc 6, engine 36, format 18, iop 3, render 133, save 16, script 64, test 251, tooling 59, ui 107, video 18, volumes 100, world 187. 155 entries still have open questions - [listed below](#still-open).
+595 entries: audio 46, battle 159, build 34, content 3, decomp 38, disc 6, engine 38, format 18, iop 3, render 133, save 16, script 64, test 252, tooling 59, ui 107, video 18, volumes 100, world 190. 158 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -604,9 +604,15 @@ The [reference](docs/README.md) says what is true now.
 | 590 | [One world, leg 13: no timing moved in the warp shots, each draw lit as the tasks before it left the lights, full checks and goldens](worklog/0590-one-world-leg-13-no-timing-moved-in-the-warp-shots-each.md) | 2026-11-14 | world, render, decomp, test |
 | 591 | [The minimaps' arrow pulses run on from power-on as the game's statics](worklog/0591-the-minimaps-arrow-pulses-run-on-from-power-on-as-the-game.md) | 2026-11-14 | world, decomp, volumes, test |
 | 592 | [A town map's signs are gcmn's data: RT01ICONPOS-RT05ICONPOS carry from visit to visit until GCMN.PRG loads again](worklog/0592-a-town-map-s-signs-are-gcmn-s-data-rt01iconpos-rt05iconpos.md) | 2026-11-14 | world, decomp, volumes, test |
+| 593 | [An NPC system, leg 1: the game's NPC classes surveyed, the design, the angle helpers and ccEntryObj once, a Core for the merchant and the dog](worklog/0593-an-npc-system-leg-1-the-game-s-npc-classes-surveyed-the.md) | 2026-11-14 | world, decomp, engine |
+| 594 | [An NPC system, leg 2: the walking PC and the Grunty on Core, one NPC list and one event channel in every area, a field's NPC one object](worklog/0594-an-npc-system-leg-2-the-walking-pc-and-the-grunty-on-core.md) | 2026-11-14 | world, decomp, engine |
+| 595 | [An NPC system, leg 3: the boss starts in the entry walk and is made after it, the battle's NPC list gone with GetNpc written once, tests for the list's order and a dungeon PC's steps](worklog/0595-an-npc-system-leg-3-the-boss-starts-in-the-entry-walk-and.md) | 2026-11-14 | world, battle, decomp, test |
 
 ## Still open
 
+- [595. An NPC system, leg 3: the boss starts in the entry walk and is made after it, the battle's NPC list gone with GetNpc written once, tests for the list's order and a dungeon PC's steps](worklog/0595-an-npc-system-leg-3-the-boss-starts-in-the-entry-walk-and.md) - where ccThEntryCtrl (INF GCMN.PRG:0x00431970, MUT 0x00447300) is on Outbreak and Quarantine, which the symbol carry...
+- [594. An NPC system, leg 2: the walking PC and the Grunty on Core, one NPC list and one event channel in every area, a field's NPC one object](worklog/0594-an-npc-system-leg-2-the-walking-pc-and-the-grunty-on-core.md) - nothing about the NPCs.
+- [593. An NPC system, leg 1: the game's NPC classes surveyed, the design, the angle helpers and ccEntryObj once, a Core for the merchant and the dog](worklog/0593-an-npc-system-leg-1-the-game-s-npc-classes-surveyed-the.md) (2 questions) - which id the events and menus find a grown Grunty by: the port names it by its first row while ccPGuso changes its base...
 - [589. One world, leg 12: one mode for every area, AddSpcItem's view, event_11_warp bisected](worklog/0589-one-world-leg-12-one-mode-for-every-area-addspcitem-s-view.md) (3 questions) - the exact frame offset One Kite moved between Kite's act 12 in Mac Anu and area 15's arrival (event_11_warp 0255, 0260...
 - [588. One world, leg 11: leg 10's field changes checked against the game, the façade gone, one HostWorld](worklog/0588-one-world-leg-11-leg-10-s-field-changes-checked-against-the.md) (4 questions) - the merge of WorldMode and AreaMode into one mode (item 6's last part: one Stage, one menu view in place of ui_world...
 - [587. One world, leg 10: one ccThGameCtrl, one ccSys.count, one frame for a town](worklog/0587-one-world-leg-10-one-ccthgamectrl-one-ccsys-count-one-frame.md) (4 questions) - Item 6 is not done: one mode (WorldMode and AreaMode), one HostWorld, and the façade with its Deref.

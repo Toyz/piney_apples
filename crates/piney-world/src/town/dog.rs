@@ -15,12 +15,12 @@ use piney_desktop::assets::SceneFile;
 
 use crate::chara::body::{Body, TRALL};
 use crate::chara::char::{Char, w2p};
-use crate::chara::npc::NpcRow;
-use crate::ee::{self, F, ONE, V4, add, cosf, from_int, lt, mul, sinf, sub, vadd};
-use crate::event::entry::{Npc, NpcCtx};
+use crate::chara::npc::{Core, NpcRow, Stuck};
+use crate::ee::{self, F, ONE, V4, add, cosf, from_int, lt, mul, sinf, sub};
 use crate::hit::{self, WALL_MASK};
-use crate::town::merchant::EntryObj;
-use crate::town::pc::{get_dirc, get_dirc_chg, get_dist3d, set_dirc};
+use crate::systems::npcs::NpcCtx;
+use crate::town::pc::get_dist3d;
+use piney_battle::geom::{get_dirc, get_dirc_chg, set_dirc};
 
 /// `npcTbl`'s first dog row; the four are 141-144.
 pub const ROW: usize = 141;
@@ -74,9 +74,6 @@ const ARRIVE: F = 0x42a0_0000;
 const WALK: F = 0x3fc0_0000;
 const RUN: F = 0x4140_0000;
 /// The turn away from a touch.
-const HALF: F = 0x3f00_0000;
-/// The stuck check's reach.
-const MOVED: F = 0x4248_0000;
 /// The ground `move` stands the dog on.
 const LAND_MASK: u32 = 0x2000_0002;
 
@@ -93,9 +90,10 @@ pub enum DogEvent {
 /// One dog.
 #[derive(Clone)]
 pub struct Dog {
-    pub row: NpcRow,
-    pub ch: Char,
-    pub entry: EntryObj,
+    /// Its row, character, `ccEntryObj`, acts (+0x204 `actNum`, +0x210
+    /// `actProcess`, the act's step; +0x214 `actCnt`, act 5's count) and
+    /// body touch (+0x218 `bodyHitFlag`, +0x21a `bodyHitCnt`).
+    pub core: Core,
     /// `inuNum` when it was made: its route.
     pub num: usize,
     /// The route's dummies (+0x228 the one walked to, +0x22c the first,
@@ -103,22 +101,14 @@ pub struct Dog {
     pub route: Vec<V4>,
     pub cur: usize,
     pub prev: usize,
-    /// +0x1e0 the target, +0x1f0 where it stood at the last stuck check.
+    /// +0x1e0 the target.
     pub target: V4,
-    pub saved: V4,
-    /// +0x204 `act`, +0x208 last frame's, +0x20c what act 5 goes on to,
-    /// +0x210 the act's step, +0x214 act 5's count.
-    pub act: i32,
+    /// +0x208 `actNumOld`, last frame's act; +0x20c `actChange`, what act
+    /// 5 goes on to.
     pub act_old: i32,
     pub act_next: i32,
-    pub step: i32,
-    pub cnt: i32,
-    /// +0x218 touching, +0x21a for how long, +0x21c the stuck count.
-    pub hit_flag: i16,
-    pub hit_cnt: i16,
-    pub stuck: i16,
-    /// +0x9c `affectType`: the command `EntryAffect` last passed.
-    pub affect_type: i16,
+    /// +0x21c `posCnt` and +0x1f0 `oldPos`: the stuck check.
+    pub stuck: Stuck,
     /// What this frame asked for.
     pub events: Vec<DogEvent>,
 }
@@ -149,139 +139,116 @@ impl Dog {
             ..hit::Body::default()
         };
         hits.hit_enable(&mut ch.hit);
+        let mut core = Core::new(row.clone(), ch);
+        core.entry.obj_flag = true;
+        core.acts.num = 3;
         Some(Dog {
-            row: row.clone(),
-            ch,
-            entry: EntryObj::default(),
+            core,
             num,
             route,
             cur: 1,
             prev: 0,
             target,
-            saved: pos,
-            act: 3,
             act_old: 3,
             act_next: -1,
-            step: 0,
-            cnt: 0,
-            hit_flag: 0,
-            hit_cnt: 0,
-            stuck: 0,
-            affect_type: 0,
+            stuck: Stuck { cnt: 0, old: pos },
             events: Vec::new(),
         })
     }
 
     fn set_anm(&mut self, k: usize) {
-        self.ch.set_anim(ANM[k]);
+        self.core.ch.set_anim(ANM[k]);
     }
 
     /// `ccDog::main` (0x00509680) after `routine`.
     pub fn main(&mut self, ctx: &mut NpcCtx) {
-        self.ch.pos_p = w2p(self.ch.pos, ctx.player);
+        self.core.ch.pos_p = w2p(self.core.ch.pos, ctx.player);
         let face = |d: &mut Dog| {
-            let mut z = d.ch.dirc[2];
-            set_dirc(&mut z, d.entry.pl_dirc, 64);
-            d.ch.dirc[2] = z;
+            let mut z = d.core.ch.dirc[2];
+            z = set_dirc(z, d.core.entry.pl_dirc, 64);
+            d.core.ch.dirc[2] = z;
         };
-        match self.act {
+        match self.core.acts.num {
             3 | 4 => {
-                if self.step == 0 {
-                    self.set_anm(if self.act == 3 { 2 } else { 3 });
-                    self.step += 1;
+                if self.core.acts.process == 0 {
+                    self.set_anm(if self.core.acts.num == 3 { 2 } else { 3 });
+                    self.core.acts.process += 1;
                 }
                 self.walk(ctx);
             }
             1 | 2 => {
-                if self.step == 0 {
-                    self.set_anm(if self.act == 1 { 1 } else { 0 });
-                    self.step += 1;
+                if self.core.acts.process == 0 {
+                    self.set_anm(if self.core.acts.num == 1 { 1 } else { 0 });
+                    self.core.acts.process += 1;
                 }
                 face(self);
             }
-            5 => match self.step {
+            5 => match self.core.acts.process {
                 0 => {
                     self.set_anm(1);
-                    self.step += 1;
-                    self.cnt = 0;
+                    self.core.acts.process += 1;
+                    self.core.acts.cnt = 0;
                 }
                 1 => {
-                    if self.cnt >= 101 {
-                        self.step = 2;
+                    if self.core.acts.cnt >= 101 {
+                        self.core.acts.process = 2;
                     }
-                    self.cnt += 1;
+                    self.core.acts.cnt += 1;
                 }
                 2 if matches!(self.act_next, 3 | 4) => {
-                    self.act = self.act_next;
-                    self.step = 0;
+                    self.core.acts.num = self.act_next;
+                    self.core.acts.process = 0;
                 }
                 _ => {}
             },
             _ => {}
         }
-        self.ch.hit.mask2 = if lt(self.entry.pl_dist, NEAR_KITE) { WALL_MASK } else { 1 };
-        self.ch.hit.pos = self.ch.pos;
-        if ctx.hits.collision_detection(&mut self.ch.hit) != 0 {
-            let off = self.ch.hit.offset;
-            self.ch.pos = vadd(self.ch.pos, off);
-            self.ch.pos_p = vadd(self.ch.pos_p, off);
-            self.ch.hit.pos = self.ch.pos;
-            ctx.hits.sync(&self.ch.hit);
-            self.hit_flag = 1;
-            self.hit_cnt = self.hit_cnt.wrapping_add(1);
-        } else {
-            self.hit_flag = 0;
-            self.hit_cnt = 0;
-        }
+        self.core.ch.hit.mask2 = if lt(self.core.entry.pl_dist, NEAR_KITE) { WALL_MASK } else { 1 };
+        self.core.touch.collide(&mut self.core.ch, ctx.hits, true);
         // _AnimateForward, SetMatrix_PosRotZYX, NoteProcess (inuCheckNote).
-        let (_, notes) = self.ch.play.forward_notes(&self.ch.body.file);
+        let (_, notes) = self.core.ch.play.forward_notes(&self.core.ch.body.file);
         for (event, param) in notes {
             if !matches!(event, 1 | 2) {
                 continue;
             }
             if param != 0 {
-                self.events.push(DogEvent::Note { param, pos: self.ch.pos, attribute: self.ch.hit_attribute });
+                self.events.push(DogEvent::Note {
+                    param,
+                    pos: self.core.ch.pos,
+                    attribute: self.core.ch.hit_attribute,
+                });
             }
             if param == 1 {
                 self.effect(ctx.rand);
             }
         }
         // ccChar::Draw.
-        self.ch.fade(ctx.hits.volume, &ctx.view);
-        self.act_old = self.act;
+        self.core.ch.fade(ctx.hits.volume, &ctx.view);
+        self.act_old = self.core.acts.num;
     }
 
     /// `ccDog::move` (0x00509a80).
     fn walk(&mut self, ctx: &mut NpcCtx) {
-        let pos = self.ch.pos;
+        let pos = self.core.ch.pos;
         let dist = get_dist3d(ctx.hits.volume, pos, self.target);
         let mut dir = get_dirc(pos, self.target);
         let s2 = ee::rad2deg(dir);
-        let s1 = ee::rad2deg(self.ch.dirc[2]);
+        let s1 = ee::rad2deg(self.core.ch.dirc[2]);
         let s1 = (i32::from(s1) + get_dirc_chg(s1, s2, 256)) as i16;
-        self.ch.dirc[2] = ee::deg2rad(s1);
+        self.core.ch.dirc[2] = ee::deg2rad(s1);
         if ((i32::from(s2 as u16) - i32::from(s1 as u16) + 4096) & 0xffff) < 8192 {
-            if !ee::le(dist, ARRIVE) && self.stuck < 121 {
-                if self.hit_flag != 0 {
-                    let c = self.hit_cnt;
-                    if c < 40 {
-                        dir = sub(dir, HALF);
-                    } else if (60..100).contains(&c) {
-                        dir = add(dir, HALF);
-                    } else if c >= 120 {
-                        self.hit_cnt = 0;
-                    }
-                }
-                let v = if self.act == 4 { WALK } else { RUN };
-                self.ch.pos[0] = add(self.ch.pos[0], mul(v, sinf(dir)));
-                self.ch.pos[1] = sub(self.ch.pos[1], mul(v, cosf(dir)));
+            if !ee::le(dist, ARRIVE) && self.stuck.going() {
+                dir = self.core.touch.avoid(dir);
+                let v = if self.core.acts.num == 4 { WALK } else { RUN };
+                self.core.ch.pos[0] = add(self.core.ch.pos[0], mul(v, sinf(dir)));
+                self.core.ch.pos[1] = sub(self.core.ch.pos[1], mul(v, cosf(dir)));
             } else {
                 if lt(dist, ARRIVE) {
                     let next = if ctx.rand.rand() & 1 != 0 { 4 } else { 3 };
-                    if self.act != next {
-                        self.act = 5;
+                    if self.core.acts.num != next {
+                        self.core.acts.num = 5;
                         self.act_next = next;
-                        self.step = 0;
+                        self.core.acts.process = 0;
                     }
                     self.prev = self.cur;
                     self.cur += 1;
@@ -292,39 +259,27 @@ impl Dog {
                     std::mem::swap(&mut self.cur, &mut self.prev);
                 }
                 self.target = self.route[self.cur];
-                self.stuck = 0;
+                self.stuck.cnt = 0;
             }
         }
         // ccTransPosW2M (no wrap in a town) and the ground.
-        let mut p = self.ch.pos;
+        let mut p = self.core.ch.pos;
         p[3] = ONE;
-        self.ch.pos[2] = ctx.hits.land(p, LAND_MASK);
-        self.ch.hit_attribute = ctx.hits.attribute();
-        if self.stuck == 120 {
-            let far = |a: F, b: F| {
-                let d = sub(a, b);
-                !ee::le(d, MOVED) || lt(d, ee::neg(MOVED))
-            };
-            if (0..3).any(|k| far(self.ch.pos[k], self.saved[k])) {
-                self.stuck = 0;
-            }
-        }
-        if self.stuck == 0 {
-            self.saved = self.ch.pos;
-        }
-        self.stuck += 1;
+        self.core.ch.pos[2] = ctx.hits.land(p, LAND_MASK);
+        self.core.ch.hit_attribute = ctx.hits.attribute();
+        self.stuck.check(self.core.ch.pos);
     }
 
     /// `ccDog::effect` (0x0050a2e0): a running step's dust.
     fn effect(&mut self, rand: &mut crate::Rand) {
-        if ee::le(self.ch.transparency, 0x3d4c_cccd) || self.act != 3 {
+        if ee::le(self.core.ch.transparency, 0x3d4c_cccd) || self.core.acts.num != 3 {
             return;
         }
         let m = crate::camera::evcam::rot_z(
             &[[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]],
-            self.ch.dirc[2],
+            self.core.ch.dirc[2],
         );
-        let p = [self.ch.pos[0], self.ch.pos[1], self.ch.pos[2], ONE];
+        let p = [self.core.ch.pos[0], self.core.ch.pos[1], self.core.ch.pos[2], ONE];
         let r = rand.rand() % 5;
         let s = mul(0xbf80_0000, 0x4120_0000);
         let y = mul(0x3dcc_cccd, mul(mul(0x3d99_999a, s), from_int(10 - r)));
@@ -334,48 +289,24 @@ impl Dog {
 
     /// `dogAction` (0x0050a1f0), the dog's `affectFunc`.
     pub fn action(&mut self, cmd: i16) {
-        self.affect_type = cmd;
+        self.core.affect_type = cmd;
         let act = match cmd {
             0 => 4,
             14 => 1,
             15 => 2,
             _ => return,
         };
-        self.act = act;
-        self.step = 0;
+        self.core.acts.num = act;
+        self.core.acts.process = 0;
     }
 }
 
-impl Npc for Dog {
-    fn code(&self) -> i32 {
-        i32::from(self.row.id)
-    }
-
-    fn flags(&self) -> u32 {
-        self.row.flags
-    }
-
-    fn char(&self) -> &Char {
-        &self.ch
-    }
-
-    fn char_mut(&mut self) -> &mut Char {
-        &mut self.ch
-    }
-
+impl Dog {
     /// `ccEntryObj::routine`, then `ccDog::main`.
-    fn step(&mut self, ctx: &mut NpcCtx) {
+    pub fn step(&mut self, ctx: &mut NpcCtx) {
         self.events.clear();
-        self.entry.routine(ctx.hits.volume, &mut self.ch, ctx.player);
+        self.core.entry.routine(ctx.hits.volume, &mut self.core.ch, ctx.player);
         self.main(ctx);
-    }
-
-    fn listed(&self) -> bool {
-        self.entry.listed
-    }
-
-    fn influence(&mut self, cmd: i16) {
-        self.action(cmd);
     }
 }
 

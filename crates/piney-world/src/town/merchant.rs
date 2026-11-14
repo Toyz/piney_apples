@@ -18,21 +18,18 @@ use piney_desktop::layers::Layers;
 
 use crate::camera::Cam;
 use crate::chara::body::{Body, TRALL};
-use crate::chara::char::{Char, View, w2p};
-use crate::chara::npc::NpcRow;
+use crate::chara::char::{Char, View, check_camera_deg, w2p};
+use crate::chara::npc::{Core, NpcRow};
 use crate::ee::{self, F, ONE, V4};
-use crate::event::entry::{Npc, NpcCtx};
 use crate::hit::{self, Hits};
+use crate::systems::npcs::NpcCtx;
 use crate::town::TownLights;
+use piney_battle::geom::{get_dirc, set_dirc};
 
 /// `ccMerchan::main` steps and draws only nearer than this (4600).
 pub const NEAR: F = 0x458f_c000;
 /// `ccCheckCameraDeg(pos, 12288)`: 67.5 degrees either side.
 pub const VIEW_DEG: i16 = 12288;
-/// `ccEntryObj::routine`: `dispSW` within 7000, frozen (and off the command
-/// lists) beyond 10000.
-pub const DISP_DIST: F = 0x45da_c000;
-pub const FREEZE_DIST: F = 0x461c_4000;
 /// The merchant's `bodyHit`: radius 35, height 120; both masks all ones
 /// (every character type; no hit polygon has every bit).
 pub const BODY_RADIUS: F = 0x420c_0000;
@@ -119,201 +116,6 @@ pub fn anm_tbl(id: i32, town: i32) -> Option<[&'static str; 3]> {
     }
 }
 
-/// `ccGetDircChg(cur, tgt, spd)` (main 0x001d9eb0): the step from `cur`
-/// toward `tgt` (16-bit angles) the shorter way round, `16 (tgt - cur) /
-/// (spd & 0xffff)` and at least 1 in mode 0 (`spd & 0xf0000`); mode 0x10000
-/// the same but nothing when `16 |tgt - cur|` is under 1024, mode 0x20000
-/// the whole difference then; other modes `16 (tgt - cur)`; at most 24576.
-pub fn dirc_chg(cur: i16, tgt: i16, spd: i32) -> i32 {
-    let d = i32::from(tgt) - i32::from(cur);
-    if d == 0 {
-        return 0;
-    }
-    let mut a = i64::from((d as u32) & 0xffff) << 4;
-    let neg = a >= 0x8_0001;
-    if neg {
-        a = 0x10_0000 - a;
-    }
-    let div = i64::from(spd & 0xffff);
-    let by = |a: i64| if div == 0 { a } else { (a / div).max(1) };
-    match spd & 0xf_0000 {
-        0 => a = by(a),
-        0x1_0000 => a = if a < 1024 { 0 } else { by(a) },
-        0x2_0000 => a = if a < 1024 { a >> 4 } else { by(a) },
-        _ => {}
-    }
-    let a = a.min(24576) as i32;
-    if neg { -a } else { a }
-}
-
-/// `ccSetDirc(&angle, target, spd)` (main 0x001da0b0): `angle` turned toward
-/// `target` by [`dirc_chg`] in 16-bit angles.
-pub fn set_dirc(angle: F, target: F, spd: i32) -> F {
-    let cur = ee::rad2deg(angle);
-    let chg = dirc_chg(cur, ee::rad2deg(target), spd);
-    ee::deg2rad((i32::from(cur) + chg) as i16)
-}
-
-/// `ccGetDirc(from, to)` (main 0x001d9ce0): the heading that faces `to`
-/// from `from` on the ground (0 faces -y), within -pi..pi.
-pub fn get_dirc(from: V4, to: V4) -> F {
-    let a = ee::add(0x3fc9_0fdb, ee::atan2f(ee::sub(to[1], from[1]), ee::sub(to[0], from[0])));
-    wrap_pi(a)
-}
-
-/// Into -pi..pi by one turn, as `ccGetDirc` and `routine` do it.
-fn wrap_pi(mut a: F) -> F {
-    if !ee::le(a, ee::PI) {
-        a = ee::sub(a, 0x40c9_0fdb);
-    }
-    if ee::lt(a, ee::neg(ee::PI)) {
-        a = ee::add(a, 0x40c9_0fdb);
-    }
-    a
-}
-
-/// `ccCheckCameraDeg(pos, deg)` (main 0x001da710) with the field camera
-/// (`activeCamPtr` is `tcam`) and Kite at `player`: is `pos` within `deg`
-/// either side of the line from the eye to the point looked at, on the
-/// ground (all three through `W2PPos`)? The bounds are open.
-pub fn check_camera_deg(pos: V4, player: V4, cam: &Cam, deg: i16) -> bool {
-    let p = w2p(pos, player);
-    let c = w2p(cam.pos, player);
-    let v = w2p(cam.view, player);
-    let a = ee::rad2deg(ee::atan2f(ee::sub(p[1], c[1]), ee::sub(p[0], c[0])));
-    let b = ee::rad2deg(ee::atan2f(ee::sub(v[1], c[1]), ee::sub(v[0], c[0])));
-    let d = (i32::from(deg) + (i32::from(a) - i32::from(b))) as i16;
-    d > 0 && i32::from(d) < 2 * i32::from(deg)
-}
-
-/// `ccEntryObj`'s state beyond `ccChar` (+0xe0..+0x160) as `routine`
-/// keeps it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EntryObj {
-    /// +0xe0 bits: `freezeFlag` (2), `affectFlag` (3), `dispSW` (4),
-    /// `cmndFlag` (6: kept off the command lists for good).
-    pub freeze: bool,
-    pub affect: bool,
-    pub disp_sw: bool,
-    pub cmnd_flag: bool,
-    /// On `ccEntryCmnd`'s object list (`cmndObjRoot`): what `ccCheckTarget`
-    /// finds.
-    pub listed: bool,
-    /// +0xe4 `plDist` (Kite's distance on the ground), +0xe8 `plDirc` (the
-    /// heading that faces him).
-    pub pl_dist: F,
-    pub pl_dirc: F,
-    /// +0xf0 `fadeFlag` (1 in, 2 out) and +0xf2 `fadeCnt` (frames).
-    pub fade_flag: i16,
-    pub fade_cnt: i16,
-    /// +0xf4 `grotDeg`, +0xf6 `grotSpd`: a turn to `grotDeg` under way.
-    pub grot_deg: i16,
-    pub grot_spd: i16,
-    /// `entParam.entRoot` (+0x140): -1 for merchants.
-    pub ent_root: i32,
-}
-
-impl Default for EntryObj {
-    /// `ccEntryObj::ccEntryObj`: every flag clear but `dispSW`.
-    fn default() -> Self {
-        EntryObj {
-            freeze: false,
-            affect: false,
-            disp_sw: true,
-            cmnd_flag: false,
-            listed: false,
-            pl_dist: 0,
-            pl_dirc: 0,
-            fade_flag: 0,
-            fade_cnt: 0,
-            grot_deg: 0,
-            grot_spd: 0,
-            ent_root: -1,
-        }
-    }
-}
-
-impl EntryObj {
-    /// `ccEntryObj::routine` (gcmn 0x0042fa60) for a character `ch` with
-    /// Kite at `player`: the event's turn, `plDist`/`plDirc`, `dispSW`, the
-    /// command lists (`ccEntryCmnd` within 10000, `deleteCmnd` beyond), the
-    /// fade.
-    pub fn routine(&mut self, volume: piney_data::volume::Volume, ch: &mut Char, player: V4) {
-        let pos = ch.pos;
-        self.routine_parts(volume, pos, &mut ch.dirc, &mut ch.set_transparency, &mut ch.transparency, player);
-    }
-
-    /// [`EntryObj::routine`] on a `ccChar`'s parts: its place, heading and
-    /// transparencies (a gimmick of no [`Char`]: the race's flags).
-    pub fn routine_parts(
-        &mut self,
-        volume: piney_data::volume::Volume,
-        pos: V4,
-        dirc: &mut V4,
-        set_transparency: &mut F,
-        transparency: &mut F,
-        player: V4,
-    ) {
-        if self.grot_spd != 0 {
-            let r = ee::deg2rad(self.grot_deg);
-            let z = set_dirc(dirc[2], r, i32::from(self.grot_spd));
-            dirc[2] = z;
-            // fabs((double) (z - r)) < (double) 0.003f
-            if f64::from(ee::f(ee::sub(z, r))).abs() < f64::from_bits(0x3f68_9374_c000_0000) {
-                self.grot_spd = 0;
-            }
-        }
-        let mut p = w2p(pos, player);
-        p[0] = ee::mul(p[0], 0xbf80_0000);
-        p[1] = ee::mul(p[1], 0xbf80_0000);
-        p[2] = 0;
-        p[3] = ONE;
-        self.pl_dist = ee::sqrtf_on(volume, ee::dot(p, p));
-        self.pl_dirc = wrap_pi(ee::add(0x3fc9_0fdb, ee::atan2f(p[1], p[0])));
-        self.disp_sw = ee::le(self.pl_dist, DISP_DIST);
-        if ee::le(self.pl_dist, FREEZE_DIST) {
-            self.freeze = false;
-            if !self.cmnd_flag {
-                self.listed = true;
-            }
-        } else {
-            self.freeze = true;
-            self.delete_cmnd(self.ent_root != -1 && self.ent_root != 0);
-        }
-        match self.fade_flag {
-            1 => {
-                let mut t = ee::add(*set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
-                if !ee::le(t, ONE) {
-                    t = ONE;
-                    self.fade_flag = 0;
-                }
-                *transparency = t;
-                *set_transparency = t;
-            }
-            2 => {
-                let mut t = ee::sub(*set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
-                if ee::lt(t, 0) {
-                    t = 0;
-                    self.fade_flag = 0;
-                }
-                *transparency = t;
-                *set_transparency = t;
-            }
-            _ => {}
-        }
-    }
-
-    /// `ccEntryObj::deleteCmnd(flg)` (0x0042fe40): off the command lists
-    /// (`ccDeleteCmnd`) unless `cmndFlag` already keeps it off, which `flg`
-    /// then sets.
-    pub fn delete_cmnd(&mut self, flg: bool) {
-        if !self.cmnd_flag {
-            self.listed = false;
-            self.cmnd_flag = flg;
-        }
-    }
-}
-
 /// What a merchant's `main` did in a frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MerchantFrame {
@@ -343,35 +145,22 @@ pub enum SysopEvent {
 /// One merchant.
 #[derive(Clone)]
 pub struct Merchant {
-    /// `npcID` (+0x1f0), the `npcTbl` row; the base parameters' name, type
-    /// flags and message table (`base->msg`: one `ccEvMsgData` list per
-    /// server).
-    pub id: i32,
-    pub name: String,
-    pub flags: u32,
-    pub msg: u32,
-    pub ch: Char,
-    pub entry: EntryObj,
+    /// Its row (`npcID`, +0x1f0, the base parameters' name, type flags and
+    /// message table: one `ccEvMsgData` list per server), character,
+    /// `ccEntryObj`, acts (+0x1f4 `actNum`, +0x1f8 `actProcess`; `actCnt`
+    /// is `ccGimmick`'s +0x1d8, the Administrator's count within an act)
+    /// and body touch (+0x200 `bodyHitFlag`, +0x202 `bodyHitCnt`).
+    pub core: Core,
     /// +0x1e0 `defaultDirc`: the dummy's rotation.
     pub default_dirc: V4,
-    /// +0x1f4 `actNum`, +0x1f8 `actProcess`, +0x1fc `anmOld`.
-    pub act_num: i32,
-    pub act_process: i32,
+    /// +0x1fc `anmOld`.
     pub anm_old: i32,
-    /// +0x200 `bodyHitFlag`, +0x202 `bodyHitCnt`: touching another
-    /// character, and for how many frames.
-    pub body_hit_flag: i16,
-    pub body_hit_cnt: i16,
     /// +0x204 `anmTbl`.
     pub anm_tbl: [&'static str; 3],
     /// +0x208 `transrate`: what `main` sets the transparency to (1).
     pub transrate: F,
-    /// +0x9c `affectType`: the command `EntryAffect` last passed.
-    pub affect_type: i16,
     /// The last frame's.
     pub frame: MerchantFrame,
-    /// +0x1d8, the Administrator's frame count within an act.
-    pub act_cnt: i32,
     /// What `sysopeAct` started since the town last took it.
     pub sysop_events: Vec<SysopEvent>,
     /// `sysopeAct` is done with it (act 5's end: `main` returns 1 and the
@@ -447,24 +236,15 @@ impl Merchant {
         pos[2] = hits.land(pos, ENTRY_LAND_MASK);
         ch.pos = pos;
         ch.pos_p = w2p(pos, player);
+        let mut core = Core::new(row.clone(), ch);
+        core.entry.obj_flag = true;
         Ok(Merchant {
-            id,
-            name: row.name.clone(),
-            flags: row.flags,
-            msg: row.msg,
-            ch,
-            entry: EntryObj::default(),
+            core,
             default_dirc: dirc,
-            act_num: 0,
-            act_process: 0,
             anm_old: 0,
-            body_hit_flag: 0,
-            body_hit_cnt: 0,
             anm_tbl,
             transrate: ONE,
-            affect_type: 0,
             frame: MerchantFrame::default(),
-            act_cnt: 0,
             sysop_events: Vec::new(),
             gone: false,
             status_on: true,
@@ -473,12 +253,12 @@ impl Merchant {
 
     /// Whether `affectFunc` is `breederInfluence`.
     pub fn is_breeder(&self) -> bool {
-        INFLUENCED.contains(&self.id)
+        INFLUENCED.contains(&self.core.code())
     }
 
     /// `ccAnm::SetAnm(anmTbl[k])`.
     fn set_anm(&mut self, k: usize) {
-        self.ch.set_anim(self.anm_tbl[k]);
+        self.core.ch.set_anim(self.anm_tbl[k]);
     }
 
     /// `ccMerchan::sysopeAct` (gcmn 0x00506170): the Administrator's acts, which
@@ -489,97 +269,97 @@ impl Merchant {
     pub fn sysope_act(&mut self) -> bool {
         // 0.02.
         const STEP: F = 0x3ca3_d70a;
-        match self.act_num {
-            -5 => match self.act_process {
+        match self.core.acts.num {
+            -5 => match self.core.acts.process {
                 0 => {
                     self.transrate = ONE;
                     self.set_anm(2);
-                    self.ch.play.frame_spd = 384;
+                    self.core.ch.play.frame_spd = 384;
                     self.sysop_events.push(SysopEvent::Vanish);
-                    self.act_process += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.process += 1;
+                    self.core.acts.cnt = 0;
                 }
                 1 => {
-                    let c = self.act_cnt;
-                    self.act_cnt += 1;
+                    let c = self.core.acts.cnt;
+                    self.core.acts.cnt += 1;
                     if c >= 31 {
                         self.sysop_events.push(SysopEvent::Noise);
-                        self.act_process += 1;
-                        self.act_cnt = 0;
+                        self.core.acts.process += 1;
+                        self.core.acts.cnt = 0;
                     }
                 }
                 _ => {}
             },
-            3 => match self.act_process {
+            3 => match self.core.acts.process {
                 0 => {
                     self.set_anm(0);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                     self.transrate = 0;
                 }
                 1 => {
                     self.sysop_events.push(SysopEvent::Transfer);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
                 2 => {
                     let t = ee::add(self.transrate, STEP);
                     self.transrate = t;
                     if !ee::le(t, ONE) {
                         self.transrate = ONE;
-                        self.act_process += 1;
-                        self.act_cnt = 0;
-                        self.act_num = 2;
+                        self.core.acts.process += 1;
+                        self.core.acts.cnt = 0;
+                        self.core.acts.num = 2;
                     }
                 }
                 _ => {}
             },
             7 => {
                 self.transrate = ONE;
-                self.act_num = 2;
+                self.core.acts.num = 2;
             }
             6 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     self.transrate = 0;
                 }
             }
-            4 | 5 => match self.act_process {
+            4 | 5 => match self.core.acts.process {
                 0 => {
                     self.transrate = ONE;
                     // deleteCmnd(this).
-                    self.entry.listed = false;
+                    self.core.entry.listed = false;
                     self.sysop_events.push(SysopEvent::Transfer);
-                    self.act_process += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.process += 1;
+                    self.core.acts.cnt = 0;
                 }
                 1 => {
                     let t = ee::sub(self.transrate, STEP);
                     self.transrate = if ee::lt(t, 0) { 0 } else { t };
-                    let c = self.act_cnt;
-                    self.act_cnt += 1;
+                    let c = self.core.acts.cnt;
+                    self.core.acts.cnt += 1;
                     if c >= 141 {
-                        if self.act_num == 5 {
+                        if self.core.acts.num == 5 {
                             return true;
                         }
-                        self.act_process += 1;
+                        self.core.acts.process += 1;
                     }
                 }
                 _ => {}
             },
             -3 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     self.set_anm(2);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
-                self.ch.dirc[2] = set_dirc(self.ch.dirc[2], self.entry.pl_dirc, 64);
-                if self.ch.play.time >> 8 >= 120 {
-                    self.act_process = 0;
-                    self.act_num = 0;
+                self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], self.core.entry.pl_dirc, 64);
+                if self.core.ch.play.time >> 8 >= 120 {
+                    self.core.acts.process = 0;
+                    self.core.acts.num = 0;
                 }
             }
             _ => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     self.transrate = ONE;
                     self.set_anm(0);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
             }
         }
@@ -591,39 +371,39 @@ impl Merchant {
     /// the anm's frame reaches 120, act 2 idles turning back to
     /// `defaultDirc` (`ccSetDirc(.., 128)`).
     pub fn breeder_act(&mut self) {
-        match self.act_num {
+        match self.core.acts.num {
             0 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     if self.anm_old != 0 {
                         self.set_anm(0);
                     }
                     self.anm_old = 0;
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
             }
             1 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     if self.anm_old != 2 {
                         self.set_anm(2);
                     }
                     self.anm_old = 2;
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
-                self.ch.dirc[2] = set_dirc(self.ch.dirc[2], self.entry.pl_dirc, 64);
-                if self.ch.play.time >> 8 >= TALK_FRAMES {
-                    self.act_process = 0;
-                    self.act_num = 0;
+                self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], self.core.entry.pl_dirc, 64);
+                if self.core.ch.play.time >> 8 >= TALK_FRAMES {
+                    self.core.acts.process = 0;
+                    self.core.acts.num = 0;
                 }
             }
             2 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     if self.anm_old != 0 {
                         self.set_anm(0);
                     }
                     self.anm_old = 0;
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
-                self.ch.dirc[2] = set_dirc(self.ch.dirc[2], self.default_dirc[2], 128);
+                self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], self.default_dirc[2], 128);
             }
             _ => {}
         }
@@ -636,17 +416,17 @@ impl Merchant {
     pub fn event_npc_act(&mut self) -> bool {
         // 0.02.
         const STEP: F = 0x3ca3_d70a;
-        if !self.status_on && self.act_num != 3 {
-            self.act_num = 3;
-            self.act_process = 0;
+        if !self.status_on && self.core.acts.num != 3 {
+            self.core.acts.num = 3;
+            self.core.acts.process = 0;
         }
-        if self.act_num != 3 {
+        if self.core.acts.num != 3 {
             self.breeder_act();
             return false;
         }
-        match self.act_process {
+        match self.core.acts.process {
             0 => {
-                self.act_process = 1;
+                self.core.acts.process = 1;
                 self.transrate = ONE;
                 if self.anm_old != 0 {
                     self.set_anm(0);
@@ -655,16 +435,16 @@ impl Merchant {
             }
             1 => {
                 self.sysop_events.push(SysopEvent::Transfer);
-                self.act_process += 1;
-                self.entry.delete_cmnd(true);
+                self.core.acts.process += 1;
+                self.core.entry.delete_cmnd(true);
             }
             2 => {
                 let t = ee::sub(self.transrate, STEP);
                 self.transrate = t;
                 if ee::lt(t, 0) {
                     self.transrate = 0;
-                    self.act_process += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.process += 1;
+                    self.core.acts.cnt = 0;
                     return true;
                 }
             }
@@ -677,11 +457,11 @@ impl Merchant {
     /// 0x00521990): 15 (Talk) faces Kite from the talk's start, 14 (its
     /// list opening) only turns it, 0 (closing) faces its way again.
     pub fn event_npc_influence(&mut self, cmd: i16) {
-        self.affect_type = cmd;
+        self.core.affect_type = cmd;
         match cmd {
-            15 => (self.act_num, self.act_process) = (1, 0),
-            14 => (self.act_num, self.act_process) = (1, 1),
-            0 => (self.act_num, self.act_process) = (2, 0),
+            15 => (self.core.acts.num, self.core.acts.process) = (1, 0),
+            14 => (self.core.acts.num, self.core.acts.process) = (1, 1),
+            0 => (self.core.acts.num, self.core.acts.process) = (2, 0),
             _ => {}
         }
     }
@@ -690,10 +470,10 @@ impl Merchant {
     /// opens) or 15, act 1 (face Kite); 0 (it closes), act 2 (face the booth
     /// again); others nothing.
     pub fn breeder_influence(&mut self, cmd: i16) {
-        self.affect_type = cmd;
+        self.core.affect_type = cmd;
         match cmd {
-            14 | 15 => (self.act_num, self.act_process) = (1, 0),
-            0 => (self.act_num, self.act_process) = (2, 0),
+            14 | 15 => (self.core.acts.num, self.core.acts.process) = (1, 0),
+            0 => (self.core.acts.num, self.core.acts.process) = (2, 0),
             _ => {}
         }
     }
@@ -701,20 +481,22 @@ impl Merchant {
     /// `ccMerchan::main` (0x00505e20) after `routine`, with Kite at
     /// `player`, the camera `cam` and `view`, the town's `hits`.
     pub fn main(&mut self, player: V4, cam: &Cam, view: &View, hits: &mut Hits) -> MerchantFrame {
-        self.ch.pos_p = w2p(self.ch.pos, player);
-        let p = self.ch.pos_p;
+        self.core.ch.pos_p = w2p(self.core.ch.pos, player);
+        let p = self.core.ch.pos_p;
         // x x + y y (adda), + z z (madd); fptodp, sqrt, dptofp (sqrt.s
         // from Outbreak on, OUT gcmn 0x0051beec).
         let d2 = ee::add(ee::add(ee::mul(p[0], p[0]), ee::mul(p[1], p[1])), ee::mul(p[2], p[2]));
         let dist = ee::dsqrt_on(hits.volume, d2);
-        let in_view = check_camera_deg(self.ch.pos, player, cam, VIEW_DEG);
+        let in_view = check_camera_deg(self.core.ch.pos, VIEW_DEG, cam, player);
         // Infection's acts and collides for every one; from Mutation on
         // (MUT gcmn 0x00521134) only the Administrator, the quiz man, the
         // Grunt Shops and the Event NPC do.
-        let event_npc = hits.volume != Volume::Inf && EVENT_NPC.contains(&self.id);
-        let acts =
-            SYSOPE.contains(&self.id) || hits.volume == Volume::Inf || INFLUENCED.contains(&self.id) || event_npc;
-        let gone = if SYSOPE.contains(&self.id) {
+        let event_npc = hits.volume != Volume::Inf && EVENT_NPC.contains(&self.core.code());
+        let acts = SYSOPE.contains(&self.core.code())
+            || hits.volume == Volume::Inf
+            || INFLUENCED.contains(&self.core.code())
+            || event_npc;
+        let gone = if SYSOPE.contains(&self.core.code()) {
             self.sysope_act()
         } else if event_npc {
             self.event_npc_act()
@@ -730,25 +512,18 @@ impl Merchant {
             return MerchantFrame::default();
         }
         if acts {
-            self.ch.hit.pos = self.ch.pos;
-            if hits.collision_detection(&mut self.ch.hit) != 0 {
-                self.body_hit_flag = 1;
-                self.body_hit_cnt = self.body_hit_cnt.wrapping_add(1);
-            } else {
-                self.body_hit_flag = 0;
-                self.body_hit_cnt = 0;
-            }
+            self.core.touch.collide(&mut self.core.ch, hits, false);
         }
         let near = ee::lt(dist, NEAR);
         let mut f = MerchantFrame { near, in_view, ..MerchantFrame::default() };
         if near && in_view {
-            self.ch.forward();
-            self.ch.transparency = self.transrate;
-            self.ch.set_transparency = self.transrate;
+            self.core.ch.forward();
+            self.core.ch.transparency = self.transrate;
+            self.core.ch.set_transparency = self.transrate;
             f.stepped = true;
-            f.drawn = self.ch.fade(hits.volume, view);
+            f.drawn = self.core.ch.fade(hits.volume, view);
         } else {
-            self.ch.drawn = false;
+            self.core.ch.drawn = false;
         }
         self.frame = f;
         f
@@ -756,63 +531,43 @@ impl Merchant {
 
     /// `SetMatrix_PosRotZYX(pos, dirc)` as the anm stores it.
     pub fn root(&self) -> [V4; 4] {
-        let d = self.ch.dirc;
-        crate::town::pos_rot_zyx(self.ch.pos, [d[0], d[1], d[2]])
+        let d = self.core.ch.dirc;
+        crate::town::pos_rot_zyx(self.core.ch.pos, [d[0], d[1], d[2]])
     }
 
     /// The last step's draw: `ccAnm::Draw` of the body on the character
     /// layer, lit by the draw environment's `lights`.
     pub fn draw(&self, layers: &mut Layers, to_screen: glam::Mat4, lights: &TownLights) {
-        self.ch.draw(layers, to_screen, lights);
+        self.core.ch.draw(layers, to_screen, lights);
     }
 }
 
-impl Npc for Merchant {
-    fn code(&self) -> i32 {
-        self.id
-    }
-
-    fn flags(&self) -> u32 {
-        self.flags
-    }
-
-    fn char(&self) -> &Char {
-        &self.ch
-    }
-
-    fn char_mut(&mut self) -> &mut Char {
-        &mut self.ch
-    }
-
+impl Merchant {
     /// `ccEntryObj::routine` then `ccMerchan::main`, its body against the
     /// character list as it stands (the merchants before it already moved
     /// this frame).
-    fn step(&mut self, ctx: &mut NpcCtx) {
-        self.entry.routine(ctx.hits.volume, &mut self.ch, ctx.player);
+    pub fn step(&mut self, ctx: &mut NpcCtx) {
+        self.core.entry.routine(ctx.hits.volume, &mut self.core.ch, ctx.player);
         self.main(ctx.player, ctx.cam, &ctx.view, ctx.hits);
         // main returned 1: the entry control deletes it at once, and
         // `~ccCharHit` takes its body off the character list.
         if self.gone {
-            ctx.hits.hit_disable(&mut self.ch.hit);
+            ctx.hits.hit_disable(&mut self.core.ch.hit);
         }
-    }
-
-    fn listed(&self) -> bool {
-        self.entry.listed
     }
 
     /// `affectFunc` (+0x94) as `ccChar::EntryAffect` calls it with
     /// `affectType` `cmd`: [`Merchant::breeder_influence`] for the ids that
     /// have it; Mac Anu's merchants keep `ccGimmickAffect`, which only sets
     /// `affectFlag`.
-    fn influence(&mut self, cmd: i16) {
+    pub fn influence(&mut self, cmd: i16) {
         if self.is_breeder() {
             self.breeder_influence(cmd);
-        } else if EVENT_NPC.contains(&self.id) {
+        } else if EVENT_NPC.contains(&self.core.code()) {
             self.event_npc_influence(cmd);
         } else {
-            self.affect_type = cmd;
-            self.entry.affect = true;
+            self.core.affect_type = cmd;
+            self.core.entry.affect = true;
         }
     }
 
@@ -823,24 +578,24 @@ impl Npc for Merchant {
     /// reach merchants only by codes 29 and 158; Mac Anu's shops never.
     /// `npc_act` (main 0x001acbc4) on those two: `actNum` the parameter,
     /// `actProcess` 0 ([`Merchant::sysope_act`]).
-    fn command(&mut self, c: &piney_event::host::NpcCommand, _marker: Option<(V4, F)>, target: Option<V4>) -> bool {
+    pub fn command(&mut self, c: &piney_event::host::NpcCommand, _marker: Option<(V4, F)>, target: Option<V4>) -> bool {
         use piney_event::host::NpcCommand;
         let rate = |chg: i16| if chg == 1 { 64 } else { chg };
         match *c {
-            NpcCommand::Act { param, .. } if SYSOPE.contains(&self.id) => {
-                self.act_num = i32::from(param);
-                self.act_process = 0;
+            NpcCommand::Act { param, .. } if SYSOPE.contains(&self.core.code()) => {
+                self.core.acts.num = i32::from(param);
+                self.core.acts.process = 0;
                 true
             }
             NpcCommand::Turn { dirc, chg, .. } if chg != 0 => {
-                self.entry.grot_deg = dirc;
-                self.entry.grot_spd = rate(chg);
+                self.core.entry.grot_deg = dirc;
+                self.core.entry.grot_spd = rate(chg);
                 true
             }
             NpcCommand::Face { chg, .. } if chg != 0 => match target {
                 Some(t) => {
-                    self.entry.grot_deg = ee::rad2deg(get_dirc(self.ch.pos, t));
-                    self.entry.grot_spd = rate(chg);
+                    self.core.entry.grot_deg = ee::rad2deg(get_dirc(self.core.ch.pos, t));
+                    self.core.entry.grot_spd = rate(chg);
                     true
                 }
                 None => false,
@@ -852,8 +607,8 @@ impl Npc for Merchant {
     /// The shop menus' greeting: `ccMessage::Open(base->msg[game.server],
     /// base->name, -1, -1)` (`VenderMenu` 0x00542840 and its kin): the
     /// table and the server's index into it (0 for Mac Anu).
-    fn talk_line(&self) -> Option<(u32, i32)> {
-        Some((self.msg, 0))
+    pub fn talk_line(&self) -> Option<(u32, i32)> {
+        Some((self.core.row.msg, 0))
     }
 }
 
@@ -910,20 +665,9 @@ pub fn event_merchant(
     let body = Rc::new(Body::read(archive, &row.stem(), TRALL)?);
     let mut m = Merchant::at(row, body, ee::VF0, ee::VF0, hits, town, player)?;
     if let Some((pos, dirc)) = at {
-        (m.ch.pos, m.ch.dirc) = (pos, dirc);
+        (m.core.ch.pos, m.core.ch.dirc) = (pos, dirc);
     }
     Ok(m)
-}
-
-/// One frame of `ccThEntryCtrl` for the merchants on its NPC list, in
-/// order: each one's `CollisionDetection` meets the bodies on the character
-/// list ([`Hits::chars`]: the other merchants as they stand, the earlier
-/// ones already moved, then whoever was enabled after them - the walking
-/// PCs, and Kite once his arrival ends).
-pub fn step_all(merchants: &mut [Merchant], ctx: &mut NpcCtx) {
-    for m in merchants {
-        m.step(ctx);
-    }
 }
 
 #[cfg(test)]
@@ -946,29 +690,10 @@ mod tests {
     }
 
     #[test]
-    fn turning() {
-        // A quarter turn at 64: a sixteenth of it (16384 * 16 / 64).
-        assert_eq!(dirc_chg(0, 16384, 64), 4096);
-        assert_eq!(dirc_chg(0, -16384, 64), -4096);
-        // The shorter way round, and the cap.
-        assert_eq!(dirc_chg(30000, -30000, 64), (65536 - 60000) * 16 / 64);
-        assert_eq!(dirc_chg(0, 16384, 1), 24576);
-        // Small steps: at least 1; mode 1 drops them, mode 2 snaps.
-        assert_eq!(dirc_chg(0, 1, 128), 1);
-        assert_eq!(dirc_chg(0, 10, 0x1_0000 | 64), 0);
-        assert_eq!(dirc_chg(0, 10, 0x2_0000 | 64), 10);
-        assert_eq!(dirc_chg(5, 5, 64), 0);
-        // RAD2DEG truncates: 2048 comes back as 2047, and DEG2RAD of that
-        // as 2046.
-        let z = set_dirc(0, ee::deg2rad(8192), 64);
-        assert_eq!(ee::rad2deg(z), 2046);
-    }
-
-    #[test]
     fn the_view_cone() {
         let cam = Cam { pos: [0, 0, 0, ONE], view: [0, ee::k(-100.0), 0, ONE], ..Cam::default() };
         let kite = [0, ee::k(-50.0), 0, ONE];
-        let at = |x: f32, y: f32| check_camera_deg([ee::k(x), ee::k(y), 0, ONE], kite, &cam, VIEW_DEG);
+        let at = |x: f32, y: f32| check_camera_deg([ee::k(x), ee::k(y), 0, ONE], VIEW_DEG, &cam, kite);
         assert!(at(0.0, -1000.0));
         assert!(at(1000.0, -1000.0));
         assert!(at(-1000.0, -1000.0));
@@ -1001,7 +726,9 @@ mod tests {
         let Some((m, _)) = mac_anu() else { return };
         let got: Vec<(&str, [f32; 3], i16)> = m
             .iter()
-            .map(|m| (m.name.as_str(), [0, 1, 2].map(|i| ee::f(m.ch.pos[i])), ee::rad2deg(m.ch.dirc[2])))
+            .map(|m| {
+                (m.core.row.name.as_str(), [0, 1, 2].map(|i| ee::f(m.core.ch.pos[i])), ee::rad2deg(m.core.ch.dirc[2]))
+            })
             .collect();
         assert_eq!(
             got,
@@ -1014,12 +741,12 @@ mod tests {
             ]
         );
         for x in &m {
-            assert_eq!(x.ch.anim_name(), Some("ANM_ctr1nut0"));
-            assert_eq!((ee::f(x.ch.height), ee::f(x.ch.width)), (180.0, 100.0));
-            assert!(x.ch.clut_swaps.is_empty() && x.ch.hit.sw && !x.is_breeder());
+            assert_eq!(x.core.ch.anim_name(), Some("ANM_ctr1nut0"));
+            assert_eq!((ee::f(x.core.ch.height), ee::f(x.core.ch.width)), (180.0, 100.0));
+            assert!(x.core.ch.clut_swaps.is_empty() && x.core.ch.hit.sw && !x.is_breeder());
             assert_eq!(x.talk_line().unwrap().1, 0);
         }
-        assert_eq!(m[4].flags, 0x1000);
+        assert_eq!(m[4].core.row.flags, 0x1000);
     }
 
     /// Near the Recorder with the camera behind Kite looking at it: it steps
@@ -1039,6 +766,7 @@ mod tests {
         let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
         let mut rand = crate::Rand(1);
         let mut cc = piney_battle::rand::Genrand::default();
+        let mut save = piney_data::save::SaveData::default();
         let mut ctx = NpcCtx {
             player: kite,
             player_dirc: [0; 4],
@@ -1047,25 +775,33 @@ mod tests {
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,
+            save: &mut save,
+            race: None,
         };
-        step_all(&mut m, &mut ctx);
+        for x in &mut m {
+            x.step(&mut ctx);
+        }
         let r = &m[4];
         assert_eq!(r.frame, MerchantFrame { near: true, in_view: true, stepped: true, drawn: true });
-        assert!(r.listed() && r.entry.disp_sw && !r.entry.freeze);
-        assert_eq!(ee::f(r.entry.pl_dist), 550.0);
-        assert_eq!(r.ch.play.time, 256);
+        assert!(r.core.entry.listed && r.core.entry.disp_sw && !r.core.entry.freeze);
+        assert_eq!(ee::f(r.core.entry.pl_dist), 550.0);
+        assert_eq!(r.core.ch.play.time, 256);
         // The Weapon Shop is 6000 away.
         assert!(!m[0].frame.near && !m[0].frame.stepped);
         // Turned away.
         let back = Cam { view: [ee::k(1500.0), ee::k(3600.0), ee::k(420.0), ONE], ..cam };
         ctx.cam = &back;
-        step_all(&mut m, &mut ctx);
+        for x in &mut m {
+            x.step(&mut ctx);
+        }
         assert_eq!(m[4].frame, MerchantFrame { near: true, in_view: false, stepped: false, drawn: false });
-        assert_eq!(m[4].ch.play.time, 256);
+        assert_eq!(m[4].core.ch.play.time, 256);
         // Far off: off the command lists.
         ctx.player = [ee::k(-850.0), ee::k(-7000.0), 0, ONE];
-        step_all(&mut m, &mut ctx);
-        assert!(!m[4].listed() && m[4].entry.freeze && !m[4].entry.disp_sw);
+        for x in &mut m {
+            x.step(&mut ctx);
+        }
+        assert!(!m[4].core.entry.listed && m[4].core.entry.freeze && !m[4].core.entry.disp_sw);
     }
 
     /// Kite walking into a merchant's body: `bodyHitFlag` and its count.
@@ -1077,6 +813,7 @@ mod tests {
         let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
         let mut rand = crate::Rand(1);
         let mut cc = piney_battle::rand::Genrand::default();
+        let mut save = piney_data::save::SaveData::default();
         let mut body = hit::Body { pos: kite, radius: ee::k(45.0), ..hit::Body::default() };
         hits.hit_enable(&mut body);
         let mut ctx = NpcCtx {
@@ -1087,14 +824,20 @@ mod tests {
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,
+            save: &mut save,
+            race: None,
         };
-        step_all(&mut m, &mut ctx);
-        step_all(&mut m, &mut ctx);
-        assert_eq!((m[4].body_hit_flag, m[4].body_hit_cnt), (1, 2));
+        for x in &mut m {
+            x.step(&mut ctx);
+        }
+        for x in &mut m {
+            x.step(&mut ctx);
+        }
+        assert_eq!((m[4].core.touch.flag, m[4].core.touch.cnt), (1, 2));
         // 80 - 50 along -x (sceVu0Normalize rounds it short); w 1 from
         // ccModelHitCheckQ.
-        assert_eq!(m[4].ch.hit.offset.map(ee::f), [-29.999998, 0.0, 0.0, 1.0]);
-        assert_eq!((m[3].body_hit_flag, m[3].body_hit_cnt), (0, 0));
+        assert_eq!(m[4].core.ch.hit.offset.map(ee::f), [-29.999998, 0.0, 0.0, 1.0]);
+        assert_eq!((m[3].core.touch.flag, m[3].core.touch.cnt), (0, 0));
         hits.hit_disable(&mut body);
         let mut ctx = NpcCtx {
             player: kite,
@@ -1104,9 +847,13 @@ mod tests {
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,
+            save: &mut save,
+            race: None,
         };
-        step_all(&mut m, &mut ctx);
-        assert_eq!((m[4].body_hit_flag, m[4].body_hit_cnt), (0, 0));
+        for x in &mut m {
+            x.step(&mut ctx);
+        }
+        assert_eq!((m[4].core.touch.flag, m[4].core.touch.cnt), (0, 0));
     }
 
     /// Mac Anu's shops keep `ccGimmickAffect`: talking to them only sets
@@ -1124,6 +871,7 @@ mod tests {
         let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
         let mut rand = crate::Rand(1);
         let mut cc = piney_battle::rand::Genrand::default();
+        let mut save = piney_data::save::SaveData::default();
         let mut ctx = NpcCtx {
             player: kite,
             player_dirc: [0; 4],
@@ -1132,33 +880,35 @@ mod tests {
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,
+            save: &mut save,
+            race: None,
         };
         let r = &mut m[4];
         r.influence(14);
-        assert!(r.entry.affect && r.act_num == 0);
+        assert!(r.core.entry.affect && r.core.acts.num == 0);
         r.breeder_influence(14);
         let mut turned = Vec::new();
         for i in 0..130 {
             r.step(&mut ctx);
-            turned.push(ee::rad2deg(r.ch.dirc[2]));
+            turned.push(ee::rad2deg(r.core.ch.dirc[2]));
             if i == 60 {
-                assert_eq!(r.ch.anim_name(), Some("ANM_ctr1act2"));
+                assert_eq!(r.core.ch.anim_name(), Some("ANM_ctr1act2"));
             }
         }
         // Kite is due south: heading 0. From 16383 a quarter of the way
         // (sixteenths / 64) each frame.
         assert_eq!(&turned[..3], &[12287, 9215, 6911]);
         // The talk ended at frame 120 and the idle came back.
-        assert_eq!(r.ch.anim_name(), Some("ANM_ctr1nut0"));
-        assert_eq!((r.act_num, r.act_process), (0, 1));
+        assert_eq!(r.core.ch.anim_name(), Some("ANM_ctr1nut0"));
+        assert_eq!((r.core.acts.num, r.core.acts.process), (0, 1));
         assert!(turned[125].abs() < 4);
         r.breeder_influence(0);
         for _ in 0..100 {
             r.step(&mut ctx);
         }
-        assert_eq!(r.ch.anim_name(), Some("ANM_ctr1nut0"));
+        assert_eq!(r.core.ch.anim_name(), Some("ANM_ctr1nut0"));
         // Back toward the booth's 16383 an eighth at a time, until the steps
         // are one unit, which RAD2DEG's truncation takes back: 15 short.
-        assert_eq!(ee::rad2deg(r.ch.dirc[2]), 16368);
+        assert_eq!(ee::rad2deg(r.core.ch.dirc[2]), 16368);
     }
 }

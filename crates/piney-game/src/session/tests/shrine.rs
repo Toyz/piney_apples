@@ -11,6 +11,7 @@ use piney_world::area::{Scene, kind};
 use piney_world::dungeon::DungeonArea;
 
 use super::*;
+use piney_world::world::CharId;
 
 /// The shrine: floor 2, room 2 of `D0081`.
 const SHRINE: (usize, usize) = (2, 2);
@@ -853,7 +854,7 @@ fn point(s: &mut Session, num: i32) -> Option<(usize, usize)> {
 
 /// Event 29 in area 26's dungeon, the party put in the room of point 1, where
 /// block 14's `entry 3 86` and `entry 4 29` stand Meg and the Administrator
-/// ([`piney_world::field::npcs`]), block 15 puts and turns them, has them
+/// ([`piney_world::systems::npcs`]), block 15 puts and turns them, has them
 /// face each other and Kite, and sends them off (`npc_act 29 4`: the
 /// Administrator's `effTransfer` and fade; `npc_act 86 4`: Meg's leaving).
 /// Every NPC instruction is carried out, none falls to a host default.
@@ -878,10 +879,10 @@ fn event_29_meg_and_the_administrator() {
             rooms.push((sc.floor, sc.block));
         }
         let battle = w.cast().get::<piney_world::world::cast::BattleCast>().expect("outside the towns");
-        for n in &battle.npcs.list {
-            let code = n.npc().code();
+        for n in battle.npcs.iter() {
+            let code = n.core().code();
             if !seen.iter().any(|x| x.0 == code) {
-                seen.push((code, n.npc().char().pos.map(f32::from_bits)));
+                seen.push((code, n.core().ch.pos.map(f32::from_bits)));
             }
         }
         for (_, c) in a.calls().iter().rev().take(4) {
@@ -1055,15 +1056,16 @@ fn event_17_talks_to_the_administrator() {
                     _ => None,
                 });
                 let c = w.combat();
-                let admin = c.npcs.iter().find(|n| n.code == 29).map(|n| n.who);
+                let admin = w.cast().npcs().and_then(|l| l.get_npc(29)).map(|n| n.core().ch.pos);
+                let aimed = w.command_target_id() == Some(CharId::Npc(29));
                 match (played.contains(&(17, 8)) && banned == Some(false), admin, c.kite) {
                     (true, Some(m), Some(k)) if a.ui().menu_type() == -1 => {
                         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-                        if w.command_target() == Some(m) {
+                        if aimed {
                             if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still }
                         } else {
                             let p = c.scene.chars[k].pos.map(f32::from_bits);
-                            let q = c.scene.chars[m].pos.map(f32::from_bits);
+                            let q = m.map(f32::from_bits);
                             let cam_z = f32::from_bits(w.camera().rot()[2]);
                             stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                         }
@@ -1277,16 +1279,17 @@ fn target_cursor_shot() {
                 let w = a.world();
                 let played = a.vm().map(blocks).unwrap_or_default();
                 let c = w.combat();
-                let admin = c.npcs.iter().find(|n| n.code == 29).map(|n| n.who);
+                let admin = w.cast().npcs().and_then(|l| l.get_npc(29)).map(|n| n.core().ch.pos);
+                let aimed = w.command_target_id() == Some(CharId::Npc(29));
                 let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
                     "menu_ban true" => Some(true),
                     "menu_ban false" => Some(false),
                     _ => None,
                 });
                 match (played.contains(&(17, 8)) && banned == Some(false), admin, c.kite) {
-                    (true, Some(m), Some(k)) if w.command_target() != Some(m) => {
+                    (true, Some(m), Some(k)) if !aimed => {
                         let p = c.scene.chars[k].pos.map(f32::from_bits);
-                        let q = c.scene.chars[m].pos.map(f32::from_bits);
+                        let q = m.map(f32::from_bits);
                         let cam_z = f32::from_bits(w.camera().rot()[2]);
                         stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                     }
@@ -1306,7 +1309,8 @@ fn target_cursor_shot() {
             break;
         }
         let w = a.world();
-        let on = w.command_target().is_some_and(|t| w.combat().npcs.iter().any(|n| n.who == t));
+        let npc = |id| w.cast().npcs().is_some_and(|l| l.get(id).is_some());
+        let on = matches!(w.command_target_id(), Some(CharId::Npc(id)) if npc(id));
         seen = if on { seen + 1 } else { 0 };
         if seen == 10 + 17 * taken {
             gs.set_overlay(Mode::archive(&s));

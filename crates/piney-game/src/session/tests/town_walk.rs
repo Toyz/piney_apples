@@ -56,8 +56,9 @@ impl TownWalker {
             let span = (to[0] - p[0]).abs().max((to[1] - p[1]).abs());
             let n = ((span + 4000.0) / 100.0) as i32 | 1;
             // The walking PCs and the merchants (but whom he walks to).
-            let people = town_cast(world).pcs().iter().filter(|c| c.disp_sw).map(|c| c.char.pos);
-            let people = people.chain(town_cast(world).merchants().iter().map(|m| m.ch.pos)).filter(|_| self.people);
+            let people = town_cast(world).npcs().walkers().filter(|c| c.core.entry.disp_sw).map(|c| c.core.ch.pos);
+            let people =
+                people.chain(town_cast(world).npcs().merchants().map(|m| m.core.ch.pos)).filter(|_| self.people);
             let mut closed: Vec<[f32; 2]> = self.avoid.iter().map(|&(q, _)| q).collect();
             closed.extend(
                 people

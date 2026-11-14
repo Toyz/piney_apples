@@ -499,10 +499,6 @@ pub struct Combat {
     /// next, by `charTbl` row: the party's `storeCondition` when the scene
     /// restores it ([`crate::chara::party::restores_condition`]), else none.
     pub restore: [Option<crate::chara::party::StoredCondition>; 18],
-    /// The event's NPCs `ccEntryEventMng` made (type 3 a town PC, type 4
-    /// the Administrator): their stand-ins on the entry control's NPC list,
-    /// which the world moves, draws and speaks for.
-    pub npcs: Vec<EventNpc>,
     /// What the object menus ask of Kite from the menu task, played before
     /// his next frame (the menu task runs after the world's here).
     pub kite_menu: Vec<KiteMenuCall>,
@@ -599,9 +595,9 @@ impl<W: Runtime + ?Sized> Runtime for Own<'_, '_, W> {
 }
 
 /// The objects' own code the entry control calls that is not an enemy's
-/// or a portal's: a gimmick or an NPC made with its table row's base and
-/// doing nothing here (an event's NPCs are the world's to move and draw:
-/// [`Combat::npcs`]).
+/// or a portal's: a gimmick made with its table row's base and doing
+/// nothing here. The NPC list is the world's ([`crate::systems::npcs`]),
+/// which `ccEntryEventMng`'s types 3 and 4 make ([`Combat::start_entries`]).
 struct Objects;
 
 impl entry::Seam for Objects {
@@ -609,9 +605,6 @@ impl entry::Seam for Objects {
         false
     }
     fn gimmick_main(&mut self, _: &mut EntryCtrl, _: &mut entry::Cx, _: usize) -> bool {
-        false
-    }
-    fn npc_main(&mut self, _: &mut EntryCtrl, _: &mut entry::Cx, _: usize) -> bool {
         false
     }
     fn make_enemy(&mut self, cx: &mut entry::Cx, _race: i32, ent: &EntryParam, who: usize) -> (BChar, Enemy) {
@@ -622,82 +615,48 @@ impl entry::Seam for Objects {
         ch.pos = ent.pos;
         (ch, EntryObj { ent: *ent, dirc: ent.dirc, gim_id: ent.id, ..EntryObj::default() })
     }
-    fn make_npc(&mut self, cx: &mut entry::Cx, ent: &EntryParam, _who: usize) -> (BChar, EntryObj) {
-        let mut ch = entry::npc_char(cx.st, ent.id);
-        ch.pos = ent.pos;
-        (ch, EntryObj { ent: *ent, dirc: ent.dirc, ..EntryObj::default() })
-    }
 }
 
-/// An event's NPC in a field or dungeon: its stand-in's scene index, the
-/// entry's type (3 a town PC, 4 a merchant: the Administrator) and its
-/// `npcTbl` row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EventNpc {
-    pub who: usize,
-    pub ty: i16,
-    pub code: i16,
+/// What [`Combat::start_entries`] leaves to the world: a field's
+/// `fieldrand` as `WORLD_MAN::EntryGimmick` left it, and the boss whose
+/// tasks an `entry 7 code` started. `ccBossEntryStart` (INF gcmn
+/// 0x0045b2a0, MUT 0x00470c40, OUT 0x0046c540, QUA 0x0035ee50) only starts
+/// `ccThBossEffect` and `bossFunc[code]` at priority 66, below the entry
+/// control's 64 (`GoThread` readies them without running them), so the boss
+/// is made in its task's first pass, after the whole of `ccEntryEventMng`.
+#[derive(Default)]
+pub struct Entered {
+    /// The field's `fieldrand` after its gimmicks.
+    pub field_rng: Option<piney_data::dungeon::Rng>,
+    /// The code of the boss an `entry 7` started (one per event block).
+    pub boss: Option<i32>,
 }
 
-/// `ccEntryEventMng`'s `entry 3|4 CODE MARKER` outside the towns:
-/// `ccSetRtownPC(code)` (gcmn 0x00506640) or `ccSetMerchant(code)`
-/// (0x005057f0), an `entryObject` of type 2 (a PC with no landmark), put at
-/// the marker's `evPos` facing its heading (Kite's position added for floor
-/// and block 9999). A PC comes off the command list for good. The stand-in's
-/// body stays out of the hit list: the world's character collides.
-fn event_npc(
-    ctrl: &mut EntryCtrl,
-    cx: &mut entry::Cx,
-    seam: &mut dyn entry::Seam,
-    e: [i16; 4],
-    positions: &[entry::EvPos],
-    kite: V4,
-    game: &entry::Game,
-) -> Option<EventNpc> {
-    let mut ep = entry::entry_param_clear();
-    ep.ty = 2;
-    ep.id = i32::from(e[1]);
-    ep.area = game.area;
-    ep.area_num = match game.area {
-        0 => game.town,
-        1 => game.field,
-        _ => game.dungeon,
-    };
-    ep.floor = game.floor;
-    ep.block = game.block;
-    ep.ent_root = -1;
-    if e[0] == 3 {
-        ep.param[0] = -1;
+/// `ccEntryEventMng`'s making of an event's NPC (`ccSetRtownPC`,
+/// `ccSetMerchant`): onto the character list, `ccRand` at hand, the entry
+/// (`type code marker param`) and its place and heading.
+pub type EnterNpc<'a> = dyn FnMut(&mut crate::hit::Hits, &mut Genrand, [i16; 4], (V4, V4)) + 'a;
+
+/// Where `ccEntryEventMng` puts an event's NPC (INF main 0x001b6888-
+/// 0x001b6978): the first of the 16 `evPos` with the marker's number (or
+/// the last of them when none has it), plus Kite's place for floor and
+/// block 9999, facing its heading; the origin for a marker below 0.
+fn event_npc_at(marker: i16, positions: &[entry::EvPos], kite: V4) -> (V4, V4) {
+    if marker < 0 {
+        return (ee::VF0, ee::VF0);
     }
-    let who = ctrl.entry_object(cx, seam, &mut ep)?;
-    let (pos, dirc) = if e[2] < 0 {
-        (ee::VF0, ee::VF0)
-    } else {
-        let p = positions
-            .iter()
-            .take(16)
-            .find(|p| p.num == i32::from(e[2]))
-            .or_else(|| positions.get(15))
-            .copied()
-            .unwrap_or_default();
-        let mut pos = p.pos;
-        if p.floor >= 9999 && p.block >= 9999 {
-            pos = ee::vadd(pos, kite);
-        }
-        (pos, [0, 0, p.dirc, ONE])
-    };
-    cx.scene.chars[who].pos = pos;
-    if let Some(entry::Obj::Npc(o)) = ctrl.objs.get_mut(who) {
-        o.dirc = dirc;
-        entry::set_hit_sw(cx.world, who, &mut o.hit, false);
-        if e[0] == 3 {
-            o.cmnd_flag = true;
-        }
+    let p = positions
+        .iter()
+        .take(16)
+        .find(|p| p.num == i32::from(marker))
+        .or_else(|| positions.get(15))
+        .copied()
+        .unwrap_or_default();
+    let mut pos = p.pos;
+    if p.floor >= 9999 && p.block >= 9999 {
+        pos = ee::vadd(pos, kite);
     }
-    if e[0] == 3 {
-        piney_battle::fellow::delete_cmnd(cx.scene, who);
-    }
-    Some(EventNpc { who, ty: e[0], code: e[1] })
+    (pos, [0, 0, p.dirc, ONE])
 }
 
 /// `+0xe0` bits.
@@ -763,7 +722,6 @@ impl Combat {
             gens_alive: None,
             blur_statics: Default::default(),
             restore: [None; 18],
-            npcs: Vec::new(),
             gimmick_lights: Default::default(),
             walk_lights: Default::default(),
             symbol_fires: Vec::new(),
@@ -1155,8 +1113,10 @@ impl Combat {
     /// `ccThEntryCtrl`'s set-up in a field or dungeon: the control for the
     /// place, `ccRegisterDifficultyEnemy`'s rows (main 0x001b7020), then
     /// the event's entries (`ccEntryEventMng`, main 0x001b62e0): each
-    /// `entry_mc` a magic portal at its marker, each `entry` of type 5 or 6
-    /// its enemies.
+    /// `entry` of type 5 or 6 its enemies, of 3 or 4 its NPC through `npc`
+    /// (made on the character list with `ccRand` at hand, at its place),
+    /// of 7 its boss's task started ([`Entered::boss`]), then each
+    /// `entry_mc` a magic portal at its marker.
     #[allow(clippy::too_many_arguments)]
     pub fn start_entries(
         &mut self,
@@ -1168,9 +1128,10 @@ impl Combat {
         positions: &[entry::EvPos],
         dungeon: Option<DungeonEntries>,
         field: Option<FieldEntries>,
-    ) -> Option<piney_data::dungeon::Rng> {
+        npc: &mut EnterNpc,
+    ) -> Entered {
         if self.started {
-            return None;
+            return Entered::default();
         }
         self.started = true;
         let d = self.data.clone();
@@ -1211,20 +1172,27 @@ impl Combat {
             manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
         };
-        let mut cx = entry::Cx {
-            t: &d.t,
-            st: &d.st,
-            scene: &mut self.scene,
-            foes: &mut self.foes,
-            world: &mut stage,
-            cc: &mut self.cc,
-            rnds: &mut self.rnds,
-            save: x.save,
-            game,
-            reg: &self.reg,
-            part_pats: self.part_pats,
-            out: &mut outs,
-        };
+        // The entry control's context over the stage, made again around
+        // each NPC entry, whose class takes the character list itself.
+        macro_rules! entry_cx {
+            () => {
+                entry::Cx {
+                    t: &d.t,
+                    st: &d.st,
+                    scene: &mut self.scene,
+                    foes: &mut self.foes,
+                    world: &mut stage,
+                    cc: &mut self.cc,
+                    rnds: &mut self.rnds,
+                    save: &mut *x.save,
+                    game,
+                    reg: &self.reg,
+                    part_pats: self.part_pats,
+                    out: &mut outs,
+                }
+            };
+        }
+        let mut cx = entry_cx!();
         let mut seam = Objects;
         let mut restored: Vec<(usize, Option<Actor>)> = Vec::new();
         // restoreEntry, then WORLD_MAN::EntryGimmick in a dungeon: the
@@ -1282,20 +1250,30 @@ impl Combat {
             entry::world_set_special_obj(&mut self.ctrl, &mut cx, &mut seam, &f.gims, &mut f.rng);
             field_rng = Some(f.rng);
         }
+        // ccEntryEventMng (main 0x001b62e0): entry[] in its order
+        // (0x001b6304-0x001b69a4), an enemy or object of type 5 or 6 through
+        // entryObject, an NPC of 3 or 4 made by its class (ccSetRtownPC,
+        // ccSetMerchant) and put at its marker; then entryMc[] (0x001b69b8
+        // on), each a magic portal.
+        let mut boss = None;
+        for e in entries {
+            match e[0] {
+                5 | 6 => {
+                    let mut cx = entry_cx!();
+                    let (mut ep, n) = entry::event_enemy(*e, positions, kite_pos, &game);
+                    for _ in 0..n {
+                        self.ctrl.entry_object_n(&mut cx, &mut seam, &mut ep, 1);
+                    }
+                }
+                3 | 4 => npc(stage.hits, &mut self.cc, *e, event_npc_at(e[2], positions, kite_pos)),
+                7 => boss = Some(i32::from(e[1])),
+                _ => {}
+            }
+        }
+        let mut cx = entry_cx!();
         for e in entries_mc.iter().filter(|e| e[0] >= 0) {
             if let Some(mut ep) = entry::event_magic_circle(*e, positions, kite_pos, &game) {
                 self.ctrl.entry_object(&mut cx, &mut seam, &mut ep);
-            }
-        }
-        for e in entries.iter().filter(|e| matches!(e[0], 5 | 6)) {
-            let (mut ep, n) = entry::event_enemy(*e, positions, kite_pos, &game);
-            for _ in 0..n {
-                self.ctrl.entry_object_n(&mut cx, &mut seam, &mut ep, 1);
-            }
-        }
-        for e in entries.iter().filter(|e| matches!(e[0], 3 | 4)) {
-            if let Some(n) = event_npc(&mut self.ctrl, &mut cx, &mut seam, *e, positions, kite_pos, &game) {
-                self.npcs.push(n);
             }
         }
         drop(stage);
@@ -1320,7 +1298,7 @@ impl Combat {
         for o in outs {
             self.shows.push(Show::Entry(o));
         }
-        field_rng
+        Entered { field_rng, boss }
     }
 
     /// `EntryObject(ep)` outside the entry control's frame, the object's

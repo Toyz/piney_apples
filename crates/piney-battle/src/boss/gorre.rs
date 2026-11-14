@@ -23,8 +23,8 @@ use super::{
     base_exec_pattern_index, word,
 };
 use crate::boss::{Part, Parts};
-use crate::enemy_ai::get_dirc;
 use crate::event::{Event, Who};
+use crate::geom::get_dirc;
 use crate::geom::{self, V4};
 use crate::item;
 

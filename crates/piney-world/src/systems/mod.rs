@@ -18,6 +18,7 @@ pub mod haze;
 pub mod lake;
 pub mod lake_sky;
 pub mod leaves;
+pub mod npcs;
 pub mod pieces;
 pub mod rain;
 pub mod room_lights;

@@ -11,12 +11,13 @@ pub enum CharId {
     /// scene in every area, whatever its index there.
     Member(i32),
     /// Any other character on the battle's scene, by its index: a field's
-    /// enemies, gimmicks, portals and its event NPCs.
+    /// enemies, gimmicks and portals.
     Scene(usize),
     /// The riding Grunty (`pcgs`), the battle's ride object.
     Ride,
-    /// One of the area's own NPCs on the entry control's NPC list (the
-    /// cast's), by its base id: `ccEvent::GetNpc`'s code.
+    /// An NPC on the entry control's NPC list (the cast's, in every area),
+    /// by the row its entry made it from (`entParam.id`, +0x124: its base
+    /// id, `ccEvent::GetNpc`'s code, but for a grown Grunty).
     Npc(i32),
     /// One of the area's own objects on the entry control's object list
     /// (the cast's), by its `gimmickTbl` row: `ccSetChaosGate`'s

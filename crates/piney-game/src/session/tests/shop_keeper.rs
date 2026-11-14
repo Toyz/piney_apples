@@ -44,7 +44,7 @@ fn shop_keeper(s: &Session) -> Option<&Merchant> {
     if !w.in_town() {
         return None;
     }
-    town_cast(w.world()).merchants().iter().find(|m| m.id == SHOP_KEEPER)
+    town_cast(w.world()).npcs().merchants().find(|m| m.core.code() == SHOP_KEEPER)
 }
 
 /// The Shop Keeper stands at marker 6, on the NPC list before the town's
@@ -61,13 +61,17 @@ fn mutations_shop_keeper_stands_at_marker_6() {
     assert_eq!(world.scene().town, 1);
     let (pos, rot) = world.marker_dummy(MARKER).expect("marker 6 in Dun Loireag's file");
     let m = shop_keeper(&s).expect("entry 4 29 not placed");
-    assert_eq!((m.name.as_str(), m.flags), ("Administrator", piney_world::chara::npc::TYPE_SYSOPE));
-    assert_eq!(town_cast(world).merchants()[0].id, SHOP_KEEPER, "made before ccSetMerchant(0)'s");
+    assert_eq!((m.core.row.name.as_str(), m.core.row.flags), ("Administrator", piney_world::chara::npc::TYPE_SYSOPE));
+    assert_eq!(
+        town_cast(world).npcs().merchants().next().unwrap().core.code(),
+        SHOP_KEEPER,
+        "made before ccSetMerchant(0)'s"
+    );
     // At the marker's dummy, its rotation copied whole; then block 27's
     // `npc_face 29 2 0 0` turned him to Kite at once.
     let kite = world.kite().pos();
-    let face = piney_world::ee::deg2rad(piney_world::event::dirc_to(m.ch.pos, kite));
-    assert_eq!((m.ch.pos, m.ch.dirc), (pos, [rot[0], rot[1], face, rot[3]]));
+    let face = piney_world::ee::deg2rad(piney_world::event::dirc_to(m.core.ch.pos, kite));
+    assert_eq!((m.core.ch.pos, m.core.ch.dirc), (pos, [rot[0], rot[1], face, rot[3]]));
     assert_eq!(m.anm_tbl, piney_world::town::merchant::ANM_TBL[0]);
     let vm = w.vm().expect("the event task");
     assert!(blocks(vm).contains(&(EVENT, ARRIVAL as i32)), "block 25 did not run");

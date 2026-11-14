@@ -21,14 +21,14 @@ use piney_data::volume::Volume;
 use piney_desktop::assets::SceneFile;
 
 use crate::chara::body::{Body, TRALL};
-use crate::chara::char::{Char, View, p2w, w2p};
-use crate::chara::npc::NpcRow;
+use crate::chara::char::{Char, p2w, w2p};
+use crate::chara::npc::{Core, NpcRow, Stuck};
 use crate::chara::pose::Play;
 use crate::ee::{self, F, ONE, V4, add, cosf, from_int, le, lt, mul, sinf, sub};
-use crate::event::entry::Npc;
 use crate::hit::{self, UNIT};
-use crate::town::merchant::EntryObj;
-use crate::town::pc::{get_dirc, get_dirc_chg, get_dirc0, get_dist3d, set_dirc};
+use crate::systems::npcs::NpcCtx;
+use crate::town::pc::get_dist3d;
+use piney_battle::geom::{get_dirc, get_dirc_chg, get_dirc0, set_dirc};
 use piney_battle::rand::{Genrand, Rng as _};
 
 /// `npcTbl`'s grown Grunties (145-153) and young ones (154-157).
@@ -184,7 +184,6 @@ const ARRIVE: F = 0x42a0_0000; // 80
 const WALK: F = 0x3fc0_0000; // 1.5
 const RUN: F = 0x4140_0000; // 12
 const HALF: F = 0x3f00_0000;
-const MOVED: F = 0x4248_0000; // 50
 const LAND_MASK: u32 = 0x2000_0002;
 const TENTH: F = 0x3dcc_cccd; // 0.1
 const K001: F = 0x3c23_d70a; // 0.01
@@ -367,15 +366,13 @@ pub enum GruntyEvent {
 /// One Grunty.
 #[derive(Clone)]
 pub struct Grunty {
-    /// The row it was made from: the port's name for it on the entry
-    /// control's list (its base changes as it grows).
-    pub code: i32,
-    /// Its base: `npcTbl[inuID]` (SetBaseParam as it grows).
-    pub row: NpcRow,
-    /// Main body (the entry's stream: cdogboda, cdogbodb or a grown kind's)
-    /// and its anm (`ch.play`).
-    pub ch: Char,
-    pub entry: EntryObj,
+    /// Its core ([`Core`]): the base `npcTbl[inuID]` (`SetBaseParam` as it
+    /// grows; the entry's `entParam.id` stays the row it was made from),
+    /// the main body (the entry's stream: cdogboda, cdogbodb or a grown
+    /// kind's) and its anm (`ch.play`), `affectType` (+0x9c), `actNum`
+    /// (+0x278), `actProcess` (+0x284), `actCnt` (+0x288), `bodyHitFlag`
+    /// (+0x294) and `bodyHitCnt` (+0x296).
+    pub core: Core,
     /// `ccscB`/`anmB`: cdogbodb; `ccscC`/`anmC`: the grown kind's, from
     /// `adultSetup`.
     pub body_b: Rc<Body>,
@@ -389,32 +386,23 @@ pub struct Grunty {
     /// first animation).
     pub has_a: bool,
     archive: Option<Arc<Archive>>,
-    /// +0x9c `affectType`; +0x94 which `affectFunc`.
-    pub affect_type: i16,
+    /// +0x94 which `affectFunc`.
     pub affect_fn: AffectFn,
-    /// +0x200 nextPos, +0x210 oldPos, +0x220 scale, +0x250 camPos, +0x260
-    /// camView.
+    /// +0x200 nextPos, +0x220 scale, +0x250 camPos, +0x260 camView.
     pub next_pos: V4,
-    pub old_pos: V4,
     pub scale: V4,
     pub cam_pos: V4,
     pub cam_view: V4,
     /// +0x270 inuID, +0x274 localID (the grown kind).
     pub inu_id: i32,
     pub local_id: i32,
-    /// +0x278 actNum, +0x27c actNumOld, +0x280 actChange, +0x284
-    /// actProcess, +0x288 actCnt, +0x28c anmNum, +0x290 discNum.
-    pub act: i32,
+    /// +0x27c actNumOld, +0x280 actChange, +0x28c anmNum, +0x290 discNum.
     pub act_old: i32,
     pub act_change: i32,
-    pub act_process: i32,
-    pub act_cnt: i32,
     pub anm_num: i32,
     pub disc_num: i32,
-    /// +0x294 bodyHitFlag, +0x296 bodyHitCnt, +0x298 posCnt.
-    pub body_hit_flag: i16,
-    pub body_hit_cnt: i16,
-    pub pos_cnt: i16,
+    /// +0x298 posCnt and +0x210 oldPos: the stuck check.
+    pub stuck: Stuck,
     /// +0x29a foodKind, +0x29c foodNum, +0x29e gpSub[5].
     pub food_kind: i16,
     pub food_num: i16,
@@ -605,6 +593,8 @@ pub fn set_dog(
     let mut g = Grunty::new(archive, tables, bodies, town_file, hits, save, town, &row, &body, pos, rot, num);
     if let Some(g) = g.as_mut() {
         g.home_dummy = spot;
+        // entryObject's initObject: in its area.
+        g.core.entry.obj_flag = true;
     }
     Ok(g)
 }
@@ -653,11 +643,10 @@ impl Grunty {
         };
         hits.hit_enable(&mut ch.hit);
         let play_b = ANM_B[0].and_then(|n| bodies.b.play(n));
+        let mut core = Core::new(row.clone(), ch);
+        core.acts.num = 9;
         let mut g = Grunty {
-            code: id,
-            row: row.clone(),
-            ch,
-            entry: EntryObj::default(),
+            core,
             body_b: bodies.b.clone(),
             play_b,
             alpha_b: ONE,
@@ -665,25 +654,18 @@ impl Grunty {
             play_c: None,
             has_a,
             archive: Some(archive.clone()),
-            affect_type: 0,
             affect_fn: if id >= ROW_YOUNG { AffectFn::Young } else { AffectFn::Grown },
             next_pos: [0; 4],
-            old_pos: [0; 4],
             scale: [0; 4],
             cam_pos: [0; 4],
             cam_view: [0; 4],
             inu_id: id,
             local_id: 0,
-            act: 9,
             act_old: 9,
             act_change: -1,
-            act_process: 0,
-            act_cnt: 0,
             anm_num: 0,
             disc_num: 0,
-            body_hit_flag: 0,
-            body_hit_cnt: 0,
-            pos_cnt: 0,
+            stuck: Stuck::default(),
             food_kind: 0,
             food_num: 0,
             gp_sub: [0; 5],
@@ -729,8 +711,8 @@ impl Grunty {
             g.route = route(town).iter().map(|n| dummy(town_file, n).map_or(ee::VF0, |d| d.0)).collect();
             g.mark = 1;
             g.next_pos = g.route.get(1).copied().unwrap_or(pos);
-            g.ch.dirc[2] = get_dirc(g.ch.pos, g.next_pos);
-            g.act = 3;
+            g.core.ch.dirc[2] = get_dirc(g.core.ch.pos, g.next_pos);
+            g.core.acts.num = 3;
             g.act_old = 3;
             g.pg_scale = match grow.level {
                 1 => 0x3fc0_0000,
@@ -758,9 +740,9 @@ impl Grunty {
     /// `ccChar::SetBaseParam(ccGetNpcParam(id))`.
     fn set_base(&mut self, id: i32) {
         if let Some(r) = self.tables.row(id) {
-            self.row = r.clone();
-            self.ch.height = r.height;
-            self.ch.width = r.width;
+            self.core.row = r.clone();
+            self.core.ch.height = r.height;
+            self.core.ch.width = r.width;
         }
     }
 
@@ -773,7 +755,7 @@ impl Grunty {
             0 | 1 => {
                 self.anm_tbl = AnmTbl::Young(level);
                 if let Some(name) = self.anm_tbl.name(k) {
-                    self.has_a = self.ch.set_anim(&name);
+                    self.has_a = self.core.ch.set_anim(&name);
                 } else {
                     self.has_a = false;
                 }
@@ -796,7 +778,7 @@ impl Grunty {
 
     /// The main anm's `frameNow` (+0x98).
     fn frame_a(&self) -> u32 {
-        self.ch.play.time >> 8
+        self.core.ch.play.time >> 8
     }
 
     fn frame_b(&self) -> u32 {
@@ -806,7 +788,7 @@ impl Grunty {
     /// `_AnimateForward(frameSpd)` of the main anm, its notes kept.
     fn forward_a(&mut self) {
         if self.has_a {
-            let (_, notes) = self.ch.play.forward_notes(&self.ch.body.file);
+            let (_, notes) = self.core.ch.play.forward_notes(&self.core.ch.body.file);
             self.pending_a = notes;
         }
     }
@@ -833,53 +815,53 @@ impl Grunty {
             1 => &self.pending_b,
             _ => &self.pending_c,
         };
-        let (pos, attribute) = (self.ch.pos, self.ch.hit_attribute);
+        let (pos, attribute) = (self.core.ch.pos, self.core.ch.hit_attribute);
         self.notes.extend(n.iter().map(|&(event, param)| NoteAt { event, param, pos, attribute }));
     }
 
     /// `ccPGuso::main` (gcmn 0x0050b3c0) after `ccEntryObj::routine`.
-    pub fn main(&mut self, ctx: &mut GruntyCtx) {
-        self.ch.pos_p = w2p(self.ch.pos, ctx.player);
-        self.ch.pos = p2w(self.ch.pos_p, ctx.player);
-        match self.act {
+    pub fn main(&mut self, ctx: &mut NpcCtx) {
+        self.core.ch.pos_p = w2p(self.core.ch.pos, ctx.player);
+        self.core.ch.pos = p2w(self.core.ch.pos_p, ctx.player);
+        match self.core.acts.num {
             0 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     self.change_anm(0, self.grow.level);
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
                 self.face();
             }
             1 => {
-                if self.act_process == 0 {
-                    if self.act_old != self.act {
+                if self.core.acts.process == 0 {
+                    if self.act_old != self.core.acts.num {
                         self.change_anm(0, self.grow.level);
                     }
-                    self.act_process += 1;
-                    self.act_old = self.act;
+                    self.core.acts.process += 1;
+                    self.act_old = self.core.acts.num;
                 }
-                if self.act_cnt >= 151 {
-                    self.act = 3;
-                    self.act_process = 0;
-                    self.act_cnt = 0;
+                if self.core.acts.cnt >= 151 {
+                    self.core.acts.num = 3;
+                    self.core.acts.process = 0;
+                    self.core.acts.cnt = 0;
                 } else {
-                    self.act_cnt += 1;
+                    self.core.acts.cnt += 1;
                 }
             }
             2 => {
-                if self.act_process == 0 {
+                if self.core.acts.process == 0 {
                     if self.anm_num != 0 {
                         self.change_anm(0, self.grow.level);
                     }
-                    self.act_process += 1;
+                    self.core.acts.process += 1;
                 }
                 self.face();
             }
             3 => {
                 self.walk(ctx);
-                if self.act == 3 && self.act_process == 0 {
+                if self.core.acts.num == 3 && self.core.acts.process == 0 {
                     self.change_anm(3, self.grow.level);
-                    self.act_process += 1;
-                    self.act_old = self.act;
+                    self.core.acts.process += 1;
+                    self.act_old = self.core.acts.num;
                 }
             }
             6 => self.eat(ctx),
@@ -892,22 +874,10 @@ impl Grunty {
         }
         // From Mutation on every act but the walk (3) and the grown one's
         // (7) puts it on the ground (MUT gcmn 0x00527f78).
-        if self.later && !matches!(self.act, 3 | 7) {
+        if self.later && !matches!(self.core.acts.num, 3 | 7) {
             self.land(ctx);
         }
-        self.ch.hit.pos = self.ch.pos;
-        if ctx.hits.collision_detection(&mut self.ch.hit) != 0 {
-            let off = self.ch.hit.offset;
-            self.ch.pos = ee::vadd(self.ch.pos, off);
-            self.ch.pos_p = ee::vadd(self.ch.pos_p, off);
-            self.ch.hit.pos = self.ch.pos;
-            ctx.hits.sync(&self.ch.hit);
-            self.body_hit_flag = 1;
-            self.body_hit_cnt = self.body_hit_cnt.wrapping_add(1);
-        } else {
-            self.body_hit_flag = 0;
-            self.body_hit_cnt = 0;
-        }
+        self.core.touch.collide(&mut self.core.ch, ctx.hits, true);
         if self.evoflag != 0 {
             return;
         }
@@ -916,8 +886,8 @@ impl Grunty {
                 self.forward_a();
                 self.note_process(0);
                 // ccChar::Draw.
-                if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
-                    self.drawn.push((0, self.ch.transparency, true));
+                if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+                    self.drawn.push((0, self.core.ch.transparency, true));
                 }
             }
             2 | 3 => {
@@ -946,49 +916,40 @@ impl Grunty {
 
     /// `ccSetDirc(&dirc.z, plDirc, 64)`: turning to face Kite.
     fn face(&mut self) {
-        let mut z = self.ch.dirc[2];
-        set_dirc(&mut z, self.entry.pl_dirc, 64);
-        self.ch.dirc[2] = z;
+        let mut z = self.core.ch.dirc[2];
+        z = set_dirc(z, self.core.entry.pl_dirc, 64);
+        self.core.ch.dirc[2] = z;
     }
 
     /// The heading turned a sixteenth of the way toward `target`
     /// (`ccGetDircChg(.., 256)`); true when it faces within 4096 of it.
     fn turn_to(&mut self, dir: F) -> bool {
-        let s1 = ee::rad2deg(self.ch.dirc[2]);
+        let s1 = ee::rad2deg(self.core.ch.dirc[2]);
         let s2 = ee::rad2deg(dir);
         let s1 = (i32::from(s1) + get_dirc_chg(s1, s2, 256)) as i16;
-        self.ch.dirc[2] = ee::deg2rad(s1);
+        self.core.ch.dirc[2] = ee::deg2rad(s1);
         ((i32::from(s2 as u16) - i32::from(s1 as u16) + 4096) & 0xffff) < 8192
     }
 
     /// `ccPGuso::move` (gcmn 0x0050bca0): along the route; at a dummy (or
     /// stuck) `rand() & 3`: 0 or 3 rests (act 1) and heads for the same
     /// one after, 1 or 2 moves on that many.
-    fn walk(&mut self, ctx: &mut GruntyCtx) {
-        let pos = self.ch.pos;
+    fn walk(&mut self, ctx: &mut NpcCtx) {
+        let pos = self.core.ch.pos;
         let dist = get_dist3d(ctx.hits.volume, pos, self.next_pos);
         let mut dir = get_dirc(pos, self.next_pos);
         if self.turn_to(dir) {
-            if !le(dist, ARRIVE) && self.pos_cnt < 121 {
-                if self.body_hit_flag != 0 {
-                    let c = self.body_hit_cnt;
-                    if c < 40 {
-                        dir = sub(dir, HALF);
-                    } else if (60..100).contains(&c) {
-                        dir = add(dir, HALF);
-                    } else if c >= 120 {
-                        self.body_hit_cnt = 0;
-                    }
-                }
-                let v = if self.act == 3 { WALK } else { RUN };
-                self.ch.pos[0] = add(self.ch.pos[0], mul(v, sinf(dir)));
-                self.ch.pos[1] = sub(self.ch.pos[1], mul(v, cosf(dir)));
+            if !le(dist, ARRIVE) && self.stuck.going() {
+                dir = self.core.touch.avoid(dir);
+                let v = if self.core.acts.num == 3 { WALK } else { RUN };
+                self.core.ch.pos[0] = add(self.core.ch.pos[0], mul(v, sinf(dir)));
+                self.core.ch.pos[1] = sub(self.core.ch.pos[1], mul(v, cosf(dir)));
             } else {
                 let r = ctx.rand.rand() & 3;
                 if r == 0 || r == 3 {
-                    self.act = 1;
-                    self.act_process = 0;
-                    self.act_cnt = 0;
+                    self.core.acts.num = 1;
+                    self.core.acts.process = 0;
+                    self.core.acts.cnt = 0;
                 } else {
                     for _ in 0..r {
                         self.mark += 1;
@@ -998,42 +959,28 @@ impl Grunty {
                     }
                 }
                 self.next_pos = self.route.get(self.mark).copied().unwrap_or(self.next_pos);
-                self.pos_cnt = 0;
+                self.stuck.cnt = 0;
             }
         }
         self.land(ctx);
-        if self.pos_cnt == 120 {
-            let far = |a: F, b: F| {
-                let d = sub(a, b);
-                !le(d, MOVED) || lt(d, ee::neg(MOVED))
-            };
-            for k in 0..3 {
-                if far(self.ch.pos[k], self.old_pos[k]) {
-                    self.pos_cnt = 0;
-                }
-            }
-        }
-        if self.pos_cnt == 0 {
-            self.old_pos = self.ch.pos;
-        }
-        self.pos_cnt = self.pos_cnt.wrapping_add(1);
+        self.stuck.check(self.core.ch.pos);
     }
 
     /// `ccTransPosW2M`, `ccLandHitCheck(0x20000002)` and the attribute.
-    fn land(&mut self, ctx: &mut GruntyCtx) {
-        let mut p = self.ch.pos;
+    fn land(&mut self, ctx: &mut NpcCtx) {
+        let mut p = self.core.ch.pos;
         p[3] = ONE;
-        self.ch.pos[2] = ctx.hits.land(p, LAND_MASK);
-        self.ch.hit_attribute = ctx.hits.attribute();
+        self.core.ch.pos[2] = ctx.hits.land(p, LAND_MASK);
+        self.core.ch.hit_attribute = ctx.hits.attribute();
     }
 
     /// act 6 (main 0x0050b5c8): eating, then growing or waiting.
-    fn eat(&mut self, ctx: &mut GruntyCtx) {
-        match self.act_process {
+    fn eat(&mut self, ctx: &mut NpcCtx) {
+        match self.core.acts.process {
             0 => {
                 self.change_anm(2, self.dmylevel);
-                self.act_process += 1;
-                self.act_old = self.act;
+                self.core.acts.process += 1;
+                self.act_old = self.core.acts.num;
             }
             1 => {
                 self.move_cam();
@@ -1042,7 +989,7 @@ impl Grunty {
                     self.burp_eff();
                 }
                 if t >= 130 {
-                    self.act_process = 3;
+                    self.core.acts.process = 3;
                     self.param_calc(ctx);
                 }
             }
@@ -1063,7 +1010,7 @@ impl Grunty {
     /// `ccPGuso::moveCam` (gcmn 0x00510490): the fixed camera's view eased
     /// toward the Grunty (level 0 once more from its feet +50).
     fn move_cam(&mut self) {
-        let p = self.ch.pos;
+        let p = self.core.ch.pos;
         match self.grow.level {
             0 | 1 => {
                 if self.grow.level == 0 {
@@ -1088,7 +1035,7 @@ impl Grunty {
     /// `ccPGuso::paramCalc` (gcmn 0x0050c0f0): the food's effect on the
     /// record, the level it has reached (growing up: evolevel, act 6's
     /// proccess 2; grown: act 7), the food it asks for next.
-    fn param_calc(&mut self, ctx: &mut GruntyCtx) {
+    fn param_calc(&mut self, ctx: &mut NpcCtx) {
         let k = self.food_kind.clamp(0, 15) as usize;
         let n = self.food_num;
         let f = FOOD_TBL[k];
@@ -1135,8 +1082,8 @@ impl Grunty {
                 self.adult_type = if far { 0 } else { 2 };
             }
             self.adult_setup(ctx);
-            self.act_process = 0;
-            self.act = 7;
+            self.core.acts.process = 0;
+            self.core.acts.num = 7;
             self.evonum = 0;
         }
         // The food it asks for: the stat furthest from the grown one's.
@@ -1167,7 +1114,7 @@ impl Grunty {
         self.evolevel = n;
         self.evonum = 0;
         self.evocnt = 0;
-        self.act_process = 2;
+        self.core.acts.process = 2;
     }
 }
 
@@ -1178,11 +1125,11 @@ impl Grunty {
     /// (Kite and it put at their places) or back, 19 it eats food `arg1`,
     /// `arg2` of it. Nothing while act 8.
     pub fn dog_action(&mut self, cmd: i16, arg1: i16, arg2: i16, player_dirc: V4) {
-        self.affect_type = cmd;
+        self.core.affect_type = cmd;
         match cmd {
-            15 if self.act != 8 => {
-                self.act = 2;
-                self.act_process = 0;
+            15 if self.core.acts.num != 8 => {
+                self.core.acts.num = 2;
+                self.core.acts.process = 0;
                 self.msg_num = if self.grow.level == 4 {
                     7
                 } else if self.grow.size == 0 {
@@ -1193,25 +1140,25 @@ impl Grunty {
                 self.chat_flag = 0;
                 self.events.push(GruntyEvent::ChatClose);
             }
-            14 if self.act != 8 => {
-                self.act = 0;
-                self.act_process = 0;
+            14 if self.core.acts.num != 8 => {
+                self.core.acts.num = 0;
+                self.core.acts.process = 0;
                 self.sel_food = 0;
                 if self.grow.level == 4 {
                     self.msg_num = 0;
                 }
                 self.chat_flag = 0;
             }
-            0 if self.act != 8 => {
-                self.act = 3;
-                self.act_process = 0;
+            0 if self.core.acts.num != 8 => {
+                self.core.acts.num = 3;
+                self.core.acts.process = 0;
                 self.events.push(GruntyEvent::ChatClose);
                 self.msg_num = 0;
             }
             11 => self.fixed_camera(player_dirc),
-            19 if self.act != 8 => {
-                self.act = 6;
-                self.act_process = 0;
+            19 if self.core.acts.num != 8 => {
+                self.core.acts.num = 6;
+                self.core.acts.process = 0;
                 self.food_kind = arg1;
                 self.food_num = arg2;
                 self.growth_num = 1;
@@ -1237,19 +1184,19 @@ impl Grunty {
             self.events.push(GruntyEvent::CamPos(self.cam_pos));
             self.events.push(GruntyEvent::CamView(self.cam_view));
             self.cam_flag = 1;
-            self.act = 4;
+            self.core.acts.num = 4;
             let inu = self.tables.inu_pos[d];
             let pl = self.tables.player_pos[d];
-            self.ch.pos = inu;
-            self.ch.hit.pos = inu;
+            self.core.ch.pos = inu;
+            self.core.ch.hit.pos = inu;
             let _ = player_dirc;
             self.events.push(GruntyEvent::Player { pos: pl, dirc_z: get_dirc0(pl, inu) });
-            self.ch.dirc[2] = get_dirc0(inu, pl);
+            self.core.ch.dirc[2] = get_dirc0(inu, pl);
         } else {
             self.events.push(GruntyEvent::Camera(1));
             self.cam_flag = 0;
             if self.evonum == 7 && self.grow.level == 4 {
-                self.entry.delete_cmnd(true);
+                self.core.entry.delete_cmnd(true);
                 self.events.push(GruntyEvent::Dropped);
             }
         }
@@ -1259,7 +1206,7 @@ impl Grunty {
     /// row's four (`ccRand() & 3`), 14 line 7; the rest nothing.
     pub fn dog_action2(&mut self, cmd: i16, mt: &mut Genrand) {
         let later = self.later;
-        self.affect_type = cmd;
+        self.core.affect_type = cmd;
         match cmd {
             15 => {
                 let k = self.inu_id - ROW_ADULT;
@@ -1270,10 +1217,10 @@ impl Grunty {
                 // From Mutation on it turns to Kite, and back when the
                 // menu shuts (MUT gcmn 0x0052c65c).
                 if later {
-                    self.act_process = 1;
+                    self.core.acts.process = 1;
                 }
             }
-            0 if later => self.act_process = 2,
+            0 if later => self.core.acts.process = 2,
             _ => {}
         }
     }
@@ -1282,23 +1229,23 @@ impl Grunty {
     /// 8) sits up with a line of its kind's four, 14 sits (line 7), 0 walks
     /// on, 11 as `dogAction`'s.
     pub fn dog_action_adult(&mut self, cmd: i16, mt: &mut Genrand, player_dirc: V4) {
-        self.affect_type = cmd;
+        self.core.affect_type = cmd;
         match cmd {
-            15 if self.act != 8 => {
-                self.act = 2;
-                self.act_process = 0;
+            15 if self.core.acts.num != 8 => {
+                self.core.acts.num = 2;
+                self.core.acts.process = 0;
                 let k = self.local_id;
                 self.msg_num = if (0..9).contains(&k) { GROWN_LINES[k as usize][(mt.rand() & 3) as usize] } else { 7 };
             }
-            14 if self.act != 8 => {
-                self.act = 0;
-                self.act_process = 0;
+            14 if self.core.acts.num != 8 => {
+                self.core.acts.num = 0;
+                self.core.acts.process = 0;
                 self.sel_food = 0;
                 self.msg_num = 7;
             }
-            0 if self.act != 8 => {
-                self.act = 3;
-                self.act_process = 0;
+            0 if self.core.acts.num != 8 => {
+                self.core.acts.num = 3;
+                self.core.acts.process = 0;
             }
             11 => self.fixed_camera(player_dirc),
             _ => {}
@@ -1327,9 +1274,9 @@ impl Grunty {
     }
 
     fn burp_with(&mut self, y: F, z: F, sc: F) {
-        let m = crate::camera::evcam::rot_z(&UNIT, self.ch.dirc[2]);
+        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
         let off = ee::apply(&m, [0, y, z, ONE]);
-        let p = self.ch.pos;
+        let p = self.core.ch.pos;
         let pos = [add(p[0], off[0]), add(p[1], off[1]), add(p[2], off[2]), ONE];
         let v = ee::apply(&m, [0, 0xc000_0000, HALF, ONE]);
         self.events.push(GruntyEvent::Smoke { pos, v, scale: sc, life: 5, kind: 114 });
@@ -1337,7 +1284,7 @@ impl Grunty {
 
     /// `ccPGuso::evoEff` (gcmn 0x005100e0): smoke round it as it grows.
     fn evo_eff(&mut self, mt: &mut Genrand) {
-        let m = crate::camera::evcam::rot_z(&UNIT, self.ch.dirc[2]);
+        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
         let (y, z): (F, F) = match self.grow.level {
             0 => (0xc2c8_0000, 0x41c8_0000),
             1 => (0xc2c8_0000, 0x4248_0000),
@@ -1347,7 +1294,7 @@ impl Grunty {
         };
         let x = sub(rand_f(mt, 0x427c_0000, 0x41f8_0000), 0x4200_0000);
         let off = ee::apply(&m, [x, y, z, ONE]);
-        let p = self.ch.pos;
+        let p = self.core.ch.pos;
         let pos = [add(p[0], off[0]), add(p[1], off[1]), add(p[2], off[2]), ONE];
         let v = ee::apply(&m, [0, HALF, 0x4040_0000, ONE]);
         self.events.push(GruntyEvent::Smoke { pos, v, scale: 0x4080_0000, life: 10, kind: 109 });
@@ -1356,27 +1303,27 @@ impl Grunty {
     /// `ccPGuso::effect` (gcmn 0x005102a0), from `inuCheckNote` on a step
     /// (param 0 or 1) of `pgPtr`: a grown one running off kicks up dust.
     pub fn step_effect(&mut self, rand: &mut crate::Rand) {
-        if le(self.ch.transparency, K005) || self.grow.level < 4 || self.evonum != 6 {
+        if le(self.core.ch.transparency, K005) || self.grow.level < 4 || self.evonum != 6 {
             return;
         }
         self.speed = 0x4120_0000;
         let speed = self.speed;
-        let m = crate::camera::evcam::rot_z(&UNIT, self.ch.dirc[2]);
+        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
         let off = ee::apply(&m, [0, 0x4348_0000, 0x4248_0000, ONE]);
-        let p = self.ch.pos;
+        let p = self.core.ch.pos;
         let pos = [add(p[0], off[0]), add(p[1], off[1]), add(p[2], off[2]), ONE];
         let r = rand.rand() % 5;
         let y = mul(TENTH, mul(mul(0x3d99_999a, mul(0xbf80_0000, speed)), from_int(10 - r)));
         let v = ee::apply(&m, [0, y, 0, ONE]);
         self.events.push(GruntyEvent::Smoke { pos, v, scale: 0x4040_0000, life: 10, kind: 1 });
-        self.events.push(GruntyEvent::Se3d { n: 53, pos: self.ch.pos });
+        self.events.push(GruntyEvent::Se3d { n: 53, pos: self.core.ch.pos });
     }
 
     /// `ccPGuso::pgDead` (gcmn 0x0050e990): a puff as a grown one that ran
     /// off flattens away.
     fn pg_dead(&mut self, rand: &mut crate::Rand) {
-        let m = crate::camera::evcam::rot_z(&UNIT, self.ch.dirc[2]);
-        let p = self.ch.pos;
+        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
+        let p = self.core.ch.pos;
         let pos = [p[0], p[1], add(p[2], 0x4220_0000), ONE];
         let r = rand.rand() % 5;
         let y = mul(TENTH, mul(mul(0x3d99_999a, mul(0xbf80_0000, self.speed)), from_int(10 - r)));
@@ -1387,7 +1334,7 @@ impl Grunty {
 
 impl Grunty {
     /// `ccPGuso::evoAct` (gcmn 0x0050c8f0): by evolevel.
-    fn evo_act(&mut self, ctx: &mut GruntyCtx) {
+    fn evo_act(&mut self, ctx: &mut NpcCtx) {
         match self.evolevel {
             1 => self.evo_chibi2(ctx),
             2 => self.evo_pon1(ctx),
@@ -1417,12 +1364,12 @@ impl Grunty {
     }
 
     fn evolve_pos(&self) -> V4 {
-        self.ch.pos
+        self.core.ch.pos
     }
 
     /// `ccPGuso::evoActChibi2` (gcmn 0x0050c960): level 0 to 1 (Little
     /// Grunty, row 155), on the main anm.
-    fn evo_chibi2(&mut self, ctx: &mut GruntyCtx) {
+    fn evo_chibi2(&mut self, ctx: &mut NpcCtx) {
         match self.evonum {
             0 => {
                 self.dmylevel = 1;
@@ -1445,7 +1392,7 @@ impl Grunty {
                 } else {
                     self.stretch(t, K004, K002);
                     if self.frame_a() == 30 {
-                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.ch.height });
+                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.core.ch.height });
                     }
                 }
             }
@@ -1453,7 +1400,7 @@ impl Grunty {
                 let c = self.evocnt;
                 self.evocnt += 1;
                 if c >= 91 {
-                    self.act_process = 3;
+                    self.core.acts.process = 3;
                     self.evonum += 1;
                 }
             }
@@ -1486,7 +1433,7 @@ impl Grunty {
     /// Kid, row 156), from the main anm's body to anmB's. Its phase 2
     /// (the camera turning about the Grunty, printing "DEG :") is never
     /// reached: phase 1 goes on to 3.
-    fn evo_pon1(&mut self, ctx: &mut GruntyCtx) {
+    fn evo_pon1(&mut self, ctx: &mut NpcCtx) {
         match self.evonum {
             0 => {
                 self.set_base(156);
@@ -1494,7 +1441,7 @@ impl Grunty {
                 self.anm_tbl = AnmTbl::Young(0);
                 self.change_anm(4, 0);
                 self.evonum += 1;
-                self.transrate = [self.ch.transparency, 0];
+                self.transrate = [self.core.ch.transparency, 0];
                 self.change_anm(4, 2);
                 self.evocnt = 11;
                 self.evoflag = 1;
@@ -1518,7 +1465,7 @@ impl Grunty {
                         self.evo_eff(ctx.cc);
                     }
                     if self.frame_a() == 30 {
-                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.ch.height });
+                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.core.ch.height });
                     }
                 }
             }
@@ -1533,7 +1480,7 @@ impl Grunty {
                 self.ease_camera();
                 self.evoflag = 0;
                 self.growth_num = 0;
-                self.act_process = 3;
+                self.core.acts.process = 3;
                 self.chat_flag = 1;
             }
             _ => {}
@@ -1541,8 +1488,8 @@ impl Grunty {
         self.step_both();
         match self.evonum {
             0 => {
-                if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
-                    self.drawn.push((0, self.ch.transparency, true));
+                if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+                    self.drawn.push((0, self.core.ch.transparency, true));
                 }
             }
             1 => self.cross_fade(),
@@ -1571,7 +1518,7 @@ impl Grunty {
     /// `ccPGuso::evoActPon2` (gcmn 0x0050d5a0): to level 3 (row 157): from
     /// level 2 on anmB (phases 1, 2), or from level 0 or 1 by the main
     /// anm's cross-fade (phases 10, 20).
-    fn evo_pon2(&mut self, ctx: &mut GruntyCtx) {
+    fn evo_pon2(&mut self, ctx: &mut NpcCtx) {
         match self.evonum {
             0 => {
                 self.set_base(157);
@@ -1586,7 +1533,7 @@ impl Grunty {
                     self.change_anm(4, 2);
                     self.evonum += 1;
                 }
-                self.transrate = [self.ch.transparency, 0];
+                self.transrate = [self.core.ch.transparency, 0];
                 self.change_anm(4, 2);
                 self.evocnt = 11;
                 self.events.push(GruntyEvent::Voice { grp: -3, n: 37 });
@@ -1610,7 +1557,7 @@ impl Grunty {
                     }
                     let t = if young { self.frame_a() } else { self.frame_b() };
                     if t == 30 {
-                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.ch.height });
+                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.core.ch.height });
                     }
                 }
             }
@@ -1618,7 +1565,7 @@ impl Grunty {
                 let c = self.evocnt;
                 self.evocnt += 1;
                 if c >= 91 {
-                    self.act_process = 3;
+                    self.core.acts.process = 3;
                     self.evonum += 1;
                 }
             }
@@ -1647,14 +1594,14 @@ impl Grunty {
                         self.evo_eff(ctx.cc);
                     }
                     if self.frame_a() == 30 {
-                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.ch.height });
+                        self.events.push(GruntyEvent::Evolve { pos: self.evolve_pos(), height: self.core.ch.height });
                     }
                 }
             }
             20 => {
                 self.evoflag = 0;
                 self.growth_num = 0;
-                self.act_process = 3;
+                self.core.acts.process = 3;
                 self.chat_flag = 1;
                 return;
             }
@@ -1666,8 +1613,8 @@ impl Grunty {
         self.step_both();
         match self.evonum {
             0 => {
-                if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
-                    self.drawn.push((0, self.ch.transparency, true));
+                if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+                    self.drawn.push((0, self.core.ch.transparency, true));
                 }
             }
             10 => self.cross_fade(),
@@ -1689,7 +1636,7 @@ impl Grunty {
     /// adultType: 0 kind 0, 1 kind town * 2 - 1, 2 kind town * 2), its
     /// base, the record's kind set (exist when it already was), its body
     /// and anmC, the record saved and `inuCount[kind]` counted.
-    fn adult_setup(&mut self, ctx: &mut GruntyCtx) {
+    fn adult_setup(&mut self, ctx: &mut NpcCtx) {
         let slot = match self.adult_type {
             0 => {
                 self.local_id = 0;
@@ -1731,7 +1678,7 @@ impl Grunty {
     /// is done with it (4); a kind the town has already runs off (exist:
     /// to a far place, flattening away) and is gone (growthNum 5), a new
     /// one walks the young one's route with `dogActionAdult`.
-    fn evo_adult(&mut self, ctx: &mut GruntyCtx) {
+    fn evo_adult(&mut self, ctx: &mut NpcCtx) {
         let local = self.local_id.clamp(0, 8) as usize;
         let voice = |n: i32| GruntyEvent::Voice { grp: ROW_ADULT + local as i32, n };
         match self.evonum {
@@ -1760,7 +1707,7 @@ impl Grunty {
                     }
                 }
                 if self.evocnt == 20 {
-                    self.events.push(GruntyEvent::Grow { pos: self.ch.pos, height: self.ch.height });
+                    self.events.push(GruntyEvent::Grow { pos: self.core.ch.pos, height: self.core.ch.height });
                 }
                 self.evocnt += 1;
             }
@@ -1786,7 +1733,7 @@ impl Grunty {
                 } else {
                     self.stretch(t, K004, K002);
                     if self.young_frame() == 50 {
-                        self.events.push(GruntyEvent::Evolve { pos: self.ch.pos, height: self.ch.height });
+                        self.events.push(GruntyEvent::Evolve { pos: self.core.ch.pos, height: self.core.ch.height });
                     }
                 }
             }
@@ -1810,13 +1757,13 @@ impl Grunty {
                         self.evocnt = 0;
                         self.change_anm(3, self.grow.level);
                     } else {
-                        self.act = 3;
+                        self.core.acts.num = 3;
                         self.affect_fn = AffectFn::NewGrown;
                     }
                 }
             }
             5 => {
-                let dir = get_dirc(self.ch.pos, self.next_pos);
+                let dir = get_dirc(self.core.ch.pos, self.next_pos);
                 let _ = self.turn_to(dir);
                 self.evocnt += 1;
                 if self.evocnt == 60 {
@@ -1834,7 +1781,7 @@ impl Grunty {
             }
             6 => {
                 self.run_away(ctx);
-                let p = self.ch.pos;
+                let p = self.core.ch.pos;
                 for (c, &t) in self.cam_view.iter_mut().zip(p.iter()).take(3) {
                     *c = set_dist(*c, t, TENTH);
                 }
@@ -1865,23 +1812,23 @@ impl Grunty {
 
     /// `ccPGuso::runAway` (gcmn 0x0050e820): turning toward nextPos and
     /// running at 12 along the way to it, bobbing 20 by `spdeg`.
-    fn run_away(&mut self, ctx: &mut GruntyCtx) {
-        let dir = get_dirc(self.ch.pos, self.next_pos);
+    fn run_away(&mut self, ctx: &mut NpcCtx) {
+        let dir = get_dirc(self.core.ch.pos, self.next_pos);
         let _ = self.turn_to(dir);
-        self.ch.pos[0] = add(self.ch.pos[0], mul(RUN, sinf(dir)));
-        self.ch.pos[1] = sub(self.ch.pos[1], mul(RUN, cosf(dir)));
+        self.core.ch.pos[0] = add(self.core.ch.pos[0], mul(RUN, sinf(dir)));
+        self.core.ch.pos[1] = sub(self.core.ch.pos[1], mul(RUN, cosf(dir)));
         let b = sinf(ee::deg2rad(self.spdeg as i16));
-        self.ch.pos[2] = add(self.ch.pos[2], mul(0x41a0_0000, b));
+        self.core.ch.pos[2] = add(self.core.ch.pos[2], mul(0x41a0_0000, b));
         self.spdeg = self.spdeg.wrapping_add(64);
         if self.spdeg > 0x8000 {
             self.spdeg = 0x8000;
         }
-        self.ch.hit_attribute = ctx.hits.attribute();
+        self.core.ch.hit_attribute = ctx.hits.attribute();
     }
 
     /// `ccPGuso::adultMain` (gcmn 0x0050bba0), act 9: a grown one at its
     /// pen: pushed out of others, its notes, its anm stepped, drawn.
-    fn adult_main(&mut self, ctx: &mut GruntyCtx) {
+    fn adult_main(&mut self, ctx: &mut NpcCtx) {
         let later = ctx.hits.volume != piney_data::volume::Volume::Inf;
         if later {
             match ctx.race.as_mut() {
@@ -1892,40 +1839,40 @@ impl Grunty {
                 }
                 Some(_) => {}
                 // MUT gcmn 0x00528750: the menu's turns (dogAction2).
-                None => match self.act_process {
-                    1 => crate::town::pc::set_dirc(&mut self.ch.dirc[2], self.entry.pl_dirc, 64),
+                None => match self.core.acts.process {
+                    1 => self.core.ch.dirc[2] = set_dirc(self.core.ch.dirc[2], self.core.entry.pl_dirc, 64),
                     2 => {
-                        let from = ee::rad2deg(self.ch.dirc[2]);
-                        let chg = crate::town::pc::get_dirc_chg(from, ee::rad2deg(self.home.1[2]), 128);
-                        self.ch.dirc[2] = ee::deg2rad((i32::from(from) + chg) as i16);
+                        let from = ee::rad2deg(self.core.ch.dirc[2]);
+                        let chg = get_dirc_chg(from, ee::rad2deg(self.home.1[2]), 128);
+                        self.core.ch.dirc[2] = ee::deg2rad((i32::from(from) + chg) as i16);
                         if chg == 0 {
-                            self.act_process = 0;
+                            self.core.acts.process = 0;
                         }
                     }
                     _ => {}
                 },
             }
         }
-        self.ch.hit.pos = self.ch.pos;
-        if ctx.hits.collision_detection(&mut self.ch.hit) != 0 {
+        self.core.ch.hit.pos = self.core.ch.pos;
+        if ctx.hits.collision_detection(&mut self.core.ch.hit) != 0 {
             // From Mutation on the push is not taken.
             if !later {
-                let off = self.ch.hit.offset;
-                self.ch.pos = ee::vadd(self.ch.pos, off);
-                self.ch.pos_p = ee::vadd(self.ch.pos_p, off);
-                self.ch.hit.pos = self.ch.pos;
-                ctx.hits.sync(&self.ch.hit);
+                let off = self.core.ch.hit.offset;
+                self.core.ch.pos = ee::vadd(self.core.ch.pos, off);
+                self.core.ch.pos_p = ee::vadd(self.core.ch.pos_p, off);
+                self.core.ch.hit.pos = self.core.ch.pos;
+                ctx.hits.sync(&self.core.ch.hit);
             }
-            self.body_hit_flag = 1;
-            self.body_hit_cnt = self.body_hit_cnt.wrapping_add(1);
+            self.core.touch.flag = 1;
+            self.core.touch.cnt = self.core.touch.cnt.wrapping_add(1);
         } else {
-            self.body_hit_flag = 0;
-            self.body_hit_cnt = 0;
+            self.core.touch.flag = 0;
+            self.core.touch.cnt = 0;
         }
         self.note_process(0);
         self.forward_a();
-        if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
-            self.drawn.push((0, self.ch.transparency, false));
+        if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+            self.drawn.push((0, self.core.ch.transparency, false));
         }
     }
 
@@ -1944,34 +1891,34 @@ impl Grunty {
         };
         let clip = |g: &mut Grunty, k: usize| {
             if let Some(n) = g.anm_tbl.name(k) {
-                g.ch.set_anim(&n);
+                g.core.ch.set_anim(&n);
             }
         };
         match *race.step {
-            1 => self.events.push(GruntyEvent::CamView(above(self.ch.pos))),
+            1 => self.events.push(GruntyEvent::CamView(above(self.core.ch.pos))),
             2 => {
-                hits.hit_disable(&mut self.ch.hit);
-                self.entry.listed = false;
+                hits.hit_disable(&mut self.core.ch.hit);
+                self.core.entry.listed = false;
                 *race.step += 1;
-                self.act_cnt = 0;
+                self.core.acts.cnt = 0;
                 self.local_id = race.kind;
             }
             3 => {
-                let old = self.act_cnt;
-                self.act_cnt += 1;
+                let old = self.core.acts.cnt;
+                self.core.acts.cnt += 1;
                 if old >= 6 {
                     clip(self, 1);
                     *race.step += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.cnt = 0;
                 }
             }
             4 => {
-                let old = self.act_cnt;
-                self.act_cnt += 1;
+                let old = self.core.acts.cnt;
+                self.core.acts.cnt += 1;
                 if old >= 91 {
                     clip(self, 2);
                     *race.step += 1;
-                    self.act_cnt = 0;
+                    self.core.acts.cnt = 0;
                     self.next_pos = if self.local_id != 0 {
                         t.walk_kind[self.local_id as usize]
                     } else {
@@ -1982,20 +1929,20 @@ impl Grunty {
             }
             5 => {
                 self.spdeg = 0;
-                let dirc = crate::town::pc::get_dirc(self.ch.pos, self.next_pos);
-                let from = ee::rad2deg(self.ch.dirc[2]);
+                let dirc = get_dirc(self.core.ch.pos, self.next_pos);
+                let from = ee::rad2deg(self.core.ch.dirc[2]);
                 let to = ee::rad2deg(dirc);
-                let chg = crate::town::pc::get_dirc_chg(from, to, 256);
-                self.ch.dirc[2] = ee::deg2rad((i32::from(from) + chg) as i16);
-                self.ch.pos[0] = ee::add(self.ch.pos[0], ee::mul(0x4140_0000, ee::sinf(dirc)));
-                self.ch.pos[1] = ee::sub(self.ch.pos[1], ee::mul(0x4140_0000, ee::cosf(dirc)));
-                self.events.push(GruntyEvent::CamView(above(self.ch.pos)));
+                let chg = get_dirc_chg(from, to, 256);
+                self.core.ch.dirc[2] = ee::deg2rad((i32::from(from) + chg) as i16);
+                self.core.ch.pos[0] = ee::add(self.core.ch.pos[0], ee::mul(0x4140_0000, ee::sinf(dirc)));
+                self.core.ch.pos[1] = ee::sub(self.core.ch.pos[1], ee::mul(0x4140_0000, ee::cosf(dirc)));
+                self.events.push(GruntyEvent::CamView(above(self.core.ch.pos)));
             }
             6 => return false,
             7 => {
-                hits.hit_enable(&mut self.ch.hit);
-                self.entry.listed = true;
-                (self.ch.pos, self.ch.dirc) = self.home;
+                hits.hit_enable(&mut self.core.ch.hit);
+                self.core.entry.listed = true;
+                (self.core.ch.pos, self.core.ch.dirc) = self.home;
                 clip(self, 0);
             }
             _ => {}
@@ -2007,7 +1954,7 @@ impl Grunty {
     /// main anm and anmC) or `SetMatrix_PosRotZYX` (anmB, and a grown
     /// one's).
     pub fn root(&self, scaled: bool) -> Mat4 {
-        let r = crate::chara::body::root(self.ch.pos, self.ch.dirc);
+        let r = crate::chara::body::root(self.core.ch.pos, self.core.ch.dirc);
         if scaled {
             r * Mat4::from_scale(glam::Vec3::new(ee::f(self.scale[0]), ee::f(self.scale[1]), ee::f(self.scale[2])))
         } else {
@@ -2020,11 +1967,11 @@ impl Grunty {
     /// One frame on the entry control's list: `ccEntryObj::routine`, then
     /// `ccPGuso::main`. The notes it passed are left in `notes` for
     /// [`inu_check_note`] with `pgPtr`.
-    pub fn step(&mut self, ctx: &mut GruntyCtx) {
+    pub fn step(&mut self, ctx: &mut NpcCtx) {
         self.events.clear();
         self.notes.clear();
         self.drawn.clear();
-        self.entry.routine(ctx.hits.volume, &mut self.ch, ctx.player);
+        self.core.entry.routine(ctx.hits.volume, &mut self.core.ch, ctx.player);
         self.main(ctx);
     }
 
@@ -2032,25 +1979,27 @@ impl Grunty {
     pub fn draw(&self, layers: &mut piney_desktop::layers::Layers, to_screen: Mat4, lights: &crate::town::TownLights) {
         for &(which, alpha, scaled) in &self.drawn {
             let root = self.root(scaled);
-            let shaded = self.ch.hit_attribute & crate::chara::char::SHADED != 0;
+            let shaded = self.core.ch.hit_attribute & crate::chara::char::SHADED != 0;
             let a = ee::f(alpha);
             match which {
                 // ccChar::Draw: its shadow alpha and length around the
                 // draw.
-                0 if self.has_a => crate::draw::char_shadow(layers, self.ch.shadow_t, self.ch.height, |layers| {
-                    self.ch.body.draw_fog(
-                        layers,
-                        crate::draw::CHAR_LAYER,
-                        to_screen,
-                        &self.ch.play,
-                        root,
-                        a,
-                        lights,
-                        shaded,
-                        &self.ch.clut_swaps,
-                        self.ch.blend.into(),
-                    )
-                }),
+                0 if self.has_a => {
+                    crate::draw::char_shadow(layers, self.core.ch.shadow_t, self.core.ch.height, |layers| {
+                        self.core.ch.body.draw_fog(
+                            layers,
+                            crate::draw::CHAR_LAYER,
+                            to_screen,
+                            &self.core.ch.play,
+                            root,
+                            a,
+                            lights,
+                            shaded,
+                            &self.core.ch.clut_swaps,
+                            self.core.ch.blend.into(),
+                        )
+                    })
+                }
                 // anmB and anmC drawn by ccAnm::Draw: the environment as
                 // the last ccChar::Draw left it.
                 1 => {
@@ -2112,41 +2061,15 @@ pub fn inu_check_note(notes: &[NoteAt], pg: &mut Grunty, own: bool, rand: &mut c
         if !matches!(n.event, 1 | 2) {
             continue;
         }
-        let now = (pg.ch.pos, pg.ch.hit_attribute);
+        let now = (pg.core.ch.pos, pg.core.ch.hit_attribute);
         let (pos, attribute) = if own { (n.pos, n.attribute) } else { now };
         if n.param < 2 {
-            (pg.ch.pos, pg.ch.hit_attribute) = (pos, attribute);
+            (pg.core.ch.pos, pg.core.ch.hit_attribute) = (pos, attribute);
             pg.step_effect(rand);
-            (pg.ch.pos, pg.ch.hit_attribute) = now;
+            (pg.core.ch.pos, pg.core.ch.hit_attribute) = now;
         } else {
             pg.events.push(GruntyEvent::Note { param: n.param, pos, attribute });
         }
-    }
-}
-
-impl Npc for Grunty {
-    fn code(&self) -> i32 {
-        self.code
-    }
-
-    fn flags(&self) -> u32 {
-        self.row.flags
-    }
-
-    fn char(&self) -> &Char {
-        &self.ch
-    }
-
-    fn char_mut(&mut self) -> &mut Char {
-        &mut self.ch
-    }
-
-    /// The world steps Grunties itself ([`Grunty::step`]): they read
-    /// `ccRand` and write the save.
-    fn step(&mut self, _ctx: &mut crate::event::entry::NpcCtx) {}
-
-    fn listed(&self) -> bool {
-        self.entry.listed
     }
 }
 
@@ -2181,22 +2104,6 @@ pub fn set_dist(v: F, to: F, rate: F) -> F {
     let mut x = v;
     piney_battle::geom::set_dist(&mut x, to, rate);
     x
-}
-
-/// What a Grunty's frame reads of the world.
-pub struct GruntyCtx<'a> {
-    /// Kite: `plw->pos`, `plw->dirc`.
-    pub player: V4,
-    pub player_dirc: V4,
-    /// For `ccChar::Draw`'s fade.
-    pub view: View,
-    pub hits: &'a mut hit::Hits,
-    /// newlib's `rand()` and the game's `ccRand`.
-    pub rand: &'a mut crate::Rand,
-    pub cc: &'a mut Genrand,
-    pub save: &'a mut SaveData,
-    /// From Mutation on, while the Flag Race runs in the town (0x005ff790).
-    pub race: Option<RaceLink<'a>>,
 }
 
 /// What a grown Grunty reads and writes of the Flag Race: the kind raced

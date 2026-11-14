@@ -49,7 +49,7 @@ fn pc_rows(s: &Session) -> Vec<usize> {
     if !w.in_town() {
         panic!("not in a town: {}", Mode::title(s))
     }
-    let mut rows: Vec<usize> = town_cast(w.world()).pcs().iter().map(|p| p.row.row).collect();
+    let mut rows: Vec<usize> = town_cast(w.world()).npcs().walkers().map(|p| p.core.row.row).collect();
     rows.sort_unstable();
     rows
 }
@@ -65,7 +65,7 @@ fn carmina_gadelica_is_empty_after_innis() {
     }
     // The registry's 2 (Kite, BlackRose) are added at the draw.
     assert_eq!(w.vm().map(|vm| vm.mng.regist_npc_num), Some(17), "16 and the Administrator");
-    assert!(town_cast(w.world()).merchants().iter().any(|m| m.id == 29), "the Administrator");
+    assert!(town_cast(w.world()).npcs().merchants().any(|m| m.core.code() == 29), "the Administrator");
     assert_eq!(pc_rows(&s), Vec::<usize>::new(), "PCs in Carmina Gadelica after the shutdown");
 }
 

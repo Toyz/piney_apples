@@ -60,9 +60,9 @@ fn mac_anu_frame_times() {
                     for _ in 0..3 {
                         targets.extend(
                             town_cast(world)
+                                .npcs()
                                 .merchants()
-                                .iter()
-                                .map(|m| [f32::from_bits(m.ch.pos[0]), f32::from_bits(m.ch.pos[1])]),
+                                .map(|m| [f32::from_bits(m.core.ch.pos[0]), f32::from_bits(m.core.ch.pos[1])]),
                         );
                         targets.push([p[0], p[1]]);
                     }
@@ -105,7 +105,7 @@ fn mac_anu_frame_times() {
         let (at, pcs) = match &s.stage {
             Stage::Area(w) if w.in_town() => (
                 w.world().kite().pos().map(|v| f32::from_bits(v) as i32),
-                town_cast(w.world()).pcs().iter().filter(|c| c.disp_sw).count(),
+                town_cast(w.world()).npcs().walkers().filter(|c| c.core.entry.disp_sw).count(),
             ),
             _ => ([0; 4], 0),
         };

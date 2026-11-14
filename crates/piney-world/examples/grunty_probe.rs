@@ -16,7 +16,8 @@ use piney_data::iso::Iso;
 use piney_desktop::save::SaveState;
 use piney_world::chara::char::View;
 use piney_world::ee::{ONE, V4};
-use piney_world::grunty::{self, Bodies, Growth, Grunty, GruntyCtx, GruntyEvent, Tables};
+use piney_world::grunty::{self, Bodies, Growth, Grunty, GruntyEvent, Tables};
+use piney_world::systems::npcs::NpcCtx;
 use piney_world::town::Town;
 
 fn hex(s: &str) -> u32 {
@@ -45,7 +46,7 @@ fn anm_name(body: &piney_world::chara::body::Body, p: Option<&piney_world::chara
 }
 
 fn state(g: &Grunty, save: &piney_data::save::SaveData) -> String {
-    let a = if g.has_a { anm_name(&g.ch.body, Some(&g.ch.play)) } else { "null".into() };
+    let a = if g.has_a { anm_name(&g.core.ch.body, Some(&g.core.ch.play)) } else { "null".into() };
     let b = anm_name(&g.body_b, g.play_b.as_ref());
     let c = match &g.body_c {
         Some(body) => anm_name(body, g.play_c.as_ref()),
@@ -62,19 +63,19 @@ fn state(g: &Grunty, save: &piney_data::save::SaveData) -> String {
         ),
         g.inu_id,
         g.local_id,
-        g.act,
+        g.core.acts.num,
         g.act_old,
-        g.act_process,
-        g.act_cnt,
+        g.core.acts.process,
+        g.core.acts.cnt,
         g.anm_num,
-        list(g.ch.pos),
-        list(g.ch.pos_p),
-        list(g.ch.dirc),
-        g.body_hit_flag,
-        g.body_hit_cnt,
-        g.pos_cnt,
+        list(g.core.ch.pos),
+        list(g.core.ch.pos_p),
+        list(g.core.ch.dirc),
+        g.core.touch.flag,
+        g.core.touch.cnt,
+        g.stuck.cnt,
         list(g.next_pos),
-        list(g.old_pos),
+        list(g.stuck.old),
         // From Mutation on a grown one's +0x2c4 names its dummy.
         match (g.later, g.home_dummy) {
             (true, Some(d)) => format!("\"{d}\""),
@@ -102,8 +103,8 @@ fn state(g: &Grunty, save: &piney_data::save::SaveData) -> String {
         g.speed,
         g.adult_type,
         list(g.gp_sub),
-        g.ch.hit_attribute,
-        g.ch.transparency,
+        g.core.ch.hit_attribute,
+        g.core.ch.transparency,
         a,
         b,
         c,
@@ -228,10 +229,15 @@ fn main() {
                     }
                 }
                 let before: Vec<String> = x.events.iter().map(event).collect();
-                let mut ctx = GruntyCtx {
+                // The active camera as far as a Grunty reads it: its eye,
+                // heading and kind (the fade's).
+                let kind = if view.eye { piney_world::camera::kind::EYE } else { 0 };
+                let cam = piney_world::camera::Cam { pos: view.cam, deg: [0, view.deg1], kind, ..Default::default() };
+                let mut ctx = NpcCtx {
                     player,
                     player_dirc,
                     view,
+                    cam: &cam,
                     hits: &mut tw.core.hits,
                     rand: &mut rand,
                     cc: &mut mt,

@@ -218,7 +218,7 @@ Where the code does by hand, per kind, what a system should do once:
       `FieldWorld`, `WorldMode`, `TownFx` and the town's `Player` gone.
       Each difference settled from the game's code; the last leg lit each
       draw by the group as the tasks before it left it.)
-- [ ] **An NPC system.** Walking PCs (`town/pc.rs` `RtownPc`), merchants
+- [x] **An NPC system.** Walking PCs (`town/pc.rs` `RtownPc`), merchants
       (`town/merchant.rs`), dogs (`town/dog.rs`), Grunties (`grunty/`),
       event NPCs (`event/entry.rs`, `Box<dyn entry::Npc>`) and field NPCs
       (`field/npcs.rs`) each carry the same parts by hand: an `NpcRow` and a
@@ -234,6 +234,15 @@ Where the code does by hand, per kind, what a system should do once:
       char, entry, acts, hit, fade, motion) with a per-kind behaviour (the
       game's own class: `ccRtownPC`, the merchant, `ccDog`, `ccPGuso`, the
       event NPCs), one list, one event channel, the shared helpers once.
+      (worklogs 593-595: the angle helpers once in `piney_battle::geom`;
+      one `chara::entry_obj::EntryObj`; `chara::npc::Core` (row, `Char`,
+      `EntryObj`, `affectType`, `Acts`, `Touch`, with `Stuck` for the dog
+      and the Grunty) held by `Merchant`, `RtownPc`, `Dog` and `Grunty`;
+      one `systems::npcs::Npcs` in entry order in every area, `Npc` by the
+      row's `entry.func`, `Out::Npc` its one event channel, `CharId::Npc`
+      by `entParam.id`; a field's NPC one object, made in
+      `ccEntryEventMng`'s `entry[]` walk, where the boss's task starts too;
+      the battle's entry control down to its three lists, `GetNpc` once.)
 - [ ] **A camera system.** The game keeps `cameraList[camID]` with one
       active camera; the port has `camera/mod.rs`, `evcam`, `bosscam`,
       `cinema`, the merchant camera, and `CamView.active` threaded by hand
@@ -254,7 +263,7 @@ Where the code does by hand, per kind, what a system should do once:
       statics in `MapSystem` are its first form).
 - [ ] **A placement (entry) system.** Who stands where for an event is
       decided in several places (`event/entry.rs`, the town's
-      `place_entries`, `field/npcs.rs` `FieldNpcs::build`, the merchants'
+      `place_entries`, `Combat::start_entries`' `EnterNpc`, the merchants'
       `dummy_of`, the registry count `regist_npc_num`); one entry system
       that resolves markers and dummies for any area.
 - [x] **The map's own systems** (the contract above): water, sky, clouds,
@@ -577,7 +586,8 @@ Where the code does by hand, per kind, what a system should do once:
 
 ## 3. Ownership and state
 
-- [ ] `Rc<RefCell<TownPcs>>` owned by `World`, passed `&mut`.
+- [x] `Rc<RefCell<TownPcs>>` owned by `World`, passed `&mut`. (worklog 594:
+      owned by the one NPC list, `Npcs`, and lent `&mut` to each PC.)
 - [ ] `combat/breath.rs` leaking interner: sprite names `Rc<str>` (one
       `EffSprite` and `EffCache` for the four sprite types).
 - [ ] `VOICE_ENGLISH` / `DVD` OnceLocks into `SessionOptions`.

@@ -10,7 +10,8 @@ use piney_data::field::ee;
 
 use super::Pic;
 use crate::boss::{Cx, Out, VF0};
-use crate::enemy_ai::{get_dirc, rand_f};
+use crate::enemy_ai::rand_f;
+use crate::geom::get_dirc;
 use crate::geom::{self, V4};
 use crate::rand::Rng;
 

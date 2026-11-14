@@ -163,7 +163,7 @@ impl Traveller {
         if self.server == 1 {
             self.pos[2] = ee::add(self.pos[2], 0x44c8_0000);
             self.rot[2] = 0;
-            let r = crate::town::pc::get_dirc([self.pos[0], self.pos[1], 0, 0], d);
+            let r = piney_battle::geom::get_dirc([self.pos[0], self.pos[1], 0, 0], d);
             self.rot[0] = ee::div(r, 0x4080_0000);
         }
         if self.server == 3 {

@@ -8,12 +8,12 @@
 //! the RNGs are in docs/engine/battle.md ("Enemy AI", "RNG").
 
 use piney_data::field::ee;
-use piney_data::libm;
 use piney_data::save::SaveData;
 use piney_data::volume::Volume;
 
 use crate::chara::{self, Char, Env};
 use crate::event::Event;
+use crate::geom::get_dirc;
 use crate::param::{EnemyTable, F_ONE, SkillParam, ThinkParam, cond, ty};
 use crate::rand::Rng;
 use crate::scene::Scene;
@@ -21,9 +21,6 @@ use crate::skill::{self, bits};
 use crate::tables::Tables;
 use crate::world::CharHit;
 
-const PI: u32 = 0x4049_0fdb;
-const NEG_PI: u32 = 0xc049_0fdb;
-const TWO_PI: u32 = 0x40c9_0fdb;
 const HALF_PI: u32 = 0x3fc9_0fdb;
 const F_HALF: u32 = 0x3f00_0000;
 const F_TENTH: u32 = 0x3dcc_cccd;
@@ -70,17 +67,6 @@ pub fn rand_f(cc: &mut dyn Rng, x: u32) -> u32 {
     ((f64::from(f32::from_bits(x)) * (r / 2_147_483_648.0)) as f32).to_bits()
 }
 
-/// An angle wrapped into -pi..pi as the game does: once each way.
-fn wrap_pi(mut v: u32) -> u32 {
-    if !ee::le(v, PI) {
-        v = ee::sub(v, TWO_PI);
-    }
-    if ee::lt(v, NEG_PI) {
-        v = ee::add(v, TWO_PI);
-    }
-    v
-}
-
 /// `ccRandF(x, y)` (main 0x001d9b20): [`rand_f`] of `x` held to `-y..y`.
 pub fn rand_f2(cc: &mut dyn Rng, x: u32, y: u32) -> u32 {
     let v = rand_f(cc, x);
@@ -96,15 +82,7 @@ pub fn rand_f2(cc: &mut dyn Rng, x: u32, y: u32) -> u32 {
 
 /// `ccSetRadDisperse(&v, x)` (main 0x001da4a0): `v + ccRandF(x)`, wrapped.
 pub fn rad_disperse(v: u32, x: u32, cc: &mut dyn Rng) -> u32 {
-    wrap_pi(ee::add(v, rand_f(cc, x)))
-}
-
-/// `ccGetDirc(a, b)` (main 0x001d9ce0): the heading from `a` to `b` on the
-/// ground, `atan2f(dy, dx) + pi/2`, wrapped.
-pub fn get_dirc(a: [u32; 4], b: [u32; 4]) -> u32 {
-    let dx = ee::sub(b[0], a[0]);
-    let dy = ee::sub(b[1], a[1]);
-    wrap_pi(ee::add(HALF_PI, libm::atan2f(dy, dx)))
+    crate::geom::pi_limit(ee::add(v, rand_f(cc, x)))
 }
 
 /// `ccGetDist(a, b)` (main 0x001d9dd0): the distance on the ground,

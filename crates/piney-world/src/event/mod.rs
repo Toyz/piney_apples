@@ -71,16 +71,7 @@ pub fn event_marker_in(
 /// `from` - `pi/2 + atan2f(dy, dx)` wrapped into (-pi, pi] - as the 16-bit
 /// angle `pc_face` hands `ccAI::SetDircZ` (`RAD2DEG`).
 pub fn dirc_to(from: V4, to: V4) -> i16 {
-    let dx = ee::sub(to[0], from[0]);
-    let dy = ee::sub(to[1], from[1]);
-    let mut r = ee::add(0x3fc9_0fdb, ee::atan2f(dy, dx));
-    if !ee::le(r, 0x4049_0fdb) {
-        r = ee::sub(r, 0x40c9_0fdb);
-    }
-    if ee::lt(r, 0xc049_0fdb) {
-        r = ee::add(r, 0x40c9_0fdb);
-    }
-    ee::rad2deg(r)
+    ee::rad2deg(piney_battle::geom::get_dirc(from, to))
 }
 
 impl crate::town::cast::TownCast {

@@ -10,7 +10,8 @@ the +0xe0 flag word, cloak, bodyHit's hitSW, entParam.param[2]), the three
 command lists in a random order with their tails, ccSpcManager's registry
 and ccPartyManager (ids, characters, memberChar, memberID, num, with free
 slots, repeated ids, null characters), the entry control's enemy and NPC
-lists (g_entCtrl), the event manager's 16 event positions, the Root Town's
+lists (g_entCtrl; the probe answers GetNpc with evparty::get_npc over the
+NPC list, the function the world's one NPC list uses), the event manager's 16 event positions, the Root Town's
 33 markers (markerEvTbl's dummies, found through a hooked
 ccStream::GetChunkAdrsF), game.area, plw.pw, cmndTarget, and an offset the
 player's frame is moved by (ccTransPosW2P adds it, ccTransPosP2W takes it

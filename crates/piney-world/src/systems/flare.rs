@@ -7,7 +7,7 @@ use piney_desktop::assets::SceneFile;
 
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::draw::EFF_LAYER;
-use crate::ee::{self, ONE, V4};
+use crate::ee::{ONE, V4};
 use crate::field::ambient::Env;
 use crate::sky::lensflare::{self, FLARES};
 use crate::sprite::{EffSprite, EffState};
@@ -96,13 +96,7 @@ impl LensFlare {
 /// `pos` within `deg` of where the camera (`eye` looking at `view`) looks,
 /// on the ground, all taken relative to the player.
 fn check_camera_deg(pos: V4, eye: V4, view: V4, deg: i16, env: &Env) -> bool {
-    let c = env.w2p(eye);
-    let v = env.w2p(view);
-    let p = env.w2p(pos);
-    let a = ee::rad2deg(ee::atan2f(ee::sub(p[1], c[1]), ee::sub(p[0], c[0])));
-    let b = ee::rad2deg(ee::atan2f(ee::sub(v[1], c[1]), ee::sub(v[0], c[0])));
-    let x = (i32::from(deg) + (i32::from(a) - i32::from(b))) as i16;
-    x > 0 && i32::from(x) < 2 * i32::from(deg)
+    piney_battle::geom::camera_deg(env.w2p(pos), env.w2p(eye), env.w2p(view), deg)
 }
 
 impl MapSystem for LensFlare {
@@ -114,7 +108,7 @@ impl MapSystem for LensFlare {
         let v = cx.view;
         self.flares = match self.def.draw {
             FlareDraw::LensFlare => {
-                let in_view = crate::town::pc::check_camera_deg(self.sun, lensflare::VIEW_DEG, &v.cam, v.player);
+                let in_view = crate::chara::char::check_camera_deg(self.sun, lensflare::VIEW_DEG, &v.cam, v.player);
                 lensflare::draw(self.sun, &v.flare, v.puppet_show, in_view)
             }
             FlareDraw::Own => (!v.puppet_show).then(|| lensflare::points(self.sun, &v.flare)),

@@ -239,15 +239,9 @@ impl World {
         w.world_man = area::WorldMan { hack: if crisis { 3 } else { 2 }, ..world_man };
         w.cast = Box::new(town::cast::TownCast {
             gate,
-            merchants: Vec::new(),
-            dogs: Vec::new(),
-            grunties: Vec::new(),
-            grunty_tables: None,
-            npcs: Vec::new(),
-            town_pcs: None,
+            npcs: Default::default(),
             event_npcs: Vec::new(),
             placed: false,
-            pcs: Vec::new(),
             outs: Vec::new(),
             flags: Vec::new(),
             race: None,

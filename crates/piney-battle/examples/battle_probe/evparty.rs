@@ -113,6 +113,8 @@ struct W {
     crew: Crew,
     foes: Vec<Option<Enemy>>,
     ctrl: EntryCtrl,
+    /// The NPC list (`g_entCtrl` +0x34), the world's in the port.
+    npcs: Vec<usize>,
     positions: Vec<EvPos>,
     markers: Vec<(V4, u32)>,
 }
@@ -210,13 +212,13 @@ fn read_world(t: &mut Toks) -> W {
     scene.obj_list = idx_list(t);
     let mut ctrl = EntryCtrl { links: vec![Link::default(); n], ..EntryCtrl::default() };
     set_list(&mut ctrl, Kind::Enemy, &idx_list(t));
-    set_list(&mut ctrl, Kind::Npc, &idx_list(t));
+    let npcs = idx_list(t);
     let np = t.int() as usize;
     let positions =
         (0..np).map(|_| EvPos { floor: t.i16(), block: t.i16(), num: t.i32(), dirc: t.u32(), pos: v4(t) }).collect();
     let nm = t.int() as usize;
     let markers = (0..nm).map(|_| (v4(t), t.u32())).collect();
-    W { area, kite, target, d, roster, scene, crew, foes, ctrl, positions, markers }
+    W { area, kite, target, d, roster, scene, crew, foes, ctrl, npcs, positions, markers }
 }
 
 /// A list of the entry control, head to foot, linked through `pre`/`next`.
@@ -321,6 +323,10 @@ fn one(t: &mut Toks) -> String {
             usize::try_from(m).ok().and_then(|k| markers.get(k).copied())
         };
         let mut world = Probe { d: w.d };
+        // The NPC list as the world's one list answers GetNpc.
+        let npcs: Vec<(u32, i32, V4)> =
+            w.npcs.iter().map(|&c| &w.scene.chars[c]).map(|ch| (ch.ty() as u32, i32::from(ch.id()), ch.pos)).collect();
+        let npc_pos = |code| evparty::get_npc(npcs.iter().map(|n| (n.0, n.1)), code).map(|k| npcs[k].2);
         let mut ev = EvParty {
             scene: &mut w.scene,
             crew: &mut w.crew,
@@ -331,7 +337,7 @@ fn one(t: &mut Toks) -> String {
             area: w.area,
             positions: &w.positions,
             town_marker: &town,
-            npc_pos: &|_| None,
+            npc_pos: &npc_pos,
             out: &mut outs,
         };
         let a = &args;

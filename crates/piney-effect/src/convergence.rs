@@ -522,7 +522,7 @@ impl ConvergenceElement {
                 slot.time = 0;
                 slot.status = 0;
                 let up = ee::atan2f(ee::sub(p1[2], tpp[2]), drawelm::get_dist(cx.assets.volume, p1, tpp));
-                let dirc = drawelm::get_dirc(p1, tpp);
+                let dirc = piney_battle::geom::get_dirc(p1, tpp);
                 let a = &mut slot.elm.base.anim;
                 a.dirc = [0, up, dirc, ONE];
                 a.start_fade = 0;

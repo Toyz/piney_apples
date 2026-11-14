@@ -113,9 +113,9 @@ fn arrival_in_dun_loireag_then_walking() {
     assert_eq!(world.kite().built().map_or(0, |k| k.ch.spc_char.act_num), act::IDLE);
     assert!(sprites.get() > 0, "no clouds or flares drawn");
     // ccSetMerchant(0) in town 1: npcTbl rows 5-10.
-    let ids: Vec<i32> = town(&world).merchants().iter().map(piney_world::event::entry::Npc::code).collect();
+    let ids: Vec<i32> = town(&world).npcs().merchants().map(|m| m.core.code()).collect();
     assert_eq!(ids, [5, 6, 7, 8, 9, 10]);
-    assert_eq!(town(&world).pcs().len(), 15);
+    assert_eq!(town(&world).npcs().walkers().count(), 15);
     let clouds = world
         .area()
         .get::<piney_world::town::Town>()

@@ -83,7 +83,6 @@ fn town_shots() {
 #[test]
 #[ignore]
 fn pc_menu_shot() {
-    use piney_world::event::entry::Npc;
     let disc = std::env::var("PINEY_DISC").unwrap_or_else(|_| "infection".into());
     let iso = crate::check_image(&disc);
     if !iso.exists() {
@@ -118,10 +117,10 @@ fn pc_menu_shot() {
             // A PC standing in a chat group (thinkType 1): a walking one
             // goes on along its route as Kite comes, and the target flickers.
             let near = town_cast(world)
-                .pcs()
-                .iter()
+                .npcs()
+                .walkers()
                 .filter(|p| p.think_type == 1)
-                .map(|p| (p.code(), p.char.pos.map(f32::from_bits)))
+                .map(|p| (p.core.code(), p.core.ch.pos.map(f32::from_bits)))
                 .min_by_key(|(_, q)| ((q[0] - kite[0]).powi(2) + (q[1] - kite[1]).powi(2)) as i64);
             match near {
                 _ if !placed || opened => still(Buttons::NONE),

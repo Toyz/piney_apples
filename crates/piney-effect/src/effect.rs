@@ -592,13 +592,8 @@ fn step_pattern(e: &mut Effect, kind: Kind) {
 /// looks at, on the ground (all three through `W2PPos`)? The bounds are
 /// open.
 pub fn check_camera_deg(pos: V4, player: V4, bounds: [F; 4], eye: V4, view: V4, deg: i16) -> bool {
-    let p = space::w2p(pos, player, bounds);
-    let c = space::w2p(eye, player, bounds);
-    let v = space::w2p(view, player, bounds);
-    let a = ee::rad2deg(ee::atan2f(ee::sub(p[1], c[1]), ee::sub(p[0], c[0])));
-    let b = ee::rad2deg(ee::atan2f(ee::sub(v[1], c[1]), ee::sub(v[0], c[0])));
-    let d = (i32::from(deg) + (i32::from(a) - i32::from(b))) as i16;
-    d > 0 && i32::from(d) < 2 * i32::from(deg)
+    let w2p = |q| space::w2p(q, player, bounds);
+    piney_battle::geom::camera_deg(w2p(pos), w2p(eye), w2p(view), deg)
 }
 
 /// `Main`'s first switch (0x001c4018, on id + 15): the effect's motion.

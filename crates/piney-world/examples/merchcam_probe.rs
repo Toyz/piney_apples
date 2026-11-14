@@ -13,7 +13,6 @@ use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_world::camera::{self, Cam, CamPad, Camera, MerchantView};
 use piney_world::ee;
-use piney_world::event::entry::Npc;
 use piney_world::hit::{HitModel, Hits};
 
 #[path = "common/kite_run.rs"]
@@ -83,10 +82,10 @@ fn main() {
                     .map(|m| {
                         format!(
                             "{{\"id\": {}, \"flags\": {}, \"pos\": {}, \"dirc\": {}}}",
-                            m.code(),
-                            m.flags(),
-                            list(&m.char().pos),
-                            list(&m.char().dirc)
+                            m.core.code(),
+                            m.core.row.flags,
+                            list(&m.core.ch.pos),
+                            list(&m.core.ch.dirc)
                         )
                     })
                     .collect();

@@ -1,40 +1,30 @@
 //! A Root Town's characters: the cast of the one world in area 0
 //! ([`crate::world::cast`]). Kite is the battle's `ccPlayer` ([`crate::combat`]),
-//! the entry control's NPC list the merchants, dogs, Grunties, walking PCs
-//! and the event's NPCs; the Chaos Gate and the Flag Race stand with them.
-//! The town's methods take the world's core as `world`.
+//! the entry control's NPC list ([`Npcs`]) the event's NPCs, the merchants,
+//! dogs, Grunties and walking PCs; the Chaos Gate and the Flag Race stand
+//! with them. The town's methods take the world's core as `world`.
 
 use std::rc::Rc;
 
 use crate::EventEntry;
-use crate::event::entry;
 use crate::event::gate::Gate;
 use crate::grunty::{self, race};
+use crate::systems::npcs::{Npc, NpcCtx, Npcs};
 use crate::town::{dog, merchant};
-use crate::world::cast::Out;
+use crate::world::cast::{self as cast_mod, Out};
 
 /// The town's characters and what they started since the last take.
 pub struct TownCast {
     pub(crate) gate: Gate,
-    /// `ccEntryCtrl`'s NPC list: `ccSetMerchant(0)`'s merchants first
-    /// (town/merchant.rs), then everyone else (the walking PCs).
-    pub(crate) merchants: Vec<merchant::Merchant>,
-    /// `ccSetDog`'s dogs (Dun Loireag), after the merchants.
-    pub(crate) dogs: Vec<dog::Dog>,
-    /// `ccSetChibiGuso`'s Grunties (Dun Loireag), after the dogs; the last
-    /// one made is `pgPtr`. Their tables, and what they asked for since
-    /// the last take with the Grunty's code.
-    pub(crate) grunties: Vec<grunty::Grunty>,
-    pub(crate) grunty_tables: Option<Rc<grunty::Tables>>,
-    pub(crate) npcs: Vec<Box<dyn entry::Npc>>,
-    /// The walking PCs `ccEntryRandomNpc` placed (with the state they
-    /// share: `ccRand`, the navigation map, the chat groups).
-    pub(crate) town_pcs: Option<Rc<std::cell::RefCell<crate::town::pc::TownPcs>>>,
+    /// `ccEntryCtrl`'s NPC list in `ccEntryEventMng`'s order: the event's
+    /// NPCs, `ccSetMerchant(0)`'s merchants, `ccSetDog`'s dogs and
+    /// `ccSetChibiGuso`'s Grunties (Dun Loireag), `ccEntryRandomNpc`'s
+    /// walking PCs, then any entered later.
+    pub(crate) npcs: Npcs,
     /// Town NPC entries (`entry 3|4 code marker`) waiting for the entry
     /// control's set-up, and whether it has run.
     pub(crate) event_npcs: Vec<EventEntry>,
     pub(crate) placed: bool,
-    pub(crate) pcs: Vec<crate::town::pc::RtownPc>,
     /// What the characters' tasks started in this slot, in their order
     /// ([`Out`]), until it ends ([`Show::Cast`]).
     pub(crate) outs: Vec<Out>,
@@ -46,26 +36,23 @@ pub struct TownCast {
 }
 
 impl crate::world::cast::Cast for TownCast {
-    fn npc(&self, code: i32) -> Option<&dyn entry::Npc> {
-        TownCast::npc(self, code)
+    fn npcs(&self) -> Option<&Npcs> {
+        Some(&self.npcs)
     }
 
-    fn npc_mut(&mut self, code: i32) -> Option<&mut dyn entry::Npc> {
-        TownCast::npc_mut(self, code)
+    fn npcs_mut(&mut self) -> Option<&mut Npcs> {
+        Some(&mut self.npcs)
     }
 
-    fn own(&self, w: &crate::world::World, id: CharId) -> Option<Own> {
-        TownCast::own(self, w, id)
+    fn own(&self, _w: &crate::world::World, id: CharId) -> Option<Own> {
+        TownCast::own(self, id)
     }
 
     /// The listed NPCs (their posP as their last frame left it), then the
     /// Chaos Gate while Kite is near, its posP `ccTransPosW2P` of its pos
     /// (`ccChgate::main` 0x004592a0), an object of the entry control's.
     fn cmnds(&self, player: crate::ee::V4, out: &mut Vec<talk::Cmnd>) {
-        out.extend(self.all_npcs().filter(|n| n.listed()).map(|n| {
-            let c = n.char();
-            talk::Cmnd::new(CharId::Npc(n.code()), n.flags(), c.width, c.pos_p)
-        }));
+        self.npcs.cmnds(out);
         if self.gate.frame.near {
             out.push(talk::Cmnd::new(
                 CharId::Object(gate::GIMMICK),
@@ -93,9 +80,9 @@ impl crate::world::cast::Cast for TownCast {
         self.race.as_ref().map(|r| (r.ride, r.end))
     }
 
-    /// The Flag Race's HUD and clips, then the entry control's list: the
-    /// gate, the race's flags, merchants, dogs, Grunties, walking PCs and
-    /// event NPCs, as their tasks left them.
+    /// The Flag Race's HUD and clips, then the entry control's lists: the
+    /// gate, the race's flags, the NPC list in its order, as their tasks
+    /// left them.
     fn draw(&self, w: &crate::world::World, ctx: &mut Ctx, to_screen: glam::Mat4, seen: &crate::world::CastLights) {
         if let Some(r) = &self.race {
             r.draw(ctx, &w.camera.world_screen);
@@ -106,21 +93,7 @@ impl crate::world::cast::Cast for TownCast {
         for f in &self.flags {
             f.draw(&mut ctx.layers, to_screen, lights);
         }
-        for m in &self.merchants {
-            m.draw(&mut ctx.layers, to_screen, lights);
-        }
-        for d in &self.dogs {
-            d.ch.draw(&mut ctx.layers, to_screen, lights);
-        }
-        for g in &self.grunties {
-            g.draw(&mut ctx.layers, to_screen, lights);
-        }
-        for pc in &self.pcs {
-            pc.char.draw(&mut ctx.layers, to_screen, lights);
-        }
-        for n in &self.npcs {
-            n.char().draw(&mut ctx.layers, to_screen, lights);
-        }
+        self.npcs.draw(&mut ctx.layers, to_screen, lights);
     }
 
     /// The Flag Race's task (63), then `ccThEntryCtrl`'s NPC list (64).
@@ -133,8 +106,13 @@ impl crate::world::cast::Cast for TownCast {
         TownCast::invite_new(self, w, id)
     }
 
+    /// The Chaos Gate's `Influence`, or an NPC's `affectFunc`.
     fn affect(&mut self, w: &mut crate::world::World, who: CharId, cmnd: i16, p: [i16; 2]) {
-        self.affect_own(w, who, cmnd, p);
+        match who {
+            CharId::Object(gate::GIMMICK) => self.gate.influence(cmnd),
+            CharId::Npc(id) => cast_mod::npc_affect(&mut self.npcs, w, id, cmnd, p),
+            _ => {}
+        }
     }
 
     /// The Flag Race started (from the next frame's slot), quit, done
@@ -144,8 +122,9 @@ impl crate::world::cast::Cast for TownCast {
             Ask::RaceStart(kind) => self.race_start(w, kind),
             Ask::RaceQuit => self.race.as_deref_mut().map(race::Race::quit).is_some(),
             Ask::RaceDone => self.race.as_deref_mut().map(|r| r.done = true).is_some(),
-            Ask::Growth { code, growth } => self.grunty_mut(code).map(|g| g.growth_num = growth).is_some(),
+            Ask::Growth { code, growth } => self.npcs.grunty_mut(code).map(|g| g.growth_num = growth).is_some(),
             Ask::Food { code, food_mode, chat_flag } => self
+                .npcs
                 .grunty_mut(code)
                 .map(|g| {
                     g.food_mode = food_mode;
@@ -165,17 +144,17 @@ impl crate::world::cast::Cast for TownCast {
         self.racing()
     }
 
-    /// The entry control's NPCs (merchants, walking PCs, the rest), the
-    /// Grunty of the target before or now, the race.
+    /// The entry control's NPCs, the Grunty of the target before or now,
+    /// the race.
     fn seen(&self, shown: [Option<CharId>; 2]) -> Seen {
         Seen {
-            npcs: self.all_npcs().map(|n| n.code()).collect(),
+            npcs: self.npcs.ids(),
             grunty: shown.into_iter().flatten().find_map(|who| {
                 let CharId::Npc(code) = who else { return None };
-                let g = self.grunty(code)?;
+                let g = self.npcs.grunty(code)?;
                 Some(GruntySeen {
                     who,
-                    row: i32::from(g.row.id),
+                    row: i32::from(g.core.row.id),
                     growth: g.growth_num,
                     msg: g.msg_num,
                     exist: g.exist,
@@ -200,7 +179,6 @@ impl crate::world::cast::Cast for TownCast {
 // The town's frame, its ccThGameCtrl, its entries and the event camera's
 // view of it (moved from the façade in lib.rs).
 use crate::chara::npc;
-use crate::event::entry::Npc as _;
 use crate::event::{gate, talk};
 use crate::world::CharId;
 use crate::world::cast::{Ask, GruntySeen, Own, RaceSeen, Seen};
@@ -209,26 +187,6 @@ use piney_data::save::offset;
 use piney_desktop::anm::Ctx;
 
 impl TownCast {
-    /// `ccChar::EntryAffect(target, plw, cmnd, p0, p1, 0)` from the menus
-    /// on the gate, a Grunty (its `affectFunc`) or a town NPC.
-    fn affect_own(&mut self, world: &mut crate::world::World, who: CharId, cmnd: i16, [a1, a2]: [i16; 2]) {
-        match who {
-            CharId::Object(gate::GIMMICK) => self.gate.influence(cmnd),
-            CharId::Npc(code) if self.grunty(code).is_some() => self.grunty_affect(world, code, cmnd, a1, a2),
-            CharId::Npc(code) => {
-                if let Some(n) = self.npc_mut(code) {
-                    n.influence(cmnd);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Put an NPC on the entry control's list (`ccEntryCtrl::entryNpc`).
-    pub fn add_npc(&mut self, npc: Box<dyn entry::Npc>) {
-        self.npcs.push(npc);
-    }
-
     /// `ccEntryEventMng` (main 0x001b62e0) for a Root Town, when the town's tasks
     /// start: the events' town NPCs (`ccSetRtownPC`), `ccSetMerchant(0)`'s
     /// merchants (the Chaos Gate is already up), then `ccEntryRandomNpc`
@@ -246,9 +204,8 @@ impl TownCast {
         let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
         let pool = crate::town::pc::Pool::of(&crate::town::pc::Tables::of(world.volume), server, &world.save.save);
         let rows = crate::town::pc::register_random_npc(&mut world.combat.cc, reserved, &pool);
-        let town =
-            Rc::new(std::cell::RefCell::new(crate::town::pc::TownPcs::new(world.volume, no, &world.area.core().file)?));
-        self.town_pcs = Some(town);
+        let file = &world.area.core().file;
+        self.npcs.pcs_or(|| crate::town::pc::TownPcs::new(world.volume, no, file))?;
         let mut files = crate::town::pc::Files::new();
         for e in std::mem::take(&mut self.event_npcs) {
             self.place_event_npc(world, &mut files, e)?;
@@ -266,36 +223,35 @@ impl TownCast {
             player,
             event_npc,
         )?;
-        self.merchants.extend(merchants);
+        for m in merchants {
+            self.npcs.push(Npc::Merchant(Box::new(m)));
+        }
         // ccSetChaosGate (already up), then ccEntryEventMng's by town: 1
         // ccSetDog and ccSetChibiGuso, 2 and 3 ccSetChibiGuso, then the
         // walking PCs.
         let core = world.area.core_mut();
-        self.dogs = dog::set_dogs(&world.archive, world.volume, &core.file, &mut core.hits, no)?;
+        for d in dog::set_dogs(&world.archive, world.volume, &core.file, &mut core.hits, no)? {
+            self.npcs.push(Npc::Dog(Box::new(d)));
+        }
         self.place_grunties(world, no)?;
-        let town = self.town_pcs.clone().expect("placed above");
         for (slot, &r) in rows.iter().enumerate() {
             if r < 0 {
                 continue;
             }
             let row = npc::NpcRow::of(world.volume, r as usize)?;
-            let model = crate::town::pc::load_model(&world.archive, &mut files, &town.borrow().tables, &row)?;
-            self.pcs.push(crate::town::pc::RtownPc::place(
-                &town,
-                &row,
-                &model,
-                slot as i32,
-                player,
-                &mut world.area.core_mut().hits,
-                &mut world.combat.cc,
-            ));
+            let town = self.npcs.pcs_mut().expect("made above");
+            let model = crate::town::pc::load_model(&world.archive, &mut files, &town.tables, &row)?;
+            let hits = &mut world.area.core_mut().hits;
+            let pc =
+                crate::town::pc::RtownPc::place(town, &row, &model, slot as i32, player, hits, &mut world.combat.cc);
+            self.npcs.push(Npc::Pc(Box::new(pc)));
         }
         Ok(())
     }
 
     /// An event's town NPC (`ccEntryEventMng`'s types 3 and 4): `npcTbl` row
-    /// `code` made as its class and set at the marker. A merchant goes onto
-    /// the NPC list before `ccSetMerchant(0)`'s.
+    /// `code` made as its class onto the NPC list's end (before
+    /// `ccSetMerchant(0)`'s merchants at the set-up) and set at the marker.
     fn place_event_npc(
         &mut self,
         world: &mut crate::world::World,
@@ -308,17 +264,17 @@ impl TownCast {
             npc::EventClass::Pc if e.search => {
                 // The SEARCH set-up: the row's stage is its event's status
                 // (`saveData+0x6483+row`); a row with no marks makes nothing.
-                let town = self.town_pcs.clone().expect("the entry control's set-up ran");
+                let town = self.npcs.pcs_mut().expect("the entry control's set-up ran");
                 let stage =
                     usize::try_from(e.code - 117).ok().map(|k| world.save.save.u8(offset::EVENT_STATUS + k) as i8);
                 let file = &world.area.core().file;
-                let set_up = stage
-                    .and_then(|st| crate::town::pc::Search::set_up(&town.borrow(), file, i32::from(e.code), st.into()));
+                let set_up =
+                    stage.and_then(|st| crate::town::pc::Search::set_up(town, file, i32::from(e.code), st.into()));
                 let Some(s) = set_up else { return Ok(()) };
-                let model = crate::town::pc::load_model(&world.archive, files, &town.borrow().tables, &row)?;
+                let model = crate::town::pc::load_model(&world.archive, files, &town.tables, &row)?;
                 let origin = crate::town::pc::Origin::Search(s);
                 let pc = crate::town::pc::RtownPc::place_as(
-                    &town,
+                    town,
                     &row,
                     &model,
                     origin,
@@ -326,25 +282,13 @@ impl TownCast {
                     &mut world.area.core_mut().hits,
                     &mut world.combat.cc,
                 );
-                self.pcs.push(pc);
+                self.npcs.push(Npc::Pc(Box::new(pc)));
             }
-            npc::EventClass::Pc => {
-                let town = self.town_pcs.clone().expect("the entry control's set-up ran");
-                let model = crate::town::pc::load_model(&world.archive, files, &town.borrow().tables, &row)?;
+            class => {
                 let at = world.event_marker(e.marker);
                 let hits = &mut world.area.core_mut().hits;
-                let mut pc =
-                    crate::town::pc::RtownPc::place(&town, &row, &model, -1, player, hits, &mut world.combat.cc);
-                if let Some(at) = at {
-                    (pc.char.pos, pc.char.dirc) = at;
-                }
-                self.pcs.push(pc);
-            }
-            npc::EventClass::Merchant => {
-                let at = world.event_marker(e.marker);
-                let m =
-                    merchant::event_merchant(&world.archive, &row, &mut world.area.core_mut().hits, no, player, at)?;
-                self.merchants.push(m);
+                let cc = &mut world.combat.cc;
+                self.npcs.enter_event(&world.archive, files, &row, class, hits, cc, no, player, at)?;
             }
         }
         Ok(())
@@ -408,9 +352,11 @@ impl TownCast {
                 id,
                 num as u32,
             )?;
-            self.grunties.extend(g);
+            if let Some(g) = g {
+                self.npcs.push(Npc::Grunty(Box::new(g)));
+            }
         }
-        self.grunty_tables = Some(tables);
+        self.npcs.set_grunty_tables(tables);
         // From Mutation on, a grown Grunty in each pen: the race's flags
         // (MUT gcmn 0x0052bf1c).
         let g = grunty::Growth::read(&world.save.save, no);
@@ -424,124 +370,17 @@ impl TownCast {
         Ok(())
     }
 
-    /// The Grunties `ccSetChibiGuso` placed.
-    pub fn grunties(&self) -> &[grunty::Grunty] {
-        &self.grunties
-    }
-
-    /// The Grunty of `code` (the row it was made from).
-    pub fn grunty(&self, code: i32) -> Option<&grunty::Grunty> {
-        self.grunties.iter().find(|g| g.code == code)
-    }
-
-    pub fn grunty_mut(&mut self, code: i32) -> Option<&mut grunty::Grunty> {
-        self.grunties.iter_mut().find(|g| g.code == code)
-    }
-
-    /// `pgChatTbl[k]` (a grown Grunty's line over its head).
-    pub fn grunty_chat_text(&self, k: usize) -> Vec<u8> {
-        self.grunty_tables.as_ref().and_then(|t| t.chat.get(k).cloned()).unwrap_or_default()
-    }
-
-    /// `ccChar::EntryAffect(grunty, plw, cmd, a1, a2, 0)`: the Grunty's
-    /// `affectFunc` (`dogAction`, `dogAction2`, `dogActionAdult`) at once,
-    /// with `ccRand` for the grown ones' lines.
-    pub fn grunty_affect(&mut self, world: &mut crate::world::World, code: i32, cmd: i16, a1: i16, a2: i16) {
-        let Some(i) = self.grunties.iter().position(|g| g.code == code) else { return };
-        let dirc = world.kite().dirc();
-        self.grunties[i].affect(cmd, a1, a2, &mut world.combat.cc, dirc);
-        let events = std::mem::take(&mut self.grunties[i].events);
-        self.apply_grunty_events(world, code, events);
-    }
-
-    /// A Grunty's events: the camera (`changeCamera`, `cameraSetPos` and
-    /// `cameraSetView` on `camID`'s camera) and Kite's place carried out,
-    /// the rest kept for the host.
-    fn apply_grunty_events(&mut self, world: &mut crate::world::World, code: i32, events: Vec<grunty::GruntyEvent>) {
-        use grunty::GruntyEvent as E;
-        for e in events {
-            match e {
-                E::Camera(n) => world.camera.change_camera(n),
-                E::CamPos(v) => world.camera.active_mut().pos = v,
-                E::CamView(v) => world.camera.active_mut().view = v,
-                E::Player { pos, dirc_z } => {
-                    let mut dirc = world.kite().dirc();
-                    dirc[2] = dirc_z;
-                    world.put_kite(pos, dirc);
-                }
-                E::Debug(_) => {}
-                E::Chat(k) => self.outs.push(Out::Chat { code, text: self.grunty_chat_text(k) }),
-                e => self.outs.push(Out::Grunty { code, e }),
-            }
-        }
-    }
-
-    /// Dun Loireag's dogs.
-    pub fn dogs(&self) -> &[dog::Dog] {
-        &self.dogs
-    }
-
-    /// The walking PCs.
-    pub fn pcs(&self) -> &[crate::town::pc::RtownPc] {
-        &self.pcs
-    }
-
-    /// The merchants `ccSetMerchant(0)` placed.
-    pub fn merchants(&self) -> &[merchant::Merchant] {
-        &self.merchants
-    }
-
-    /// The entry control's other NPCs.
-    pub fn npcs(&self) -> &[Box<dyn entry::Npc>] {
+    /// The entry control's NPC list.
+    pub fn npcs(&self) -> &Npcs {
         &self.npcs
     }
 
-    /// Every NPC on the entry control's list, in its order: the merchants,
-    /// the walking PCs, the rest.
-    pub fn all_npcs(&self) -> impl Iterator<Item = &dyn entry::Npc> {
-        let m = self.merchants.iter().map(|m| m as &dyn entry::Npc);
-        m.chain(self.dogs.iter().map(|d| d as &dyn entry::Npc))
-            .chain(self.grunties.iter().map(|g| g as &dyn entry::Npc))
-            .chain(self.pcs.iter().map(|p| p as &dyn entry::Npc))
-            .chain(self.npcs.iter().map(|n| n.as_ref()))
-    }
-
-    /// `ccEvent::GetNpc(code)`: the NPC whose base id is `code`.
-    pub fn npc(&self, code: i32) -> Option<&dyn entry::Npc> {
-        self.all_npcs().find(|n| n.code() == code)
-    }
-
-    pub fn npc_mut(&mut self, code: i32) -> Option<&mut dyn entry::Npc> {
-        if let Some(m) = self.merchants.iter_mut().find(|m| m.code() == code) {
-            return Some(m);
-        }
-        if let Some(d) = self.dogs.iter_mut().find(|d| d.code() == code) {
-            return Some(d);
-        }
-        if let Some(g) = self.grunties.iter_mut().find(|g| g.code == code) {
-            return Some(g);
-        }
-        if let Some(p) = self.pcs.iter_mut().find(|p| p.code() == code) {
-            return Some(p);
-        }
-        self.npcs.iter_mut().find(|n| n.code() == code).map(|n| n.as_mut() as &mut dyn entry::Npc)
-    }
-
     /// One of the town's own characters: an NPC on the entry control's
-    /// list by its code, the Chaos Gate (`gimmickTbl[16]`) on its object
+    /// list by its name, the Chaos Gate (`gimmickTbl[16]`) on its object
     /// list, on the command list while near (as the town's candidates).
-    pub fn own(&self, world: &crate::world::World, id: CharId) -> Option<Own> {
+    pub fn own(&self, id: CharId) -> Option<Own> {
         match id {
-            CharId::Npc(code) => {
-                let n = self.npc(code)?;
-                // A Grunty's base as it has grown.
-                let name = match self.grunty(code) {
-                    Some(g) => Some(g.row.name.clone().into_bytes()),
-                    None => npc::NpcRow::of(world.volume, code as usize).map(|r| r.name.into_bytes()).ok(),
-                };
-                let c = n.char();
-                Some(Own { pos: c.pos, height: c.height, flags: n.flags(), name, listed: n.listed() })
-            }
+            CharId::Npc(id) => self.npcs.own(id),
             CharId::Object(gate::GIMMICK) => Some(Own {
                 pos: self.gate.pos,
                 height: gate::HEIGHT,
@@ -571,12 +410,15 @@ impl TownCast {
     }
 
     /// The tasks between the members' and the effects: the Flag Race's
-    /// task (63), then `ccThEntryCtrl`'s list (64), after the battle's walk
+    /// task (63), then `ccThEntryCtrl`'s lists (64), after the battle's walk
     /// of its lists (empty in a town, so the race's slot is not crossed):
-    /// the Chaos Gate, the race's flags, the merchants, dogs, Grunties,
-    /// walking PCs and event NPCs, all seeing the active camera
-    /// (activeCamPtr). What they started goes out with the battle's shows.
+    /// the Chaos Gate, the race's flags, the NPC list, all seeing the
+    /// active camera (activeCamPtr). What they started goes out with the
+    /// battle's shows, after what the menus' `EntryAffect` asked of an NPC
+    /// since the last slot.
     fn entry_list(&mut self, world: &mut crate::world::World, host: &mut dyn race::RaceHost) {
+        let affected = self.npcs.take_events();
+        self.outs.extend(affected.into_iter().map(|(code, e)| Out::Npc { code, e }));
         self.race_slot(world, host);
         let t = world.camera.active();
         let f = self.gate.step(world.volume, world.kite().pos(), t.pos, t.deg[1], t.kind == camera::kind::EYE);
@@ -601,7 +443,7 @@ impl TownCast {
             deg1: t.deg[1],
             eye: t.kind == camera::kind::EYE,
         };
-        let mut cx = entry::NpcCtx {
+        let mut cx = NpcCtx {
             player: world.kite().pos(),
             player_dirc: world.kite().dirc(),
             view,
@@ -609,93 +451,18 @@ impl TownCast {
             hits: &mut world.area.core_mut().hits,
             rand: &mut world.combat.rand,
             cc: &mut world.combat.cc,
+            save: &mut world.save.save,
+            race: self.race.as_deref_mut().map(|r| grunty::RaceLink {
+                kind: r.kind,
+                server: r.server,
+                step: &mut r.intro,
+            }),
         };
-        let status_on = world.save.save.u8(offset::EVENT_STATUS + merchant::EVENT_NPC_STATUS) != 0;
-        for m in &mut self.merchants {
-            m.status_on = status_on;
-        }
-        merchant::step_all(&mut self.merchants, &mut cx);
-        // The Administrator's starts (as a field's event NPC's, on his
-        // handle), and his (or the Event NPC's) deletion at the act's end.
+        self.npcs.step(&mut cx);
         world.combat.shows.extend(self.outs.drain(..).map(combat::Show::Cast));
-        for m in &mut self.merchants {
-            let who = CharId::Npc(m.id).handle() as usize;
-            for e in m.sysop_events.drain(..) {
-                match e {
-                    merchant::SysopEvent::Noise => world.noise = true,
-                    e => world.combat.shows.push(combat::Show::Npc(who, e)),
-                }
-            }
-        }
-        self.merchants.retain(|m| !m.gone);
-        for d in &mut self.dogs {
-            d.step(&mut cx);
-            let code = d.code();
-            self.outs.extend(d.events.iter().map(|&e| Out::Dog { code, e }));
-        }
-        // ccSetChibiGuso's Grunties: each one's frame, then inuCheckNote
-        // on the notes its anms passed, on pgPtr (the last one made).
-        let mut pg_events = Vec::new();
-        let last = self.grunties.len().wrapping_sub(1);
-        for i in 0..self.grunties.len() {
-            let mut gx = grunty::GruntyCtx {
-                player: cx.player,
-                player_dirc: cx.player_dirc,
-                view: cx.view,
-                hits: &mut *cx.hits,
-                rand: &mut *cx.rand,
-                cc: &mut *cx.cc,
-                save: &mut world.save.save,
-                race: self.race.as_deref_mut().map(|r| grunty::RaceLink {
-                    kind: r.kind,
-                    server: r.server,
-                    step: &mut r.intro,
-                }),
-            };
-            let g = &mut self.grunties[i];
-            g.step(&mut gx);
-            let code = g.code;
-            let events = std::mem::take(&mut g.events);
-            let notes = std::mem::take(&mut g.notes);
-            pg_events.push((code, grunty_outs(&mut self.outs, code, events)));
-            let pg = &mut self.grunties[last];
-            grunty::inu_check_note(&notes, pg, i == last, cx.rand);
-            let (code, events) = (pg.code, std::mem::take(&mut pg.events));
-            pg_events.push((code, grunty_outs(&mut self.outs, code, events)));
-        }
-        if let Some(t) = &self.town_pcs {
-            let at = offset::EVENT_STATUS;
-            t.borrow_mut().event_status.copy_from_slice(&world.save.save.bytes()[at..at + 80]);
-        }
-        for pc in &mut self.pcs {
-            pc.step(&mut cx);
-            let code = pc.code();
-            self.outs.extend(pc.events.iter().map(|&e| Out::Pc { code, e }));
-        }
-        for n in &mut self.npcs {
-            n.step(&mut cx);
-        }
-        // The Grunties' camera writes and Kite's place, after the list (the
-        // game's land as each one's main runs; the others' fades this
-        // frame see the camera before them).
-        for (code, events) in pg_events {
-            self.apply_grunty_events(world, code, events);
-        }
+        cast_mod::npc_outs(world, &mut self.npcs);
         if let Some(r) = self.race.as_deref_mut() {
-            self.outs.extend(r.events.drain(..).map(Out::Race));
+            world.combat.shows.extend(r.events.drain(..).map(|e| combat::Show::Cast(Out::Race(e))));
         }
-        world.combat.shows.extend(self.outs.drain(..).map(combat::Show::Cast));
     }
-}
-
-/// A Grunty's frame's asks: its sounds, effects, voices and lines go out
-/// in the list's order ([`Out::Grunty`]); its camera writes and Kite's
-/// place come back, applied after the list.
-fn grunty_outs(outs: &mut Vec<Out>, code: i32, events: Vec<grunty::GruntyEvent>) -> Vec<grunty::GruntyEvent> {
-    use grunty::GruntyEvent as E;
-    let (kept, out): (Vec<_>, Vec<_>) = events
-        .into_iter()
-        .partition(|e| matches!(e, E::Camera(_) | E::CamPos(_) | E::CamView(_) | E::Player { .. } | E::Debug(_)));
-    outs.extend(out.into_iter().map(|e| Out::Grunty { code, e }));
-    kept
 }

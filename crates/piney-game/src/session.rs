@@ -2857,7 +2857,7 @@ mod tests {
     /// 0x800 the magic's, else the items') on this server.
     fn stock_row(w: &crate::area::AreaMode, code: i32, (cat, id): (i8, i16)) -> Option<usize> {
         let world = w.world();
-        let ty = town_cast(world).merchants().iter().find(|m| piney_world::event::entry::Npc::code(*m) == code)?.flags;
+        let ty = town_cast(world).npcs().merchants().find(|m| m.core.code() == code)?.core.row.flags;
         let f = piney_data::tables::fieldui::of(world.volume());
         // `VenderMenu`'s three (0x100 the weapons, 0x400 the items, 0x800
         // the magic); the Recorder (0x1000) and the Elf (0x200) sell none.
@@ -2923,10 +2923,10 @@ mod tests {
             })
         };
         town_cast(world)
+            .npcs()
             .merchants()
-            .iter()
-            .filter(|m| m.flags & 0xd00 != 0)
-            .map(piney_world::event::entry::Npc::code)
+            .filter(|m| m.core.row.flags & 0xd00 != 0)
+            .map(|m| m.core.code())
             .min_by(|&a, &b| far(a).total_cmp(&far(b)))
     }
 
@@ -2935,8 +2935,7 @@ mod tests {
     fn shop_for(w: &crate::area::AreaMode, buys: &[Buy]) -> Option<i32> {
         let world = w.world();
         buys.iter().filter(|b| short_of(w, b) > 0).find_map(|b| {
-            let code = |m: &piney_world::town::merchant::Merchant| piney_world::event::entry::Npc::code(m);
-            town_cast(world).merchants().iter().map(code).find(|&c| stock_row(w, c, b.item).is_some())
+            town_cast(world).npcs().merchants().map(|m| m.core.code()).find(|&c| stock_row(w, c, b.item).is_some())
         })
     }
 
@@ -4036,7 +4035,7 @@ mod tests {
                 s.take_events();
             }
             let Stage::Area(w) = &s.stage else { panic!("not in a town: {}", Mode::title(s)) };
-            town_cast(w.world()).pcs().iter().map(|p| p.row.row).collect::<Vec<_>>()
+            town_cast(w.world()).npcs().walkers().map(|p| p.core.row.row).collect::<Vec<_>>()
         };
         let first = crowd(&mut s, 0);
         crowd(&mut s, 1);
@@ -7461,6 +7460,10 @@ mod tests {
 
     /// Issue #56: Mutation's breeders offer the Flag Race.
     mod flag_race;
+
+    /// The NPC list in `ccEntryEventMng`'s order and a dungeon's event PC's
+    /// steps (`rtpcCheckNote`).
+    mod npc_list;
 
     /// Issue #62: every town's Grunty ranch plays the breeder's tune.
     mod ranch_music;

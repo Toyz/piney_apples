@@ -20,10 +20,10 @@ use piney_desktop::message::WindowTexture;
 use piney_desktop::sprite::Sprite;
 use piney_desktop::view::LayerView;
 
+use crate::chara::entry_obj::EntryObj;
 use crate::chara::foe::Model;
 use crate::chara::pose::Play;
 use crate::ee::{self, F, ONE, V4};
-use crate::town::merchant::EntryObj;
 
 /// The flags' gimmick (`gimmickTbl[45]`, `PG_FLAG`, `XP_FLAG.CCS`).
 pub const FLAG_GIMMICK: usize = 45;
@@ -753,9 +753,9 @@ impl crate::town::cast::TownCast {
 
     /// `ccSnd +0x13a`, which `ccPgBgmInit` sets and the race's end
     /// clears: the walking PCs it hides read it.
-    fn set_race_hold(&self, on: bool) {
-        if let Some(t) = &self.town_pcs {
-            t.borrow_mut().race_hold = on;
+    fn set_race_hold(&mut self, on: bool) {
+        if let Some(t) = self.npcs.pcs_mut() {
+            t.race_hold = on;
         }
     }
 
@@ -1039,7 +1039,7 @@ impl crate::town::cast::TownCast {
                     let at = t.end_pos[s].map(f32::to_bits);
                     let breeder = crate::grunty::dummy(&world.area.core().file, "DMY_merchant6").map(|d| d.0);
                     let mut rot = world.kite().dirc();
-                    rot[2] = breeder.map_or(rot[2], |b| crate::town::pc::get_dirc(at, b));
+                    rot[2] = breeder.map_or(rot[2], |b| piney_battle::geom::get_dirc(at, b));
                     world.put_kite(at, rot);
                     r.pc = Pc::EndCam;
                     return;

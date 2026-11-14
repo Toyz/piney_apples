@@ -11,7 +11,8 @@ use super::third::Third;
 use super::{Gen, Pic};
 use crate::boss::kyvia::{dp, fabs, fp};
 use crate::boss::{Anm, BossBase, Cx, EffKind, Out, VF0};
-use crate::enemy_ai::{get_dirc, rand_f};
+use crate::enemy_ai::rand_f;
+use crate::geom::get_dirc;
 use crate::geom::{self, V4};
 
 type F = u32;

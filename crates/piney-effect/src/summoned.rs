@@ -1274,7 +1274,7 @@ impl Summoned {
                     }
                     b.t = ee::add(t, 0x3cf5_c28f);
                     let up = ee::atan2f(ee::sub(cur[2], p[2]), drawelm::get_dist(cx.assets.volume, cur, p));
-                    let dirc = drawelm::get_dirc(cur, p);
+                    let dirc = piney_battle::geom::get_dirc(cur, p);
                     b.elm.base.anim.dirc = [0, up, dirc, ONE];
                     b.elm.base.anim.pos = w;
                     all = false;
@@ -1426,7 +1426,7 @@ impl Summoned {
                     let mut p = space::w2p(a.pos, player, bounds);
                     let q = space::w2p(a.ep, player, bounds);
                     let up = ee::atan2f(ee::sub(p[2], q[2]), drawelm::get_dist(cx.assets.volume, p, q));
-                    let dirc = drawelm::get_dirc(p, q);
+                    let dirc = piney_battle::geom::get_dirc(p, q);
                     let mut spd = a.speed[0];
                     let m = vu::rot_z(&vu::rot_z(&vu::rot_y(&vu::UNIT, up), dirc), NEG_HALF_PI);
                     p = ee::vadd(p, ee::apply(&m, [spd, 0, 0, ONE]));
@@ -1517,7 +1517,7 @@ impl Summoned {
                 n.cp[0] = space::p2w(q, player, bounds);
                 n.elm.base.anim.dirc[1] =
                     ee::atan2f(ee::sub(top[2], q[2]), drawelm::get_dist(cx.assets.volume, top, q));
-                n.elm.base.anim.dirc[2] = drawelm::get_dirc(top, q);
+                n.elm.base.anim.dirc[2] = piney_battle::geom::get_dirc(top, q);
                 let r = thunder::rand_f(cx, 0x3f00_0000);
                 let x = ((1.0 - f64::from(f32::from_bits(r)).abs()) * 1000.0) as f32;
                 let a = thunder::rand_f(cx, PI);
@@ -1681,7 +1681,7 @@ impl Summoned {
                             let cur = space::w2p(an.pos, player, bounds);
                             let q = space::w2p(p, player, bounds);
                             let up = ee::atan2f(ee::sub(cur[2], q[2]), drawelm::get_dist(cx.assets.volume, cur, q));
-                            let d = drawelm::get_dirc(cur, q);
+                            let d = piney_battle::geom::get_dirc(cur, q);
                             let an = &mut n.elm.base.anim;
                             an.dirc[1] = up;
                             an.dirc[2] = d;

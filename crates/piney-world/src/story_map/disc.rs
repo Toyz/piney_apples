@@ -437,7 +437,7 @@ impl Rocks {
         r.pos[2] = ee::add(r.pos[2], r.speed);
         r.life -= 1;
         let v = cx.view;
-        if crate::town::pc::check_camera_deg(r.pos, cloud::VIEW_DEG, &v.cam, v.player) {
+        if crate::chara::char::check_camera_deg(r.pos, cloud::VIEW_DEG, &v.cam, v.player) {
             self.drawn.push((k, tr.unwrap_or(ONE)));
             cx.put(Kind::Rocks, Piece::Item(self.drawn.len() - 1));
         }

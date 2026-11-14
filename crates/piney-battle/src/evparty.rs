@@ -129,29 +129,27 @@ impl Roster {
 /// entry control's enemy list (walked for its count) whose base type has a
 /// bit of 0x60 and whose base id is `code`.
 pub fn get_enemy(ctrl: &EntryCtrl, scene: &Scene, code: i32) -> Option<usize> {
-    find_on(ctrl, scene, Kind::Enemy, 0x60, code)
-}
-
-/// `ccEvent::GetNpc(code)` (main 0x001b2cc0): the same on the NPC list, of
-/// base type bit 0x10 for codes 29 and 158 (the merchant-like rows), else
-/// 0x08.
-pub fn get_npc(ctrl: &EntryCtrl, scene: &Scene, code: i32) -> Option<usize> {
-    let mask = if code == 29 || code == 158 { 0x10 } else { 0x08 };
-    find_on(ctrl, scene, Kind::Npc, mask, code)
-}
-
-fn find_on(ctrl: &EntryCtrl, scene: &Scene, k: Kind, mask: i32, code: i32) -> Option<usize> {
-    let l = ctrl.lists[k as usize];
+    let l = ctrl.lists[Kind::Enemy as usize];
     let mut cur = l.head;
     for _ in 0..l.num {
         let c = cur?;
         let ch = &scene.chars[c];
-        if ch.ty() & mask != 0 && i32::from(ch.id()) == code {
+        if ch.ty() & 0x60 != 0 && i32::from(ch.id()) == code {
             return Some(c);
         }
         cur = ctrl.links.get(c).and_then(|l| l.next);
     }
     None
+}
+
+/// `ccEvent::GetNpc(code)` (INF main 0x001b2cc0, MUT 0x001c8150, OUT
+/// 0x001be6e0, QUA 0x001c5d60) on the NPC list (the world's one list,
+/// each NPC's base type and base id in list order): the place of the
+/// first whose base type has bit 0x10 for codes 29 and 158 (the
+/// Administrator), else 0x08 (a PC), and whose base id is `code`.
+pub fn get_npc(list: impl IntoIterator<Item = (u32, i32)>, code: i32) -> Option<usize> {
+    let mask = if matches!(code, 29 | 158) { 0x10 } else { 0x08 };
+    list.into_iter().position(|(ty, id)| ty & mask != 0 && id == code)
 }
 
 /// `ccCheckTargetTypeId(mask, id)` (gcmn 0x005199e0): the first character
@@ -227,8 +225,7 @@ pub struct EvParty<'a> {
     /// reads through a null chunk when there is none; the port does
     /// nothing then.
     pub town_marker: &'a dyn Fn(i16) -> Option<(V4, F)>,
-    /// `GetNpc(code)` on the NPCs the area keeps off the battle's entry
-    /// control (a Root Town's): its position.
+    /// [`get_npc`]`(code)` on the area's NPC list: the NPC's position.
     pub npc_pos: &'a dyn Fn(i32) -> Option<V4>,
     /// `ccDeleteCmnd`s of characters that were listed
     /// ([`Out::DeleteCmnd`]: `ccChangeCmndTarget(0)` when it was the
@@ -400,16 +397,15 @@ impl EvParty<'_> {
         true
     }
 
-    /// The character an instruction's `type code` pair names by `1 << type`
-    /// (`sllv`: the low five bits): 4 `GetSpc`, 0x18 `GetNpc`, 0x60
-    /// `GetEnemy`.
+    /// The battle's character an instruction's `type code` pair names by
+    /// `1 << type` (`sllv`: the low five bits): 4 `GetSpc`, 0x60
+    /// `GetEnemy`. An NPC (0x18, `GetNpc`) is the world's list's, not one
+    /// of these ([`EvParty::char_pos`]).
     pub fn find_char(&self, ty: i16, code: i16) -> Option<usize> {
         let bit = 1u32 << (ty as u32 & 31);
         let code = i32::from(code);
         if bit & 4 != 0 {
             self.roster.get_spc(code)
-        } else if bit & 0x18 != 0 {
-            get_npc(self.ctrl, self.scene, code)
         } else if bit & 0x60 != 0 {
             get_enemy(self.ctrl, self.scene, code)
         } else {
@@ -417,19 +413,19 @@ impl EvParty<'_> {
         }
     }
 
-    /// Where [`EvParty::find_char`]'s character stands; an NPC the battle's
-    /// entry control does not hold from the area's own ([`EvParty::npc_pos`]).
+    /// Where the character a `type code` pair names stands: an NPC's
+    /// through [`EvParty::npc_pos`], else [`EvParty::find_char`]'s.
     pub fn char_pos(&self, ty: i16, code: i16) -> Option<V4> {
-        match self.find_char(ty, code) {
-            Some(t) => Some(self.scene.chars[t].pos),
-            None if 1u32 << (ty as u32 & 31) & 0x18 != 0 => (self.npc_pos)(i32::from(code)),
-            None => None,
+        if 1u32 << (ty as u32 & 31) & 0x18 != 0 {
+            return (self.npc_pos)(i32::from(code));
         }
+        self.find_char(ty, code).map(|t| self.scene.chars[t].pos)
     }
 
     /// The character `radiator` (case 45, main 0x001ac7c8) puts its rays
     /// on: [`EvParty::find_char`], else `ccCheckTargetTypeId(1 << type,
-    /// code)`.
+    /// code)`. No NPC (the world's): every script's names Kite (type 2,
+    /// code 0, on all four volumes).
     pub fn radiator_user(&self, ty: i16, code: i16) -> Option<usize> {
         let bit = 1u32 << (ty as u32 & 31);
         if bit & 0x7c != 0 {

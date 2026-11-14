@@ -578,7 +578,7 @@ fn search_bt_walks_from_its_stages_landmark() {
         if !w.in_town() {
             return None;
         }
-        town_cast(w.world()).pcs().iter().find(|p| p.row.id == 165).cloned()
+        town_cast(w.world()).npcs().walkers().find(|p| p.core.row.id == 165).cloned()
     };
     let pad = Pad::default();
     let mut first = None;
@@ -603,9 +603,14 @@ fn search_bt_walks_from_its_stages_landmark() {
     let mut start = [0; 4];
     let town = w.world().scene().town;
     assert_eq!(town, 2, "Carmina Gadelica");
-    let _ = piney_world::town::pc::Search::set_up(&p.town.borrow(), &w.world().area().core().file, 165, 0)
-        .map(|set| start = set.pos);
-    assert_eq!((p.char.pos[0], p.char.pos[1]), (start[0], start[1]), "not at its landmark");
+    let _ = piney_world::town::pc::Search::set_up(
+        town_cast(w.world()).npcs().pcs().expect("the walking PCs' state"),
+        &w.world().area().core().file,
+        165,
+        0,
+    )
+    .map(|set| start = set.pos);
+    assert_eq!((p.core.ch.pos[0], p.core.ch.pos[1]), (start[0], start[1]), "not at its landmark");
     // Its walk (act 6 routes it, then 3): it glimmers below 0.3, moves,
     // and is off the character list (`initObject` had put it on).
     for _ in 0..120 {
@@ -613,10 +618,10 @@ fn search_bt_walks_from_its_stages_landmark() {
         s.take_events();
     }
     let q = bt(&s).expect("BT gone");
-    assert_eq!(q.act_num, 3);
-    assert!(!q.char.hit.sw, "on the character list");
+    assert_eq!(q.core.acts.num, 3);
+    assert!(!q.core.ch.hit.sw, "on the character list");
     assert!(piney_world::ee::le(q.transrate, 0x3e99_999a), "transrate {:#x}", q.transrate);
-    assert_ne!(q.char.pos, p.char.pos, "not walking");
+    assert_ne!(q.core.ch.pos, p.core.ch.pos, "not walking");
 }
 
 /// SEARCH BT glimmering on its walk in Carmina Gadelica, Kite walked up
@@ -644,8 +649,11 @@ fn search_bt_shot() {
             Stage::Area(w) if w.in_town() => {
                 let world = w.world();
                 let kite = world.kite().pos().map(f32::from_bits);
-                let bt =
-                    town_cast(world).pcs().iter().find(|p| p.row.id == 165).map(|p| p.char.pos.map(f32::from_bits));
+                let bt = town_cast(world)
+                    .npcs()
+                    .walkers()
+                    .find(|p| p.core.row.id == 165)
+                    .map(|p| p.core.ch.pos.map(f32::from_bits));
                 bt.is_some_and(|q| (q[0] - kite[0]).hypot(q[1] - kite[1]) < 450.0)
             }
             _ => false,
@@ -669,9 +677,9 @@ fn search_bt_shot() {
         if !w.in_town() {
             break;
         }
-        let bright = town_cast(w.world()).pcs().iter().find(|p| p.row.id == 165).is_some_and(|p| {
-            let t = f32::from_bits(p.char.transparency);
-            p.char.drawn && t > 0.29
+        let bright = town_cast(w.world()).npcs().walkers().find(|p| p.core.row.id == 165).is_some_and(|p| {
+            let t = f32::from_bits(p.core.ch.transparency);
+            p.core.ch.drawn && t > 0.29
         });
         if bright {
             break;
@@ -681,12 +689,17 @@ fn search_bt_shot() {
         && w.in_town()
     {
         let world = w.world();
-        let bt = town_cast(world).pcs().iter().find(|p| p.row.id == 165);
+        let bt = town_cast(world).npcs().walkers().find(|p| p.core.row.id == 165);
         eprintln!(
             "town {} kite {:?} bt {:?}",
             world.scene().town,
             world.kite().pos().map(f32::from_bits),
-            bt.map(|p| (p.char.pos.map(f32::from_bits), f32::from_bits(p.char.transparency), p.char.drawn, p.act_num))
+            bt.map(|p| (
+                p.core.ch.pos.map(f32::from_bits),
+                f32::from_bits(p.core.ch.transparency),
+                p.core.ch.drawn,
+                p.core.acts.num
+            ))
         );
     }
     gs.set_overlay(Mode::archive(&s));

@@ -230,7 +230,7 @@ fn draw_bolt(cx: &mut Cx, volume: Volume, t: &rules::Thunder, clump: Option<ObjR
         let (p, q) = (t.points[s], t.points[s + 1]);
         let a = space::w2p(p, player, bounds);
         let b = space::w2p(q, player, bounds);
-        let yaw = crate::drawelm::get_dirc(a, b);
+        let yaw = piney_battle::geom::get_dirc(a, b);
         let d2 = dist(volume, a, b, false);
         let d3 = dist(volume, a, b, true);
         let pitch = wrap(ee::atan2f(ee::sub(p[2], q[2]), d2));

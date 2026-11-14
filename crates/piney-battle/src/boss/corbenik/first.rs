@@ -17,7 +17,8 @@ use crate::boss::{
     BaseActs, BodyDraw, Boss, BossBase, Cx, EffKind, Out, Output, Patterns, Tbl, VF0, base_change_next_pattern,
     base_exec_pattern_index,
 };
-use crate::enemy_ai::{get_dirc, rand_f2};
+use crate::enemy_ai::rand_f2;
+use crate::geom::get_dirc;
 use crate::geom::{self, V4};
 use crate::item;
 use crate::param::cond;

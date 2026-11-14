@@ -1393,11 +1393,8 @@ impl StoryPilot {
             .map(|&(_, c)| i32::from(c))
             .find(|c| !self.talked.contains(c))?;
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        // An event NPC's stand-in is on the entry control's object list:
-        // the command target names it by its scene index.
         let aimed = match w.command_target_id() {
             Some(CharId::Npc(c)) => Some(c),
-            Some(CharId::Scene(i)) => w.combat().npcs.iter().find(|n| n.who == i).map(|n| i32::from(n.code)),
             _ => None,
         };
         if aimed == Some(code) {
@@ -4422,7 +4419,6 @@ fn event_14_blackrose_after_the_administrator() {
                 let playing = a.vm().is_some_and(|v| v.playing().is_some()) || a.streaming();
                 let aimed = match w.command_target_id() {
                     Some(CharId::Npc(c)) => Some((4, c)),
-                    Some(CharId::Scene(i)) => c.npcs.iter().find(|n| n.who == i).map(|n| (4, i32::from(n.code))),
                     Some(CharId::Member(id)) => Some((2, id)),
                     _ => None,
                 };

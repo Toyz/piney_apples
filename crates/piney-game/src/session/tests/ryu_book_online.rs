@@ -39,7 +39,7 @@ fn stare_at_a_walking_pc() -> Option<(Session, i32, i32, Frame)> {
     if !w.in_town() {
         unreachable!()
     }
-    let here: Vec<i32> = town_cast(w.world()).all_npcs().map(|n| n.code()).filter(|c| (30..80).contains(c)).collect();
+    let here: Vec<i32> = town_cast(w.world()).npcs().iter().map(|n| n.id()).filter(|c| (30..80).contains(c)).collect();
     let pc = *here.iter().find(|&&c| c >= 66).or(here.first()).expect("no walking PC in Mac Anu");
     let away = (30..80).find(|c| !here.contains(c)).expect("everyone in town");
     // Met: these two only (`pcTradeCount`, -1 never met).
