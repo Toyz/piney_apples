@@ -229,8 +229,10 @@ pub fn carry(v: Vol) -> Result<Rows, String> {
         for (name, s) in inf.iter() {
             // An overlay's global the volume moved into main (Outbreak's and
             // Quarantine's charTbl, DEMO.PRG's in Infection): main is loaded
-            // under every overlay.
-            let d = mine.get(name).or_else(|| if ov.is_some() { vol_main.get(name) } else { None });
+            // under every overlay. Not a literal: `@4704` is numbered per
+            // file, and main's is another (Mutation's Func_str0300 table).
+            let moved = ov.is_some() && !name.starts_with('@');
+            let d = mine.get(name).or_else(|| if moved { vol_main.get(name) } else { None });
             if let Some(d) = d {
                 out.insert((sec, s.value), (s.size, d.value));
             }

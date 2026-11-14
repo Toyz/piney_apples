@@ -3,7 +3,7 @@ title: The four discs
 status: solid
 volumes: all
 covers: SYSTEM.CNF and every file on each disc, INF SLUS_202.67, MUT SLUS_205.62, OUT SLUS_205.63, QUA SLUS_205.64, QUA DATA/KFED.BIN, QUA DATA/KFAED.BIN, IOPRP243.IMG, OUT STREAM/STRT.BIN, OUT/QUA VOICE2
-worklog: 20, 21, 23, 24, 25, 239, 493
+worklog: 20, 21, 23, 24, 25, 239, 493, 596
 ---
 
 # The four discs
@@ -131,7 +131,7 @@ section  va(8 hex)  size  FUNC|OBJECT  name  how
 | how | meaning |
 | --- | --- |
 | `exact` | the body equals Infection's with address fields masked, uniquely |
-| `call` | the target of a call, or a function address taken, from a paired body |
+| `call` | the target of a call, or a function address taken, from a paired body; after the later passes once more from every named body, with the code addresses a body builds also paired in order where both build as many |
 | `order` | between two paired neighbours, aligned by the shape of its code |
 | `data` | the global a paired body addresses at the same instruction, or in the same place in the order of the addresses it builds |
 | `pointer` | a global a carried global points at, where Infection's relocation says it points (a unanimous vote also moves a `data` name) |
@@ -139,21 +139,63 @@ section  va(8 hex)  size  FUNC|OBJECT  name  how
 | `layout` | between two carried globals whose words agree and which sit the same distance apart in both, a global at its offset whose words agree (90%), or a `data` name moved there because they agree better; or two `data` names of one size that agree better each at the other's place |
 | `ref` | a function that builds a carried global's (or a string's) address, where only one function does on each side |
 | `overload` | two overloads of one name, one taking no arguments, renamed by which body reads its first argument's register before writing it |
+| `callees` | an `order` name moved to the one unnamed start between its named neighbours whose calls name Infection's callees, in order, where its own place's calls do not |
 
 `FUNC` sizes are the destination's own (to the next entry point, less
 padding), except for `exact`, whose size is Infection's.
 
+The entry points are the targets of `jal`, the words after a `jr $ra` or a
+padded tail `j`, and the ends of threads: after a `b` back to a loop's head
+and its delay slot, a word that opens a stack frame (`addiu $sp, $sp, -n`),
+that no branch reaches and whose code up to the next entry point does not
+branch back above it. A thread's endless loop has no `jr $ra`, and the
+function after it is often only stored as an address (a task's delete
+hook), so without the last kind the two read as one. Run on Infection, the
+rule finds 22 starts the others miss, every one a function's start.
+
 | | MUT | OUT | QUA |
 | --- | ---: | ---: | ---: |
-| `exact` | 3,518 | 1,029 | 1,026 |
-| `call` | 604 | 500 | 499 |
-| `order` | 1,214 | 3,331 | 3,311 |
-| `data` | 4,329 | 3,262 | 3,248 |
+| `exact` | 3,535 | 1,034 | 1,031 |
+| `call` | 596 | 506 | 505 |
+| `order` | 1,214 | 3,344 | 3,323 |
+| `data` | 4,338 | 3,270 | 3,253 |
 | `pointer` | 1,093 | 1,343 | 1,333 |
-| `content` | 1,662 | 1,533 | 1,505 |
-| `layout` | 173 | 140 | 136 |
-| `ref` | 3 | 72 | 70 |
-| total | 12,596 | 11,210 | 11,128 |
+| `content` | 1,661 | 1,533 | 1,505 |
+| `layout` | 167 | 124 | 118 |
+| `ref` | 1 | 69 | 68 |
+| `callees` | 0 | 1 | 1 |
+| total (all passes) | 12,627 | 11,248 | 11,162 |
+
+Before the thread ends were entry points (worklog 596), Outbreak's and
+Quarantine's `ccThEntryCtrl` (gcmn 0x00442580, QUA 0x00334e90) had no name:
+`ccThEntryCtrlDelete` sat on its start, sized over both. The same rule
+split `ccThDemo` from `Main__12Data_Control`, `ccThPlayer` from
+`ccPlayerStart`, `FileReadTh` and `UngzipTh` from `ccFileListLoad`, and
+named `ccGzipThread`, `Func_str8000` and `Func_str8800` on both, moved
+`Func_str0001` to its own start (OUT main 0x0018b350, QUA 0x0018b400), and
+gave Mutation's stream functions (`Func_str8800`, `str7100`, `str0300`)
+exact matches and their tables. The `callees` pass moves
+`deleteAllObject`: Outbreak moved `ccThEntryCtrl`'s frame walk into a new
+function of the same shape just before it (OUT gcmn 0x004416d0, calling
+four new list walks), which the order pass had named; `ccEvent::Execute`
+calls the real one (OUT 0x00441720, QUA 0x00334030).
+
+The transfer's rounds propagate calls only from the bodies they paired
+themselves, so the functions `ref` and `prefix` named never named their
+callees. A last round of calls from every named body names 17 more on
+Outbreak and on Quarantine: twelve races' destructors (`ccDestEnemyH`
+to `ccDestEnemyZ`, which each `ccEnemyX::ccEnemyX` stores at +0x1c8:
+OUT `ccDestEnemyV` gcmn 0x004625e0, QUA 0x00354ef0), `delLight__8ccEnemyL`,
+`ccThFellow10Delete`, `ccThKyvia03Delete`, `ccBossKyvia04::SwitchGateOFF`
+and `EntrySlave`, and `EVENTAREAB8::HitEnable`; none on Mutation.
+
+The carry (`work/analysis/carry/<volume>.json`) keys an overlay's global
+by name, falling back to main's name for one a volume moved into main. A
+literal (`@4704`) is numbered per source file, so that fallback is not
+taken for them: it had put 48, 45 and 45 overlay strings of Mutation,
+Outbreak and Quarantine (the staff roll's names, `BlackRose`, `Symbol`)
+on main's unrelated literals of the same number. Most are now carried to
+their own overlay; 5, 10 and 31 are left uncarried.
 
 The last four passes were added for the per-volume data
 ([plans/volumes.md](../../plans/volumes.md)): Outbreak's and Quarantine's

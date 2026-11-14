@@ -2229,7 +2229,9 @@ fn node_place(node: V4, wp: V4) -> V4 {
 /// Spring of Myst (gimmick 20) at the lake's `wp`, z 0. Then for each
 /// `fobj2` object, then each chip's `fobj`, with one to three
 /// `OBJ_xgfood0a*` nodes: `fieldrand(n) + 1` foods (`GetFood()`), each at
-/// a node not yet taken (`ccRand() % n`, signed, until a free one).
+/// a node not yet taken (`ccRand() % n` until a free one: signed on
+/// Infection and Mutation, unsigned from Outbreak on, OUT gcmn 0x005d397c
+/// `divu` where INF 0x005aaafc has `div`).
 pub fn world_set_food(
     ctrl: &mut EntryCtrl,
     cx: &mut Cx,
@@ -2246,6 +2248,7 @@ pub fn world_set_food(
         ctrl.entry_object(cx, seam, &mut ep);
     }
     let food = field_food(g.field_type);
+    let unsigned = cx.t.volume >= Volume::Out;
     for o in g.fobj2.iter().chain(g.fobj.iter()) {
         let n = o.food.len();
         if n == 0 || n >= 4 {
@@ -2254,11 +2257,12 @@ pub fn world_set_food(
         let k = rng.below(n as u32) + 1;
         let mut taken = [false; 3];
         for _ in 0..k {
-            // ccRand() is signed: a negative remainder reads the words
-            // below `used[]` (the search's count and table pointer, never
-            // 0), so the game draws again.
+            // Signed, a negative remainder reads the words below `used[]`
+            // (the search's count and table pointer, never 0), so the game
+            // draws again.
             let r = loop {
-                let r = cx.cc.rand().wrapping_rem(n as i32);
+                let draw = cx.cc.rand();
+                let r = if unsigned { (draw as u32 % n as u32) as i32 } else { draw.wrapping_rem(n as i32) };
                 if r >= 0 && !taken[r as usize] {
                     break r as usize;
                 }

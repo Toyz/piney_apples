@@ -13,7 +13,9 @@ use std::rc::Rc;
 use crate::elf::{STT_FUNC, STT_OBJECT, Symbol};
 use crate::program::Program;
 use crate::volume::{Vol, ctx, elf_path};
-use crate::xfer::{Ordered, Row, SECTIONS, Votes, addresses, normalise, side, span, transfer, unanimous};
+use crate::xfer::{
+    Ordered, Row, SECTIONS, Side, Votes, addresses, normalise, propagate, side, span, transfer, unanimous,
+};
 
 /// A section's name as the rows keep it.
 fn sec_name(s: &str) -> &'static str {
@@ -522,6 +524,91 @@ fn prefixes(v: Vol, rows: &[Row]) -> Vec<Row> {
         }
     }
     out
+}
+
+/// A function's own size in the volume: to the next of `starts`, less the
+/// padding.
+fn own_size(dst: &Side, starts: &[u32], va: u32) -> u32 {
+    let mut end = starts.get(starts.partition_point(|&s| s <= va)).copied().unwrap_or(dst.code_hi);
+    while end > va + 4 && dst.word_at(end - 4) == 0 {
+        end -= 4;
+    }
+    end - va
+}
+
+/// Calls and function addresses from every named body, the later passes'
+/// included: the transfer's rounds propagate only what they paired
+/// themselves, so a function named by `ref` or `prefix` never named what it
+/// calls. Unanimous over all the pairs, at an unnamed likely start, for a
+/// name not yet placed, a few rounds. Outbreak's `ccEnemyV::ccEnemyV` (a
+/// `ref`) stores `ccDestEnemyV` (gcmn 0x004625e0) as its clean-up hook,
+/// the one code address it builds, as Infection's does.
+fn late_calls(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize) {
+    let mut rows = rows;
+    let mut n = 0;
+    for ov in SECTIONS {
+        let sec = ov.unwrap_or("main");
+        let (src, dst) = (side(Vol::Inf, ov), side(v, ov));
+        let starts = dst.entries();
+        let span = |va: u32| own_size(&dst, &starts, va);
+        let by_name: HashMap<&str, &Symbol> =
+            src.p.functions().filter(|f| src.owns(f.value)).map(|f| (f.name.as_str(), f)).collect();
+        for _ in 0..6 {
+            let funcs = || rows.iter().filter(|r| r.sec == sec && r.kind == "FUNC");
+            let named_fn: HashSet<u32> = funcs().map(|r| r.va).collect();
+            let taken: HashSet<&str> = funcs().map(|r| r.name.as_str()).collect();
+            let pairs: Vec<(Symbol, u32, u32)> = funcs()
+                .filter_map(|r| by_name.get(r.name.as_str()).map(|f| ((*f).clone(), r.va, 1.max(r.size / 4))))
+                .collect();
+            let (mut calls, _) = propagate(&src, &dst, &pairs);
+            // The code addresses a body builds, in order, where both build as
+            // many: a later compiler moves the build away from where the
+            // instructions align (`ccDestEnemyV` above).
+            for (f, dva, n_dst) in &pairs {
+                let (Some(sw), Some(dw)) = (src.run(f.value, f.size / 4), dst.run(*dva, *n_dst)) else { continue };
+                let built = |ws: &[u32], gp| {
+                    let a = addresses(ws, gp);
+                    let mut k: Vec<usize> = a.keys().copied().collect();
+                    k.sort();
+                    k.into_iter().map(|i| a[&i]).collect::<Vec<u32>>()
+                };
+                let theirs: Vec<&Symbol> = built(sw, src.p.gp)
+                    .into_iter()
+                    .filter(|&a| src.owns(a) && a < src.code_hi)
+                    .filter_map(|a| src.p.symbol_at(a, 0).filter(|h| h.1 == 0 && h.0.kind == STT_FUNC).map(|h| h.0))
+                    .collect();
+                let mine: Vec<u32> =
+                    built(dw, dst.p.gp).into_iter().filter(|&a| dst.lo <= a && a < dst.code_hi).collect();
+                if theirs.len() == mine.len() {
+                    for (sym, va) in theirs.into_iter().zip(mine) {
+                        *calls.entry((sym.name.clone(), sym.value, sym.size)).entry(va).or_default() += 1;
+                    }
+                }
+            }
+            let found: Vec<((String, u32, u32), u32)> = unanimous(&calls)
+                .into_iter()
+                .filter(|((name, _, _), va)| {
+                    !taken.contains(name.as_str()) && !named_fn.contains(va) && starts.binary_search(va).is_ok()
+                })
+                .collect();
+            let mut claims: HashMap<u32, u32> = HashMap::new();
+            for (_, va) in &found {
+                *claims.entry(*va).or_default() += 1;
+            }
+            let add: Vec<Row> = found
+                .into_iter()
+                .filter(|(_, va)| claims[va] == 1)
+                .map(|((name, _, _), va)| Row { sec, va, size: span(va), kind: "FUNC", name, how: "call" })
+                .collect();
+            if add.is_empty() {
+                break;
+            }
+            n += add.len();
+            rows.extend(add);
+        }
+    }
+    rows.sort_by(|a, b| (a.sec, a.va).cmp(&(b.sec, b.va)));
+    (rows, n)
 }
 
 /// How many opening words [`prefixes`] compares.
@@ -1039,6 +1126,71 @@ fn code_checks(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize) {
     (out, n)
 }
 
+/// An order name moved to where the calls agree: a function the order pass
+/// placed whose callees, read by the names carried so far, are not
+/// Infection's, while exactly one unnamed likely start between its named
+/// neighbours calls Infection's callees (two or more) in Infection's order.
+/// Outbreak and Quarantine moved `ccThEntryCtrl`'s frame walk into a new
+/// function of `deleteAllObject`'s shape just before it (OUT gcmn
+/// 0x004416d0), and the order pass named that one.
+fn callees(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize) {
+    let jal = |at: u32, w: u32| (w >> 26 == 3).then(|| ((at + 4) & 0xF000_0000) | ((w & 0x03FF_FFFF) << 2));
+    let mut moves: HashMap<usize, (u32, u32)> = HashMap::new();
+    for ov in SECTIONS {
+        let sec = ov.unwrap_or("main");
+        let (src, dst) = (side(Vol::Inf, ov), side(v, ov));
+        let starts = dst.entries();
+        let mut fns: Vec<usize> = (0..rows.len()).filter(|&i| rows[i].sec == sec && rows[i].kind == "FUNC").collect();
+        fns.sort_by_key(|&i| rows[i].va);
+        let name_at: HashMap<u32, &str> = fns.iter().map(|&i| (rows[i].va, rows[i].name.as_str())).collect();
+        let span = |va: u32| own_size(&dst, &starts, va);
+        let calls_here = |va: u32, size: u32| -> Vec<Option<&str>> {
+            let ws = dst.run(va, size / 4).unwrap_or_default();
+            ws.iter()
+                .enumerate()
+                .filter_map(|(k, &w)| jal(va + 4 * k as u32, w))
+                .map(|t| name_at.get(&t).copied())
+                .collect()
+        };
+        let by_name: HashMap<&str, &Symbol> = src.functions().map(|f| (f.name.as_str(), f)).collect();
+        for (k, &i) in fns.iter().enumerate() {
+            let r = &rows[i];
+            let Some(f) = by_name.get(r.name.as_str()).filter(|_| r.how == "order") else { continue };
+            let ws = src.run(f.value, f.size / 4).unwrap_or_default();
+            let want: Vec<Option<&str>> = ws
+                .iter()
+                .enumerate()
+                .filter_map(|(n, &w)| jal(f.value + 4 * n as u32, w))
+                .map(|t| src.p.symbol_at(t, 0).filter(|h| h.1 == 0).map(|h| h.0.name.as_str()))
+                .collect();
+            if want.len() < 2 || want.iter().any(Option::is_none) || calls_here(r.va, r.size) == want {
+                continue;
+            }
+            let lo = k.checked_sub(1).map_or(dst.lo, |p| rows[fns[p]].va);
+            let hi = fns.get(k + 1).map_or(dst.code_hi, |&n| rows[n].va);
+            let agree: Vec<u32> = starts
+                .iter()
+                .copied()
+                .filter(|&va| lo < va && va < hi && va != r.va && calls_here(va, span(va)) == want)
+                .collect();
+            if let [va] = agree[..] {
+                moves.insert(i, (va, span(va)));
+            }
+        }
+    }
+    let n = moves.len();
+    let mut out: Vec<Row> = rows
+        .into_iter()
+        .enumerate()
+        .map(|(i, r)| match moves.get(&i) {
+            Some(&(va, size)) => Row { va, size, how: "callees", ..r },
+            None => r,
+        })
+        .collect();
+    out.sort_by(|a, b| (a.sec, a.va).cmp(&(b.sec, b.va)));
+    (out, n)
+}
+
 /// A mangled name up to its arguments (`GetEventAreaInfo__9WORLD_MANF`):
 /// `name__F` or `name__<n><class>F`; None for any other.
 fn overload_base(name: &str) -> Option<&str> {
@@ -1195,7 +1347,9 @@ fn ctors(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize) {
 fn carry_symbols(v: Vol) -> Result<Vec<Row>, String> {
     crate::volume::load(Vol::Inf)?;
     crate::volume::load(v)?;
-    let (mut rows, stats) = transfer(v);
+    let (rows, stats) = transfer(v);
+    // Agreeing calls outrank the order pass's pairing.
+    let (mut rows, n_callees) = callees(v, rows);
     let across = cross(v, &rows);
     let n_across = across.len();
     rows.extend(across);
@@ -1218,6 +1372,7 @@ fn carry_symbols(v: Vol) -> Result<Vec<Row>, String> {
     let by_prefix = prefixes(v, &rows);
     let n_prefix = by_prefix.len();
     rows.extend(by_prefix);
+    let (rows, n_late) = late_calls(v, rows);
     // What the content pass found can name more through its pointers.
     let (rows, n_more, n_moved2) = pointers(v, rows);
     let (rows, n_ctor) = ctors(v, rows);
@@ -1229,6 +1384,7 @@ fn carry_symbols(v: Vol) -> Result<Vec<Row>, String> {
     for (sec, nsrc, exact, call, order, glob) in stats {
         eprintln!("{sec:9} {nsrc:8} {exact:7} {call:6} {order:6} {glob:8}");
     }
+    eprintln!("callees   {n_callees} order names moved to the one start whose calls agree");
     eprintln!("cross     {n_across} globals by the order of the addresses built");
     eprintln!("code      {n_code} of the data pass's globals moved where the code builds them");
     eprintln!("pointer   {n_pointer} globals ({n_moved} of the data pass's moved)");
@@ -1236,6 +1392,7 @@ fn carry_symbols(v: Vol) -> Result<Vec<Row>, String> {
     eprintln!("content   {n_content} globals found by what they hold");
     eprintln!("ref       {n_ref} functions named by the globals they build");
     eprintln!("prefix    {n_prefix} functions named by their opening words");
+    eprintln!("late      {n_late} functions the later passes' bodies call or point at");
     eprintln!("ctor      {n_ctor} static initialisers named from the overlays' constructor lists");
     eprintln!("overload  {n_swapped} pairs of overloads whose names the passes crossed");
     Ok(rows)

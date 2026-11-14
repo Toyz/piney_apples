@@ -716,11 +716,13 @@ fn search_bt_shot() {
 /// blows, the goblin casting its heal first, else the nearest that stands,
 /// rushed. The fight rides on the game's `rand()`: all three fell by frame
 /// 13,600 before the menus drew from it, by 17,000 after (worklog 383).
+/// With Outbreak's unsigned food draw (worklog 596) the two charms run out
+/// at 18,000 with one at 72 HP; he buys three and they fall by 40,500.
 /// Block 8's `no_active` ends the event.
 #[test]
 fn gob3_1_golden_goblin_is_run_down() {
     let Some(iso) = outbreak() else { return };
-    let seen = play("outbreak", &iso, out_case(250), 24_000, true).unwrap();
+    let seen = play("outbreak", &iso, out_case(250), 48_000, true).unwrap();
     eprintln!("ended at {:?}", seen.ended);
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
     assert!(seen.flags & (1 << 8) != 0);

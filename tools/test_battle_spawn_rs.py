@@ -313,7 +313,7 @@ class Harness:
         # s1 = its task block, then the loop's head (move a0, s1; Breath).
         code = [0x3C100000 | (CTRL >> 16), 0x36100000 | (CTRL & 0xFFFF),
                 0x3C110000 | (TSCB >> 16), 0x36310000 | (TSCB & 0xFFFF),
-                0x08000000 | ((inf_va(0x00431B08) >> 2) & 0x3FFFFFF), 0]
+                0x08000000 | ((volume.loop_head("ccThEntryCtrl__FPv") >> 2) & 0x3FFFFFF), 0]
         for k, w in enumerate(code):
             m.store(TRAMP + 4 * k, 4, w)
         m.store(VT_GIM + 8, 4, STUB_GIM)
@@ -1990,6 +1990,24 @@ def check_world_mc(checks, rnd):
     return request(h, sc, "worldmc", args), out, "world_mc"
 
 
+def story_circle_w():
+    """Where DUNGEON::SetMagicCircle's story circle takes its position's w:
+    the stack word after the x, y, z it builds (`sw $zero` for z, then the
+    vector passed to sceVu0CopyVector), never written in the call, as an
+    offset below the caller's sp. INF/MUT: frame 176, the vector at sp+160,
+    so 4 below; OUT/QUA build it at sp+64 (100 below)."""
+    p = volume.program(volume.ELF, "gcmn")
+    start, end = volume.span("SetMagicCircle__7DUNGEONFv")
+    ws = struct.unpack("<%dI" % ((end - start) // 4), p.read(start, end - start))
+    frame = 0x10000 - (ws[0] & 0xFFFF)                  # addiu $sp, $sp, -frame
+    for k, w in enumerate(ws):
+        if w >> 16 == 0xAFA0:                           # sw $zero, z($sp)
+            z = w & 0xFFFF
+            if any(x == 0x27A50000 | (z - 8) for x in ws[k + 1:k + 3]):   # addiu $a1, $sp, z - 8
+                return frame - (z + 4)
+    raise KeyError("no story circle vector in SetMagicCircle")
+
+
 def check_dungeon_mc(checks, rnd):
     h = harness(checks)
     sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=2)
@@ -2029,7 +2047,7 @@ def check_dungeon_mc(checks, rnd):
         for k, r in enumerate(edit):
             h.put(EDIT_ROWS + 0x20 * k, "<8i", r[0], r[1], r[2], r[3], r[4], 0, 0, 0)
     # the w a story circle's position takes from the stack (see entry.rs)
-    m.store(eemu.STACK_TOP - 4, 4, F_ONE)
+    m.store(eemu.STACK_TOP - story_circle_w(), 4, F_ONE)
     h.call("SetMagicCircle__7DUNGEONFv", (DUNG,))
     out = h.read_scene()
     out["counter"] = s32(m.load(DUNG + 0x3C, 4))

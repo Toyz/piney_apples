@@ -2222,7 +2222,8 @@ impl StoryPilot {
     /// block puts them back on his return. GOB3-4's (row 149, pDef 1950:
     /// 70-105 a blow) take some 50 blows: five charms; Kite has two. A
     /// fight that outlasts them (the goblins heal, and one outruns him)
-    /// weighs again, at their full HP.
+    /// weighs again, at their full HP, one charm more for each run that
+    /// fell short (GOB3-1's on Outbreak's own food draws, worklog 596).
     fn provision(&mut self, a: &crate::area::AreaMode) {
         let w = a.world();
         let sc = w.scene();
@@ -2273,10 +2274,9 @@ impl StoryPilot {
         }
         let hp = |e: usize| if again { c.scene.chars[e].max_hp } else { c.scene.chars[e].hp };
         let blows: i32 = gold.iter().map(|&e| i32::from(hp(e)) / kite_hit(c, e, 1, 100).max(1) + 1).sum();
-        let charms = (blows + BLOWS_A_CHARM - 1) / BLOWS_A_CHARM + 1;
-        if !again {
-            self.stocked.push(sc.field);
-        }
+        let short = self.stocked.iter().filter(|&&f| f == sc.field).count() as i32;
+        let charms = (blows + BLOWS_A_CHARM - 1) / BLOWS_A_CHARM + 1 + short;
+        self.stocked.push(sc.field);
         self.buys.retain(|b| b.item != SPEED_CHARM);
         self.buys.insert(0, Buy { item: SPEED_CHARM, carry: charms });
         self.leaving = charms_left(w) < charms;

@@ -269,6 +269,18 @@ pub fn aligned(sw: &[u32], dw: &[u32]) -> Vec<(usize, usize)> {
     out
 }
 
+/// Where the branch `w` at `at` goes; None for any other instruction.
+fn branch_target(at: u32, w: u32) -> Option<u32> {
+    let rel = || at.wrapping_add(4).wrapping_add((((w & 0xFFFF) as i16 as i32) << 2) as u32);
+    match (w >> 26, (w >> 16) & 31) {
+        // beq bne blez bgtz and their likely forms
+        (4..=7 | 0x14..=0x17, _) => Some(rel()),
+        // bltz bgez bltzl bgezl bltzal bgezal
+        (1, 0..=3 | 0x10..=0x13) => Some(rel()),
+        _ => None,
+    }
+}
+
 /// One section of one volume: main, or main and an overlay, as words.
 pub struct Side {
     pub p: Rc<Program>,
@@ -296,9 +308,9 @@ impl Side {
     }
 
     /// Likely function starts, sorted: jal targets, the first non-zero
-    /// word after each `jr $ra` and its delay slot, and the first non-zero
+    /// word after each `jr $ra` and its delay slot, the first non-zero
     /// word after a `j` whose delay slot is followed by padding (a tail
-    /// call ending a function).
+    /// call ending a function), and [`Side::thread_ends`].
     pub fn entries(&self) -> Vec<u32> {
         let mut found = BTreeSet::new();
         let n = ((self.code_hi - self.lo) >> 2) as usize;
@@ -321,7 +333,32 @@ impl Side {
                 }
             }
         }
+        found.extend(self.thread_ends(&found));
         found.into_iter().collect()
+    }
+
+    /// Where a thread's endless loop (a `b` back to its head) ends its
+    /// function: the first non-zero word after the `b`'s delay slot, when it
+    /// opens a stack frame (`addiu $sp, $sp, -n`), no branch reaches it and
+    /// its code up to the next of `starts` does not branch back above it.
+    /// Outbreak's `ccThEntryCtrlDelete` (gcmn 0x00442750) follows
+    /// `ccThEntryCtrl`'s loop and is only ever stored as an address.
+    fn thread_ends(&self, starts: &BTreeSet<u32>) -> Vec<u32> {
+        let n = ((self.code_hi - self.lo) >> 2) as usize;
+        let at = |i: usize| self.lo + 4 * i as u32;
+        let reached: HashSet<u32> = (0..n).filter_map(|i| branch_target(at(i), self.words[i])).collect();
+        (0..n)
+            .filter(|&i| {
+                self.words[i] >> 16 == 0x1000 && branch_target(at(i), self.words[i]).is_some_and(|t| t < at(i))
+            })
+            .filter_map(|i| (i + 2..n).find(|&j| self.words[j] != 0))
+            .filter(|&j| {
+                let (w, va) = (self.words[j], at(j));
+                let end = starts.range(va + 1..).next().copied().unwrap_or(self.code_hi);
+                w >> 16 == 0x27BD && w & 0x8000 != 0 && !reached.contains(&va) && !self.branches_back(va, end)
+            })
+            .map(at)
+            .collect()
     }
 
     /// Starts [`Side::entries`] leaves out: the first non-zero word after a
@@ -351,20 +388,7 @@ impl Side {
     /// a tail call, so only the branches count.
     pub fn branches_back(&self, va: u32, end: u32) -> bool {
         let Some(ws) = self.run(va, (end.saturating_sub(va)) >> 2) else { return false };
-        ws.iter().enumerate().any(|(k, &w)| {
-            let at = va + 4 * k as u32;
-            let op = w >> 26;
-            let rt = (w >> 16) & 31;
-            let rel = || at.wrapping_add(4).wrapping_add((((w & 0xFFFF) as i16 as i32) << 2) as u32);
-            let target = match op {
-                // beq bne blez bgtz and their likely forms
-                4..=7 | 0x14..=0x17 => Some(rel()),
-                // bltz bgez bltzl bgezl bltzal bgezal
-                1 if matches!(rt, 0..=3 | 0x10..=0x13) => Some(rel()),
-                _ => None,
-            };
-            target.is_some_and(|t| t < va)
-        })
+        ws.iter().enumerate().any(|(k, &w)| branch_target(va + 4 * k as u32, w).is_some_and(|t| t < va))
     }
 
     /// The sized functions inside its own section, long enough to match.

@@ -271,6 +271,23 @@ def unused_list():
     raise KeyError("no candidate list in SearchBuffUnusedFellow")
 
 
+def loop_head(name, overlay="gcmn"):
+    """Where the endless loop ending the volume's thread function `name`
+    starts over: the target of its last `b` back. A harness enters the
+    thread's frames there (ccThEntryCtrl's: INF 0x00431b08; OUT 0x00442728,
+    its prologue shorter since Outbreak walks the lists in a function of
+    their own)."""
+    import struct
+    p = program(ELF, overlay)
+    start, end = span(name, overlay)
+    for a in range(end - 4, start - 4, -4):
+        w = struct.unpack("<I", p.read(a, 4))[0]
+        off = ((w & 0xFFFF) ^ 0x8000) - 0x8000
+        if w >> 16 == 0x1000 and off < 0:
+            return a + 4 + 4 * off
+    raise KeyError("%s ends in no loop in %s" % (name, NAME))
+
+
 def span(name, overlay="gcmn"):
     """The volume's function `name`: (its first address, the one past its
     last), for a harness that tells callers apart by where they return to."""
