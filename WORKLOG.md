@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-596 entries: audio 46, battle 160, build 34, content 3, decomp 38, disc 6, engine 38, format 18, iop 3, render 133, save 16, script 64, test 253, tooling 60, ui 107, video 18, volumes 101, world 190. 158 entries still have open questions - [listed below](#still-open).
+597 entries: audio 46, battle 161, build 34, content 3, decomp 38, disc 6, engine 38, format 18, iop 3, render 133, save 16, script 64, test 254, tooling 60, ui 107, video 18, volumes 102, world 190. 159 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -608,9 +608,11 @@ The [reference](docs/README.md) says what is true now.
 | 594 | [An NPC system, leg 2: the walking PC and the Grunty on Core, one NPC list and one event channel in every area, a field's NPC one object](worklog/0594-an-npc-system-leg-2-the-walking-pc-and-the-grunty-on-core.md) | 2026-11-14 | world, decomp, engine |
 | 595 | [An NPC system, leg 3: the boss starts in the entry walk and is made after it, the battle's NPC list gone with GetNpc written once, tests for the list's order and a dungeon PC's steps](worklog/0595-an-npc-system-leg-3-the-boss-starts-in-the-entry-walk-and.md) | 2026-11-14 | world, battle, decomp, test |
 | 596 | [ccThEntryCtrl on Outbreak and Quarantine: thread ends as function starts in the symbol carry, deleteAllObject by its callees, the later passes' calls, and the battle spawn harness on all four volumes](worklog/0596-ccthentryctrl-on-outbreak-and-quarantine-thread-ends-as.md) | 2026-11-14 | tooling, volumes, battle, test |
+| 597 | [Outbreak's and Quarantine's ignored playthroughs on the unsigned food draw: no new failure; GOB3-1's extra Speed Charm is the game's own](worklog/0597-outbreak-s-and-quarantine-s-ignored-playthroughs-on-the.md) | 2026-11-14 | test, volumes, battle |
 
 ## Still open
 
+- [597. Outbreak's and Quarantine's ignored playthroughs on the unsigned food draw: no new failure; GOB3-1's extra Speed Charm is the game's own](worklog/0597-outbreak-s-and-quarantine-s-ignored-playthroughs-on-the.md) - nothing new; the party falling in Corbenik's, Macha's and Tarvos's no-aid fights and event 312's fourth Kyvia fight...
 - [596. ccThEntryCtrl on Outbreak and Quarantine: thread ends as function starts in the symbol carry, deleteAllObject by its callees, the later passes' calls, and the battle spawn harness on all four volumes](worklog/0596-ccthentryctrl-on-outbreak-and-quarantine-thread-ends-as.md) - nothing new; the words a story circle's w holds in play stay as docs/engine/battle.md's Unknown has them (the slot is...
 - [594. An NPC system, leg 2: the walking PC and the Grunty on Core, one NPC list and one event channel in every area, a field's NPC one object](worklog/0594-an-npc-system-leg-2-the-walking-pc-and-the-grunty-on-core.md) - nothing about the NPCs.
 - [593. An NPC system, leg 1: the game's NPC classes surveyed, the design, the angle helpers and ccEntryObj once, a Core for the merchant and the dog](worklog/0593-an-npc-system-leg-1-the-game-s-npc-classes-surveyed-the.md) (2 questions) - which id the events and menus find a grown Grunty by: the port names it by its first row while ccPGuso changes its base...
