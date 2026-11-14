@@ -96,3 +96,10 @@ stashes, the worktrees' branches).
    history was taken off the working repository and is kept offline only,
    in a bare backup and verified bundles; nothing was rewritten in place.
    Push `main` only.
+5. A builder anyone can use: a GPUI app over `piney-build`, shipped as a
+   prebuilt binary (macOS, Linux, Windows), so a player never builds Rust.
+   The player points it at their discs; it checks each image, builds
+   `PINEY/` with progress, and starts the game. Its look is ALTIMIT's,
+   clean, drawn by the port itself: nothing from the discs ships with it,
+   so disc art can dress it only once the player's own discs are read.
+   After the clean-up, with the modern passes' GPUI work.
