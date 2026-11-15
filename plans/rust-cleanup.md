@@ -271,6 +271,16 @@ Where the code does by hand, per kind, what a system should do once:
       story maps' kept area-15 map, the dungeons kept. One `Carry` owned by
       the world, each system declaring what it carries (`take`/`put`
       statics in `MapSystem` are its first form).
+- [ ] **The game's heap.** Where `_ccMalloc` puts each object and what
+      a reused block still holds decide behaviour in places: Tarvos's
+      phantom reads its target's address as its first view, Gorre's and
+      `ccBoss08`'s `m_exit` read a word an earlier object left (a decoded
+      mesh, a blit buffer's pixels), so whether the blur shows depends on
+      the play since power-on (docs/engine/heap.md). The port keeps one
+      history's values (`HEAP_EXIT`, `BOSS08_HEAP_EXIT`, `PARTY_VA`). One
+      heap model on the carry's heap lifetime, fed by every allocation and
+      free the game makes, in its order and sizes, so every such read is
+      the game's for any history. After the carry system.
 - [ ] **A placement (entry) system.** Who stands where for an event is
       decided in several places (`event/entry.rs`, the town's
       `place_entries`, `Combat::start_entries`' `EnterNpc`, the merchants'
