@@ -496,6 +496,19 @@ pub fn calc_damage_in(
     r
 }
 
+/// Whether `ccSkillDamage(attacker, target, ..)` goes on past its first
+/// test: both on the lists, the attacker's `dead` 0 or 1. Infection also
+/// gives up on a downed target here (0x00573ef8); from Mutation on only a
+/// single-target skill does, later (MUT gcmn 0x00599988, OUT 0x00595fe8,
+/// QUA 0x00488928), so an area one still takes in those around it.
+pub(crate) fn skill_damage_starts(volume: Volume, scene: &Scene, me: usize, target: usize) -> bool {
+    let ad = scene.chars[me].cond[cond::DEAD];
+    scene.listed(me)
+        && (ad == 0 || ad == 1)
+        && scene.listed(target)
+        && !(volume == Volume::Inf && scene.chars[target].dead())
+}
+
 /// `ccSkillDamage(attacker, target, sk, acFlag, sid)` (gcmn 0x00573e60): a
 /// single-target skill (`targetRange <= 0`) hits the target; an area skill
 /// every living character of the target's side within `targetRange` (less its
@@ -517,14 +530,10 @@ pub fn skill_damage(
     env: &Env,
     ev: &mut Events,
 ) -> i32 {
-    let ad = scene.chars[me].cond[cond::DEAD];
-    // Infection gives up on a downed target at once; from Mutation on only
-    // a single-target skill does (MUT gcmn 0x00599988), an area one still
-    // takes in those around it.
-    let down = scene.chars[target].dead();
-    if !scene.listed(me) || !(ad == 0 || ad == 1) || !scene.listed(target) || (down && t.volume == Volume::Inf) {
+    if !skill_damage_starts(t.volume, scene, me, target) {
         return 0;
     }
+    let down = scene.chars[target].dead();
     let splash = sk.ty & bits::SPLASH_HALF != 0;
     let centred = sk.ty & bits::CENTRED_ON_USER != 0;
     let tty = side_types(t.volume, scene.chars[target].ty());

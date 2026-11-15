@@ -614,23 +614,24 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
         }
     }
 
-    /// `ccSkillDamage(this, skillTarget, skillParam, 0)` (gcmn 0x00573dc0,
-    /// the 5-argument `ccSkillDamage` 0x00573e60 with no attribute
-    /// critical) as `affectSkill` calls it: the rules of
-    /// [`crate::damage::skill_damage`], each character's `EntryAffect(1,
-    /// dmg, 0)` applied right after its roll as the game applies it (so the
-    /// rolls of an area skill interleave with the hurt acts' draws). From
-    /// Outbreak on an area aimed at a foe takes every foe type in, the
-    /// attacker too ([`damage::side_types`], OUT gcmn 0x00595dac).
+    /// `ccSkillDamage(this, skillTarget, skillParam, 0)` (gcmn 0x00573dc0)
+    /// as `affectSkill` calls it: the rules of [`crate::damage::skill_damage`]
+    /// with no attribute critical, each `EntryAffect(1, dmg, 0)` right after
+    /// its roll (an area's rolls interleave with the hurt acts' draws). From
+    /// Mutation on an area aimed at a downed target (skill 180 aims at one)
+    /// still hits those around it ([`damage::skill_damage_starts`]); from
+    /// Outbreak on every foe type ([`damage::side_types`], OUT 0x00595dac).
     pub fn skill_damage(&mut self, me: usize, target: usize, sk: &SkillParam) -> i32 {
         let scene = &*self.ai.scene;
-        let ad = scene.chars[me].cond[cond::DEAD];
-        if !scene.listed(me) || !(ad == 0 || ad == 1) || !scene.listed(target) || scene.chars[target].dead() {
+        if !damage::skill_damage_starts(self.ai.t.volume, scene, me, target) {
             return 0;
         }
         let splash = sk.ty & bits::SPLASH_HALF != 0;
         let tty = damage::side_types(self.ai.t.volume, scene.chars[target].ty());
         if le(sk.target_range, 0) {
+            if scene.chars[target].dead() {
+                return 0;
+            }
             self.hit(me, target, sk, ONE);
             return 1;
         }
