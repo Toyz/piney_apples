@@ -94,7 +94,7 @@ fn speak_to_breeder(s: &mut impl Frames) -> Option<piney_draw::Frame> {
                     let w = walk.get_or_insert_with(|| super::town_walk::TownWalker::new([q[0], q[1]], 300.0));
                     w.stick(world, f).unwrap_or_else(|| {
                         let (dx, dy) = (q[0] - kite[0], q[1] - kite[1]);
-                        super::stick_toward(f32::from_bits(world.camera().active().rot[2]), dx.atan2(-dy))
+                        super::stick_toward(f32::from_bits(world.camera().list.active().rot[2]), dx.atan2(-dy))
                     })
                 }
                 None => panic!("no breeder in Dun Loireag"),
@@ -409,7 +409,7 @@ fn ride_to_flags(s: &mut impl Frames, max: u32) -> Option<u32> {
                     }
                     let (_, walk) = ride.as_mut().unwrap();
                     walk.stick(world, f).unwrap_or_else(|| {
-                        let cam = f32::from_bits(world.camera().active().rot[2]);
+                        let cam = f32::from_bits(world.camera().list.active().rot[2]);
                         super::stick_toward(cam, (q[0] - kite[0]).atan2(-(q[1] - kite[1])))
                     })
                 }

@@ -1005,10 +1005,10 @@ impl crate::area::AreaMap for FieldArea {
     /// centre, TOBJ's start once, the weather and background, their sprites.
     fn disp(&mut self, cx: &mut crate::area::Disp) {
         self.ofs = self.core.hits.center;
-        let (player, eye) = (cx.view.player, cx.view.eye);
-        self.draw(cx.layers, cx.to_screen, player, eye, cx.awake);
+        let v = MapView::of(cx.camera, cx.player, cx.odd);
+        self.draw(cx.layers, cx.to_screen, v.player, v.eye(), cx.awake);
         cx.events.extend(self.take_made());
-        let events = self.step(cx.view, cx.awake, Some(&mut *cx.cc));
+        let events = self.step(&v, cx.awake, Some(&mut *cx.cc));
         cx.events.extend(events);
         cx.sprites.extend(self.paint(cx.layers, cx.to_screen));
     }
@@ -1128,7 +1128,7 @@ impl crate::camera::Camera {
     /// then the view matrix as [`crate::camera::Camera::set`] makes it.
     pub fn set_wrapped(&mut self, player_pos: V4, bounds: [F; 4]) {
         let fw2lw = |p: V4| p2w(w2p(p, player_pos, bounds), player_pos, bounds);
-        let a = self.active();
+        let a = self.list.active();
         let p = fw2lw(a.pos);
         let v = fw2lw(a.view);
         self.world_view = crate::camera::pos_target(p, v);
@@ -1221,8 +1221,9 @@ mod tests {
         f.core.hits.center = [player[0], player[1]];
         let mut cc = piney_battle::rand::Genrand::default();
         let mut rates = Vec::new();
+        let cams = crate::camera::CamList::new(Volume::Inf, crate::camera::Cam { pos: player, ..Default::default() });
         for i in 0..120 {
-            let v = MapView { player, eye: player, odd: i & 1 != 0, ..MapView::default() };
+            let v = MapView { player, odd: i & 1 != 0, ..MapView::new(&cams, &crate::systems::NO_SCREEN) };
             let events = f.step(&v, true, Some(&mut cc));
             let hums: Vec<F> =
                 events.iter().filter_map(|e| if let MapEvent::SeLoop(_, r) = e { Some(*r) } else { None }).collect();

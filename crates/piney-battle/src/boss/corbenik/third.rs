@@ -110,10 +110,6 @@ fn p2w(cx: &Cx, v: V4) -> V4 {
     crate::boss::p2w(cx, v)
 }
 
-fn cam_back(cx: &mut Cx) {
-    cx.out(Out::CamMode { mode: 6 });
-}
-
 fn arena_clump(cx: &mut Cx, on: bool) {
     cx.out(Out::StageClump(on));
 }
@@ -200,10 +196,11 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     // on it: the pitch `atan2f(500, 1000)`, its range 1000, the eye raised
     // by `1500 tanf(pitch)`, `SetRotXLimit(1.0)`.
     let pitch = piney_data::libm::atan2f(0x43fa_0000, 0x447a_0000);
-    cx.out(Out::CamPitch { add: false, v: pitch });
-    cx.out(Out::CamMaxRange(0x447a_0000));
-    cx.out(Out::CamLift(ee::mul(CAM_Y, piney_data::libm::tanf(pitch))));
-    cx.out(Out::CamRotXLimit(ONE));
+    b.init_boss_camera(cx, CAM_Z, CAM_Y);
+    b.with_cam(|c| c.xrot = pitch);
+    b.with_cam(|c| c.max_range = 0x447a_0000);
+    b.with_cam(|c| c.lift = ee::mul(CAM_Y, piney_data::libm::tanf(pitch)));
+    b.with_cam(|c| c.set_rot_x_limit(ONE));
     for (k, p) in x.killers.iter_mut().enumerate() {
         eye::set_master(&mut p.x, me, k as i32);
     }
@@ -506,7 +503,7 @@ fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             view[2] = ee::add(view[2], 0x4396_0000);
             let d = b.dirc[2];
             let eye = super::out_from(cx, pos, d, [0x44fa_0000, 0, 0x4396_0000, ONE]);
-            cx.free_cam(eye, view);
+            b.free_cam(cx, eye, view);
             x.dead_pos = super::out_from(cx, pos, d, [0x4248_0000, 0, 0, ONE]);
             x.dead_pos[2] = ee::add(x.dead_pos[2], 0x4396_0000);
             for p in &x.killers {
@@ -548,7 +545,7 @@ fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                 20 => cx.out(Out::EntryFade { t: 45, from: 0, to: 0x8000_0000 }),
                 140 => {
                     on_exit(b, x, cx);
-                    cam_back(cx);
+                    b.cam_mode(cx, 6);
                 }
                 _ => {}
             }
@@ -645,7 +642,7 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             }
             let at = eye::dummy_at(&x.body_world, x.dummy);
             let eye_pos = super::out_from(cx, at, d, [0x44bb_8000, 0, 0xc2c8_0000, ONE]);
-            cx.free_cam(eye_pos, at);
+            b.free_cam(cx, eye_pos, at);
             cx.out(Pic::Particles { which: Gen::GenerateEye, pos: at });
             entry_killer(b, x, cx);
             cx.out(Out::SeNote { se: 48, note: 48 });
@@ -659,7 +656,7 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             if c < 90 {
                 return;
             }
-            let mut eye_at = cx.cam.eye;
+            let mut eye_at = b.cam_eye();
             if c == 90 {
                 let mut d = ee::sub(b.dirc[2], 0x3f06_0a92);
                 if ee::lt(d, NEG_PI) {
@@ -668,8 +665,8 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                 let pos = cx.pos();
                 let view = super::out_from(cx, pos, b.center_dirc, [0x44a2_8000, 0, 0x4348_0000, ONE]);
                 let e = super::out_from(cx, pos, d, [0x453b_8000, 0, 0x4396_0000, ONE]);
-                cx.out(Out::FreeCam { pos: e, view });
-                if cx.cam.reset == 5 {
+                b.cam_pos_view(e, view);
+                if b.cam_reset() == 5 {
                     eye_at = e;
                 }
             } else if c == 220 {
@@ -679,8 +676,8 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             }
             let v = super::out_from(cx, VF0, b.dirc[2], [0x40d5_5555, 0, 0, ONE]);
             let e = geom::vadd(eye_at, v);
-            if cx.cam.reset == 5 {
-                cx.out(Out::CamEye(e));
+            if b.cam_reset() == 5 {
+                b.with_cam(|c| c.pos = e);
             }
         }
         2 => {
@@ -688,7 +685,7 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             killers_targets(x, cx, true);
             b.entry_cmnd_target(cx);
             cx.cursor(false);
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             x.change_next_pattern(b, cx);
         }
         _ => {}
@@ -737,7 +734,7 @@ fn on_wave(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             } else if f == 85 {
                 b.skill_damage(cx, None, Some(pos), 59);
             }
-            cx.quake_vec([0x4248_0000; 3]);
+            b.quake_vec(cx, [0x4248_0000; 3]);
             let ended = x.anm_w.forward();
             cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: [0, 0, 0, ONE], scale: ONE });
             if ended && b.anm_status != 0 {
@@ -775,7 +772,7 @@ fn on_tera_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             let mut view = pos;
             view[2] = ee::add(view[2], 0x4396_0000);
             let eye_pos = super::out_from(cx, b.target_pos, d2, [0x44bb_8000, 0, 0x4248_0000, ONE]);
-            cx.free_cam(eye_pos, view);
+            b.free_cam(cx, eye_pos, view);
             b.lock_player(cx, true);
             killers_targets(x, cx, false);
             b.erase_cmnd_target(cx);
@@ -847,15 +844,15 @@ fn on_tera_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             }
             let mut view = pos;
             view[2] = ee::add(view[2], 0x4396_0000);
-            if cx.cam.reset == 5 {
-                cx.out(Out::CamLook(view));
+            if b.cam_reset() == 5 {
+                b.with_cam(|c| c.view = view);
             }
         }
         3 => {
             if c == 29 {
                 let e = [0x4411_0000, 0xc4a9_6000, 0x4590_d800, ONE];
                 let v = [0x43c9_0000, 0xc484_4000, 0x4585_b800, ONE];
-                cx.out(Out::FreeCam { pos: e, view: v });
+                b.cam_pos_view(e, v);
                 x.stage_eff = b.begin_stage_effect(cx, DARK_IN, [15, 3000, 3000]);
                 arena_clump(cx, false);
             } else if c == 30 {
@@ -912,7 +909,7 @@ fn on_tera_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             cx.scene.chars[me].pos = x.old_pos;
             b.body_hit_sw = 1;
             b.dirc = VF0;
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             b.unlock_player();
             killers_targets(x, cx, true);
             b.entry_cmnd_target(cx);
@@ -1040,7 +1037,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             let mut view = b.target_pos;
             view[2] = ee::add(view[2], 0x4348_0000);
             let eye_pos = super::out_from(cx, b.target_pos, d, [0x447a_0000, 0, 0x4248_0000, ONE]);
-            cx.free_cam(eye_pos, view);
+            b.free_cam(cx, eye_pos, view);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -1084,7 +1081,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                     let mut view = b.target_pos;
                     view[2] = ee::add(view[2], 0x4396_0000);
                     let e = super::out_from(cx, b.target_pos, b.target_dirc, [0x453b_8000, 0, 0x447a_0000, ONE]);
-                    cx.out(Out::FreeCam { pos: e, view });
+                    b.cam_pos_view(e, view);
                 }
                 calc_tera_laser_pos(x, cx);
                 if c < 90 {
@@ -1185,7 +1182,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             cx.scene.chars[me].pos = x.act_pos;
             b.draw_sw = 1;
             b.unlock_player();
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             killers_targets(x, cx, true);
             b.entry_cmnd_target(cx);
             cx.cursor(false);

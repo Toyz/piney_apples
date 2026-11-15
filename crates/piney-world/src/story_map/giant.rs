@@ -206,7 +206,8 @@ mod tests {
     fn the_background_bobs() {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut g = made(&archive, Volume::Inf, &GIANT, 0, 7);
-        let v = MapView::default();
+        let cams = crate::camera::CamList::default();
+        let v = MapView::new(&cams, &crate::systems::NO_SCREEN);
         let bob = |g: &StoryArea| g.systems().get::<Bob>().map(|b| (b.z, b.rising)).unwrap();
         let (mut top, mut turns, mut last) = (0.0f32, 0, bob(&g).1);
         for _ in 0..600 {

@@ -52,7 +52,7 @@ fn the_show(hold: u64, mut each: impl FnMut(&Session, &Frame, u64)) -> Option<Ve
             }
             let c = a.world().combat();
             let Some(nuke) = c.who(NUKE).map(|n| c.scene.chars[n].pos.map(f32::from_bits)) else { break };
-            let cam = a.world().camera().active();
+            let cam = a.world().camera().list.active();
             let (eye, view) = (cam.pos.map(f32::from_bits), cam.view.map(f32::from_bits));
             let behind = (nuke[0] - eye[0]) * (view[0] - eye[0]) + (nuke[1] - eye[1]) * (view[1] - eye[1]) < 0.0;
             on_kite |= behind;

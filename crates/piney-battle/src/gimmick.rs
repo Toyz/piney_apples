@@ -11,7 +11,7 @@ use crate::chara::{AffectFunc, Char, spc_flag};
 use crate::enemy_ai::EntryParam;
 use crate::enemy_motion::{At, Call};
 use crate::entry::{
-    Cx, DungeonGims, EntryCtrl, EntryObj, Obj, Out, Seam, delete_cmnd, delete_event_entry, entry_param_clear,
+    Cx, DungeonGims, EditGim, EntryCtrl, EntryObj, Obj, Out, Seam, delete_cmnd, delete_event_entry, entry_param_clear,
     gimmick_char, set_hit_sw,
 };
 use crate::geom::{self, F, HALF_PI, ONE, PI, TWO_PI, V4, add, div, from_int, le, lt, mul, sub};
@@ -1475,6 +1475,26 @@ pub fn set_item_box(
             _ => {}
         }
     }
+}
+
+/// What `DUNGEON::SetItemBox` leaves in its entry's `pos[3]` (sp+396 on
+/// Outbreak and Quarantine, OUT gcmn 0x005e86a0, QUA 0x004db100), where
+/// `SetMagicCircle` reads a story circle's `w`: the last box slot's `w`,
+/// then each edit row's copy of (x, y, 0, sp+380), sp+380 zeroed after the
+/// first row's copy (OUT 0x005e89f0), a warning's door position
+/// (`GetNearDoorPosition`) over it. The first row's sp+380 never ends it:
+/// every volume's edit tables with circles have 15 rows.
+pub fn item_box_w(d: &DungeonGims) -> F {
+    let slot_w = d.slots.iter().take(750).rfind(|s| s.kind == 0).map_or(0, |s| s.pos[3]);
+    let Some(edit) = d.edit.as_ref().filter(|_| d.story) else { return slot_w };
+    let mut table = KIND_GIMMICK;
+    table[5] = d.food;
+    let warning = |row: usize, g: &EditGim| {
+        let id = usize::try_from(g.kind).ok().and_then(|k| table.get(k)).copied();
+        let door = d.warn_pos.get(row).copied().flatten();
+        (g.ty == 3 && !(7..27).contains(&g.kind) && id == Some(19) && !d.ban_room).then_some(door).flatten()
+    };
+    edit.iter().enumerate().next_back().map_or(slot_w, |(row, g)| warning(row, g).map_or(0, |p| p[3]))
 }
 
 /// `DUNGEON::SetIDOL()` (gcmn 0x005be750): every `gimPos` slot of kind 2

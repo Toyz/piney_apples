@@ -200,10 +200,6 @@ fn out_from_after(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
     p2w(cx, geom::vadd(o, w2p(cx, at)))
 }
 
-fn cam_back(cx: &mut Cx) {
-    cx.out(Out::CamMode { mode: 6 });
-}
-
 // --- the constructor ------------------------------------------------------------------------------
 
 /// `ccBoss08_b::ccBoss08_b` (0x003b1c50): five roots made first (row 8,
@@ -254,6 +250,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = w2p(cx, b.center_pos);
     b.use_stage_eff = true;
+    b.init_boss_camera(cx, 0x4348_0000, 0x447a_0000);
     cx.out(Out::Blur(blur::Set::Enable));
     init_elements(&b, &mut x, cx);
     set_pattern_mode(&mut b, &mut x, cx, 0);
@@ -392,7 +389,7 @@ fn slave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         with_root(x, k, cx, root_main);
         if x.roots[k].x.quake_time > 0 {
             x.roots[k].x.quake_time -= 1;
-            cx.quake([0x41f0_0000, 0x41f0_0000, 0]);
+            b.quake(cx, [0x41f0_0000, 0x41f0_0000, 0]);
         }
     }
 }
@@ -592,7 +589,7 @@ fn on_sybly(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             let mut vp = cx.scene.chars[t].pos;
             vp[2] = ee::add(vp[2], 0x42c8_0000);
             let eye = out_from_after(cx, vp, b.center_dirc, [0x44bb_8000, 0, 0x4396_0000, ONE]);
-            cx.free_cam(eye, vp);
+            b.free_cam(cx, eye, vp);
             b.act_proccess += 1;
         }
         1 => {
@@ -624,7 +621,7 @@ fn on_sybly(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 cx.cursor(false);
                 b.unlock_player();
                 cx.out(Out::Cinema(None));
-                cam_back(cx);
+                b.cam_mode(cx, 6);
                 x.change_next_pattern(b, cx);
             }
         }
@@ -671,7 +668,7 @@ fn on_wave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             } else if f == 110 {
                 b.skill_damage(cx, None, Some(pos), 28);
             }
-            cx.quake([0x4248_0000; 3]);
+            b.quake(cx, [0x4248_0000; 3]);
             let ended = x.anm_w.forward();
             cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: [0, 0, 0, ONE], scale: ONE });
             if ended && b.anm_status != 0 {
@@ -700,7 +697,7 @@ fn on_star_dust(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             let mut vp = pos;
             vp[2] = 0x4348_0000;
             let eye = out_from_after(cx, vp, b.center_dirc, [0x44fa_0000, 0, 0x4348_0000, ONE]);
-            cx.free_cam(eye, vp);
+            b.free_cam(cx, eye, vp);
             cx.out(Out::SwitchLayer);
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 3000]);
             b.lock_player(cx, true);
@@ -754,7 +751,7 @@ fn on_star_dust(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 return;
             }
             cx.out(Out::SwitchLayer);
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             b.entry_cmnd_target(cx);
             cx.cursor(false);
             b.unlock_player();
@@ -838,11 +835,11 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         2 => {
             if c == 30 {
                 let d = round_target(b, cx);
-                cx.out(Out::CamMode { mode: 5 });
+                b.cam_mode(cx, 5);
                 let eye = super::out_from(cx, b.target_pos, d, [0xc42f_0000, 0, 0x428c_0000, ONE]);
                 let mut view = b.target_pos;
                 view[2] = 0x4348_0000;
-                cx.out(Out::FreeCam { pos: eye, view });
+                b.cam_pos_view(eye, view);
                 cx.out(Out::SwitchLayer);
                 x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 3000, 3000]);
             } else if c == 45 {
@@ -878,7 +875,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 if c == 30 {
                     let vp = b.target_pos;
                     let eye = super::out_from(cx, vp, b.center_dirc, [0x451c_4000, 0, 0x451c_4000, ONE]);
-                    cx.out(Out::FreeCam { pos: eye, view: vp });
+                    b.cam_pos_view(eye, vp);
                 }
             } else if c >= 90 {
                 if c == 90 {
@@ -891,8 +888,8 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 if c == 120 {
                     let d = round_target(b, cx);
                     let eye = super::out_from(cx, b.target_pos, d, [0x44fa_0000, 0, 0x447a_0000, ONE]);
-                    if cx.cam.reset == 5 {
-                        cx.out(Out::CamEye(eye));
+                    if b.cam_reset() == 5 {
+                        b.with_cam(|c| c.pos = eye);
                     }
                     cx.out(Out::Blur(blur::Set::NoFunc));
                     b.act_count = 0;
@@ -937,7 +934,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             b.entry_cmnd_target(cx);
             cx.cursor(false);
             cx.out(Out::Cinema(None));
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             x.change_next_pattern(b, cx);
         }
         _ => {}
@@ -1044,7 +1041,7 @@ fn on_magic(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 3000]);
             let vp = b.target_pos;
             let eye = super::out_from(cx, vp, b.target_dirc, [0x44bb_8000, 0, 0x43fa_0000, ONE]);
-            cx.free_cam(eye, vp);
+            b.free_cam(cx, eye, vp);
             b.act_proccess += 1;
         }
         1 => {
@@ -1083,7 +1080,7 @@ fn on_magic(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             cx.cursor(false);
             cx.out(Out::SwitchLayer);
             cx.out(Out::Cinema(None));
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             x.change_next_pattern(b, cx);
             b.act_proccess += 1;
         }
@@ -1111,7 +1108,7 @@ fn on_setup_barrier(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 let eye = super::out_from(cx, pos, b.dirc[2], [0x44fa_0000, 0, 0x428c_0000, ONE]);
                 let mut view = pos;
                 view[2] = ee::add(view[2], 0x43c8_0000);
-                cx.free_cam(eye, view);
+                b.free_cam(cx, eye, view);
                 cx.out(Out::SwitchLayer);
                 x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 30000]);
             } else if c >= 30 {
@@ -1142,7 +1139,7 @@ fn on_setup_barrier(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 return;
             }
             cx.out(Out::SwitchLayer);
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             b.unlock_player();
             b.entry_cmnd_target(cx);
             cx.cursor(false);
@@ -1260,7 +1257,7 @@ fn on_die(b: &mut BossBase, _x: &mut Second, cx: &mut Cx) {
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
             let v = geom::apply_matrix(&m, [0x44bb_8000, 0, 0x4348_0000, ONE]);
             let eye = p2w(cx, geom::vadd(v, w2p(cx, vp)));
-            cx.free_cam(eye, vp);
+            b.free_cam(cx, eye, vp);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -1271,7 +1268,7 @@ fn on_die(b: &mut BossBase, _x: &mut Second, cx: &mut Cx) {
             }
             b.unlock_player();
             b.draw_sw = 0;
-            cam_back(cx);
+            b.cam_mode(cx, 6);
             b.exit = 1;
             crate::fellow::delete_cmnd(cx.scene, me);
             cx.out(Out::DeleteCmnd);
@@ -1294,7 +1291,7 @@ fn on_random_drive(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     }
     match b.act_proccess {
         0 => {
-            cx.out(Out::CamLock(true));
+            b.with_cam(|c| c.lock = true);
             b.lock_player(cx, true);
             b.move_spd = 0;
             b.act_proccess += 1;
@@ -1358,7 +1355,7 @@ fn on_random_drive(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 b.act_count = 0;
             }
             b.unlock_player();
-            cx.out(Out::CamLock(false));
+            b.with_cam(|c| c.lock = false);
         }
         _ => {}
     }
@@ -1451,7 +1448,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 let d = get_dirc(pp, w2p(cx, b.target_pos));
                 let eye = super::out_from(cx, x.act_pos, d, [0x447a_0000, 0, 0x4248_0000, ONE]);
                 let view = super::out_from(cx, eye, d, [0xc2c8_0000, 0, 0, ONE]);
-                cx.free_cam(eye, view);
+                b.free_cam(cx, eye, view);
                 b.move_spd = 0;
                 b.dirc[2] = b.center_dirc;
                 b.act_count = 0;
@@ -1476,15 +1473,15 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                     let z = ee::mul(0x40fb_53d2, ee::from_int(k));
                     cx.out(Pic::Smoke { pos, rot: [0, 0, z, ONE] });
                 }
-                cx.quake([0x41f0_0000, 0x41f0_0000, 0x4248_0000]);
+                b.quake(cx, [0x41f0_0000, 0x41f0_0000, 0x4248_0000]);
             } else if f == 35 {
                 cx.out(Out::SeNote { se: 63, note: 52 });
             }
             if b.anm_status != 0 {
                 b.anm.set(ANM_ROOT_NUT, cx.clips);
                 setup_root(b, x, cx);
-                x.cam_pos = cx.cam.active_pos;
-                x.cam_view = cx.cam.active_view;
+                x.cam_pos = cx.cams_ref().active().pos;
+                x.cam_view = cx.cams_ref().active().view;
                 b.act_count = 0;
                 b.act_proccess += 1;
             }
@@ -1509,16 +1506,16 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                     cx.out(Out::Blur(blur::Set::Func(blur::BlurFunc::Boss08B)));
                 }
                 let off = super::out_from(cx, VF0, b.target_dirc, [0x4248_0000, 0, 0, ONE]);
-                let view = p2w(cx, geom::vadd(w2p(cx, cx.cam.boss_view), off));
-                let eye = p2w(cx, geom::vadd(w2p(cx, cx.cam.eye), off));
+                let view = p2w(cx, geom::vadd(w2p(cx, b.cam_view()), off));
+                let eye = p2w(cx, geom::vadd(w2p(cx, b.cam_eye()), off));
                 b.act_dirc = VF0;
-                cx.out(Out::FreeCam { pos: eye, view });
+                b.cam_pos_view(eye, view);
             }
         }
         6 => {
             if c >= 60 {
                 if c == 60 {
-                    let e = cx.cam.eye;
+                    let e = b.cam_eye();
                     let pos = cx.pos();
                     x.act_pos = super::out_from(cx, pos, b.target_dirc, [0x4448_0000, 0, e[2], ONE]);
                     b.act_dirc[2] = b.target_dirc;
@@ -1529,15 +1526,15 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 b.act_dirc[2] = a;
                 b.act_dirc[0] = ee::add(b.act_dirc[0], 0x41ba_aaab);
                 let eye = super::out_from(cx, x.act_pos, a, [b.act_dirc[0], 0, 0, ONE]);
-                cx.out(Out::FreeCam { pos: eye, view });
+                b.cam_pos_view(eye, view);
             }
             if x.root_anm_status && c == 90 {
                 let tp = b.target_pos;
                 x.gen_serial += 1;
                 let d = eff::Drain::new(tp, x.gen_serial);
                 x.boss_eff = Some(b.make_fx(cx, EffKind::RootDrain, Fx::Drain(Box::new(d)), tp, VF0));
-                x.cam_pos = cx.cam.eye;
-                x.cam_view = cx.cam.boss_view;
+                x.cam_pos = b.cam_eye();
+                x.cam_view = b.cam_view();
                 b.act_count = 0;
                 b.act_proccess += 1;
             }
@@ -1570,11 +1567,11 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             // The eye risen a little (its push along the view's way is
             // figured and never used).
-            let mut e = w2p(cx, cx.cam.eye);
+            let mut e = w2p(cx, b.cam_eye());
             e[2] = ee::add(e[2], 0x3fd5_5555);
             let eye = p2w(cx, e);
-            if cx.cam.reset == 5 {
-                cx.out(Out::CamEye(eye));
+            if b.cam_reset() == 5 {
+                b.with_cam(|c| c.pos = eye);
             }
             if x.boss_eff.is_none() {
                 for k in 0..ROOTS {
@@ -1600,7 +1597,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                     let pos = cx.pos();
                     let eye = super::out_from(cx, pos, b.target_dirc, [0x4496_0000, 0, 0x428c_0000, ONE]);
                     let view = super::out_from(cx, pos, b.target_dirc, [0, 0, 0x4348_0000, ONE]);
-                    cx.out(Out::FreeCam { pos: eye, view });
+                    b.cam_pos_view(eye, view);
                 }
                 x.root_transparency = t;
             }
@@ -1659,7 +1656,7 @@ fn root_drain_end(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     b.unlock_player();
     b.entry_cmnd_target(cx);
     cx.cursor(false);
-    cam_back(cx);
+    b.cam_mode(cx, 6);
     cx.out(Out::Cinema(None));
     x.change_next_pattern(b, cx);
 }

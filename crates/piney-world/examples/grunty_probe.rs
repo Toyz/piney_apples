@@ -4,8 +4,10 @@
 //! `ccSetChibiGuso` places), `new` (a row built by `setDog` and the
 //! constructor), `poke growth|foodmode` (the menus' writes), `poke race KIND
 //! SERVER STEP|norace` (the Flag Race, from Mutation on) and `frame` (Kite,
-//! the camera and a menu's affect, then the frame's state, events, notes,
-//! draws and the race's step). Numbers hex, floats their bits.
+//! the camera and a menu's affect, then the frame's state, events (each 3D
+//! sound with the active camera at its call), notes, draws, the race's step
+//! and camID with tcam's and ecam's eye and target). Numbers hex, floats
+//! their bits.
 
 use std::io::BufRead;
 use std::rc::Rc;
@@ -14,7 +16,7 @@ use std::sync::Arc;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_desktop::save::SaveState;
-use piney_world::chara::char::View;
+use piney_world::camera::{Cam, CamList, kind};
 use piney_world::ee::{ONE, V4};
 use piney_world::grunty::{self, Bodies, Growth, Grunty, GruntyEvent, Tables};
 use piney_world::systems::npcs::NpcCtx;
@@ -118,10 +120,31 @@ fn state(g: &Grunty, save: &piney_data::save::SaveData) -> String {
     )
 }
 
-fn event(e: &GruntyEvent) -> String {
-    match e {
-        GruntyEvent::Note { param, pos, attribute } => format!("[\"note\",{param},{},{attribute}]", list(*pos)),
-        GruntyEvent::Se3d { n, pos } => format!("[\"se3d\",{n},{}]", list(*pos)),
+/// The listener as calcPan reads it: the eye, the target, the type.
+fn ear(e: &piney_battle::camera::Ear) -> String {
+    list(e.pos.iter().chain(&e.view).copied().chain([e.kind as u32]))
+}
+
+/// The frame's events with each 3D sound's listener: the active camera as
+/// the frame began, then as each camera write of the Grunty's left it.
+fn events(evs: &[GruntyEvent], start: piney_battle::camera::Ear) -> Vec<String> {
+    evs.iter()
+        .scan(start, |at, e| {
+            if let GruntyEvent::Ear(x) = e {
+                *at = *x;
+            }
+            Some((e, *at))
+        })
+        .filter_map(|(e, at)| event(e, &at))
+        .collect()
+}
+
+fn event(e: &GruntyEvent, at: &piney_battle::camera::Ear) -> Option<String> {
+    Some(match e {
+        GruntyEvent::Note { param, pos, attribute } => {
+            format!("[\"note\",{param},{},{attribute},{}]", list(*pos), ear(at))
+        }
+        GruntyEvent::Se3d { n, pos } => format!("[\"se3d\",{n},{},{}]", list(*pos), ear(at)),
         GruntyEvent::Smoke { pos, v, scale, life, kind } => {
             format!("[\"smoke\",{},{},{scale},{life},{kind}]", list(*pos), list(*v))
         }
@@ -131,13 +154,17 @@ fn event(e: &GruntyEvent) -> String {
         GruntyEvent::VoiceStop => "[\"voicestop\"]".into(),
         GruntyEvent::Chat(k) => format!("[\"chat\",{k}]"),
         GruntyEvent::ChatClose => "[\"chatclose\"]".into(),
-        GruntyEvent::Camera(n) => format!("[\"camera\",{n}]"),
-        GruntyEvent::CamPos(v) => format!("[\"campos\",{}]", list(*v)),
-        GruntyEvent::CamView(v) => format!("[\"camview\",{}]", list(*v)),
         GruntyEvent::Player { pos, dirc_z } => format!("[\"player\",{},{dirc_z}]", list(*pos)),
         GruntyEvent::Dropped => "[\"dropped\"]".into(),
         GruntyEvent::Debug(n) => format!("[\"debug\",{n}]"),
-    }
+        GruntyEvent::Ear(_) => return None,
+    })
+}
+
+/// camID, then tcam's and ecam's eye and target.
+fn cams_json(c: &CamList) -> String {
+    let (t, e) = (c.cam(piney_world::camera::CamId::Field), c.cam(piney_world::camera::CamId::Event));
+    format!("[{},{},{},{},{}]", c.id().raw(), list(t.pos), list(t.view), list(e.pos), list(e.view))
 }
 
 fn main() {
@@ -153,6 +180,9 @@ fn main() {
     let mut rand = piney_world::Rand(1);
     let mut mt = piney_battle::rand::init_rand(0, &mut 0);
     let mut race: Option<(i32, i32, i16)> = None;
+    // camera.cpp's list as the harness's memory holds it: zeroed cameras
+    // on camera 1.
+    let mut cams = CamList::new(volume, Cam::default());
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
@@ -216,10 +246,14 @@ fn main() {
                 };
                 let mut player: V4 = [n(1), n(2), n(3), ONE];
                 let mut player_dirc: V4 = [0, 0, n(4), 0];
-                let view = View { player, cam: [n(5), n(6), n(7), ONE], deg1: n(8) as i16, eye: n(9) != 0 };
+                // tcam's eye, pitch and type as the frame finds them.
+                let t = cams.cam_mut(piney_world::camera::CamId::Field);
+                t.pos = [n(5), n(6), n(7), ONE];
+                t.deg[1] = n(8) as i16;
+                t.kind = if n(9) != 0 { kind::EYE } else { kind::FOLLOW };
                 x.events.clear();
                 if w.len() > 12 {
-                    x.affect(n(10) as i16, n(11) as i16, n(12) as i16, &mut mt, player_dirc);
+                    x.affect(n(10) as i16, n(11) as i16, n(12) as i16, &mut mt, player_dirc, &mut cams);
                 }
                 // Kite put at his place (affect 11) before the frame.
                 for e in &x.events {
@@ -228,16 +262,13 @@ fn main() {
                         player_dirc[2] = *dirc_z;
                     }
                 }
-                let before: Vec<String> = x.events.iter().map(event).collect();
-                // The active camera as far as a Grunty reads it: its eye,
-                // heading and kind (the fade's).
-                let kind = if view.eye { piney_world::camera::kind::EYE } else { 0 };
-                let cam = piney_world::camera::Cam { pos: view.cam, deg: [0, view.deg1], kind, ..Default::default() };
+                let before = events(&x.events, cams.ear());
+                x.events.clear();
+                let start = cams.ear();
                 let mut ctx = NpcCtx {
                     player,
                     player_dirc,
-                    view,
-                    cam: &cam,
+                    cams: &mut cams,
                     hits: &mut tw.core.hits,
                     rand: &mut rand,
                     cc: &mut mt,
@@ -251,16 +282,17 @@ fn main() {
                 x.step(&mut ctx);
                 let notes = std::mem::take(&mut x.notes);
                 grunty::inu_check_note(&notes, x, true, &mut rand);
-                let ev: Vec<String> = before.into_iter().chain(x.events.iter().map(event)).collect();
+                let ev: Vec<String> = before.into_iter().chain(events(&x.events, start)).collect();
                 let drawn: Vec<String> =
                     x.drawn.iter().map(|(k, a, s)| format!("[{k},{a},{}]", i32::from(*s))).collect();
                 println!(
-                    "{{\"s\":{},\"ev\":[{}],\"notes\":{},\"drawn\":[{}],\"race\":{}}}",
+                    "{{\"s\":{},\"ev\":[{}],\"notes\":{},\"drawn\":[{}],\"race\":{},\"cams\":{}}}",
                     state(x, &save),
                     ev.join(","),
                     list(notes.iter().map(|n| format!("[{},{}]", n.event, n.param))),
                     drawn.join(","),
                     race.map_or("null".into(), |r| r.2.to_string()),
+                    cams_json(&cams),
                 );
             }
             _ => println!("null"),

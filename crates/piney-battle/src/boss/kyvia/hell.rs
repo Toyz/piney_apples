@@ -374,9 +374,9 @@ impl HellHost for FightHell<'_, '_> {
                 }
                 cx.out(Out::Blur(s));
             }
-            HellOut::FreeCam { pos, view } => cx.out(Out::FreeCam { pos, view }),
-            HellOut::CamMode(mode) => cx.out(Out::CamMode { mode }),
-            HellOut::Quake(q) => cx.quake_vec(q),
+            HellOut::FreeCam { pos, view } => self.b.cam_pos_view(pos, view),
+            HellOut::CamMode(mode) => self.b.cam_mode(cx, mode),
+            HellOut::Quake(q) => self.b.quake_vec(cx, q),
             HellOut::Gen(g, at, held) => super::particles(cx, Gen::Hell(g), at, held.map(|h| slot_held(h, self.slot))),
             HellOut::Kill(h) => {
                 let h = slot_held(h, self.slot);
@@ -397,7 +397,7 @@ fn slot_held(h: Held, _slot: usize) -> Held {
 /// (its free mode) and the blur (0x65808080 at 1.01) set, the generators
 /// made.
 pub(super) fn create(b: &mut BossBase, cx: &mut Cx, pos: V4, target: Option<usize>, kyvia_lv: i32) {
-    let rot = cx.cam.rot;
+    let rot = cx.cams_ref().rot();
     let h = Hell::new(cx.cc, pos, rot, target, kyvia_lv, cx.clips);
     let kind = EffKind::HellExpress;
     let id = b.effects.create(kind);
@@ -408,7 +408,7 @@ pub(super) fn create(b: &mut BossBase, cx: &mut Cx, pos: V4, target: Option<usiz
     }
     cx.out(Out::Blur(Set::Abgr(0x6580_8080)));
     cx.out(Out::Blur(Set::Scale(0x3f81_47ae)));
-    cx.out(Out::CamMode { mode: 5 });
+    b.cam_mode(cx, 5);
     if let Some(e) = slot.and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
         e.fx = Some(h.into());
     }

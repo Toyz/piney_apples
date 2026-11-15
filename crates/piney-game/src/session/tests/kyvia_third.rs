@@ -86,7 +86,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             continue;
         }
         let census = a.world().fx().census();
-        let cam_id = a.world().camera().cam_id;
+        let cam_id = a.world().camera().list.id();
         let c = a.world_mut().combat_mut();
         let Some(run) = c.boss.as_ref() else { continue };
         if run.exit {
@@ -94,7 +94,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             continue;
         }
         let me = run.me;
-        p.off_cam += u32::from(cam_id != piney_world::camera::id::BATTLE);
+        p.off_cam += u32::from(cam_id != piney_world::camera::CamId::Battle);
         // The core's time cut short (its attack turn sooner), and while it
         // can be hit a blow of an eighth of its MaxHP from Kite each 300
         // frames (`EntryAffect` 1, as the console's `kill`), for the

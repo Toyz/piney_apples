@@ -161,7 +161,7 @@ fn toward_other(s: &Session, n: u32) -> (Raw, Option<f32>) {
     match near {
         Some(e) if d(e) > 200.0 => {
             let q = c.scene.chars[e].pos.map(f32::from_bits);
-            let cam_z = f32::from_bits(w.camera().rot()[2]);
+            let cam_z = f32::from_bits(w.camera().list.rot()[2]);
             (stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))), Some(d(e)))
         }
         Some(e) if n.is_multiple_of(8) => (Raw { buttons: Buttons::CROSS, ..still }, Some(d(e))),
@@ -309,7 +309,7 @@ fn breath_shots() {
                                 let p = c.scene.chars[k].pos.map(f32::from_bits);
                                 let q = c.scene.chars[e].pos.map(f32::from_bits);
                                 if (q[0] - p[0]).hypot(q[1] - p[1]) > 250.0 {
-                                    let cam_z = f32::from_bits(w.camera().rot()[2]);
+                                    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                                     stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                                 } else {
                                     Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() }

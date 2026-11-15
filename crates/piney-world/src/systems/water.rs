@@ -112,8 +112,8 @@ impl MapSystem for Water {
             return;
         }
         self.uv = ee::vftoi12(self.u);
-        let (volume, eye) = (cx.core.hits.volume, cx.view.eye);
-        self.zero.modify(volume, &self.root(), [0, 0, 0, ONE], eye, &cx.view.world_screen);
+        let (volume, eye) = (cx.core.hits.volume, cx.view.eye());
+        self.zero.modify(volume, &self.root(), [0, 0, 0, ONE], eye, cx.view.world_screen);
         for &k in self.def.drawn {
             self.plays[k].forward(&self.file);
             cx.put(Kind::Water, Piece::Anim(k));

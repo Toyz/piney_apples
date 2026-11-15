@@ -24,9 +24,12 @@ ccSeSetParamInu (the note's param, the Grunty inuCheckNote reads through
 pgPtr, its place and ground), ccSeOn3D, effSmoke (place, velocity, scale,
 its two counts), effEvolvePG and effGrowPG, ccVoiceRequest and
 ccEvVoiceStop, ccChatMsg::OpenChat (which line) and CloseChat,
-changeCamera, cameraSetPos and cameraSetView, Kite put at his place,
-deleteCmnd(1); the notes the anms handed on; the anms drawn (by ccChar::Draw
-or ccAnm::Draw) with their alpha and whether the matrix had the scale.
+Kite put at his place, deleteCmnd(1); the notes the anms handed on; the
+anms drawn (by ccChar::Draw or ccAnm::Draw) with their alpha and whether
+the matrix had the scale; camID and tcam's and ecam's eye and target as
+the frame left them (changeCamera, cameraSetPos and cameraSetView run
+natively on the game's cameraList), and with each 3D sound the active
+camera at its call (eye, target, type: what calcPan reads).
 
 What runs in Python in place of the game: the anm (SetAnm by name,
 _AnimateForward by tools/anim.py's playback, NoteProcess handing the
@@ -249,9 +252,10 @@ class GruntyGame:
         m.hooks[sym("SetMatrix_PosRotZYXScale__7ccCoordFPfPfPf")] = self.set_matrix(True)
         m.hooks[sym("SetMatrix_PosRotZYX__7ccCoordFPfPf")] = self.set_matrix(False)
         ev = self.events.append
+        # Each 3D sound with the active camera calcPan reads at its call.
         m.hooks[sym("ccSeSetParamInu__FUiP6ccChar")] = lambda mm, p, ch, *a: ev(
-            ["note", p, self.rvec(ch + 0x40), mm.load(ch + 0x80, 4)]) or 0
-        m.hooks[sym("ccSeOn3D__FiPf")] = lambda mm, n, pos, *a: ev(["se3d", n, self.rvec(pos)]) or 0
+            ["note", p, self.rvec(ch + 0x40), mm.load(ch + 0x80, 4), self.ear()]) or 0
+        m.hooks[sym("ccSeOn3D__FiPf")] = lambda mm, n, pos, *a: ev(["se3d", n, self.rvec(pos), self.ear()]) or 0
 
         def smoke(mm, pos, v, a2, a3, *rest):
             ev(["smoke", self.rvec(pos), self.rvec(v), mm.f[12], a2, a3])
@@ -270,14 +274,8 @@ class GruntyGame:
         m.hooks[sym("OpenChat__9ccChatMsgFP6ccCharPc")] = lambda mm, c, ch, text, *a: ev(
             ["chat", chat_tbl.index(text)]) or 0
         m.hooks[sym("CloseChat__9ccChatMsgFv")] = lambda mm, *a: ev(["chatclose"]) or 0
-
-        def change(mm, n, *a):
-            mm.store(CAMID, 2, n)
-            ev(["camera", n])
-            return 0
-        m.hooks[sym("changeCamera__Fi")] = change
-        m.hooks[sym("cameraSetPos__FPfi")] = lambda mm, v, *a: ev(["campos", self.rvec(v)]) or 0
-        m.hooks[sym("cameraSetView__FPfi")] = lambda mm, v, *a: ev(["camview", self.rvec(v)]) or 0
+        # changeCamera, cameraSetPos and cameraSetView run natively, on
+        # the game's cameraList.
 
         def delete_cmnd(mm, obj, flg, *a):
             if flg:
@@ -507,6 +505,16 @@ class GruntyGame:
         r = self.m.load(self.race_global(), 4)
         return self.m.load(r + 0x98, 2, True) if r else None
 
+    def ear(self):
+        """The active camera as calcPan reads it: eye, target, type."""
+        a = self.m.load(ACTIVE_CAM, 4)
+        return self.rvec(a) + self.rvec(a + 0x10) + [self.m.load(a + 0x5C, 4)]
+
+    def cams(self):
+        """camID, then tcam's and ecam's eye and target."""
+        m = self.m
+        return [m.load(CAMID, 2)] + [self.rvec(self.sym(c) + o) for c in ("tcam", "ecam") for o in (0, 0x10)]
+
     def frame(self, player, pdirc, cam, deg1, eye, affect=None):
         m, g = self.m, self.g
         self.events.clear()
@@ -517,6 +525,7 @@ class GruntyGame:
         self.vec(TCAM, list(cam) + [ONE])
         m.store(TCAM + 0x5A, 2, deg1)
         m.store(TCAM + 0x5C, 4, 1 if eye else 3)
+        cams0 = self.cams()
         if affect is not None:
             cmd, a1, a2 = affect
             m.store(g + 0x98, 4, PLAYER)
@@ -531,8 +540,12 @@ class GruntyGame:
                 self.events.append(["player", after[0], after[1]])
         self.call("routine__10ccEntryObjFv", g)
         self.call(m.load(m.load(g + 0x1CC, 4) + 8, 4), g)
+        cams = self.cams()
+        # What the frame's camera writes changed, for the coverage.
+        self.cam_seen = [k for k, i in (("camera", [0]), ("campos", [1, 3]), ("camview", [2, 4]))
+                         if any(cams0[j] != cams[j] for j in i)]
         return {"s": self.state(), "ev": list(self.events), "notes": list(self.notes_seen),
-                "drawn": list(self.drawn), "race": self.race_step()}
+                "drawn": list(self.drawn), "race": self.race_step(), "cams": cams}
 
     def anm_state(self, off):
         a = self.m.load(self.g + off, 4)
@@ -736,6 +749,7 @@ class GruntyAgainstGame(unittest.TestCase):
                 want["s"]["attr"] = port["s"]["attr"]
             for e in want["ev"]:
                 seen.add(e[0])
+            seen.update(g.cam_seen)
             seen.add("act%d" % want["s"]["act"][0])
             seen.add("evo%d.%d" % (want["s"]["evo"][0], want["s"]["evo"][1]))
             if want != port:

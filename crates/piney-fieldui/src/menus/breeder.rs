@@ -269,7 +269,7 @@ pub fn breeder_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         1 => {
             m.select(0, 0, false, x);
             if x.target.is_none() {
-                talk::req(x, TalkReq::Camera(1));
+                talk::req(x, TalkReq::Camera(piney_battle::camera::CamId::Field));
                 m.map_status = 1;
                 return talk::close(m, x, Then::Breeder(Tail::Keys));
             }
@@ -277,7 +277,7 @@ pub fn breeder_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         }
         2 => {
             if x.target.is_none() {
-                talk::req(x, TalkReq::Camera(1));
+                talk::req(x, TalkReq::Camera(piney_battle::camera::CamId::Field));
                 m.map_status = 1;
                 return talk::close(m, x, Then::Breeder(Tail::TeachClosed));
             }
@@ -311,7 +311,7 @@ fn breeder_keys(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let key = pushed_key(x);
     if key == x.save.cancel() {
         affect_target(x, 0);
-        talk::req(x, TalkReq::Camera(1));
+        talk::req(x, TalkReq::Camera(piney_battle::camera::CamId::Field));
         m.map_status = 1;
         return talk::close(m, x, Then::MsgClose);
     }

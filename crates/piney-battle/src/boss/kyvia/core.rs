@@ -6,6 +6,7 @@
 //! beside the body at level 5, its gomoras out at `GomoraKpos`.
 //! docs/engine/boss-kyvia.md, boss-kyvia-fourth.md.
 
+use crate::boss::cam::BossCam;
 use piney_data::field::ee;
 use piney_data::tables::combat;
 
@@ -291,7 +292,8 @@ fn reset_data(x: &mut Core, cx: &mut Cx, me: usize) {
 
 /// `kyviaCore::Main` (MUT gcmn 0x004f9630) with its `Slave()`: the gomoras'
 /// `Main`s after its own.
-pub(crate) fn main(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
+/// `cam` is the fight's camera, each gomora's `DammyBossCam`.
+pub(crate) fn main(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cam: &mut Option<BossCam>, cx: &mut Cx) {
     let me = c.me;
     if c.b.base.exit != 0 {
         return;
@@ -311,7 +313,7 @@ pub(crate) fn main(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     });
     for k in 0..gs.len() {
         let acts: Vec<i16> = gs.iter().map(|g| g.b.base.act_num).collect();
-        gomora::main(&mut gs[k], me, &acts, cx);
+        gomora::main(&mut gs[k], me, &acts, cam, cx);
     }
 }
 
@@ -903,7 +905,7 @@ fn dead_fade(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     if c.x.ex == 0 {
         core_voice(c, cx, 1);
     }
-    c.x.dead_rot = cx.cam.rot;
+    c.x.dead_rot = cx.cams_ref().rot();
     let n = c.b.base.act_count;
     c.b.base.act_count += 1;
     if n == 30 {

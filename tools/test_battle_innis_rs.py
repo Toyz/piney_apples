@@ -12,15 +12,16 @@ constructor (ccBoss02::ccBoss02, MUT gcmn 0x004942c0, with its three
 ccBoss02Slave and their BreakMirror) at BOSS, and runs ccBoss02::Main
 (0x00495d50) frame after frame, with ccBossEffManager::Draw's pass over the
 effects before each, scripted affects on the boss between frames (Kite's
-hits, the protect gauge and its break, the drain's 13 and 21), the menu's
-type changing, and the camera turning. The same case goes to battle_probe's
-`innis` request, and every frame is compared: the acts, the action words
-and Innis's own members, the movement and position, the target, HP and
+hits, the protect gauge and its break, the drain's 13 and 21) and the
+menu's type changing. The same case goes to battle_probe's `innis`
+request, and every frame is compared: the acts, the action words and
+Innis's own members, the movement and position, the target, HP and
 protect gauge, the flags, the animations, the three images (their acts,
-places, turns, flights and mirrors), the effects' slots, the boss camera's
-mode, eye and pitch, the blur's colour, the party's HP and hold, the calls
-(sounds, flashes, cinema, stage, particles, skills, fly fonts, hit marks,
-the shield), the menu's words, newlib's rand() and ccRand's index.
+places, turns, flights and mirrors), the effects' slots, the blur's
+colour, the party's HP and hold, the calls (sounds, flashes, cinema,
+stage, particles, skills, fly fonts, hit marks, the shield), the menu's
+words, camID, the three cameras, the shake's slots and the boss camera,
+newlib's rand() and ccRand's index.
 
 What is not the game's here:
 - The party's affects are off (affectFunc 0): the boss's hits and holds
@@ -33,11 +34,10 @@ What is not the game's here:
   effIceRock and ccEnemyEffDust stubbed (so they draw nothing from rand);
   the WaveShock, the magic squares and the dead effect are stand-ins with
   the port's lives (test_effect_lives checks those against the game's).
-- The boss camera is a zeroed ccBossCam that CamMain never runs on
-  (SetMode, SetFreeCamPosView, QuakeCam and CheckMoveCamera run natively);
-  cameraGetRot/Pos/View answer the case's camera; its catch-up count
-  (CheckMoveCamera) is scripted. W2P/P2W are identity, ccLandHitCheck
-  answers the case's ground, CollisionDetection nothing.
+- camera.cpp and the boss camera run natively over the case's cameras
+  (test_battle_boss_rs.py `put_cams`), the pad at rest. W2P/P2W are
+  identity, ccLandHitCheck answers the case's ground, CollisionDetection
+  nothing.
 
     PINEY_VOLUME=mutation python3 tools/test_battle_innis_rs.py             the tests
     PINEY_VOLUME=mutation python3 tools/test_battle_innis_rs.py bulk N [S]  N cases from seed S
@@ -67,7 +67,6 @@ BOSS = 0x01300000               # the ccBoss02 (0x295c0 bytes)
 FAKE = 0x01340000               # stand-in streams, chunks and effects
 MGR = 0x01380000                # _g_bossEffManager (0x1038 bytes)
 STAGE = 0x01390000              # the stage fader
-CAM = 0x013A0000                # the boss camera (Mutation's ccBossCam)
 WM = 0x013B0000                 # worldman and its event area's stream
 SLAVES = 0x01400000             # operator new[]: the three ccBoss02Slave
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
@@ -100,7 +99,6 @@ class Game:
         self.gens = {}          # a particle generator -> its param
         self.out = []
         self.shards = 0
-        self.frame = {"rot": 0, "pos": [0, 0, 0, F_ONE], "view": [0, 0, 0, F_ONE]}
         self.hooks()
         bb.install_blur(self)
         bb.install_draw(self)
@@ -186,7 +184,7 @@ class Game:
         for name in ("SetMatrix_PosRotZYX__7ccCoordFPfPf", "Draw__5ccAnmFv", "Draw__6ccBossFv",
                      "DrawAfterImages__6ccBossFv", "DrawParts__6ccBossFP5ccAnmi", "DrawStageEffect__6ccBossFv",
                      "InitAfterImage__6ccBossFP5ccAnmi", "__dl__FPv", "DrawBossEffect__6ccBossFv",
-                     "CamMain__9ccBossCamFv", "SetMatrix_PosRotXYZScale__7ccCoordFPfPfPf",
+                     "SetMatrix_PosRotXYZScale__7ccCoordFPfPfPf",
                      "SetMatrix_PosRotZYXScale__7ccCoordFPfPfPf", "Draw__7ccClumpFv",
                      "SetTransparency__7ccClumpFf", "Duplicate__5ccObjFUi",
                      "ChangeClut__7ccModelFP11ccClutChunkP11ccClutChunk",
@@ -203,12 +201,6 @@ class Game:
             return 0
         hook("DrawPartsClump__6ccBossFP7ccClump", shard)
 
-        def init_cam(mm, a, *_):
-            mm.mem[CAM:CAM + 0x150] = bytes(0x150)
-            mm.store(a + 332, 4, CAM)
-            mm.store(a + 336, 4, 1)
-            return 0
-        hook("InitBossCamera__6ccBossFff", init_cam)
 
         def stage_init(mm, a, *_):
             mm.store(a + 0x29340, 4, STAGE + 0x100)
@@ -250,23 +242,8 @@ class Game:
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
         hook("effResistantShield__FP6ccCharii", lambda mm, ch, magic, *a: out.append(["shield", s32(magic)]) or 0)
-        hook("cameraSetPos__FPfi", nop)
-        hook("cameraSetView__FPfi", nop)
 
-        def cam_rot(mm, p, n, *_):
-            mm.store(p, 4, 0)
-            mm.store(p + 8, 4, self.frame["rot"])
-            return 0
-        hook("cameraGetRot__FPfi", cam_rot)
 
-        def cam_vec(key):
-            def get(mm, p, n, *_):
-                for k in range(4):
-                    mm.store(p + 4 * k, 4, self.frame[key][k])
-                return 0
-            return get
-        hook("cameraGetPos__FPfi", cam_vec("pos"))
-        hook("cameraGetView__FPfi", cam_vec("view"))
         hook("ccTransPosW2P__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccTransPosP2W__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
 
@@ -396,23 +373,10 @@ def rnd_case(c, rnd):
         a += rnd.randrange(20, 200)
         menus += [(a, rnd.choice((0, 5, 74))), (a + rnd.randrange(1, 60), -1)]
         a = menus[-1][0]
-    rot = [0] * frames
-    r = rnd.uniform(-3.1, 3.1)
-    moving = [0] * frames
-    for f in range(frames):
-        r += rnd.uniform(-0.05, 0.05)
-        if r > 3.14159:
-            r -= 6.28318
-        if r < -3.14159:
-            r += 6.28318
-        rot[f] = fbits(r)
-        moving[f] = int(rnd.random() < 0.3)
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
-    cam_pos = [fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(100, 400)), F_ONE]
-    cam_view = [fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(0, 200)), F_ONE]
     ground = fbits(rnd.choice((0.0, -50.0, rnd.uniform(-40, 10))))
     case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
-            "rot": rot, "moving": moving, "cam_pos": cam_pos, "cam_view": cam_view, "ground": ground,
+            "ground": ground,
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     # Drawn last, so the cases of a seed are the ones before the blur.
@@ -434,13 +398,9 @@ def run_game(game, case):
     game.stage_on = False
     game.center = case["center"]
     game.ground = case["ground"]
-    game.frame["pos"] = case["cam_pos"]
-    game.frame["view"] = case["cam_view"]
-    game.frame["rot"] = case["rot"][0]
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
     bb.put_draw_camera(game, case)
     bb.make_manager(game, MGR, case)
-    m.mem[CAM:CAM + 0x150] = bytes(0x150)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
     # worldman->+1092 (the event area) ->+420 (its stream)
@@ -475,14 +435,13 @@ def run_game(game, case):
     game.out.clear()
     game.shards = 0
     m.call(game.sym("__ct__8ccBoss02Fv"), (BOSS,))
+    bb.post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
     for f in range(case["frames"]):
         game.out.clear()
         game.shards = 0
-        game.frame["rot"] = case["rot"][f]
-        m.store(CAM + 0xEC, 4, case["moving"][f])
         m.store(sys_ + 0x358, 4, case["count"] + 1 + f)
         mt_now = [v for k, v in menus if k <= f]
         g.env.menu_type = mt_now[-1] if mt_now else -1
@@ -555,9 +514,6 @@ SLAVE = [(0x1D4, "b"), (0x1D5, "b"), (0x1A2, "h"), (0x1A4, "h"), (0x1A6, "h"), (
          (0x293DC, "u"), (0x2B8, "i"), (0x29400, "i"), (0x88, "f"), (0x8C, "f")]
 # Its BreakMirror's: f, SetPointFlg, the first shard's VX, VZ, X, Z.
 MIRROR = [(0x110, "b"), (0x111, "u"), (0x3F8, "f"), (0x4E8, "f"), (0x5D8, "f"), (0x6C8, "f")]
-# The boss camera's: ResetFlg, lock, CamView, CamPos, Xrot (+0xe0).
-CAM_F = [(0x4, "i"), (0x0, "u"), (0x10, "v"), (0x20, "v"), (0xE0, "f")]
-
 
 def game_state(game, n):
     m = game.m
@@ -596,7 +552,8 @@ def game_state(game, n):
         "tr": [ld(0x88), ld(0x8C)],
         "anm": [clip[0] or "", clip[1] >> 8, wclip[0] or "", wclip[1] >> 8],
         "innis": fields(m, a + 0x29350, INNIS),
-        "cam": fields(m, CAM, CAM_F),
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
         "slaves": slaves,
         "shards": game.shards,
         "eff": game.effects(),
@@ -643,7 +600,7 @@ def request(game, case, pre):
     parts = (["innis", len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
              + case["center"][:3] + list(kite.pos) + [0, 0, 0, 0]
              + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"]]
-             + case["cam_pos"] + case["cam_view"] + [case["ground"]] + case["rot"] + case["moving"]
+             + [case["ground"]]
              + [len(case["script"])])
     for s in case["script"]:
         parts += list(s)

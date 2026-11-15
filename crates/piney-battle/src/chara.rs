@@ -463,11 +463,27 @@ pub struct Env {
     pub sp_regene_speed: bool,
     /// `ccGame.area`: 0 is the Root Town, where no condition effect shows.
     pub area: i32,
+    /// `ccSys`'s pad as the frame read it (the boss camera's `Pad_Control`).
+    pub pad: crate::camera::CamPad,
+    /// `ccParty.member[k]`'s values: where `_ccMalloc` put each member's
+    /// object. Tarvos's phantom reads its target's as a float (its first
+    /// view, `ccBossEffPhantom`'s sp+144).
+    pub party_va: [u32; 3],
 }
 
 impl Default for Env {
     fn default() -> Self {
-        Env { plcol: 1, menu_forbid: 0, in_battle: 1, count: 0, menu_type: -1, sp_regene_speed: false, area: 1 }
+        Env {
+            plcol: 1,
+            menu_forbid: 0,
+            in_battle: 1,
+            count: 0,
+            menu_type: -1,
+            sp_regene_speed: false,
+            area: 1,
+            pad: crate::camera::CamPad::default(),
+            party_va: [0; 3],
+        }
     }
 }
 

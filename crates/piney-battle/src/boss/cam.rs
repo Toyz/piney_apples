@@ -6,11 +6,15 @@
 //! for a frame. Innis uses modes 5 and 6 and `Xrot`; Kyvia modes 3 and 4
 //! (Mutation's `SetTransfer`), `SetRotXLimit` and the stick's turn about
 //! the player (`ZrotControlFlg`). `tools/test_bosscam_rs.py` checks it
-//! (docs/engine/boss.md).
+//! (docs/engine/boss.md). The boss holds it (`ccBoss` +0x14c `bossCam`,
+//! +0x150 `bossCamSW`: [`crate::boss::BossBase::cam`]).
 
-use crate::camera::evcam::{UNIT, rot_x, rot_z};
-use crate::camera::{CamPad, Camera, id, kind};
-use crate::ee::{self, F, ONE, V4, add, deg2rad, div, from_int, le, lt, mul, rad2deg, sinf, sub, vadd};
+use crate::camera::button::{L1, L2, R1, R2};
+use crate::camera::{CamId, CamList, CamPad, Scheme, kind};
+use crate::geom::{
+    self, F, M4, ONE, V4, VF0, add, apply_matrix, deg2rad, div, from_int, le, lt, mul, rad2deg, rot_matrix_x,
+    rot_matrix_z, sinf, sub, unit_matrix, vadd,
+};
 
 /// `3 pi / 4` and `pi / 4`: where `Pad_Control` reads the right stick as
 /// down (either side of +-3 pi / 4) or up (inside +-pi / 4).
@@ -24,12 +28,6 @@ const AHEAD: V4 = [0, 0xc47a_0000, 0, ONE];
 const FOUR: F = 0x4080_0000;
 const EIGHT: F = 0x4100_0000;
 
-/// Pad buttons (`ccPad.direct`).
-const L2: u32 = 0x1;
-const R2: u32 = 0x2;
-const L1: u32 = 0x4;
-const R1: u32 = 0x8;
-
 /// The turn's steps: the stick's sine times its power by this, or L1 and
 /// R1 at 0.015 plus 0.0008 a step of pressure past 155 (0.08 more with no
 /// pressure); held to +-0.5.
@@ -41,7 +39,7 @@ const ZROT_MAX: F = 0x3f00_0000;
 const ZROT_MIN: F = 0xbf00_0000;
 
 /// A `ccBossCam` (0x140 bytes).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BossCam {
     /// +0x00 `lock`: `CamMain` leaves the eye and view as they are.
     pub lock: bool,
@@ -111,9 +109,9 @@ impl BossCam {
     /// `ccBossCam::ccBossCam(view, transfer)` (0x00460ca0): the eye over
     /// `player` (`tempChar.pos`), `MoveTransfer` = `transfer`, camera 2 made
     /// active and of the following kind. `view` is the boss's place.
-    pub fn new(camera: &mut Camera, transfer: V4, player: V4) -> Self {
-        camera.change_camera(id::BATTLE);
-        camera.active_mut().kind = kind::FOLLOW;
+    pub fn new(cams: &mut CamList, scheme: Scheme, transfer: V4, player: V4) -> Self {
+        cams.change(CamId::Battle);
+        cams.active_mut().kind = kind::FOLLOW;
         // CamPos gets Rz(CamRot.z) transfer added, then is copied over
         // from tempChar.pos again; RotZ (+0xf0), the heading to the boss,
         // is never read.
@@ -121,12 +119,12 @@ impl BossCam {
             lock: false,
             init_lock: true,
             quake_flg: false,
-            quake: ee::VF0,
+            quake: VF0,
             ren_xrot: true,
             reset: 0,
             view: [0; 4],
             pos: player,
-            rot: ee::VF0,
+            rot: VF0,
             transfer,
             move_transfer: transfer,
             max_range: 0x447a_0000,
@@ -139,7 +137,7 @@ impl BossCam {
             zrot_cont: 0,
             basis_rot: 0,
             limit_rot: ONE,
-            camera_type: i32::from(matches!(camera.scheme.number, 2 | 3)),
+            camera_type: i32::from(matches!(scheme.number, 2 | 3)),
             ex_lock: 0,
             zrot_control: false,
             temp_view: [0; 4],
@@ -149,15 +147,15 @@ impl BossCam {
             trans_started: false,
             trans_saved: 0,
             lift: 0,
-            later: camera.volume != piney_data::volume::Volume::Inf,
+            later: cams.volume() != piney_data::volume::Volume::Inf,
         }
     }
 
     /// `SetMode(mode, range, 0, 0)` (MUT gcmn 0x00475ae0) with a range:
     /// `+0xd0` the range as an int, then [`BossCam::set_mode`].
-    pub fn set_mode_range(&mut self, mode: i32, range: F, camera: &mut Camera) {
-        self.trans_target = ee::to_int(range);
-        self.set_mode(mode, camera);
+    pub fn set_mode_range(&mut self, mode: i32, range: F, cams: &mut CamList) {
+        self.trans_target = geom::to_int(range);
+        self.set_mode(mode, cams);
     }
 
     /// `SetRotXLimit(v)` (MUT gcmn 0x00475a40): the pitch's share at the
@@ -171,7 +169,7 @@ impl BossCam {
     /// 3 to 6: 3 and 4 set and clear `ExLock` bit 4; 5 locks the eye and
     /// keeps it; 6 puts it back, sets camera 2 there at once and unlocks
     /// (bit 0 set and cleared). `ResetFlg` is the mode (6 then 0).
-    pub fn set_mode(&mut self, mode: i32, camera: &mut Camera) {
+    pub fn set_mode(&mut self, mode: i32, cams: &mut CamList) {
         self.reset = mode;
         match mode {
             3 => self.ex_lock |= 0x10,
@@ -188,7 +186,7 @@ impl BossCam {
                 self.lock = false;
                 self.view = self.temp_view;
                 self.pos = self.temp_pos;
-                let c = camera.cam_mut(id::BATTLE);
+                let c = cams.cam_mut(CamId::Battle);
                 c.pos = self.pos;
                 c.view = self.view;
                 self.reset = 0;
@@ -223,12 +221,12 @@ impl BossCam {
     /// and view for this frame from the pad, `player` (`tempChar.pos`) and
     /// `view_at` (the boss's `pos`), set on camera 2 (`cameraSetPos`,
     /// `cameraSetView`) with the quake added.
-    pub fn cam_main(&mut self, camera: &mut Camera, pad: &CamPad, player: V4, view_at: V4) {
+    pub fn cam_main(&mut self, cams: &mut CamList, scheme: Scheme, pad: &CamPad, player: V4, view_at: V4) {
         if !self.lock {
             self.view = view_at;
-            self.set_transfer(camera, pad);
+            self.set_transfer(scheme, pad);
             let d = self.pos_view_dirc(player, view_at);
-            self.rot = ee::apply(&rot_z(&UNIT, self.zrot_cont), self.rot);
+            self.rot = apply_matrix(&rot_matrix_z(&unit_matrix(), self.zrot_cont), self.rot);
             self.mem_dirc_z = rad2deg(d[2]);
             self.deg = rad2deg(self.rot[2]);
             self.rot[2] = self.z_rot_deg2dad(self.mem_dirc_z, self.deg);
@@ -244,23 +242,23 @@ impl BossCam {
                 let x =
                     if self.ren_xrot { mul(self.xrot, add(self.basis_rot, mul(t, self.limit_rot))) } else { self.xrot };
                 let z = self.zrot_cont;
-                let m = rot_z(&rot_z(&UNIT, self.rot[2]), z);
-                self.pos = vadd(self.pos, ee::apply(&m, self.move_transfer));
+                let m = rot_matrix_z(&rot_matrix_z(&unit_matrix(), self.rot[2]), z);
+                self.pos = vadd(self.pos, apply_matrix(&m, self.move_transfer));
                 if self.later {
                     // MUT gcmn 0x004757a4: (0, 0, lift (1 - t), 1), w then 1.
-                    let up = (f64::from(ee::f(self.lift)) * (1.0 - f64::from(ee::f(t)))) as f32;
+                    let up = (f64::from(f32::from_bits(self.lift)) * (1.0 - f64::from(f32::from_bits(t)))) as f32;
                     self.pos = vadd(self.pos, [0, 0, up.to_bits(), ONE]);
                     self.pos[3] = ONE;
                 }
-                let m = rot_z(&rot_z(&rot_x(&UNIT, x), self.rot[2]), z);
-                self.view = vadd(self.pos, ee::apply(&m, AHEAD));
+                let m: M4 = rot_matrix_z(&rot_matrix_z(&rot_matrix_x(&unit_matrix(), x), self.rot[2]), z);
+                self.view = vadd(self.pos, apply_matrix(&m, AHEAD));
             } else {
-                let m = rot_z(&UNIT, self.rot[2]);
-                self.pos = vadd(self.pos, ee::apply(&m, self.move_transfer));
-                self.view = vadd(self.pos, ee::apply(&m, AHEAD));
+                let m = rot_matrix_z(&unit_matrix(), self.rot[2]);
+                self.pos = vadd(self.pos, apply_matrix(&m, self.move_transfer));
+                self.view = vadd(self.pos, apply_matrix(&m, AHEAD));
             }
         }
-        let c = camera.cam_mut(id::BATTLE);
+        let c = cams.cam_mut(CamId::Battle);
         if self.quake_flg {
             c.pos = vadd(self.pos, self.quake);
             c.view = vadd(self.view, self.quake);
@@ -268,7 +266,7 @@ impl BossCam {
             c.pos = self.pos;
             c.view = self.view;
         }
-        self.quake = ee::VF0;
+        self.quake = VF0;
         self.quake_flg = false;
     }
 
@@ -276,16 +274,16 @@ impl BossCam {
     /// player, and (0, 0, the heading from him to the boss, 1).
     fn pos_view_dirc(&mut self, player: V4, view_at: V4) -> V4 {
         self.pos = player;
-        [0, 0, piney_battle::geom::get_dirc(self.pos, view_at), ONE]
+        [0, 0, geom::get_dirc(self.pos, view_at), ONE]
     }
 
     /// `ccBossCam::SetTransfer()` (0x00460930): the pad, or a reset easing
     /// `MoveTransfer.y` a quarter of the way to its end each frame and
     /// snapping there once within 8.
-    fn set_transfer(&mut self, camera: &Camera, pad: &CamPad) {
+    fn set_transfer(&mut self, scheme: Scheme, pad: &CamPad) {
         let y = self.move_transfer[1];
         match self.reset {
-            0 => self.pad_control(camera, pad),
+            0 => self.pad_control(scheme, pad),
             1 => {
                 let d = sub(y, self.transfer[1]);
                 self.move_transfer[1] = sub(y, div(d, FOUR));
@@ -315,24 +313,24 @@ impl BossCam {
     fn ease_to_range(&mut self) {
         if !self.trans_started {
             if self.reset == 3 {
-                let d = ee::vsub(self.pos, self.view);
-                let dy = f64::from(ee::f(d[1])).abs() as i32;
+                let d = geom::vsub(self.pos, self.view);
+                let dy = f64::from(f32::from_bits(d[1])).abs() as i32;
                 let s2 = f64::from(dy - self.trans_target).abs() as i32;
-                let off = ee::from_int(s2);
-                let near = f64::from(ee::f(self.pos[1])).abs() < f64::from(self.trans_target);
+                let off = from_int(s2);
+                let near = f64::from(f32::from_bits(self.pos[1])).abs() < f64::from(self.trans_target);
                 let y = self.move_transfer[1];
-                self.trans_target = ee::to_int(if near { add(y, off) } else { sub(y, off) });
+                self.trans_target = geom::to_int(if near { add(y, off) } else { sub(y, off) });
                 self.trans_saved = y;
             } else {
-                if !ee::eq(0, self.trans_saved) {
-                    self.trans_target = ee::to_int(self.trans_saved);
+                if !geom::eq(0, self.trans_saved) {
+                    self.trans_target = geom::to_int(self.trans_saved);
                 }
                 self.trans_saved = 0;
             }
             self.trans_started = true;
             return;
         }
-        let t = ee::from_int(self.trans_target);
+        let t = from_int(self.trans_target);
         let y = self.move_transfer[1];
         let d = if le(y, t) { sub(t, y) } else { sub(y, t) };
         self.move_transfer[1] = if le(y, t) { add(y, div(d, FOUR)) } else { sub(y, div(d, FOUR)) };
@@ -350,21 +348,21 @@ impl BossCam {
     /// down to the nearest; R2 eases in, else L2 eases out. Schemes B
     /// (2, 3): R2 adds it up to the farthest and R1 down to the nearest,
     /// the same value both; L1 eases in and L2 out. Then the turn.
-    fn pad_control(&mut self, camera: &Camera, pad: &CamPad) {
-        self.camera_type = camera.scheme.number;
+    fn pad_control(&mut self, scheme: Scheme, pad: &CamPad) {
+        self.camera_type = scheme.number;
         if (self.ex_lock >> 4) | (self.ex_lock & 1) != 0 {
             return;
         }
         let far = |s: &Self| add(s.transfer[1], s.max_range);
         let zoom_out = |s: &mut Self| {
-            s.move_transfer[1] = add(s.move_transfer[1], camera.dist_mod(pad));
+            s.move_transfer[1] = add(s.move_transfer[1], scheme.dist_mod(pad));
             let f = far(s);
             if lt(f, s.move_transfer[1]) {
                 s.move_transfer[1] = f;
             }
         };
         let zoom_in = |s: &mut Self| {
-            s.move_transfer[1] = add(s.move_transfer[1], camera.dist_mod(pad));
+            s.move_transfer[1] = add(s.move_transfer[1], scheme.dist_mod(pad));
             if !le(s.transfer[1], s.move_transfer[1]) {
                 s.move_transfer[1] = s.transfer[1];
             }
@@ -421,7 +419,7 @@ impl BossCam {
             _ => ZROT_BUTTON,
         };
         // + turns with a scheme's first type (0 or 2), - with its second.
-        let step = if f64::from(ee::f(lean)).abs() > 1.0 {
+        let step = if f64::from(f32::from_bits(lean)).abs() > 1.0 {
             Some((mul(lean, ZROT_STICK), matches!(ty, 0 | 2)))
         } else if ty > 1 {
             None
@@ -485,43 +483,45 @@ impl BossCam {
     }
 }
 
-impl Camera {
-    /// `ccBoss::OffBossCamera` (0x0045ede0) and the first part of
-    /// `BeginDeadEffect`'s camera: camera 2's eye, view and rotation
-    /// (`cameraGetRot(r, 2)`, y and w of the scratch, zero here) copied to
-    /// camera 1, then `changeCamera(1)`.
-    pub fn boss_cam_off(&mut self) {
-        let (pos, view) = (self.bcam.pos, self.bcam.view);
-        let rot = self.get_rot(id::BATTLE, [0; 4]);
-        let t = self.cam_mut(id::FIELD);
-        t.pos = pos;
-        t.view = view;
-        t.rot = rot;
-        self.change_camera(id::FIELD);
-    }
+/// `ccBoss::OffBossCamera` (0x0045ede0) and the first part of
+/// `BeginDeadEffect`'s camera: camera 2's eye, view and rotation
+/// (`cameraGetRot(r, 2)`, y and w of the scratch, zero here) copied to
+/// camera 1, then `changeCamera(1)`.
+pub fn off_boss_camera(cams: &mut CamList) {
+    let (pos, view) = (cams.cam(CamId::Battle).pos, cams.cam(CamId::Battle).view);
+    let rot = cams.get_rot(CamId::Battle, [0; 4]);
+    let t = cams.cam_mut(CamId::Field);
+    t.pos = pos;
+    t.view = view;
+    t.rot = rot;
+    cams.change(CamId::Field);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::camera::Scheme;
+    use crate::geom::k;
 
-    fn cam() -> (Camera, BossCam) {
-        let mut camera = Camera::new(piney_data::volume::Volume::Inf, [0, 0, 0, ONE], [0; 4], 3, Scheme::new(0));
-        let b = BossCam::new(&mut camera, [0, 0x447a_0000, 0x4348_0000, ONE], [0, 0, 0, ONE]);
-        (camera, b)
+    fn cam() -> (CamList, BossCam) {
+        let mut cams = CamList::default();
+        let b = BossCam::new(&mut cams, Scheme::new(0), [0, 0x447a_0000, 0x4348_0000, ONE], [0, 0, 0, ONE]);
+        (cams, b)
     }
 
     #[test]
     fn stands_behind_the_player_facing_the_boss() {
         let (mut camera, mut b) = cam();
-        assert_eq!(camera.cam_id, id::BATTLE);
+        assert_eq!(camera.id(), CamId::Battle);
         // The boss 500 below (at -y): the eye 1000 above him, 200 up.
-        let boss = [0, ee::k(-500.0), 0, ONE];
-        b.cam_main(&mut camera, &CamPad::default(), [0, 0, 0, ONE], boss);
-        let p = camera.bcam.pos;
-        assert!((ee::f(p[1]) - 1000.0).abs() < 0.01 && ee::f(p[2]) == 200.0, "{:?}", p.map(ee::f));
-        assert!(ee::f(camera.bcam.view[1]) < ee::f(p[1]));
+        let boss = [0, k(-500.0), 0, ONE];
+        b.cam_main(&mut camera, Scheme::new(0), &CamPad::default(), [0, 0, 0, ONE], boss);
+        let p = camera.cam(CamId::Battle).pos;
+        assert!(
+            (f32::from_bits(p[1]) - 1000.0).abs() < 0.01 && f32::from_bits(p[2]) == 200.0,
+            "{:?}",
+            p.map(f32::from_bits)
+        );
+        assert!(f32::from_bits(camera.cam(CamId::Battle).view[1]) < f32::from_bits(p[1]));
         assert!(!b.init_lock);
     }
 
@@ -540,13 +540,13 @@ mod tests {
     #[test]
     fn a_quake_lasts_one_frame() {
         let (mut camera, mut b) = cam();
-        let boss = [0, ee::k(-500.0), 0, ONE];
-        b.cam_main(&mut camera, &CamPad::default(), [0, 0, 0, ONE], boss);
-        let still = camera.bcam.pos;
-        b.quake([ee::k(10.0), 0, 0]);
-        b.cam_main(&mut camera, &CamPad::default(), [0, 0, 0, ONE], boss);
-        assert_eq!(camera.bcam.pos[0], ee::add(still[0], ee::k(10.0)));
-        b.cam_main(&mut camera, &CamPad::default(), [0, 0, 0, ONE], boss);
-        assert_eq!(camera.bcam.pos, still);
+        let boss = [0, k(-500.0), 0, ONE];
+        b.cam_main(&mut camera, Scheme::new(0), &CamPad::default(), [0, 0, 0, ONE], boss);
+        let still = camera.cam(CamId::Battle).pos;
+        b.quake([k(10.0), 0, 0]);
+        b.cam_main(&mut camera, Scheme::new(0), &CamPad::default(), [0, 0, 0, ONE], boss);
+        assert_eq!(camera.cam(CamId::Battle).pos[0], add(still[0], k(10.0)));
+        b.cam_main(&mut camera, Scheme::new(0), &CamPad::default(), [0, 0, 0, ONE], boss);
+        assert_eq!(camera.cam(CamId::Battle).pos, still);
     }
 }

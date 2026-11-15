@@ -15,6 +15,7 @@ pub mod ai_move;
 pub mod blocks;
 pub mod boss;
 pub mod breath;
+pub mod camera;
 pub mod chara;
 pub mod damage;
 pub mod drain;

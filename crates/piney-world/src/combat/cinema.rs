@@ -3,11 +3,13 @@
 //! with the skill's name in the top one. `OnCinemaMode(n)` starts it for a
 //! skill with a name in `_g_cinemaSkillName`; `CineMode` steps it: 2-3 the
 //! bars slide in (each gap divided by 1.5 a frame) and the name fades in by
-//! 1/15, 1 at rest, 4-5 out again. Each bar is a one-frame
+//! 1/15, 1 at rest, 4-5 out again (from Mutation on the bars holding
+//! while the name fades out by 0.1). Each bar is a one-frame
 //! `ccScFade::EntryFlash` black at alpha 0x80 (docs/engine/boss.md, "The
 //! cinema").
 
 use piney_data::anim::ee;
+use piney_data::volume::Volume;
 use piney_desktop::anm::Ctx;
 use piney_desktop::fade;
 use piney_desktop::sprite::Sprite;
@@ -22,14 +24,23 @@ pub const HEIGHT: i32 = 30;
 const BOT_Y: u32 = 0x43b1_0000;
 /// The name's transparency step, 1/15 (0x3d888889).
 const NAME_STEP: u32 = 0x3d88_8889;
+/// From Mutation on, its step going out: 0.1 (MUT gcmn 0x00480df8, OUT
+/// 0x0047c7d0, QUA 0x0036f0e0).
+const NAME_OUT_STEP: u32 = 0x3dcc_cccd;
 /// The slide: `NowCinemaData` divided by 1.5 a frame.
 const SLIDE: u32 = 0x3fc0_0000;
 /// A bar: a one-frame flash from black at alpha 0x80.
 const BAR_COLOUR: u32 = 0x8000_0000;
-/// `_g_cinemaSkillName` (gcmn 0x005eb040): 72 rows of (file, texture, row);
-/// `CinemaOn` takes 0 to 60.
-pub const SKILL_NAMES: u32 = 0x005e_b040;
-pub const SKILL_NAMES_MAX: i32 = 61;
+/// Whether `CinemaOn(n)` reads row `n` of `_g_cinemaSkillName` (INF gcmn
+/// 0x005eb040, 72 rows of file, texture, row): 0 to 60 on Infection (INF
+/// gcmn 0x0046a9c8, `slti 61`), 0 to 78 from Mutation on (MUT 0x00480648,
+/// OUT 0x0047bfd8, QUA 0x0036e8e8, `slti 79`). Rows 72-78 name a texture
+/// only in fields 9-12, and no `OnCinemaMode` call passes them (70 the
+/// largest, `ccBoss02::SkillAttack`).
+pub fn takes(volume: Volume, n: i32) -> bool {
+    let end = if volume == Volume::Inf { 61 } else { 79 };
+    (0..end).contains(&n)
+}
 
 /// `c.lt.s`, `c.le.s` on EE floats.
 fn lt(a: u32, b: u32) -> bool {
@@ -74,17 +85,13 @@ pub struct Cinema {
     pub name_tp: u32,
     pub draw_name: bool,
     pub name: Option<Name>,
-}
-
-impl Default for Cinema {
-    fn default() -> Self {
-        Cinema::new()
-    }
+    /// From Mutation on, going out the bars hold until the name is gone.
+    pub hold_out: bool,
 }
 
 impl Cinema {
-    /// The constructor's `Clear` and `Init`: at rest, no name.
-    pub fn new() -> Cinema {
+    /// The constructor's `Clear` and `Init` on `volume`: at rest, no name.
+    pub fn new(volume: Volume) -> Cinema {
         let h = ee::from_int(HEIGHT);
         Cinema {
             mode: 0,
@@ -95,6 +102,7 @@ impl Cinema {
             name_tp: 0,
             draw_name: false,
             name: None,
+            hold_out: volume != Volume::Inf,
         }
     }
 
@@ -155,6 +163,13 @@ impl Cinema {
             }
             2 | 4 => {
                 self.mode += 1;
+                out.bars = Some([self.temp_top, self.temp_bot]);
+            }
+            // From Mutation on (MUT gcmn 0x00480ddc) the name fades out
+            // first, the bars held where they were.
+            5 if self.hold_out && !le(self.name_tp, 0) => {
+                let t = ee::sub(self.name_tp, NAME_OUT_STEP);
+                self.name_tp = if le(t, 0) { 0 } else { t };
                 out.bars = Some([self.temp_top, self.temp_bot]);
             }
             3 | 5 => {
@@ -224,7 +239,7 @@ mod tests {
     /// back out and the cinema rests.
     #[test]
     fn slides_in_and_out() {
-        let mut c = Cinema::new();
+        let mut c = Cinema::new(Volume::Inf);
         c.on(None);
         let mut frames = 0;
         while c.mode != 1 {

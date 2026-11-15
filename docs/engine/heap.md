@@ -2,8 +2,8 @@
 title: The heap - ccHeap and what it leaves behind
 status: solid
 volumes: OUT, QUA
-covers: OUT SLUS_205.63:0x00100390 ccHeap::InitFirst, 0x00100500 ccHeapFree::SearchFree, 0x001005b0 ccHeapFree::AddTbl, 0x001006e0 _ccMalloc, 0x001009a0 _ccFree, 0x00100b60 ccMemReduce, 0x00100c90 ccMalloc, 0x00100cb0 ccMallocB, 0x00100cd0 ccMemalign, 0x00100ce0 ccMemalignB, 0x00100cf0 ccFree, 0x00386b80 heapTop, 0x00386b84 heapEnd, 0x00386b8c useEnd, 0x00386b90 useEndB, 0x003872d0 freeTbl; OUT gcmn.prg:0x00472e90 ccThBossEffect (its operator new); QUA gcmn.prg:0x003657a0 ccThBossEffect, 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003b2270 ccBoss08_b::ccBoss08_b's blur write, 0x003b9640 ccBoss08_c::ccBoss08_c's blur write; QUA SLUS_205.64:0x0013ab68 ccClump::Init's new(0xb0), 0x00104200 ccBltData::Init
-worklog: 432, 436, 439
+covers: OUT SLUS_205.63:0x00100390 ccHeap::InitFirst, 0x00100500 ccHeapFree::SearchFree, 0x001005b0 ccHeapFree::AddTbl, 0x001006e0 _ccMalloc, 0x001009a0 _ccFree, 0x00100b60 ccMemReduce, 0x00100c90 ccMalloc, 0x00100cb0 ccMallocB, 0x00100cd0 ccMemalign, 0x00100ce0 ccMemalignB, 0x00100cf0 ccFree, 0x00386b80 heapTop, 0x00386b84 heapEnd, 0x00386b8c useEnd, 0x00386b90 useEndB, 0x003872d0 freeTbl; OUT gcmn.prg:0x00472e90 ccThBossEffect (its operator new); QUA gcmn.prg:0x003657a0 ccThBossEffect, 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003b2270 ccBoss08_b::ccBoss08_b's blur write, 0x003b9640 ccBoss08_c::ccBoss08_c's blur write, 0x0037a4b0 ccBossEffPhantom::ccBossEffPhantom, 0x0037dca0 ccBossEffPhantomCreate, 0x003aaea0 ccBoss07::OnThinkPhantom, 0x004b2900 ccPlayerStart, 0x0057b5a0 ccSpcStart; QUA SLUS_205.64:0x0013ab68 ccClump::Init's new(0xb0), 0x00104200 ccBltData::Init, 0x00100390 ccHeap::InitFirst, 0x00160580 cameraGetRot
+worklog: 432, 436, 439, 602
 ---
 
 # The heap - ccHeap and what it leaves behind
@@ -202,6 +202,50 @@ The port has no `ccBoss08` yet. It keeps the first history's word,
 `piney_world::combat::boss::BOSS08_HEAP_EXIT` = 0: the manager's own blur
 through the first form, from the fight's first frame.
 
+## Tarvos's phantom
+
+Tarvos's `ccBossEffPhantom` (QUA gcmn 0x0037a4b0) hands the boss camera
+a view it never writes, its sp+144 (boss-tarvos.md). `_ccMalloc`'s frame
+under `operator new` in `ccBossEffPhantomCreate` (0x0037dca0) saved `$s1`
+there (`sq $s1, 16(sp)`, frame 144): OnThinkPhantom's target, `plw.pw`
+(0x003aaedc) or `SelectTarget`'s (0x003aaf2c), a party member's object.
+The view's x is that object's address as float bits; its sign word and
+`$s1`'s upper half are 0.
+
+- **The range.** `InitFirst` gives Quarantine's region 0x00670310 to
+  0x01ff3ff0 (the same on every boot). Below 0x00800000 an address is a
+  denormal, which the EE's FPU and VU0 read as 0; from there it is a
+  normal float of 2^-126 or more.
+- **It shows.** `cameraGetRot(r, 2)` (main 0x00160580), one of camera 2's
+  readers, run in eemu with random eyes and the view's x an address
+  against 0: 0 of 2,000 differ below 0x00800000, 571 of 2,000 above. An
+  eye's x above 0 minus a tiny number truncates one step toward 0.
+- **Where the party lands.** `ccPlayerStart` (gcmn 0x004b2900) and each
+  member's start (`ccSpcStart`, gcmn 0x0057b5a0) make the objects as the
+  field loads. `ee_run` with the save before event 310's fight
+  (`session::tests::tarvos::event_310_save_bytes`), town 4, then `area 7`
+  and field 7, the heap model placing every handout:
+
+| history | Kite's `ccPlayer` | BlackRose | Balmung | handouts |
+| --- | --- | --- | --- | --- |
+| both invited, save at 900 frames | 0x00dd1070 | 0x013042f0 | 0x0130ae40 | 73,174 |
+| Kite alone, 900 | 0x00dd0ea0 | - | - | 60,590 |
+| both invited, 1,440 | 0x00dd1270 | 0x01303ce0 | 0x0130a730 | 77,238 |
+
+Every one is a normal float, so 0 is not the game's view, and the view
+moves with the play as Gorre's manager does. The way into the arena was
+not varied (the story walks area 102's dungeon first).
+
+The port keeps the first history's: `piney_world::combat::boss::PARTY_VA`,
+carried as `piney_battle::chara::Env::party_va` (`ccParty.member[k]`).
+The phantom takes its target's.
+
+In the run itself, `EE_POKE` forcing act 6 in the arena reached
+`OnThinkPhantom`, but its target checks found no one (`ccCheckTarget` of
+Kite, then `SelectTarget`'s none), so no phantom was made there.
+`tools/test_battle_tarvos_rs.py`'s `test_phantom_first_view` runs the
+game's own `_ccMalloc` on `InitFirst`'s region instead.
+
 ## Checks
 
 - `ee_run` runs any volume. It finds `_start`'s `$gp`,
@@ -222,6 +266,9 @@ through the first form, from the fight's first frame.
   handout, free and cut; `EE_DUMP_FREED=size:path` the bytes of a freed
   block of that size.
 - `EE_HEAP_MODEL` checks `piney_eemu::heap::Heap` against every handout.
+- `EE_PRINT`'s `name@k` also prints the four words argument k points at;
+  `EE_POKE=vblank:addr:value:mask;...` sets a word's masked bits at a
+  vblank (a boss's act forced).
 - `heap::tests`: the first fit, the small lists' order, the top, the
   alignment and the cut, each on a fresh region.
 - `session::tests::blur`: Gorre's fight on `HEAP_EXIT` draws no blur;

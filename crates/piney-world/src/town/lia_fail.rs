@@ -249,7 +249,8 @@ mod tests {
     fn a_frame() {
         let Some(mut t) = town() else { return };
         let before = t.systems().get::<Glows>().unwrap().glows;
-        t.step(&MapView::default());
+        let cams = crate::camera::CamList::default();
+        t.step(&MapView::new(&cams, &crate::systems::NO_SCREEN));
         assert_eq!(t.frame()[0], Drawn::Piece(Kind::Sky, Piece::Clump(0)));
         assert!(t.frame().contains(&Drawn::Map));
         let glows = t.frame().iter().filter(|d| matches!(d, Drawn::Piece(Kind::Glows, _))).count();

@@ -108,16 +108,17 @@ impl MapSystem for LensFlare {
         let v = cx.view;
         self.flares = match self.def.draw {
             FlareDraw::LensFlare => {
-                let in_view = crate::chara::char::check_camera_deg(self.sun, lensflare::VIEW_DEG, &v.cam, v.player);
-                lensflare::draw(self.sun, &v.flare, v.puppet_show, in_view)
+                let in_view =
+                    crate::chara::char::check_camera_deg(self.sun, lensflare::VIEW_DEG, v.cams.active(), v.player);
+                lensflare::draw(self.sun, v.cams, v.puppet_show, in_view)
             }
-            FlareDraw::Own => (!v.puppet_show).then(|| lensflare::points(self.sun, &v.flare)),
+            FlareDraw::Own => (!v.puppet_show).then(|| lensflare::points(self.sun, v.cams)),
             FlareDraw::Field => {
                 let env = Env::of(cx);
-                let f = &v.flare;
-                check_camera_deg(f.eye, f.eye, f.view, lensflare::VIEW_DEG, &env).then(|| {
+                let a = v.cams.active();
+                check_camera_deg(a.pos, a.pos, a.view, lensflare::VIEW_DEG, &env).then(|| {
                     let sun = env.p2w(self.sun);
-                    lensflare::points(sun, f).map(|p| env.p2w(env.w2p(p)))
+                    lensflare::points(sun, v.cams).map(|p| env.p2w(env.w2p(p)))
                 })
             }
         };

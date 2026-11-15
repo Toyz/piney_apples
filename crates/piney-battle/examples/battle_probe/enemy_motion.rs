@@ -394,7 +394,7 @@ impl MotionWorld for &SWorld {
             Call::DrawSecond { matrix, alpha } => {
                 format!("[\"drawSecond\",{},{},{}]", n, flat(matrix.iter().flatten()), alpha)
             }
-            Call::Draw { matrix } => format!("[\"draw\",{},{}]", n, flat(matrix.iter().flatten())),
+            Call::Draw { matrix, .. } => format!("[\"draw\",{},{}]", n, flat(matrix.iter().flatten())),
             Call::Sound3d { id, pos } => format!("[\"se3d\",{},{}]", id, flat(pos)),
             Call::Dust { pos, size, smoke } => format!("[\"dust\",{},1,{},6,{}]", flat(pos), size, smoke),
             Call::EffDust { pos, n: k, size, life, smoke } => {

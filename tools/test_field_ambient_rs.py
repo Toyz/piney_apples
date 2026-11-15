@@ -54,7 +54,10 @@ READY = os.path.exists(ELF) and shutil.which("cargo") is not None
 # the heap everything else comes from.
 WM, GAME, SAVE, SYS, CC3D, PLAYER, WP = (0x01200000, 0x01201000, 0x01202000, 0x01210000, 0x01220000,
                                          0x01230000, 0x01231000)
-FADE, SCRATCH, CAM, DRAWENV, EVMNG = 0x01232000, 0x01240000, 0x01238000, 0x01239000, 0x0123A000
+FADE, SCRATCH, DRAWENV, EVMNG = 0x01232000, 0x01240000, 0x01239000, 0x0123A000
+# camID while a case draws: ecam's 3, so the camera a reader names by
+# camID and camera 1 are two cameras, as cameraList has them.
+ACTIVE = 3
 HEAP, HEAP_END = 0x01400000, 0x01F00000
 WORLD_SIZE = 0x61E0
 
@@ -164,13 +167,6 @@ class Game:
             m.hooks[sym(name)] = nop
         m.hooks[sym("Draw__5ccAnmFv")] = self.anm_draw
         m.hooks[sym("SetUV__7ccModelFiiP15ccMaterialChunki")] = self.lake_uv
-        # the camera, as each case sets it
-        m.hooks[sym("cameraGetPos__FPfi")] = lambda mm, a0, a1, *a: self.put(a0, self.cam_pos[a1 & 0xFFFF]) or 0
-        m.hooks[sym("cameraGetRot__FPfi")] = lambda mm, a0, a1, *a: self.put(a0, self.cam_rot) or 0
-        m.hooks[sym("cameraGetRot2__FPfi")] = lambda mm, a0, a1, *a: self.put(a0, self.cam_rot2) or 0
-        m.hooks[sym("checkCameraType__Fv")] = lambda mm, *a: self.cam_type
-        m.hooks[sym("checkCameraID__Fv")] = lambda mm, *a: 1
-        m.hooks[sym("cameraGetView__FPfi")] = lambda mm, a0, *a: self.put(a0, self.view) or 0
         m.hooks[sym("ccRand__Fv")] = self.cc_rand
         m.hooks[sym("Reset__19ccSubstSearchResultFUs")] = nop
         m.hooks[sym("GetSubstAdrs__5ccAnmFPCcP19ccSubstSearchResult")] = self.subst
@@ -367,18 +363,15 @@ class Game:
         self.cc_count = 0
         self.sun = [0, 0, 0, 0x3F800000]
         self.runners = [[0, 0, 0, 0x3F800000], [0, 0, 0, 0x3F800000]]
-        self.view = [0, 0, 0, 0x3F800000]
-        for a, n in ((SCRATCH, 0x1000), (CAM, 0x100), (DRAWENV, 0x100), (EVMNG, 0x800)):
+        for a, n in ((SCRATCH, 0x1000), (sym("tcam"), 0x70), (sym("ecam"), 0x70), (DRAWENV, 0x100), (EVMNG, 0x800)):
             m.mem[a:a + n] = bytes(n)
         m.store(SYS + 604, 4, SCRATCH)
-        m.store(sym("activeCamPtr"), 4, CAM)
+        # The cameras each case sets, read by camera.cpp's own accessors:
+        # tcam (camera 1) and, active, ecam.
+        m.store(sym("activeCamPtr"), 4, sym("ecam"))
         m.store(sym("active__9ccDrawEnv"), 4, DRAWENV)
         m.store(sym("eventMng"), 4, EVMNG)
-        m.store(sym("camID"), 2, 0)
-        self.cam_pos = {0: [0, 0, 0, 0x3F800000], 1: [0, 0, 0, 0x3F800000]}
-        self.cam_rot = [0, 0, 0, 0]
-        self.cam_rot2 = [0, 0, 0, 0]
-        self.cam_type = 0
+        m.store(sym("camID"), 2, ACTIVE)
 
     def make(self, c):
         """WORLD::Init then WORLD::Generate (SetHackFlag first, as GO)."""
@@ -443,12 +436,13 @@ class Game:
         m, sym = self.m, self.sym
         self.ops = []
         self.put(PLAYER + 0x40, f["player"])
-        self.cam_pos = {0: f["eye"], 1: f["eye1"]}
-        self.cam_rot, self.cam_rot2 = f["rot"], f["rot2"]
-        self.cam_type = 1 if f["eye_view"] else 0
-        self.view = f["view"]
-        self.put(CAM, f["eye"])
-        self.put(CAM + 0x10, f["view"])
+        tcam, ecam = sym("tcam"), sym("ecam")
+        self.put(tcam, f["eye1"])
+        self.put(tcam + 0x20, f["rot"])
+        self.put(tcam + 0x40, f["rot2"])
+        self.put(ecam, f["eye"])
+        self.put(ecam + 0x10, f["view"])
+        m.store(ecam + 0x5C, 4, 1 if f["eye_view"] else 0)
         m.store(SYS + 0x358, 4, f["odd"])
         self.put(self.w + 0x6140, f["ofs"])
         self.put(WM + 0x80, f["centre"] + [0, 0x3F800000])

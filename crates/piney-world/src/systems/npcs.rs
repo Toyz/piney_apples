@@ -15,8 +15,7 @@ use piney_data::save::{SaveData, offset};
 use piney_data::{Error, Result};
 use piney_desktop::layers::Layers;
 
-use crate::camera::Cam;
-use crate::chara::char::View;
+use crate::camera::CamList;
 use crate::chara::npc::{Core, EventClass, NpcRow};
 use crate::ee::{F, V4};
 use crate::event::talk;
@@ -36,10 +35,11 @@ pub struct NpcCtx<'a> {
     /// Kite: `plw->pos` and `plw->dirc` after his task this frame.
     pub player: V4,
     pub player_dirc: V4,
-    /// The camera after `CameraPosSet`: for `ccChar::Draw`'s fade and the
-    /// view cone.
-    pub view: View,
-    pub cam: &'a Cam,
+    /// camera.cpp's list as each NPC finds it: `ccChar::Draw`'s fade and
+    /// the view cone read the active camera at their call, a Grunty's
+    /// `changeCamera` and `cameraSetPos/View(camID)` write it at theirs,
+    /// so the NPCs after it in the list see the write.
+    pub cams: &'a mut CamList,
     /// The area's collision mesh and character list.
     pub hits: &'a mut Hits,
     /// newlib's `rand()`.
@@ -72,6 +72,9 @@ pub enum NpcEvent {
     Dog(DogEvent),
     Grunty(GruntyEvent),
     Line(Vec<u8>),
+    /// The active camera after an NPC's camera write in its `main`: the
+    /// 3D sounds after it in the frame are panned by it.
+    Ear(piney_battle::camera::Ear),
 }
 
 impl Npc {
@@ -110,7 +113,15 @@ impl Npc {
     /// state `pcs`), the dogs' `dogAction`, a Grunty's (`dogAction`,
     /// `dogAction2`, `dogActionAdult`, which read `ccRand` and Kite's
     /// heading).
-    fn affect(&mut self, cmd: i16, [a1, a2]: [i16; 2], pcs: Option<&mut TownPcs>, cc: &mut Genrand, kite_dirc: V4) {
+    fn affect(
+        &mut self,
+        cmd: i16,
+        [a1, a2]: [i16; 2],
+        pcs: Option<&mut TownPcs>,
+        cc: &mut Genrand,
+        kite_dirc: V4,
+        cams: &mut CamList,
+    ) {
         match self {
             Npc::Merchant(m) => m.influence(cmd),
             Npc::Pc(p) => {
@@ -119,7 +130,7 @@ impl Npc {
                 }
             }
             Npc::Dog(d) => d.action(cmd),
-            Npc::Grunty(g) => g.affect(cmd, a1, a2, cc, kite_dirc),
+            Npc::Grunty(g) => g.affect(cmd, a1, a2, cc, kite_dirc, cams),
         }
     }
 
@@ -165,10 +176,6 @@ pub struct Npcs {
     grunty_tables: Option<Rc<grunty::Tables>>,
     /// What the list's tasks asked since the last take, by NPC, in order.
     events: Vec<(i32, NpcEvent)>,
-    /// The Grunties' camera writes and Kite's place, for the world after
-    /// the list (each one's `main` writes them as it runs; the others'
-    /// fades this frame see the camera before them).
-    after: Vec<GruntyEvent>,
 }
 
 impl Npcs {
@@ -363,16 +370,16 @@ impl Npcs {
         }
     }
 
-    /// A Grunty's asks: its line as text, its camera writes and Kite's
-    /// place kept for after the list, the debug line dropped, the rest out
-    /// in order.
-    fn grunty_events(&mut self, id: i32, events: Vec<GruntyEvent>) {
+    /// A Grunty's asks: its line as text, the camera after a write of its
+    /// as an [`NpcEvent::Ear`], the debug line dropped, the rest out in
+    /// order; Kite's place (only the fixed camera's affect puts him) back
+    /// to the caller.
+    fn grunty_events(&mut self, id: i32, events: Vec<GruntyEvent>) -> Option<(V4, F)> {
+        let mut put = None;
         for e in events {
             match e {
-                GruntyEvent::Camera(_)
-                | GruntyEvent::CamPos(_)
-                | GruntyEvent::CamView(_)
-                | GruntyEvent::Player { .. } => self.after.push(e),
+                GruntyEvent::Player { pos, dirc_z } => put = Some((pos, dirc_z)),
+                GruntyEvent::Ear(ear) => self.events.push((id, NpcEvent::Ear(ear))),
                 GruntyEvent::Debug(_) => {}
                 GruntyEvent::Chat(k) => {
                     let text = self.grunty_tables.as_ref().and_then(|t| t.chat.get(k).cloned()).unwrap_or_default();
@@ -381,28 +388,33 @@ impl Npcs {
                 e => self.events.push((id, NpcEvent::Grunty(e))),
             }
         }
+        put
     }
 
     /// `ccChar::EntryAffect(npc, plw, cmd, a1, a2, 0)` on the NPC named `id`
-    /// ([`Npc::affect`]); what a Grunty asks is taken as from its frame.
-    pub fn affect(&mut self, id: i32, cmd: i16, args: [i16; 2], cc: &mut Genrand, kite_dirc: V4) {
-        let Some(i) = self.list.iter().position(|n| n.id() == id) else { return };
+    /// ([`Npc::affect`]), its camera writes on `cams` at the call; what a
+    /// Grunty asks is taken as from its frame, but for where it put Kite
+    /// (`plw->pos` and `plw->dirc.z`), handed back.
+    pub fn affect(
+        &mut self,
+        id: i32,
+        cmd: i16,
+        args: [i16; 2],
+        cc: &mut Genrand,
+        kite_dirc: V4,
+        cams: &mut CamList,
+    ) -> Option<(V4, F)> {
+        let i = self.list.iter().position(|n| n.id() == id)?;
         let npc = &mut self.list[i];
-        npc.affect(cmd, args, self.pcs.as_mut(), cc, kite_dirc);
-        if let Npc::Grunty(g) = npc {
-            let events = std::mem::take(&mut g.events);
-            self.grunty_events(id, events);
-        }
+        npc.affect(cmd, args, self.pcs.as_mut(), cc, kite_dirc, cams);
+        let Npc::Grunty(g) = npc else { return None };
+        let events = std::mem::take(&mut g.events);
+        self.grunty_events(id, events)
     }
 
     /// What the list asked since the last take, by NPC, in order.
     pub fn take_events(&mut self) -> Vec<(i32, NpcEvent)> {
         std::mem::take(&mut self.events)
-    }
-
-    /// The Grunties' camera writes and Kite's place since the last take.
-    pub fn take_after(&mut self) -> Vec<GruntyEvent> {
-        std::mem::take(&mut self.after)
     }
 
     /// Each one's draw in list order, as its `main` left it.

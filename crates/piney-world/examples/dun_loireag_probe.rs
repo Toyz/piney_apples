@@ -12,10 +12,8 @@ use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
 use piney_data::iso::Iso;
 use piney_data::statics::DrawPass;
-use piney_world::camera::Cam;
+use piney_world::camera::{Cam, CamList};
 use piney_world::ee::{self, V4};
-use piney_world::sky::lensflare::FlareCamera;
-use piney_world::systems::MapView;
 use piney_world::systems::clouds::Clouds;
 use piney_world::systems::flare::LensFlare;
 use piney_world::systems::scrolls::Scrolls;
@@ -23,6 +21,7 @@ use piney_world::systems::sky::Sky;
 use piney_world::systems::statics::{StaticModels, StaticObjects};
 use piney_world::systems::water::Water;
 use piney_world::systems::{Drawn, Kind, Piece};
+use piney_world::systems::{MapView, NO_SCREEN};
 use piney_world::town::dun_loireag::{CLOUD_SKY, SUN};
 use piney_world::town::{Town, water_st};
 
@@ -119,8 +118,8 @@ fn main() {
                 let puppet = n(7) != 0;
                 let (view, rot, rot2, kind) = (v4(8), v4(12), v4(16), n(20) as i32);
                 let cam = Cam { pos: eye, view, rot, rot3: rot2, kind, ..Cam::default() };
-                let flare = FlareCamera { eye, view, rot: if kind == 1 { rot2 } else { rot } };
-                let v = MapView { eye, player, cam, flare, puppet_show: puppet, ..MapView::default() };
+                let cams = CamList::new(volume, cam);
+                let v = MapView { player, puppet_show: puppet, ..MapView::new(&cams, &NO_SCREEN) };
                 t.step(&v);
                 let s = t.systems();
                 let (sky, water, clouds) =

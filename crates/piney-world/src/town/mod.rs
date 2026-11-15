@@ -818,7 +818,7 @@ impl AreaMap for Town {
     /// `ROOTTOWN0n::Draw`: its def's steps, its pieces painted, its
     /// `ccEff`s and what its steps started handed back.
     fn disp(&mut self, cx: &mut Disp) {
-        self.step(cx.view);
+        self.step(&MapView::of(cx.camera, cx.player, cx.odd));
         for r in self.requests() {
             crate::systems::paint(cx.layers, cx.to_screen, &r, &mut cx.sprites);
         }

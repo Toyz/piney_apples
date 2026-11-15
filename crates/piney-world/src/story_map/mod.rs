@@ -804,7 +804,8 @@ impl crate::area::AreaMap for StoryArea {
             self.scene(&mut x);
             cx.story = x.out;
         }
-        let sprites = self.draw(cx.layers, cx.to_screen, cx.view, cx.awake, &mut *cx.cc);
+        let v = MapView::of(cx.camera, cx.player, cx.odd);
+        let sprites = self.draw(cx.layers, cx.to_screen, &v, cx.awake, &mut *cx.cc);
         cx.sprites.extend(sprites);
     }
 

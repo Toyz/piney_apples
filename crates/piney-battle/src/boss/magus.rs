@@ -12,6 +12,7 @@ pub mod leaf;
 #[cfg(test)]
 mod tests;
 
+use crate::camera::CamId;
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::tables::combat;
@@ -1115,7 +1116,7 @@ fn on_epitaph_wave(b: &mut BossBase, x: &mut Magus, w: &mut Wave, cx: &mut Cx) {
                     cx.out(Out::Flash { t: 15, colour: 0x80e0_ffff });
                 }
                 let pos = cx.pos();
-                cx.out(Out::CameraShake { pos, s: [2, 2, 3, 2] });
+                cx.camera_shake(pos, [2, 2, 3, 2]);
                 let done = w.anm.forward();
                 w.anm.speed = 512;
                 cx.out(Out::DrawWave);
@@ -1189,9 +1190,9 @@ fn on_cast(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             let v = geom::apply_matrix(&m, [0x447a_0000, 0, 0, ONE]);
             let p = geom::vadd(v, super::w2p(cx, view));
             let eye = super::p2w(cx, p);
-            cx.out(Out::CameraChange(3));
-            cx.out(Out::CameraPos { cam: 3, pos: eye });
-            cx.out(Out::CameraView { cam: 3, view });
+            cx.cams().change(CamId::Event);
+            cx.cams().cam_mut(CamId::Event).pos = eye;
+            cx.cams().cam_mut(CamId::Event).view = view;
             b.act_proccess += 1;
         }
         1 if c == 15 => {
@@ -1215,7 +1216,7 @@ fn on_cast(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             b.entry_cmnd_target(cx);
             cx.cursor(false);
             b.unlock_player();
-            cx.out(Out::CameraChange(1));
+            cx.cams().change(CamId::Field);
             x.change_next_pattern(b, cx);
         }
         _ => {}
@@ -1489,7 +1490,7 @@ fn on_wave(b: &mut BossBase, x: &mut Magus, w: &mut Wave, cx: &mut Cx) {
                 b.skill_damage(cx, None, Some(pos), 12);
             }
             let pos = cx.pos();
-            cx.out(Out::CameraShake { pos, s: [2, 2, 3, 2] });
+            cx.camera_shake(pos, [2, 2, 3, 2]);
             w.anm.speed = 512;
             let done = w.anm.forward();
             cx.out(Out::DrawWave);
@@ -1729,7 +1730,7 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, l: &mut Laser, cx: &mut Cx) {
                 b.erase_cmnd_target(cx);
                 cx.cursor(true);
                 cx.out(Out::Cinema(Some(9)));
-                cx.out(Out::CameraChange(3));
+                cx.cams().change(CamId::Event);
                 x.cam_id = 3;
                 b.move_vector = VF0;
                 b.move_spd = 0;
@@ -1787,7 +1788,7 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, l: &mut Laser, cx: &mut Cx) {
             b.move_vector[2] = 0;
             cx.scene.chars[me].pos[2] = 0;
             x.cam_id = 1;
-            cx.out(Out::CameraChange(1));
+            cx.cams().change(CamId::Field);
             b.unlock_player();
             b.entry_cmnd_target(cx);
             cx.cursor(false);
@@ -1829,7 +1830,7 @@ fn on_rise(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
             if c == 0 {
                 x.explode_leaf_num = 0;
                 cx.out(Out::Blur(Set::Abgr(BLUR_RISE)));
-                cx.out(Out::CameraChange(3));
+                cx.cams().change(CamId::Event);
                 x.cam_id = 3;
                 b.move_vector = VF0;
                 b.move_spd = 0;
@@ -1914,7 +1915,7 @@ fn on_fall(b: &mut BossBase, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
             }
         }
         2 => {
-            cx.out(Out::CameraChange(1));
+            cx.cams().change(CamId::Field);
             x.cam_id = 1;
             b.unlock_player();
             b.entry_cmnd_target(cx);
@@ -1981,8 +1982,8 @@ fn calc_camera(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             let m = geom::trans_matrix(&m, pos);
             let e = [ee::add(pos[0], ONE), ee::add(pos[1], ONE), ee::add(pos[2], 0x44bb_8000), pos[3]];
             let eye = geom::apply_matrix(&m, e);
-            cx.out(Out::CameraPos { cam: 3, pos: eye });
-            cx.out(Out::CameraView { cam: 3, view: pos });
+            cx.cams().cam_mut(CamId::Event).pos = eye;
+            cx.cams().cam_mut(CamId::Event).view = pos;
         }
         act::FALL => {
             let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
@@ -1990,13 +1991,13 @@ fn calc_camera(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             let v = geom::apply_matrix(&m, [0x44fa_0000, 0, 0, ONE]);
             let mut eye = geom::vadd(pos, v);
             eye[2] = 0x42c8_0000;
-            cx.out(Out::CameraPos { cam: 3, pos: eye });
-            cx.out(Out::CameraView { cam: 3, view: pos });
+            cx.cams().cam_mut(CamId::Event).pos = eye;
+            cx.cams().cam_mut(CamId::Event).view = pos;
         }
         act::LASER if b.act_proccess == 0 => {
             b.dirc[2] = b.center_dirc;
             laser_eye(b, cx, pos);
-            cx.out(Out::CameraView { cam: 3, view: pos });
+            cx.cams().cam_mut(CamId::Event).view = pos;
         }
         act::LASER if b.act_proccess == 2 => {
             let frame = b.anm.frame() as u32;
@@ -2022,7 +2023,7 @@ fn calc_camera(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
                 let pos = cx.scene.chars[me].pos;
                 laser_eye(b, cx, pos);
                 let view = [pos[0], pos[1], 0x4120_0000, pos[3]];
-                cx.out(Out::CameraView { cam: 3, view });
+                cx.cams().cam_mut(CamId::Event).view = view;
                 x.cam_count = 0;
                 cx.out(Out::FlashFade { t_in: 80, t_out: 80, hold: Some(20), colour: 0x80e0_ffff });
                 x.laser_flash = 0;
@@ -2039,7 +2040,7 @@ fn calc_camera(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
                 }
                 let pos = cx.scene.chars[me].pos;
                 let z = ee::add(0x4120_0000, ee::mul(0x42c8_0000, libm::sinf(f)));
-                cx.out(Out::CameraView { cam: 3, view: [pos[0], pos[1], z, pos[3]] });
+                cx.cams().cam_mut(CamId::Event).view = [pos[0], pos[1], z, pos[3]];
             }
         }
         _ => {}
@@ -2052,7 +2053,7 @@ fn laser_eye(b: &BossBase, cx: &mut Cx, pos: V4) {
     let e = [ee::add(pos[0], 0x3dcc_cccd), ee::sub(pos[1], 0x447a_0000), 0x4248_0000, pos[3]];
     let v = geom::apply_matrix(&m, geom::vsub(e, pos));
     let eye = geom::vadd(v, pos);
-    cx.out(Out::CameraPos { cam: 3, pos: eye });
+    cx.cams().cam_mut(CamId::Event).pos = eye;
 }
 
 // --- Affect -----------------------------------------------------------------------------------

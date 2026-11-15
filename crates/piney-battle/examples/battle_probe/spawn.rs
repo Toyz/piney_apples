@@ -356,7 +356,7 @@ impl MotionWorld for ScriptWorld {
                 let m = list(matrix.iter().flatten());
                 format!("[\"drawSecond\",{},{},{}]", me, &m[1..m.len() - 1], alpha)
             }
-            Call::Draw { matrix } => {
+            Call::Draw { matrix, .. } => {
                 let m = list(matrix.iter().flatten());
                 format!("[\"draw\",{},{}]", me, &m[1..m.len() - 1])
             }
@@ -1478,7 +1478,9 @@ fn spawn_request(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> String {
                         .collect(),
                 );
             }
-            run(t_, st, &mut s, &mut out, |c, cx, seam| entry::dungeon_set_magic_circle(c, cx, seam, &mut d));
+            // SetItemBox's entry as it left it, before the slots are used.
+            let w = piney_battle::gimmick::item_box_w(&d);
+            run(t_, st, &mut s, &mut out, |c, cx, seam| entry::dungeon_set_magic_circle(c, cx, seam, &mut d, w));
             extra = format!(",\"counter\":{},\"kinds\":{}", d.counter, list(d.slots.iter().map(|x| i64::from(x.kind))));
         }
         "eventmc" => {

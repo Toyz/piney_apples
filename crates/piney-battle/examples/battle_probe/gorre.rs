@@ -11,7 +11,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::gorre;
 use piney_battle::boss::gorre::brother::Brother;
 use piney_battle::boss::gorre::{Brothers, Gorre};
-use piney_battle::boss::{Boss, BossEnv, CamView, Cx, Out};
+use piney_battle::boss::{Boss, BossEnv, Cx, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -78,12 +78,6 @@ fn v4(t: &mut Toks) -> V4 {
     std::array::from_fn(|_| t.u32())
 }
 
-/// `checkCameraShakeRange` as the harness answers it: yes but on every
-/// `m`th frame (always for 0).
-fn shake(m: i64, f: usize) -> bool {
-    !(m > 0 && f as i64 % m == 0)
-}
-
 fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
@@ -104,18 +98,14 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     cc.mti = t.i32();
     let count0 = t.u32();
     let frames = t.int() as usize;
-    let shake_mod = t.int();
     let push = (t.int() as usize, t.int() as usize);
-    let cam2 = (v4(t), v4(t));
-    let nr = t.int() as usize;
-    let rots: Vec<(usize, u32)> = (0..nr).map(|_| (t.int() as usize, t.u32())).collect();
     let ns = t.int() as usize;
     let script: Vec<(usize, i32, usize, i16)> =
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = crate::boss::ProbeBlur::read(t);
-    let fade = crate::boss::read_fade(t);
+    let (cams, post) = crate::boss::read_cams(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -125,29 +115,12 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
     let mut menu = [0i32; 6];
-    // `bossCam->MaxRenge`: the camera's own 1000 until a boss sets it.
-    let mut max_range = 0x447a_0000u32;
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let rot_at = |f: usize| rots.iter().rfind(|(k, _)| *k <= f).map_or(0, |(_, v)| *v);
-    let view_at = |f: usize, first: bool| CamView {
-        rot: [0, 0, rot_at(f), 0],
-        pos: cam2.0,
-        view: cam2.1,
-        moving: false,
-        reset: 0,
-        shake: !first && shake(shake_mod, f),
-        eye: [0; 4],
-        active: 1,
-        active_pos: [0; 4],
-        active_view: [0; 4],
-        boss_view: [0; 4],
-        fade,
-    };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let volume = crate::probe_volume();
-    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None, cams: &cams };
     let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
     let mut none = |_| None;
     let mut land = |p: V4| p[2];
@@ -164,8 +137,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         collide: &mut none,
         field: &mut piney_battle::boss::NoField,
         game_over: false,
-        boss_cam: true,
-        cam: view_at(0, true),
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
         gen_alive: &|_| true,
@@ -176,17 +147,14 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut boss = gorre::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
-    for o in &out {
-        if let Out::CamMaxRange(v) = o {
-            max_range = *v;
-        }
-    }
+    post.apply(&cams, &mut boss.base);
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
-    lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
+    let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+    lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None, cams: &cams };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
         let mut out = Vec::new();
         let brothers = boss.systems.get::<Brothers>().expect("Gorre's brothers").me;
@@ -257,8 +225,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             collide: &mut pushed,
             field: &mut piney_battle::boss::NoField,
             game_over: false,
-            boss_cam: true,
-            cam: view_at(f, false),
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -284,7 +250,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
                     }
                 }
                 Out::CursorOff(on) => menu[2] = i32::from(*on),
-                Out::CamMaxRange(v) => max_range = *v,
                 Out::StreamMenu { stream, mask } => {
                     menu[3] = 0x104a;
                     menu[4] = *mask;
@@ -293,18 +258,17 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
                 _ => {}
             }
         }
-        let outs: Vec<String> = all.iter().filter_map(|o| out_of(o, &cam2, &brothers)).collect();
-        lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
+        let outs: Vec<String> = all.iter().filter_map(|o| out_of(o, &brothers)).collect();
+        let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+        lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     }
     format!("[{}]", lines.join(","))
 }
 
-/// A call as the harness records it, `OffBossCamera`'s three (camera 2's
-/// eye and view to camera 1, then the change) as one.
-fn out_of(o: &Out, cam2: &(V4, V4), brothers: &[usize; 2]) -> Option<String> {
+/// A call as the harness records it.
+fn out_of(o: &Out, brothers: &[usize; 2]) -> Option<String> {
     let k = |who: &usize| brothers.iter().position(|b| b == who).map_or(-1, |k| k as i32);
     match o {
-        Out::BossCamOff => Some(format!("[\"campos\",1,{}],[\"camview\",1,{}],[\"cam\",1]", v3(&cam2.0), v3(&cam2.1))),
         // A brother's trail and wave: which, the anm's frame, place, turn.
         Out::AfterImageAnm { who, frame, pos, dirc, .. } => {
             Some(format!("[\"afterimage\",{},{frame},{},{}]", k(who), v3(pos), dirc[2]))
@@ -320,19 +284,10 @@ fn v3(v: &V4) -> String {
     format!("{},{},{}", v[0], v[1], v[2])
 }
 
-/// A call as the harness records it: Gorre's own camera focuses
-/// (`focus_camera`'s `CameraChange(3)`/`CameraPos`/`CameraView`), its
-/// skill casts (its own and its brothers'), else the generic fallback
-/// ([`out_json`]). `CamMaxRange` is not compared: under the stand-in
-/// `InitBossCamera` (no real `ccBossCam` built), the game's own `MaxRenge`
-/// measures 0 here, unlike Fidchell's 600 - the real mechanism setting it
-/// is not yet found.
+/// A call as the harness records it: its skill casts (its own and its
+/// brothers'), else the generic fallback ([`out_json`]).
 fn mout(o: &Out) -> Option<String> {
     Some(match o {
-        Out::CameraChange(n) => format!("[\"cam\",{n}]"),
-        Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
-        Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),
-        Out::CamMaxRange(_) => return None,
         Out::Skill(_, s) => format!("[\"skill\",{},{}]", s.sid, u8::from(s.stype == 2)),
         Out::SkillFrom { skill, .. } => format!("[\"skill\",{},{}]", skill.sid, u8::from(skill.stype == 2)),
         Out::SkillStart { sid, .. } => format!("[\"skill_start\",{sid}]"),
@@ -428,7 +383,6 @@ fn frame_json(
     rand: &Rand,
     cc: &Genrand,
     menu: &[i32; 6],
-    max_range: u32,
 ) -> String {
     let Some(brothers) = b.systems.get::<Brothers>().map(|br| br.me) else { return "{}".into() };
     // Each brother sits on its own scene character between frames (lent
@@ -459,10 +413,9 @@ fn frame_json(
     let br0 = format!("{{{},{}}}", part_json(b0, scene, brothers[0], me), brother_json(x0));
     let br1 = format!("{{{},{}}}", part_json(b1, scene, brothers[1], me), brother_json(x1));
     format!(
-        "{{{},\"maxrange\":{},\"br0\":{},\"br1\":{},\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
+        "{{{},\"br0\":{},\"br1\":{},\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
          \"menu\":[{},{},{},{},{},{}],\"listed\":[{},{},{}],\"rand\":{},\"cc\":{}}}",
         gorre,
-        max_range,
         br0,
         br1,
         effs.join(","),

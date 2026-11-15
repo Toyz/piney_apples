@@ -9,7 +9,7 @@
 
 use piney_event::host::CameraCommand;
 
-use crate::camera::{self, CamPad, Camera, DIST_DEFAULT, DIST_MAX, DIST_MIN, PITCH_DEFAULT};
+use crate::camera::{CamId, CamPad, Camera, DIST_DEFAULT, DIST_MAX, DIST_MIN, PITCH_DEFAULT};
 use crate::ee::{
     self, F, ONE, PI, V4, add, apply, cosf, deg2rad, div, eq, from_int, le, lt, mul, neg, rad2deg, sinf, sqrt, sub,
     to_int, vadd, vsub,
@@ -129,15 +129,25 @@ pub struct Input {
 
 /// The event camera: `eventMng.cam`, the task, and the camera part of
 /// `menu_ban`.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EventCam {
     pub ctrl: EvCamCtrl,
     /// `eventMng.camTscb` (+0x7b8).
     pub task: Task,
     /// `eventMng.normalCamID` (+0x7b4): the camera `menu_ban` found
     /// active, which `camera_end_reset` returns to. (`eventMng.puppetShow`
-    /// is kept by the camera, [`Camera::puppet_show`].)
-    pub normal_cam_id: i32,
+    /// is kept by the camera, [`Camera::puppet_show`].) Only `MenuBan`
+    /// writes it; `ccEvent::Init` (main 0x001a6ca0) leaves it, so before
+    /// any `menu_ban` it is 0 ([`CamId::Zero`]). Every script's
+    /// `camera_end_reset` follows a `menu_ban` (event 312's block 17 after
+    /// block 15's, in one scene), so only a harness reads that 0.
+    pub normal_cam_id: CamId,
+}
+
+impl Default for EventCam {
+    fn default() -> Self {
+        EventCam { ctrl: EvCamCtrl::default(), task: Task::default(), normal_cam_id: CamId::Zero }
+    }
 }
 
 /// The fixed 16-lane scratch `CamCtrl` works in (`ccSys+0x25c`, 0x70
@@ -407,14 +417,14 @@ impl EventCam {
             }
             // camera_end (49): back to the field camera.
             CameraCommand::End => {
-                cam.change_camera(camera::id::FIELD);
+                cam.list.change(CamId::Field);
                 cam.resetting = false;
                 self.stop();
             }
             // camera_end_reset (50): back to the camera menu_ban found,
             // tcam turned behind the player at once.
             CameraCommand::EndReset => {
-                cam.change_camera(self.normal_cam_id as i16);
+                cam.list.change(self.normal_cam_id);
                 cam.resetting = false;
                 cam.soft_reset(scene.player_dirc()[2]);
                 self.stop();
@@ -435,7 +445,7 @@ impl EventCam {
     pub fn menu_ban(&mut self, on: bool, cam: &mut Camera) {
         cam.puppet_show = on;
         if on {
-            self.normal_cam_id = i32::from(cam.cam_id);
+            self.normal_cam_id = cam.list.id();
         }
     }
 
@@ -445,7 +455,7 @@ impl EventCam {
         match self.task {
             Task::None => return,
             Task::Started => {
-                cam.change_camera(camera::id::EVENT);
+                cam.list.change(CamId::Event);
                 self.task = Task::Running;
             }
             Task::Running => {}
@@ -455,7 +465,7 @@ impl EventCam {
 
     /// `ccEvent::CamCtrl` (0x001b3680).
     pub fn cam_ctrl(&mut self, cam: &mut Camera, scene: &dyn Scene, input: &Input) {
-        let n = cam.cam_id;
+        let n = cam.list.id();
         let e = &mut self.ctrl;
         if e.vp_ctrl == 8 || e.vp_ctrl == 9 {
             let path = e.vp_ctrl == 9;
@@ -482,7 +492,7 @@ impl EventCam {
             e.vp = e.vp_target;
         }
         s.view = e.vp;
-        cam.cam_mut(n).view = s.view;
+        cam.list.cam_mut(n).view = s.view;
         // The camera's angles and distance (the jump table at 0x00356270).
         let scheme = cam.scheme;
         let pad = &input.pad;
@@ -605,11 +615,11 @@ impl EventCam {
         if e.cp_ctrl != 4 {
             let m = rot_z(&rot_x(&UNIT, e.rot[0]), e.rot[1]);
             s.pos = vadd(s.view, apply(&m, [0, e.dist, 0, ONE]));
-            cam.cam_mut(n).pos = s.pos;
+            cam.list.cam_mut(n).pos = s.pos;
         }
         e.cp = s.pos;
-        let r = cam.get_rot(n, s.rot);
-        cam.cam_mut(n).rot = r;
+        let r = cam.list.get_rot(n, s.rot);
+        cam.list.cam_mut(n).rot = r;
     }
 }
 
@@ -709,7 +719,7 @@ fn turn_stick(e: &mut EvCamCtrl, pad: &CamPad, rev_lr: bool, rev_ud: bool) {
 /// point moved (rate 0: at its target), zcam[0] the look-at point and
 /// zcam[1] the camera; the rotation from the two.
 fn camz_ctrl(e: &mut EvCamCtrl, cam: &mut Camera, path: bool) {
-    let n = cam.cam_id;
+    let n = cam.list.id();
     let step = |zc: &mut [Camz; 2], w: usize| {
         if eq(zc[w].rate, 0) {
             zc[w].now = zc[w].target;
@@ -720,14 +730,14 @@ fn camz_ctrl(e: &mut EvCamCtrl, cam: &mut Camera, path: bool) {
         }
     };
     step(&mut e.zcam, 0);
-    cam.cam_mut(n).view = e.zcam[0].now;
+    cam.list.cam_mut(n).view = e.zcam[0].now;
     e.vp = e.zcam[0].now;
     step(&mut e.zcam, 1);
     let pos = e.zcam[1].now;
-    cam.cam_mut(n).pos = pos;
+    cam.list.cam_mut(n).pos = pos;
     e.cp = pos;
-    let r = cam.get_rot(n, pos);
-    cam.cam_mut(n).rot = r;
+    let r = cam.list.get_rot(n, pos);
+    cam.list.cam_mut(n).rot = r;
 }
 
 /// `ccEvent::CamzMovMain` (0x001b48e0): one frame along the curve.
@@ -983,11 +993,11 @@ mod tests {
         let mut ev = EventCam::new();
         let scene = One([0x4200_0000, 0x45b0_0000, 0x4416_0000, ONE]);
         ev.command(CameraCommand::ZSet { v: [-2, 574, 102], c: [-3, 537, 68] }, &mut cam, &scene);
-        assert_eq!((ev.task, cam.cam_id), (Task::Started, camera::id::FIELD));
+        assert_eq!((ev.task, cam.list.id()), (Task::Started, CamId::Field));
         ev.frame(&mut cam, &scene, &Input::default());
-        assert_eq!((ev.task, cam.cam_id), (Task::Running, camera::id::EVENT));
-        assert_eq!(cam.ecam.view, [k(-20.0), k(5740.0), k(1020.0), ONE]);
-        assert_eq!(cam.ecam.pos, [k(-30.0), k(5370.0), k(680.0), ONE]);
+        assert_eq!((ev.task, cam.list.id()), (Task::Running, CamId::Event));
+        assert_eq!(cam.list.cam(CamId::Event).view, [k(-20.0), k(5740.0), k(1020.0), ONE]);
+        assert_eq!(cam.list.cam(CamId::Event).pos, [k(-30.0), k(5370.0), k(680.0), ONE]);
         ev.command(
             CameraCommand::Char { ty: 2, code: 2, height: 10, rotx: 1024, roty: -30720, dist: 40 },
             &mut cam,
@@ -997,6 +1007,6 @@ mod tests {
         assert_eq!(ev.ctrl.vp, [0x4200_0000, 0x45b0_0000, add(0x4416_0000, k(100.0)), ONE]);
         assert_eq!(ev.ctrl.dist, k(400.0));
         ev.command(CameraCommand::End, &mut cam, &scene);
-        assert_eq!((ev.task, cam.cam_id), (Task::None, camera::id::FIELD));
+        assert_eq!((ev.task, cam.list.id()), (Task::None, CamId::Field));
     }
 }

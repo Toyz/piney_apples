@@ -54,7 +54,7 @@ struct Probe {
     rand: Rand,
     player: V4,
     camera: Camera,
-    cam_id: i16,
+    cam_id: piney_battle::camera::CamId,
     cam_type: i32,
     chars: HashMap<CharRef, Char>,
 }
@@ -65,7 +65,7 @@ impl Probe {
             rand: Rand(seed),
             player: [0, 0, 0, ONE],
             camera: Camera::default(),
-            cam_id: 0,
+            cam_id: piney_battle::camera::CamId::Field,
             cam_type: 0,
             chars: HashMap::new(),
         }
@@ -110,7 +110,7 @@ impl Host for Probe {
     fn condition_icon_num(&self, c: CharRef) -> i32 {
         self.get(c).icons
     }
-    fn camera_id(&self) -> i16 {
+    fn camera_id(&self) -> piney_battle::camera::CamId {
         self.cam_id
     }
     fn camera_type(&self) -> i32 {
@@ -581,7 +581,7 @@ fn main() {
                 println!("{{}}");
             }
             "camid" => {
-                host.cam_id = n(1) as i16;
+                host.cam_id = piney_battle::camera::CamId::from_raw(n(1) as i32).expect("camID 0-3");
                 host.cam_type = n(2) as i32;
                 println!("{{}}");
             }

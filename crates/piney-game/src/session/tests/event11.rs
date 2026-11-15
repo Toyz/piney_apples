@@ -148,7 +148,7 @@ fn player(w: &AreaMode, f: u64) -> Raw {
     let Some((gate, _)) = world.char_place(CharId::Object(16)) else { return still(Buttons::NONE) };
     let g = gate.map(f32::from_bits);
     let p = world.kite().pos().map(f32::from_bits);
-    let cam_z = f32::from_bits(world.camera().rot()[2]);
+    let cam_z = f32::from_bits(world.camera().list.rot()[2]);
     stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1])))
 }
 
@@ -317,7 +317,7 @@ fn field_player(a: &crate::area::AreaMode, f: u64, goal: [f32; 2]) -> Raw {
     if dx * dx + dy * dy < 60.0 * 60.0 {
         return still(Buttons::NONE);
     }
-    stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+    stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
 }
 
 /// Event 11 from the join through the holy ground and the church: its

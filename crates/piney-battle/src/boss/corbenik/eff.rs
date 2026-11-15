@@ -84,8 +84,8 @@ impl Wave {
         });
         if self.anm.frame() == 8 {
             b.skill_damage(cx, None, Some(self.pos), 27);
-            if cx.boss_cam {
-                cx.out(Out::Quake([0x420c_0000, 0x41c8_0000, 0x4248_0000]));
+            if b.cam.is_some() {
+                b.with_cam(|c| c.quake([0x420c_0000, 0x41c8_0000, 0x4248_0000]));
             }
         }
         !ended

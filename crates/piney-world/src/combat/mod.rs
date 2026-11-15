@@ -11,6 +11,9 @@ pub mod boss;
 pub mod breath;
 pub mod cast;
 pub mod chat;
+/// The boss effect manager's black bars and skill name, its fight's.
+#[doc(alias = "ccBossEffCinemaFade")]
+pub mod cinema;
 pub mod dust;
 pub mod gate_out;
 pub mod lights;
@@ -54,7 +57,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::hit::Hits;
 
 pub use cast::{Actor, Cast, Look, Looks};
-pub use stage::{Show, Stage};
+pub use stage::{Show, Stage, heard};
 
 /// What the battle's code reads from the disc: the rule tables, Kite's
 /// and the members' clips, the entry control's tables, the enemies'
@@ -1171,6 +1174,7 @@ impl Combat {
             chats: Vec::new(),
             manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
+            effect_sw: x.effect_sw,
         };
         // The entry control's context over the stage, made again around
         // each NPC entry, whose class takes the character list itself.
@@ -1206,9 +1210,12 @@ impl Combat {
             }
             let mut rng = d.rng;
             if let Some(mut g) = d.gims {
+                // What SetItemBox leaves in its entry, a story circle's w
+                // from Outbreak on.
+                let box_w = piney_battle::gimmick::item_box_w(&g);
                 piney_battle::gimmick::set_item_box(&mut self.ctrl, &mut cx, &mut seam, &mut g, &mut |n| rng.below(n));
                 if entry::dungeon_places_portals(cx.st.volume, game.field) {
-                    entry::dungeon_set_magic_circle(&mut self.ctrl, &mut cx, &mut seam, &mut g);
+                    entry::dungeon_set_magic_circle(&mut self.ctrl, &mut cx, &mut seam, &mut g, box_w);
                 }
                 piney_battle::gimmick::set_idol(&mut self.ctrl, &mut cx, &mut seam, &mut g);
             }
@@ -1376,6 +1383,7 @@ impl Combat {
             chats: Vec::new(),
             manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
+            effect_sw: x.effect_sw,
         };
         let mut cx = entry::Cx {
             t: &d.t,
@@ -1502,8 +1510,14 @@ impl Combat {
     /// ends the slot before [`Combat::frame_from_entry`].
     pub fn frame_to_entry(&mut self, x: &mut Tasks) -> Option<EntryDone> {
         let kite_i = self.kite?;
+        // The listener as the battle's tasks start (after cameraMain, 40).
+        self.shows.push(Show::Ear(x.camera.list.ear()));
         self.cond_fx_shown = x.effect_sw;
-        self.eye_view = x.camera.tcam.kind == crate::camera::kind::EYE;
+        // Only Kite's DispConditionEffect reads the type (a party character
+        // of base id 0: checkCameraType() at gcmn 0x0056f9f0), from his
+        // CalcReal at 49, before his frame's camera writes: the active
+        // camera's as the tasks start.
+        self.eye_view = x.camera.list.kind() == crate::camera::kind::EYE;
         self.load_records(x.save);
         let d = self.data.clone();
         let t = &d.t;
@@ -1532,6 +1546,8 @@ impl Combat {
             menu_type: x.menu_type,
             sp_regene_speed: false,
             area,
+            pad: x.pad,
+            party_va: boss::PARTY_VA,
         };
         self.env = env;
         let annihilated = self.annihilated();
@@ -1585,6 +1601,7 @@ impl Combat {
             chats: Vec::new(),
             manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
+            effect_sw: x.effect_sw,
         };
         // SetPathFindingMap: the room's window of the 2D map into buf.
         if x.path_map {
@@ -2102,25 +2119,17 @@ impl Combat {
             };
             // The events of the boss's hits (ccBossSkillDamage's EntryAffect
             // on a member): consequence shows them, once.
-            for e in self.boss_frame(&env, world, &chk, x.hits, x.camera, &x.pad) {
+            for e in self.boss_frame(&env, world, &chk, x.hits, x.camera) {
                 self.consequence(e, x.hits, bounds, x.puppet_show);
             }
+            // The camera as the boss's task (its CamMain) left it, for the
+            // sounds of the tasks after it.
+            self.shows.push(Show::Ear(x.camera.list.ear()));
             self.drain_chats(t, x.save, &party, &ents);
             self.fx_call(x, bounds, |fx, w| fx.boss_shows(w), fx, None);
         }
-        // ccChar::Draw of each enemy dispEnemy placed: its fog blend and
-        // transparency (the affect flash moves on as it draws).
-        let fcam = crate::chara::foe::Camera {
-            player: self.scene.chars[kite_i].pos,
-            cam: x.camera.active().pos,
-            deg1: x.camera.active().deg[1],
-            eye: x.camera.tcam.kind == crate::camera::kind::EYE,
-            bounds: [bounds.min[0], bounds.min[1], bounds.max[0], bounds.max[1]],
-            town: false,
-            volume: x.camera.volume,
-        };
+        // The enemies' ccChar::Draw ran in dispEnemy, at the entry walk.
         for (&who, a) in self.cast.actors.iter_mut() {
-            a.how = None;
             // ccBoss::Draw (gcmn 0x0045d4b0): ccChar::Draw's blend (a hit's
             // flash, the conditions' colours), but none while the boss is
             // off the command lists (m_bEraseTarget, its `dead` 1).
@@ -2139,13 +2148,7 @@ impl Combat {
                     blend = f;
                 }
                 a.ch.blend = blend.fog();
-                continue;
             }
-            if !matches!(a.look, Look::Enemy(_)) || a.matrix.is_none() {
-                continue;
-            }
-            let st = self.foes.get(who).and_then(Option::as_ref).map_or(ONE, |f| f.set_transparency);
-            a.how = Some(crate::chara::foe::char_draw(&mut self.scene.chars[who], st, true, x.effect_sw, 0, &fcam));
         }
         for level in exps {
             for g in exp::exp_distributor(t, &mut self.scene, &party, x.save, level, x.count) {
@@ -2648,6 +2651,7 @@ impl Combat {
             chats: Vec::new(),
             manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
+            effect_sw: self.cond_fx_shown,
         };
         let mut out = Vec::new();
         let mut p = EvParty {
@@ -2725,6 +2729,7 @@ impl Combat {
             chats: Vec::new(),
             manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
+            effect_sw: self.cond_fx_shown,
         };
         let mut ctx = party_ai::Ctx {
             t,
@@ -2805,8 +2810,16 @@ impl Combat {
 
     /// `EntryAffect(on, by, kind, 0, 0, 0)` as the menus and the events
     /// call it, with what it leads to.
-    pub fn entry_affect(&mut self, on: usize, by: Option<usize>, kind: i16, hits: &mut Hits, bounds: MapBounds) {
-        self.entry_affect_with(on, by, kind, [0; 3], hits, bounds);
+    pub fn entry_affect(
+        &mut self,
+        on: usize,
+        by: Option<usize>,
+        kind: i16,
+        hits: &mut Hits,
+        bounds: MapBounds,
+        camera: &mut Camera,
+    ) {
+        self.entry_affect_with(on, by, kind, [0; 3], hits, bounds, camera);
     }
 
     /// `EntryAffect` from outside the frame (the menus, the scripts), with
@@ -2826,14 +2839,17 @@ impl Combat {
         bounds: MapBounds,
         save: &mut piney_data::save::SaveData,
         ents: &[usize],
+        camera: &mut Camera,
     ) {
-        self.entry_affect_with(on, by, kind, p, hits, bounds);
+        self.entry_affect_with(on, by, kind, p, hits, bounds, camera);
         let d = self.data.clone();
         let party = self.party;
         self.drain_chats(&d.t, save, &party, ents);
     }
 
-    /// `EntryAffect(on, by, kind, p0, p1, p2)`, with what it leads to.
+    /// `EntryAffect(on, by, kind, p0, p1, p2)`, with what it leads to; a
+    /// boss's `Affect` reaches camera.cpp (`camera`).
+    #[allow(clippy::too_many_arguments)]
     pub fn entry_affect_with(
         &mut self,
         on: usize,
@@ -2842,6 +2858,7 @@ impl Combat {
         p: [i16; 3],
         hits: &mut Hits,
         bounds: MapBounds,
+        camera: &mut Camera,
     ) {
         let d = self.data.clone();
         let party = self.party;
@@ -2852,16 +2869,19 @@ impl Combat {
         let clips = self.boss.as_ref().filter(|r| !r.exit).map(|r| r.clips.clone());
         let clip = |name: &str| clips.as_ref().and_then(|c| c.get(name).copied());
         let cc = RefCell::new(std::mem::take(&mut self.cc));
+        let cams = boss::take_cams(camera);
         let benv = clips.is_some().then(|| piney_battle::boss::BossEnv {
             t: &d.t,
             clips: &clip,
             env: &self.env,
             game_over: false,
             cc: Some(&cc),
+            cams: &cams,
         });
         let aff = AffectCtx { party: &party, menu: true, skill_check: &chk, boss: benv.as_ref(), volume: d.volume };
         let mut ev = Events::new();
         affect::entry_affect(&d.t, &mut self.scene, &aff, on, by, kind, p, &mut self.rand, &mut ev);
+        boss::put_cams(camera, cams);
         self.cc = cc.into_inner();
         for e in ev {
             self.consequence(e, hits, bounds, false);

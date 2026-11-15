@@ -233,7 +233,7 @@ impl Walker {
             match (c.kite, w.area().kind()) {
                 (Some(k), MapKind::Dungeon(d)) if playing && banned != Some(true) && a.ui().menu_type() == -1 => {
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
-                    let cam_z = f32::from_bits(w.camera().rot()[2]);
+                    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                     let toward = |q: [f32; 2]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
                     let here = d.here(c.scene.chars[k].pos);
@@ -1004,7 +1004,7 @@ fn event_17_walks_kite_to_the_portal() {
                 match (played.contains(&(17, 13)) && free, marker, w.combat().kite) {
                     (true, Some(m), Some(k)) => {
                         let p = w.combat().scene.chars[k].pos.map(f32::from_bits);
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, (m[0] - p[0]).atan2(-(m[1] - p[1])))
                     }
                     _ => story_player(&s, f),
@@ -1066,7 +1066,7 @@ fn event_17_talks_to_the_administrator() {
                         } else {
                             let p = c.scene.chars[k].pos.map(f32::from_bits);
                             let q = m.map(f32::from_bits);
-                            let cam_z = f32::from_bits(w.camera().rot()[2]);
+                            let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                             stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                         }
                     }
@@ -1290,7 +1290,7 @@ fn target_cursor_shot() {
                     (true, Some(m), Some(k)) if !aimed => {
                         let p = c.scene.chars[k].pos.map(f32::from_bits);
                         let q = m.map(f32::from_bits);
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                     }
                     (true, Some(_), Some(_)) => {
@@ -1472,7 +1472,7 @@ fn open_an_object(as_obj: Option<AsObject>, rand: ObjRand, mut each: impl FnMut(
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     match near.map(|g| c.scene.chars[g].pos.map(f32::from_bits)) {
                         Some(q) if (q[0] - p[0]).hypot(q[1] - p[1]) > 90.0 => {
-                            let cam_z = f32::from_bits(w.camera().rot()[2]);
+                            let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                             stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                         }
                         Some(_) => {
@@ -1611,7 +1611,7 @@ fn a_grunty_food_is_picked_up() {
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let q = c.scene.chars[who].pos.map(f32::from_bits);
                     if (q[0] - p[0]).hypot(q[1] - p[1]) > 90.0 {
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                     } else if f.is_multiple_of(8) {
                         Raw { buttons: Buttons::CROSS, ..still }

@@ -9,7 +9,7 @@ use piney_data::Result;
 use piney_data::classes::StoryMapGameClass;
 use piney_data::statics::DrawPass;
 
-use crate::camera::{Camera, id};
+use crate::camera::{CamId, Camera};
 use crate::ee::{self, F, ONE, V4};
 use crate::story_map::{BASE_BLOCK, BASE_STORY_MAP, BlockDef, LightsDef, Start, StoryMapDef, layer};
 use crate::story_map::{StoryFrame, StoryRequest};
@@ -72,12 +72,12 @@ impl FlyOver {
     /// `cameraSetRot`, on the active camera (the scratch `GetRot` reads is
     /// unset in the game; 0 here).
     fn aim(camera: &mut Camera, view: V4, pos: V4) {
-        let n = camera.cam_id;
-        let c = camera.cam_mut(n);
+        let n = camera.list.id();
+        let c = camera.list.cam_mut(n);
         c.view = view;
         c.pos = pos;
-        let rot = camera.get_rot(n, [0; 4]);
-        camera.cam_mut(n).rot = rot;
+        let rot = camera.list.get_rot(n, [0; 4]);
+        camera.list.cam_mut(n).rot = rot;
     }
 }
 
@@ -91,7 +91,7 @@ impl MapSystem for FlyOver {
             return;
         }
         if self.cnt == 0 {
-            x.camera.change_camera(id::EVENT);
+            x.camera.list.change(CamId::Event);
             Self::aim(x.camera, VIEW0, POS0);
             x.out.push(StoryRequest::MenuBan(true));
         }
@@ -113,7 +113,7 @@ impl MapSystem for FlyOver {
         }
         if self.cnt == SPEAKS + 1 && x.message_closed {
             x.out.push(StoryRequest::MenuBan(false));
-            x.camera.change_camera(id::FIELD);
+            x.camera.list.change(CamId::Field);
             x.out.push(StoryRequest::ChangeArea(crate::area::kind::TOWN, 1));
             self.cnt += 1;
         }
@@ -166,7 +166,14 @@ mod tests {
         // Draw: both pass-0 models go out on objLayer.
         let mut layers = piney_desktop::layers::Layers::default();
         let mut cc = piney_battle::rand::Genrand::default();
-        a.draw(&mut layers, glam::Mat4::IDENTITY, &crate::systems::MapView::default(), true, &mut cc);
+        let cams = crate::camera::CamList::default();
+        a.draw(
+            &mut layers,
+            glam::Mat4::IDENTITY,
+            &crate::systems::MapView::new(&cams, &crate::systems::NO_SCREEN),
+            true,
+            &mut cc,
+        );
         assert!(!layers.flatten().is_empty(), "nothing drawn");
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 + 4;
         save.set_i32(at, MARK_BIT as i32);

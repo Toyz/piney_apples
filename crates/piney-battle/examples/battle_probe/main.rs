@@ -206,6 +206,7 @@ pub(crate) fn read_env(t: &mut Toks) -> Env {
         menu_type: t.i32(),
         sp_regene_speed: t.int() != 0,
         area: t.i32(),
+        ..Env::default()
     }
 }
 

@@ -13,7 +13,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::first::First;
 use piney_battle::boss::corbenik::seed::Seed;
 use piney_battle::boss::corbenik::{self, Gen, Pic};
-use piney_battle::boss::{Boss, BossEnv, CamView, Cx, EffKind, FxCall, Out};
+use piney_battle::boss::{Boss, BossEnv, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -117,110 +117,6 @@ impl piney_battle::boss::Field for Plane {
     }
 }
 
-/// The cameras as the harness keeps them: each one's eye and view as set,
-/// `camID`, the active camera's `type` as written, and the boss camera.
-#[derive(Default)]
-pub(crate) struct Cams {
-    pub(crate) set: std::collections::HashMap<i32, (V4, V4)>,
-    pub(crate) id: i32,
-    pub(crate) ty: i32,
-    pub(crate) boss: BossCam,
-    /// `ccBoss::Draw`'s camera fade, as the harness's active camera has it.
-    pub(crate) fade: Option<piney_battle::boss::CamFade>,
-}
-
-/// The harness's zeroed `ccBossCam` as `SetMode`, `SetFreeCamPosView` and
-/// the form's straight writes leave it: `lock`, `ResetFlg`, `ExLock`, its
-/// view (+0x10) and eye (+0x20), and the kept ones (+0x40, +0x50).
-#[derive(Default)]
-pub(crate) struct BossCam {
-    lock: bool,
-    reset: i32,
-    ex_lock: u8,
-    view: V4,
-    pos: V4,
-    keep_view: V4,
-    keep_pos: V4,
-}
-
-impl BossCam {
-    pub(crate) fn json(&self) -> String {
-        format!(
-            "[{},{},{},{},{},{},{}]",
-            u8::from(self.lock),
-            self.reset,
-            self.ex_lock,
-            v3(&self.view),
-            v3(&self.pos),
-            v3(&self.keep_view),
-            v3(&self.keep_pos)
-        )
-    }
-}
-
-impl Cams {
-    pub(crate) fn get(&self, n: i32) -> (V4, V4) {
-        self.set.get(&n).copied().unwrap_or(([0, 0, 0, 0x3f80_0000], [0, 0, 0, 0x3f80_0000]))
-    }
-
-    pub(crate) fn view(&self) -> CamView {
-        let (pos, view) = self.get(self.id);
-        let (p2, v2) = self.get(2);
-        let b = &self.boss;
-        CamView {
-            pos: p2,
-            view: v2,
-            active: self.id,
-            active_pos: pos,
-            active_view: view,
-            reset: b.reset,
-            eye: b.pos,
-            boss_view: b.view,
-            // checkCameraType(): the type as last written.
-            fade: self.fade.map(|f| piney_battle::boss::CamFade { eye_view: self.ty == 1, ..f }),
-            ..CamView::default()
-        }
-    }
-
-    pub(crate) fn apply(&mut self, out: &[Out]) {
-        for o in out {
-            let b = &mut self.boss;
-            match o {
-                Out::CameraChange(n) => self.id = *n,
-                Out::CameraPos { cam, pos } => self.set.entry(*cam).or_insert(([0; 4], [0; 4])).0 = *pos,
-                Out::CameraView { cam, view } => self.set.entry(*cam).or_insert(([0; 4], [0; 4])).1 = *view,
-                Out::CameraType(t) => self.ty = *t,
-                Out::CamMode { mode } => {
-                    b.reset = *mode;
-                    match mode {
-                        3 => b.ex_lock |= 0x10,
-                        4 => b.ex_lock &= 1,
-                        5 => {
-                            b.ex_lock |= 1;
-                            b.lock = true;
-                            (b.keep_view, b.keep_pos) = (b.view, b.pos);
-                        }
-                        6 => {
-                            b.ex_lock &= 0x10;
-                            b.lock = false;
-                            (b.view, b.pos) = (b.keep_view, b.keep_pos);
-                            self.set.insert(2, (b.pos, b.view));
-                            b.reset = 0;
-                        }
-                        8 | 10 => b.reset = 0,
-                        _ => {}
-                    }
-                }
-                Out::FreeCam { pos, view } if b.reset == 5 => (b.pos, b.view) = (*pos, *view),
-                Out::CamEye(p) => b.pos = *p,
-                Out::CamLook(v) => b.view = *v,
-                Out::CamLock(on) => b.lock = *on,
-                _ => {}
-            }
-        }
-    }
-}
-
 fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
@@ -242,14 +138,13 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let count0 = t.u32();
     let frames = t.int() as usize;
     let hole = f32::from_bits(t.u32());
-    let cam2 = (v4(t), v4(t));
     let ns = t.int() as usize;
     let script: Vec<(usize, i32, usize, i16)> =
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = crate::boss::ProbeBlur::read(t);
-    let fade = crate::boss::read_fade(t);
+    let (cams, post) = crate::boss::read_cams(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -261,17 +156,10 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut menu = [0i32; 7];
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let mut cams = Cams {
-        set: [(2, cam2)].into_iter().collect(),
-        id: 1,
-        ty: fade.map_or(0, |f| i32::from(f.eye_view)),
-        fade,
-        ..Cams::default()
-    };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let volume = crate::probe_volume();
-    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None, cams: &cams };
     let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
     let mut none = |_| None;
     let mut land = |p: V4| p[2];
@@ -289,8 +177,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         collide: &mut none,
         field: &mut plane,
         game_over: false,
-        boss_cam: false,
-        cam: cams.view(),
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
         gen_alive: &|_| true,
@@ -301,13 +187,14 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut boss = corbenik::first::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
-    cams.apply(&out);
+    post.apply(&cams, &mut boss.base);
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
-    lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, cams.ty), &blur));
+    let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+    lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None, cams: &cams };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let seeds = seed_chars(&scene, me);
@@ -378,8 +265,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             collide: &mut none,
             field: &mut plane,
             game_over: false,
-            boss_cam: false,
-            cam: cams.view(),
             land: &mut land,
             disc: piney_battle::boss::DiscView { blur_exit: blur.blur.exit, ..Default::default() },
             gen_alive: &|_| true,
@@ -391,7 +276,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         all.extend(std::mem::take(&mut cx.out));
         drop(cx);
         blur.apply(&all[pre..]);
-        cams.apply(&all);
         for o in &all {
             match o {
                 Out::MenuForbid { on, chat_except } => {
@@ -416,7 +300,8 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             }
         }
         let outs: Vec<String> = all.iter().filter_map(mout).collect();
-        lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, cams.ty), &blur));
+        let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+        lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     }
     format!("[{}]", lines.join(","))
 }
@@ -461,15 +346,9 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
         Out::Picture(_) | Out::Fog { .. } => return None,
         Out::AfterImageAnm { .. } => "[\"afterimage_anm\"]".into(),
         Out::EntryFade { t, from, to } => format!("[\"fade\",{t},{from},{to}]"),
-        Out::CameraChange(n) => format!("[\"cam\",{n}]"),
-        Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
-        Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),
         Out::CinemaSkill(sid) => format!("[\"cinema_skill\",{sid}]"),
-        Out::CamMode { mode } => format!("[\"cammode\",{mode}]"),
         Out::SeNote { se, note } => format!("[\"senote\",{se},{note}]"),
-        Out::FreeCam { pos, view } => format!("[\"freecam\",{},{}]", v3(pos), v3(view)),
         Out::AfterImageWith(p) => format!("[\"afterimage\",{},{}]", p.color, p.trans_spd),
-        Out::CamEye(_) | Out::CamLook(_) | Out::CamLock(_) | Out::CameraRot { .. } => return None,
         Out::FlashFade { t_in, t_out, hold, colour } => {
             format!("[\"flash3\",{t_in},{t_out},{},{colour}]", hold.unwrap_or(-1))
         }
@@ -587,7 +466,6 @@ fn frame_json(
     rand: &Rand,
     cc: &Genrand,
     menu: &[i32; 7],
-    cam_type: i32,
 ) -> String {
     let Some(x) = b.systems.get::<First>() else { return "{}".into() };
     let ch = &scene.chars[me];
@@ -608,7 +486,7 @@ fn frame_json(
     format!(
         "{{\"act\":[{},{},{}],\"move\":[{},{},{}],\"tgt\":[{},{},{},{}],\"pos\":[{}],\"posp\":[{}],\"dirc\":[{}],\
          \"hp\":[{},{}],\"flags\":[{},{},{},{},{},{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\
-         \"anm\":[\"{}\",{},{}],\"first\":[{}],\"seeds\":[{}],\"cam\":[{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
+         \"anm\":[\"{}\",{},{}],\"first\":[{}],\"seeds\":[{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
          \"menu\":[{},{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.base.act_num,
         b.base.act_proccess,
@@ -645,7 +523,6 @@ fn frame_json(
         b.base.anm.speed,
         first_json(b, x),
         seeds.join(","),
-        cam_type,
         effs.join(","),
         party.join(","),
         outs.join(","),

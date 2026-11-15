@@ -107,7 +107,8 @@ mod tests {
     #[test]
     fn a_frame() {
         let Some(mut t) = town() else { return };
-        t.step(&MapView::default());
+        let cams = crate::camera::CamList::default();
+        t.step(&MapView::new(&cams, &crate::systems::NO_SCREEN));
         let clump = |k: usize| Drawn::Piece(Kind::Sky, Piece::Clump(k));
         let model = |row: usize| Drawn::Piece(Kind::Models, Piece::Model(row));
         assert_eq!(t.frame(), [clump(0), clump(1), clump(2), clump(3), clump(4), model(2), model(1), model(0)]);

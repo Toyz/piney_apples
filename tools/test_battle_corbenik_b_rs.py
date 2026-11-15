@@ -15,13 +15,12 @@ frame: the acts, movement, place, target, HP, flags, clips, the form's own
 members (stage, effects, barrier, its counts, the press's and root drain's
 places, the random drive's), the roots, the elements and the press's
 images, the effects' slots, the party, the calls, the menu, the blur,
-newlib's rand() and ccRand's index.
+camID, the three cameras, the shake's slots and the boss camera, newlib's
+rand() and ccRand's index.
 
 What is not the game's here (beyond the first form's harness):
-- The boss camera is a ccBossCam zeroed at InitBossCamera; SetMode and
-  SetFreeCamPosView do to it what the game's do (mode 6's camera 2 is
-  set silently), QuakeCam runs, CamMain does not (the battle's, not the
-  boss's).
+- The boss camera is the game's (InitBossCamera, SetMode,
+  SetFreeCamPosView, QuakeCam and CamMain run natively).
 - A particle generator lives the case's `gen_life` frames
   (ccCheckParticleGenerator answers by when it was made).
 - The WaveShock and the rings are stand-ins with the port's lives; the
@@ -52,9 +51,8 @@ BOSS = 0x01800000               # the ccBoss08_b (0xfa5e0 bytes, its roots insid
 BOSS_SIZE = 0xFA5E0
 ROOT0, ROOT_SIZE = 0x294C0, 0x29360
 ELEM0, AI0, ELEM_SIZE = 0xF75B0, 0xF8DB0, 0x180
-CAM = 0x01AC2000                # the boss camera (a zeroed ccBossCam)
 DENV = 0x01AC3000               # ccDrawEnv::active's stand-in
-FAKE, MGR, STAGE, WM, ACAM, FONT, HEAP = cb.FAKE, cb.MGR, cb.STAGE, cb.WM, cb.ACAM, cb.FONT, cb.HEAP
+FAKE, MGR, STAGE, WM, FONT, HEAP = cb.FAKE, cb.MGR, cb.STAGE, cb.WM, cb.FONT, cb.HEAP
 PLW, PARTY, MENU = cb.PLW, cb.PARTY, cb.MENU
 
 WAVE, RING = 0, 3
@@ -98,24 +96,7 @@ class Game(cb.Game):
                      "SetFogBlend__9ccDrawEnvFfUi"):
             hook(name, nop)
 
-        def init_cam(mm, a, *_):
-            mm.mem[CAM:CAM + 0x150] = bytes(0x150)
-            mm.store(a + 332, 4, CAM)
-            mm.store(a + 336, 4, 1)
-            mm.store(sym("cmn_bossCam__10ccIBossEff"), 4, CAM)
-            return 0
-        hook("InitBossCamera__6ccBossFff", init_cam)
-        hook("SetMode__9ccBossCamFifPfP6ccChar", self.set_mode)
 
-        def free_cam(mm, a, p, v, *_):
-            out.append(["freecam"] + [mm.load(p + 4 * k, 4) for k in range(3)]
-                       + [mm.load(v + 4 * k, 4) for k in range(3)])
-            # SetFreeCamPosView (0x00363f20): only while ResetFlg is 5.
-            if s32(mm.load(a + 4, 4)) == 5:
-                mm.mem[a + 0x10:a + 0x20] = mm.mem[v:v + 16]
-                mm.mem[a + 0x20:a + 0x30] = mm.mem[p:p + 16]
-            return 0
-        hook("SetFreeCamPosView__9ccBossCamFPfPf", free_cam)
         hook("EntryFlash2__8ccScFadeFiiiffff",
              lambda mm, f, a, b_, c, *_: out.append(["flash3", s32(a), s32(b_), -1, c & 0xFFFFFFFF]) or 0)
         hook("effRadiateSomething__FPfPffii", lambda mm, *a: out.append(["radiate"]) or 0)
@@ -153,43 +134,6 @@ class Game(cb.Game):
                 return int(g != 0)
             return int(self.frame_no - self.gen_made[g] < self.gen_life)
         hook("ccCheckParticleGenerator__FP19ccParticleGenerator", check)
-
-    def set_mode(self, mm, a, mode, sp, ch):
-        """ccBossCam::SetMode(mode, f, sp, ch) (0x00363d70) on the zeroed
-        camera, noted and done: ResetFlg is the mode; 5 locks the eye and
-        keeps it, 6 puts it back on camera 2 (silently here, as the port's
-        one CamMode 6) and clears ResetFlg."""
-        mode = s32(mode)
-        self.out.append(["cammode", mode])
-        mm.store(a + 4, 4, mode)
-        mm.store(a + 0xD0, 4, cvt_w(mm.f[12]))
-        if sp:
-            mm.store(a + 0xD4, 4, cvt_w(mm.load(sp + 8, 4)))
-        ex = mm.load(a + 0x138, 1)
-        cp = lambda d, s_: mm.mem.__setitem__(slice(a + d, a + d + 16), mm.mem[a + s_:a + s_ + 16])  # noqa: E731
-        if mode == 3:
-            mm.store(a + 0x138, 1, ex | 0x10)
-        elif mode == 4:
-            mm.store(a + 0x138, 1, ex & 1)
-        elif mode == 5:
-            mm.store(a + 0x138, 1, ex | 1)
-            mm.store(a, 1, 1)
-            cp(0x40, 0x10)
-            cp(0x50, 0x20)
-            cp(0x60, 0x30)
-        elif mode == 6:
-            mm.store(a + 0x138, 1, ex & 0x10)
-            mm.store(a, 1, 0)
-            cp(0x10, 0x40)
-            cp(0x20, 0x50)
-            self.cams[2] = [f32s(mm, a + 0x20, 4), f32s(mm, a + 0x10, 4)]
-            mm.store(a + 4, 4, 0)
-        elif mode in (7, 9):
-            mm.store(a + 0x13C, 4, ch)
-        elif mode in (8, 10):
-            mm.store(a + 4, 4, 0)
-            mm.store(a + 0x13C, 4, mm.load(PLW + 0x20, 4))
-        return 0
 
     def effect_b(self, kind):
         m, out = self.m, self.out
@@ -257,10 +201,8 @@ def rnd_case(c, rnd):
         menus += [(a, rnd.choice((0, 5, 74))), (a + rnd.randrange(1, 60), -1)]
         a = menus[-1][0]
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
-    cam2 = ([fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(100, 600)), F_ONE],
-            [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(0, 300)), F_ONE])
     case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
-            "cam2": cam2, "gen_life": rnd.randrange(30, 400),
+            "gen_life": rnd.randrange(30, 400),
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     case.update(bb.blur_case(rnd))
@@ -282,9 +224,8 @@ def run_game(game, case):
     game.frame_no = 0
     game.stage_on = False
     game.center = case["center"]
-    game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.store(game.sym("camID"), 2, 1)
-    bb.put_draw_camera(game, case, ACAM)
+    bb.put_draw_camera(game, case)
     m.mem[FONT:FONT + 0x100] = bytes(0x100)
     m.store(game.sym("font"), 4, FONT)
     m.mem[DENV:DENV + 0x200] = bytes(0x200)
@@ -323,6 +264,7 @@ def run_game(game, case):
     m.store(sys_ + 0x358, 4, case["count"])
     game.out.clear()
     m.call(game.sym("__ct__10ccBoss08_bFv"), (BOSS,))
+    bb.post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
@@ -364,15 +306,6 @@ def run_game(game, case):
 
 def f32s(m, a, n):
     return [m.load(a + 4 * k, 4) for k in range(n)]
-
-
-def cvt_w(bits):
-    """cvt.w.s: the float's integer part (toward zero)."""
-    import struct
-    v = struct.unpack("<f", struct.pack("<I", bits & 0xFFFFFFFF))[0]
-    if v != v:
-        return 0x7FFFFFFF
-    return max(-(1 << 31), min((1 << 31) - 1, int(v))) & 0xFFFFFFFF
 
 
 def root_state(game, k):
@@ -432,20 +365,11 @@ def game_state(game, n):
                  s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2)),
                  s16(m.load(MENU + 0x0C, 2))],
         "blur": blur_state(game),
-        "bosscam": cam_state(game),
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
     }
-
-
-def cam_state(game):
-    """The boss camera as the form leaves it: lock, ResetFlg, ExLock, its
-    view (+0x10) and eye (+0x20), the kept ones (+0x40, +0x50)."""
-    m = game.m
-    if m.load(game.sym("cmn_bossCam__10ccIBossEff"), 4) != CAM:
-        return []
-    return ([m.load(CAM, 1), s32(m.load(CAM + 4, 4)), m.load(CAM + 0x138, 1)] + f32s(m, CAM + 0x10, 3)
-            + f32s(m, CAM + 0x20, 3) + f32s(m, CAM + 0x40, 3) + f32s(m, CAM + 0x50, 3))
 
 
 def blur_state(game):
@@ -478,8 +402,7 @@ def request(game, case, pre):
     kite = party[0]
     parts = (["corbenikb", len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
              + case["center"][:3] + list(kite.pos) + [0, 0, 0, 0]
-             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["gen_life"]]
-             + list(case["cam2"][0]) + list(case["cam2"][1]))
+             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["gen_life"]])
     parts.append(len(case["script"]))
     for s in case["script"]:
         parts += list(s)

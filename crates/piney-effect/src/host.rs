@@ -45,7 +45,7 @@ impl Camera {
     /// `cameraList[camID]`: `tcam` in play, `ecam` while an event's camera
     /// holds the view (main 0x00161590, 0x001da750).
     pub fn from_field(c: &FieldCamera) -> Camera {
-        let active = c.active();
+        let active = c.list.active();
         Camera {
             eye: active.pos,
             cam_pos: active.pos,
@@ -113,7 +113,7 @@ impl Host for Simple<'_> {
 
 #[cfg(test)]
 mod tests {
-    use piney_world::camera::{Camera as FieldCamera, Scheme, id};
+    use piney_world::camera::{CamId, Camera as FieldCamera, Scheme};
 
     use super::*;
     use crate::effect::check_camera_deg;
@@ -125,18 +125,20 @@ mod tests {
     fn the_cone_is_the_active_cameras() {
         let f = |v: f32| v.to_bits();
         let mut c = FieldCamera::new(piney_data::volume::Volume::Inf, [0, 0, 0, ONE], [0; 4], 0, Scheme::new(1));
-        c.tcam.pos = [f(0.0), f(-500.0), f(200.0), ONE];
-        c.tcam.view = [0, 0, f(100.0), ONE];
-        c.ecam.pos = [f(0.0), f(500.0), f(200.0), ONE];
-        c.ecam.view = [f(0.0), f(1000.0), f(100.0), ONE];
+        let t = c.list.cam_mut(CamId::Field);
+        t.pos = [f(0.0), f(-500.0), f(200.0), ONE];
+        t.view = [0, 0, f(100.0), ONE];
+        let e = c.list.cam_mut(CamId::Event);
+        e.pos = [f(0.0), f(500.0), f(200.0), ONE];
+        e.view = [f(0.0), f(1000.0), f(100.0), ONE];
         let at = [f(0.0), f(300.0), 0, ONE];
         let shown = |c: &FieldCamera| {
             let cam = Camera::from_field(c);
             check_camera_deg(at, [0, 0, 0, ONE], space::TOWN_BOUNDS, cam.cam_pos, cam.cam_view, 12288)
         };
         assert!(shown(&c));
-        c.change_camera(id::EVENT);
-        assert_eq!(Camera::from_field(&c).eye, c.ecam.pos);
+        c.list.change(CamId::Event);
+        assert_eq!(Camera::from_field(&c).eye, c.list.cam(CamId::Event).pos);
         assert!(!shown(&c));
     }
 }

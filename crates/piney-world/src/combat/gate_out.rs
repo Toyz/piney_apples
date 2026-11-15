@@ -14,7 +14,7 @@ use piney_desktop::assets::SceneFile;
 
 use piney_data::volume::Volume;
 
-use crate::camera::{Camera, id};
+use crate::camera::{CamId, Camera};
 use crate::ee::{self, F, ONE, V4};
 
 /// `ccAddRequestFileListSpc`'s `gateHackingOutID` by `game.field` (gcmn
@@ -243,13 +243,13 @@ impl GateOut {
 /// +0x250), the target (`cameraSetView`, +0x240), his position, then
 /// `cameraParamChange(+0x250, +0x240)`.
 fn place(cam: &dyn GhoCam, camera: &mut Camera, k: &mut Kite) {
-    let n = camera.cam_id;
+    let n = camera.list.id();
     if let Some(c) = cam.marker(Marker::Cam) {
-        camera.cam_mut(n).pos = c;
+        camera.list.cam_mut(n).pos = c;
         *k.pos_cam = c;
     }
     if let Some(v) = cam.marker(Marker::Target) {
-        camera.cam_mut(n).view = v;
+        camera.list.cam_mut(n).view = v;
         *k.pos_view = v;
     }
     if let Some(m) = cam.marker(Marker::Man) {
@@ -264,15 +264,15 @@ fn place(cam: &dyn GhoCam, camera: &mut Camera, k: &mut Kite) {
 pub fn param_change(camera: &mut Camera, pos: V4, view: V4) {
     let mut d = ee::vsub(pos, view);
     d[3] = ONE;
-    let dist = ee::sqrtf_on(camera.volume, ee::dot(d, d));
+    let dist = ee::sqrtf_on(camera.list.volume(), ee::dot(d, d));
     let z = d[2];
     d[2] = 0;
-    let across = ee::sqrtf_on(camera.volume, ee::dot(d, d));
+    let across = ee::sqrtf_on(camera.list.volume(), ee::dot(d, d));
     let pitch = ee::atan2f(across, ee::mul(0xbf80_0000, z));
     let heading = ee::atan2f(d[0], d[1]);
     let deg_pitch = ee::rad2deg(pitch).wrapping_sub(16384);
     let deg_heading = ee::rad2deg(heading);
-    let c = camera.active_mut();
+    let c = camera.list.active_mut();
     c.deg = [deg_heading, deg_pitch];
     c.rot[2] = ee::deg2rad(deg_heading);
     c.rot[0] = ee::deg2rad(deg_pitch);
@@ -303,7 +303,7 @@ pub fn gate_hacking_out(g: &mut GateState, cam: &mut dyn GhoCam, camera: &mut Ca
     match *k.prog {
         0 => {
             let set = cam.start();
-            camera.change_camera(id::EVENT);
+            camera.list.change(CamId::Event);
             if set {
                 cam.forward();
             }
@@ -374,10 +374,10 @@ pub fn gate_hacking_out(g: &mut GateState, cam: &mut dyn GhoCam, camera: &mut Ca
             }
         }
         8 => {
-            camera.change_camera(id::FIELD);
-            let n = camera.cam_id;
-            camera.cam_mut(n).pos = *k.pos_cam;
-            camera.cam_mut(n).view = *k.pos_view;
+            camera.list.change(CamId::Field);
+            let n = camera.list.id();
+            camera.list.cam_mut(n).pos = *k.pos_cam;
+            camera.list.cam_mut(n).view = *k.pos_view;
             param_change(camera, *k.pos_cam, *k.pos_view);
             *k.act = 2;
             *k.flags &= !RESTRAINT;

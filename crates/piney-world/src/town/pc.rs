@@ -700,7 +700,7 @@ impl RtownPc {
         if !self.search {
             self.collide(ctx);
         }
-        if check_camera_deg(self.core.ch.pos, 12288, ctx.cam, ctx.player) {
+        if check_camera_deg(self.core.ch.pos, 12288, ctx.cams.active(), ctx.player) {
             // _AnimateForward, then NoteProcess through rtpcCheckNote.
             let (_, notes) = self.core.ch.play.forward_notes(&self.core.ch.body.file);
             for (event, param) in notes {
@@ -712,7 +712,7 @@ impl RtownPc {
                 self.core.ch.transparency = self.transrate;
                 self.core.ch.set_transparency = self.transrate;
             }
-            self.core.ch.fade(ctx.hits.volume, &ctx.view);
+            self.core.ch.fade(ctx.cams, ctx.player);
         } else {
             self.core.ch.drawn = false;
         }
@@ -1725,14 +1725,13 @@ mod tests {
         );
         let mut rand = crate::Rand(1);
         let mut save = piney_data::save::SaveData::default();
+        let mut cams = cam.list;
         for _ in 0..120 {
-            let c = cam.tcam.clone();
             for pc in pcs.iter_mut() {
                 let mut ctx = NpcCtx {
                     player: crate::START_POS,
                     player_dirc: crate::START_DIRC,
-                    view: crate::chara::char::View { player: crate::START_POS, cam: c.pos, deg1: c.deg[1], eye: false },
-                    cam: &c,
+                    cams: &mut cams,
                     hits: &mut m.hits,
                     rand: &mut rand,
                     cc: &mut cc,

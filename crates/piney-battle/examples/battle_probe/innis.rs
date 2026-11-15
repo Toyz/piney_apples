@@ -10,7 +10,7 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::innis::{Images, Innis};
 use piney_battle::boss::systems::wave::Wave;
-use piney_battle::boss::{Boss, BossEnv, CamView, Cx, Out};
+use piney_battle::boss::{Boss, BossEnv, Cx, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -20,7 +20,6 @@ use piney_battle::scene::Scene;
 use piney_battle::tables::Tables;
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
-use piney_data::field::ee;
 use piney_data::iso::Iso;
 
 use crate::boss::{eff_num, out_json};
@@ -77,49 +76,6 @@ fn v4(t: &mut Toks) -> V4 {
     std::array::from_fn(|_| t.u32())
 }
 
-/// The boss camera as the game's zeroed `ccBossCam` holds it under the
-/// rules' `SetMode`, `SetFreeCamPosView` and pitch (CamMain never runs).
-#[derive(Default)]
-struct FakeCam {
-    reset: i32,
-    lock: u8,
-    view: V4,
-    pos: V4,
-    temp_view: V4,
-    temp_pos: V4,
-    xrot: u32,
-}
-
-impl FakeCam {
-    fn take(&mut self, o: &Out) {
-        match o {
-            Out::CamMode { mode } => {
-                self.reset = *mode;
-                match mode {
-                    5 => {
-                        self.lock = 1;
-                        self.temp_view = self.view;
-                        self.temp_pos = self.pos;
-                    }
-                    6 => {
-                        self.lock = 0;
-                        self.view = self.temp_view;
-                        self.pos = self.temp_pos;
-                        self.reset = 0;
-                    }
-                    _ => {}
-                }
-            }
-            Out::FreeCam { pos, view } if self.reset == 5 => {
-                self.view = *view;
-                self.pos = *pos;
-            }
-            Out::CamPitch { add, v } => self.xrot = if *add { ee::add(self.xrot, *v) } else { *v },
-            _ => {}
-        }
-    }
-}
-
 fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
@@ -140,17 +96,13 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     cc.mti = t.i32();
     let count0 = t.u32();
     let frames = t.int() as usize;
-    let cam_pos = v4(t);
-    let cam_view = v4(t);
     let ground = t.u32();
-    let rot: Vec<u32> = (0..frames).map(|_| t.u32()).collect();
-    let moving: Vec<bool> = (0..frames).map(|_| t.int() != 0).collect();
     let ns = t.int() as usize;
     let script: Vec<(usize, i32, i16)> = (0..ns).map(|_| (t.int() as usize, t.i32(), t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = crate::boss::ProbeBlur::read(t);
-    let fade = crate::boss::read_fade(t);
+    let (cams, post) = crate::boss::read_cams(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -160,26 +112,11 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
     let mut menu = [0i32; 6];
-    let mut cam = FakeCam::default();
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let view = |r: u32, moving: bool| CamView {
-        rot: [0, 0, r, 0],
-        pos: cam_pos,
-        view: cam_view,
-        moving,
-        reset: 0,
-        shake: false,
-        eye: [0; 4],
-        active: 1,
-        active_pos: [0; 4],
-        active_view: [0; 4],
-        boss_view: [0; 4],
-        fade,
-    };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None, cams: &cams };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let mut none = |_| None;
@@ -197,8 +134,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         collide: &mut none,
         field: &mut piney_battle::boss::NoField,
         game_over: false,
-        boss_cam: true,
-        cam: view(rot.first().copied().unwrap_or(0), false),
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
         gen_alive: &|_| true,
@@ -209,11 +144,13 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut boss = piney_battle::boss::innis::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
+    post.apply(&cams, &mut boss.base);
     blur.apply(&out);
-    lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &cam, &blur.json()));
+    let line = frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &blur.json());
+    lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None, cams: &cams };
         let actx = AffectCtx {
             party: &party,
             menu: true,
@@ -253,8 +190,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             collide: &mut none,
             field: &mut piney_battle::boss::NoField,
             game_over: false,
-            boss_cam: true,
-            cam: view(rot[f], moving[f]),
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -266,7 +201,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         out.extend(std::mem::take(&mut cx.out));
         drop(cx);
         for o in &out {
-            cam.take(o);
             match o {
                 Out::MenuForbid { on, chat_except } => {
                     forbid = i16::from(*on);
@@ -289,7 +223,8 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             }
         }
         blur.apply(&out[pre..]);
-        lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &cam, &blur.json()));
+        let line = frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &blur.json());
+        lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     }
     format!("[{}]", lines.join(","))
 }
@@ -307,7 +242,6 @@ fn frame_json(
     rand: &Rand,
     cc: &Genrand,
     menu: &[i32; 6],
-    cam: &FakeCam,
     blur: &str,
 ) -> String {
     let s = &b.systems;
@@ -444,7 +378,7 @@ fn frame_json(
     format!(
         "{{\"act\":[{},{},{}],\"move\":[{},{},{}],\"tgt\":[{},{},{},{}],\"pos\":[{}],\"posp\":[{}],\"dirc\":[{}],\
          \"hp\":[{},{}],\"pp\":[{},{}],\"flags\":[{},{},{},{},{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\
-         \"anm\":[\"{}\",{},\"{}\",{}],\"innis\":[{}],\"cam\":[{},{},{},{},{}],\"blur\":{},\"slaves\":[{}],\
+         \"anm\":[\"{}\",{},\"{}\",{}],\"innis\":[{}],\"blur\":{},\"slaves\":[{}],\
          \"shards\":{},\"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.base.act_num,
         b.base.act_proccess,
@@ -482,11 +416,6 @@ fn frame_json(
         wave.anm.clip.as_deref().unwrap_or(""),
         wave.anm.frame(),
         innis,
-        cam.reset,
-        cam.lock,
-        v3(&cam.view),
-        v3(&cam.pos),
-        cam.xrot,
         blur,
         slaves.join(","),
         shards,

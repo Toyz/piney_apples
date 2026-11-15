@@ -223,7 +223,7 @@ impl Dog {
             }
         }
         // ccChar::Draw.
-        self.core.ch.fade(ctx.hits.volume, &ctx.view);
+        self.core.ch.fade(ctx.cams, ctx.player);
         self.act_old = self.core.acts.num;
     }
 

@@ -22,6 +22,9 @@ pub enum Step {
     TickStop,
     LockParty,
     Move,
+    /// `if (bossCam && bossCamSW) bossCam->CamMain()`: after the move, or
+    /// after the class's lock where its `Main` locks later.
+    CamMain,
     ForwardAndDraw,
     /// `ccBoss::Draw` alone while `drawSW` holds, after a class's own
     /// `PreDrawAnm`.
@@ -305,6 +308,7 @@ impl Boss {
                     b.lock_party(cx);
                 }
                 Step::Move => b.move_(cx),
+                Step::CamMain => b.cam_main(cx),
                 Step::ForwardAndDraw => b.forward_and_draw(cx),
                 Step::Draw => {
                     if b.draw_sw != 0 {

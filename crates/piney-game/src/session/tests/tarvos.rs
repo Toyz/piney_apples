@@ -161,7 +161,7 @@ fn tarvos_drained_plays_its_own_movie() {
                     if dx * dx + dy * dy < 900.0 * 900.0 && b.base.erase_target == 0 {
                         press(Buttons::TRIANGLE)
                     } else {
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, dx.atan2(-dy))
                     }
                 }
@@ -285,4 +285,23 @@ fn event_310_goodbyes_shots() {
             std::fs::write(format!("{dir}/f{n:05}.png"), piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
         }
     }
+}
+
+/// `ccSaveData` before event 310's fight, written to `PINEY_SAVE_OUT` for
+/// piney-eemu's `ee_run` (the whole program run into Tarvos's arena, field
+/// 7): the story to 310, blocks 0-6 played (`EVENT_310.done`). The party
+/// is `ee_run`'s to invite.
+#[test]
+#[ignore]
+fn event_310_save_bytes() {
+    let Ok(out) = std::env::var("PINEY_SAVE_OUT") else { return };
+    let iso = crate::check_image("quarantine");
+    if !iso.exists() {
+        return;
+    }
+    let (mut state, _) = crate::start::state_at(&iso, 310).unwrap();
+    let f = state.save.event_flag(310);
+    state.save.set_event_flag(310, f | EVENT_310.done);
+    state.save.set_u8(offset::EVENT_STATUS, 0);
+    std::fs::write(out, state.save.bytes()).unwrap();
 }

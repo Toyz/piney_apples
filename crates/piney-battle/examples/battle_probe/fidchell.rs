@@ -10,7 +10,7 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::fidchell::{self, Fidchell, Pic};
 use piney_battle::boss::systems::wave::Wave;
-use piney_battle::boss::{Boss, BossEnv, CamView, Cx, EffKind, FxCall, Out};
+use piney_battle::boss::{Boss, BossEnv, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -77,12 +77,6 @@ fn v4(t: &mut Toks) -> V4 {
     std::array::from_fn(|_| t.u32())
 }
 
-/// `checkCameraShakeRange` as the harness answers it: yes but on every
-/// `m`th frame (always for 0).
-fn shake(m: i64, f: usize) -> bool {
-    !(m > 0 && f as i64 % m == 0)
-}
-
 fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
@@ -103,18 +97,14 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     cc.mti = t.i32();
     let count0 = t.u32();
     let frames = t.int() as usize;
-    let shake_mod = t.int();
     let push = (t.int() as usize, t.int() as usize);
-    let cam2 = (v4(t), v4(t));
-    let nr = t.int() as usize;
-    let rots: Vec<(usize, u32)> = (0..nr).map(|_| (t.int() as usize, t.u32())).collect();
     let ns = t.int() as usize;
     let script: Vec<(usize, i32, usize, i16)> =
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = crate::boss::ProbeBlur::read(t);
-    let fade = crate::boss::read_fade(t);
+    let (cams, post) = crate::boss::read_cams(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -126,25 +116,10 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut menu = [0i32; 6];
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let rot_at = |f: usize| rots.iter().rfind(|(k, _)| *k <= f).map_or(0, |(_, v)| *v);
-    let view_at = |f: usize, first: bool| CamView {
-        rot: [0, 0, rot_at(f), 0],
-        pos: cam2.0,
-        view: cam2.1,
-        moving: false,
-        reset: 0,
-        shake: !first && shake(shake_mod, f),
-        eye: [0; 4],
-        active: 1,
-        active_pos: [0; 4],
-        active_view: [0; 4],
-        boss_view: [0; 4],
-        fade,
-    };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let volume = crate::probe_volume();
-    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None, cams: &cams };
     let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
     let mut none = |_| None;
     let mut land = |p: V4| p[2];
@@ -161,8 +136,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         collide: &mut none,
         field: &mut piney_battle::boss::NoField,
         game_over: false,
-        boss_cam: true,
-        cam: view_at(0, true),
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
         gen_alive: &|_| true,
@@ -173,15 +146,14 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut boss = fidchell::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
-    // bossCamSW: the dead effect hands the boss camera to camera 1 once.
-    let mut cam_sw = true;
-    let mut max_range = 0u32;
-    let outs: Vec<String> = out.iter().filter_map(|o| mout(o, &cam2, &mut cam_sw, &mut max_range)).collect();
+    post.apply(&cams, &mut boss.base);
+    let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
-    lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
+    let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+    lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None, cams: &cams };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let mut out = Vec::new();
@@ -231,8 +203,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             collide: &mut pushed,
             field: &mut piney_battle::boss::NoField,
             game_over: false,
-            boss_cam: true,
-            cam: view_at(f, false),
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -266,8 +236,9 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
                 _ => {}
             }
         }
-        let outs: Vec<String> = all.iter().filter_map(|o| mout(o, &cam2, &mut cam_sw, &mut max_range)).collect();
-        lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
+        let outs: Vec<String> = all.iter().filter_map(mout).collect();
+        let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+        lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     }
     format!("[{}]", lines.join(","))
 }
@@ -277,7 +248,7 @@ fn v3(v: &V4) -> String {
 }
 
 /// A call as the harness records it.
-fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Option<String> {
+fn mout(o: &Out) -> Option<String> {
     Some(match o {
         Out::AnmText { .. } => return None,
         Out::Voice { msg, .. } => format!("[\"voice\",{msg}]"),
@@ -292,11 +263,6 @@ fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Opt
                     .into()
             }
         },
-        Out::CameraChange(n) => format!("[\"cam\",{n}]"),
-        Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
-        Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),
-        Out::CamMode { mode } => format!("[\"cammode\",{mode}]"),
-        Out::FreeCam { pos, view } => format!("[\"freecam\",{},{}]", v3(pos), v3(view)),
         Out::CinemaSkill(sid) => format!("[\"cinema_skill\",{sid}]"),
         // The spells run natively in the harness: seen in the slots.
         Out::Effect {
@@ -305,22 +271,9 @@ fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Opt
         } => {
             return None;
         }
-        Out::CamMaxRange(v) => {
-            *max_range = *v;
-            return None;
-        }
         Out::Skill(_, s) => format!("[\"skill\",{},{}]", s.sid, u8::from(s.stype == 2)),
         Out::SkillStart { sid, .. } => format!("[\"skill_start\",{sid}]"),
         Out::SeNote { se, note } => format!("[\"senote\",{se},{note}]"),
-        // BeginDeadEffect with the boss camera on: camera 2's eye and view
-        // to camera 1, camera 1 on; then camera 3 at the eye.
-        Out::DeadCamera { eye, view, .. } => {
-            let mut s = String::new();
-            if std::mem::take(cam_sw) {
-                s = format!("[\"campos\",1,{}],[\"camview\",1,{}],[\"cam\",1],", v3(&cam2.0), v3(&cam2.1));
-            }
-            format!("{s}[\"cam\",3],[\"campos\",3,{}],[\"camview\",3,{}]", v3(eye), v3(view))
-        }
         _ => return out_json(o),
     })
 }
@@ -371,7 +324,6 @@ fn frame_json(
     rand: &Rand,
     cc: &Genrand,
     menu: &[i32; 6],
-    max_range: u32,
 ) -> String {
     let Some(x) = b.systems.get::<Fidchell>() else { return "{}".into() };
     let wave = &b.systems.get::<Wave>().expect("its wave").anm;
@@ -393,7 +345,7 @@ fn frame_json(
     format!(
         "{{\"act\":[{},{},{}],\"move\":[{},{},{}],\"tgt\":[{},{},{},{}],\"pos\":[{}],\"posp\":[{}],\"dirc\":[{}],\
          \"hp\":[{},{}],\"pp\":[{},{}],\"flags\":[{},{},{},{},{},{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\
-         \"anm\":[\"{}\",{},{},\"{}\",{},{}],\"fid\":[{}],\"cam\":[{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
+         \"anm\":[\"{}\",{},{},\"{}\",{},{}],\"fid\":[{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
          \"menu\":[{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.base.act_num,
         b.base.act_proccess,
@@ -434,7 +386,6 @@ fn frame_json(
         wave.frame(),
         wave.speed,
         fid_json(b, x),
-        max_range,
         effs.join(","),
         party.join(","),
         outs.join(","),

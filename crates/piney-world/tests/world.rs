@@ -3,6 +3,7 @@
 //! `work/infection/infection.iso`. `tools/test_world_rs.py` checks the same
 //! code against the game's own functions frame by frame.
 
+use piney_world::camera::CamId;
 use piney_world::world::Request as WReq;
 use std::path::Path;
 use std::sync::Arc;
@@ -118,7 +119,7 @@ fn arrival_then_walking() {
     assert!(world.take_requests().contains(&WReq::Game(Request::Transfer)));
     assert_eq!(ee::f(world.kite().built().map(|k| *k.spc).unwrap_or_default().transparency), 1.0);
     // The camera sits behind him: north of him, looking south.
-    let cam = world.camera().tcam.pos;
+    let cam = world.camera().list.cam(CamId::Field).pos;
     assert!(ee::f(cam[1]) > 6400.0 && ee::f(cam[2]) > 700.0, "{:?}", cam.map(ee::f));
     // Stick up: he runs south, down the stairs, the camera following.
     for _ in 0..70 {
@@ -128,7 +129,7 @@ fn arrival_then_walking() {
     let p = world.kite().pos();
     let (y, z) = (ee::f(p[1]), ee::f(p[2]));
     assert!(y < 4000.0 && z < 350.0, "ran to ({y}, {z})");
-    assert!(ee::f(world.camera().tcam.pos[1]) > y);
+    assert!(ee::f(world.camera().list.cam(CamId::Field).pos[1]) > y);
     // Let go: he stops at once and stands.
     step(&mut world, &mut pad, Raw::default());
     assert_eq!(
@@ -575,12 +576,12 @@ fn camera_under(iso: &mut Iso, archive: &Arc<Archive>, cam: u8, raw: Raw) -> ([i
     for _ in 0..FADE_FRAMES + HOLD_FRAMES + 150 {
         step(&mut world, &mut pad, still);
     }
-    let t = &world.camera().tcam;
+    let t = world.camera().list.cam(CamId::Field);
     let before = (t.deg, ee::f(t.dist));
     for _ in 0..20 {
         step(&mut world, &mut pad, Raw { analog: true, ..raw });
     }
-    let t = &world.camera().tcam;
+    let t = world.camera().list.cam(CamId::Field);
     (before.0, before.1, t.deg, ee::f(t.dist))
 }
 

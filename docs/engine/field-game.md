@@ -462,8 +462,9 @@ after it. The shakes come from the enemies' note 0x8002
 (`cameraShake(kind, 2, 20, 2)` when `checkCameraShakeRange` passes: in
 the camera's 67.5 degrees and nearer its eye than 2000), the criticals
 (`cameraShake(0, 2, 2, 0)`) and the spells' and effects' blasts. The
-port is piney-world's `camera::Shake`. The effects' shakes reach it after
-the frame (`FieldFx::take_shakes`), and the enemies' at their note.
+port is `piney_battle::camera::Shake` (beside the list, so a boss's rules
+shake at their call). The effects' shakes reach it after the frame
+(`FieldFx::take_shakes`), and the enemies' at their note.
 `tools/test_camera_shake_rs.py` runs the game's `cameraShake`,
 `cameraShockAbsorber` and `cameraSet` (`SetMatrix_PosTarget` taken) over
 12 runs of 400 frames of random shakes, with `rand()` shared. The slots,
@@ -504,6 +505,22 @@ What reads the active camera rather than tcam (from the code):
 
 So while the event camera is active tcam stands still, Kite walks relative
 to ecam's heading, and characters fade by ecam.
+
+**The port** keeps camera.cpp's list as `piney_battle::camera::CamList`:
+the three cameras, `camID` as `CamId` (`Zero`, `Field`, `Battle`, `Event`;
+entry 0 is tcam under another number, which only `camera_end_reset` before
+a `menu_ban` reaches), and the accessors by the game's call (`cam(n)`,
+`change`, `active`, `kind`, `get_rot`, `get_rot2`, `ear`). The world's
+`camera::Camera` holds it with camera.cpp's field driver, the shake and the
+one `ccCam`. Nothing keeps a copy of a camera: each driver writes through
+the list at its task's point (the event camera at 33, the menus' shop and
+fountain views, `cameraMain` at 40, Kite's `CameraPosSet` at 49, the NPC
+list at 64 through `NpcCtx.cams`, the boss and its `ccBossCam` at 66
+through `boss::Cams`), and each reader asks it at its call: the maps
+through `MapView`'s lent list, the characters' fades and view cones (the
+NPCs', the enemies' at `dispEnemy`), the boss's rules, the 3D sounds (the
+battle's show stream carries the active camera as `Show::Ear` after each
+camera write, and each sound is panned by the last before it).
 
 ### State
 

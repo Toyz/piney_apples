@@ -3288,7 +3288,7 @@ mod tests {
         if matches!(goal, GateGoal::Talk(..)) && !matches!(who, CharId::Object(_)) && beside && gate && f % 16 < 8 {
             return Some(still(Buttons::NONE));
         }
-        let cam_z = f32::from_bits(world.camera().rot()[2]);
+        let cam_z = f32::from_bits(world.camera().list.rot()[2]);
         Some(stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1]))))
     }
 
@@ -3596,7 +3596,7 @@ mod tests {
                 let (dx, dy) = (goal[0] - p[0], goal[1] - p[1]);
                 let enemies = c.enemies();
                 let foe = enemies.iter().copied().find(|&e| c.scene.chars[e].hp > 0);
-                let cam_z = f32::from_bits(w.camera().rot()[2]);
+                let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                 let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                 match foe {
                     // Up to the goblin, then the attack button.
@@ -3639,7 +3639,7 @@ mod tests {
                 let k = c.kite.unwrap();
                 let p = c.scene.chars[k].pos.map(f32::from_bits);
                 let (dx, dy) = (goal[0] - p[0], goal[1] - p[1]);
-                let cam_z = f32::from_bits(w.camera().rot()[2]);
+                let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                 let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                 if dx * dx + dy * dy < near * near {
                     still
@@ -3704,7 +3704,7 @@ mod tests {
                         let k = c.kite.unwrap();
                         let p = c.scene.chars[k].pos.map(f32::from_bits);
                         let (dx, dy) = (goal[0] - p[0], goal[1] - p[1]);
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         if dx * dx + dy * dy < 1500.0 * 1500.0 { still } else { stick_toward(cam_z, dx.atan2(-dy)) }
                     }
                     0..=2 => press(go_to(m.list().items.iter().position(|&x| x == 4).unwrap_or(0))),
@@ -3851,7 +3851,7 @@ mod tests {
                     -1 if handed => break,
                     -1 if fought && !drained && close && row.is_some() => press(Buttons::TRIANGLE),
                     -1 => {
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         if close { still } else { stick_toward(cam_z, dx.atan2(-dy)) }
                     }
                     0..=2 => press(go_to(m.list().items.iter().position(|&x| Some(x) == row).unwrap_or(0))),
@@ -4112,7 +4112,7 @@ mod tests {
                 if dx * dx + dy * dy < 1500.0 * 1500.0 {
                     still
                 } else {
-                    stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+                    stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
                 }
             };
             pad.read(&raw);
@@ -4589,7 +4589,7 @@ mod tests {
                 let q = ch.pos.map(f32::from_bits);
                 let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                 if (q[0] - p[0]).hypot(q[1] - p[1]) > 150.0 {
-                    stick_toward(f32::from_bits(w.camera().rot()[2]), (q[0] - p[0]).atan2(-(q[1] - p[1])))
+                    stick_toward(f32::from_bits(w.camera().list.rot()[2]), (q[0] - p[0]).atan2(-(q[1] - p[1])))
                 } else if i.is_multiple_of(8) {
                     Raw { buttons: Buttons::CROSS, ..still }
                 } else {
@@ -4802,7 +4802,7 @@ mod tests {
                 down |= dx * dx + dy * dy < 300.0 * 300.0;
                 // Past the middle: toward the doorway's floor.
                 let (dx, dy) = if down { (mid[0] - 1000.0 - p[0], mid[1] - p[1]) } else { (dx, dy) };
-                let cam_z = f32::from_bits(w.camera().rot()[2]);
+                let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                 stick_toward(cam_z, dx.atan2(-dy))
             };
             pad.read(&raw);
@@ -5014,7 +5014,7 @@ mod tests {
                         if playing && banned != Some(true) && a.ui().menu_type() == -1 =>
                     {
                         let p = c.scene.chars[k].pos.map(f32::from_bits);
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                         let toward = |q: [f32; 2]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
                         if l == Leg::Portal {
@@ -5443,7 +5443,7 @@ mod tests {
                 return;
             }
             let at = |i: usize| c.scene.chars[i].pos.map(|v| f32::from_bits(v) as i32);
-            let cam = a.world().camera().active().pos.map(|v| f32::from_bits(v) as i32);
+            let cam = a.world().camera().list.active().pos.map(|v| f32::from_bits(v) as i32);
             let info = format!(
                 "frame {n}: portal {state:?} at {:?} drawn {:?} play {:?} kite {:?} cam {:?} foes {} inBattle {}",
                 at(w),
@@ -5560,7 +5560,7 @@ mod tests {
                     let c = w.combat();
                     let k = c.kite.unwrap();
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
-                    let cam_z = f32::from_bits(w.camera().rot()[2]);
+                    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                     let foe = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0);
                     let targeted = foe.is_some() && w.command_target() == foe;
@@ -5659,7 +5659,7 @@ mod tests {
                 let c = w.combat();
                 let k = c.kite.unwrap();
                 let p = c.scene.chars[k].pos.map(f32::from_bits);
-                let cam_z = f32::from_bits(w.camera().rot()[2]);
+                let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                 let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                 let foe = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0);
                 let menu = a.ui().menu_type();
@@ -5762,7 +5762,7 @@ mod tests {
                     );
                 }
                 let p = c.scene.chars[k].pos.map(f32::from_bits);
-                let cam_z = f32::from_bits(w.camera().rot()[2]);
+                let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                 let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                 match foe {
                     _ if cast => still,
@@ -5866,7 +5866,7 @@ mod tests {
                 if cast.is_some() || dx * dx + dy * dy < stop * stop {
                     Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() }
                 } else {
-                    stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+                    stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
                 }
             };
             pad.read(&raw);
@@ -5929,7 +5929,7 @@ mod tests {
                 if cast.is_some() || dx * dx + dy * dy < stop * stop {
                     Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() }
                 } else {
-                    stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+                    stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
                 }
             };
             pad.read(&raw);
@@ -6011,7 +6011,7 @@ mod tests {
                     -1 if c.battle.in_battle != 0 && close => press(Buttons::TRIANGLE),
                     -1 if !close => {
                         let q = target.unwrap_or(p);
-                        stick_toward(f32::from_bits(w.camera().rot()[2]), (q[0] - p[0]).atan2(-(q[1] - p[1])))
+                        stick_toward(f32::from_bits(w.camera().list.rot()[2]), (q[0] - p[0]).atan2(-(q[1] - p[1])))
                     }
                     -1 => still,
                     0..=2 if asked.is_none() => press(go_to(m.list().items.iter().position(|&x| x == 4).unwrap_or(0))),
@@ -6872,7 +6872,7 @@ mod tests {
                     if a.in_town() {
                         panic!("left the area")
                     }
-                    let cam_z = f32::from_bits(a.world().camera().rot()[2]);
+                    let cam_z = f32::from_bits(a.world().camera().list.rot()[2]);
                     stick_toward(cam_z, h)
                 };
                 pad.read(&raw);
@@ -6888,7 +6888,7 @@ mod tests {
                 let MapKind::Dungeon(d) = w.area().kind() else { panic!("not in the dungeon") };
                 let c = w.combat();
                 let kp = c.scene.chars[c.kite.unwrap()].pos;
-                let cam = w.camera().active().pos;
+                let cam = w.camera().list.active().pos;
                 let mut head = kp;
                 head[2] = (f32::from_bits(kp[2]) + 140.0).to_bits();
                 let mut hits = d.core.hits.clone();
@@ -6951,7 +6951,7 @@ mod tests {
         let p = cm.scene.chars[k].pos.map(f32::from_bits);
         let q = cm.scene.chars[b].pos.map(f32::from_bits);
         if w.command_target() != Some(b) {
-            let cam_z = f32::from_bits(w.camera().rot()[2]);
+            let cam_z = f32::from_bits(w.camera().list.rot()[2]);
             return stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
         }
         press(if wire { Buttons::TRIANGLE } else { Buttons::CROSS })
@@ -7224,7 +7224,7 @@ mod tests {
             let sc = w.scene();
             let c = w.combat();
             let kite = c.kite.map_or([0.0; 4], |k| c.scene.chars[k].pos.map(f32::from_bits));
-            let cam = w.camera().active().pos.map(f32::from_bits);
+            let cam = w.camera().list.active().pos.map(f32::from_bits);
             let info = format!(
                 "room ({},{}) kite ({:.0},{:.0},{:.0}) dirc {:.3} player {:.3} cam ({:.0},{:.0},{:.0}) rot {:.3} {:?} {:?}",
                 sc.floor,
@@ -7237,7 +7237,7 @@ mod tests {
                 cam[0],
                 cam[1],
                 cam[2],
-                f32::from_bits(w.camera().rot()[2]),
+                f32::from_bits(w.camera().list.rot()[2]),
                 w.phase(),
                 Mode::title(s)
             );
@@ -7997,7 +7997,7 @@ mod tests {
                     }
                 })
                 .unwrap_or_default();
-            let c = a.world().camera().active();
+            let c = a.world().camera().list.active();
             let d: Vec<f32> = (0..3).map(|i| f32::from_bits(c.pos[i]) - f32::from_bits(c.view[i])).collect();
             seen.push((prompt, d[1].atan2(d[0]), (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()));
         });

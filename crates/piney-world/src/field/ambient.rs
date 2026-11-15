@@ -108,11 +108,8 @@ pub struct Env<'a> {
     /// `cameraGetPos(camID)` and `cameraGetPos(1)`.
     pub eye: V4,
     pub eye1: V4,
-    /// `cameraGetRot(1)` and `cameraGetRot2(1)`, and `checkCameraType()`
-    /// 1 (the eye view), which picks the second.
-    pub rot: V4,
-    pub rot2: V4,
-    pub eye_view: bool,
+    /// The field turn ([`crate::camera::field_turn`]).
+    pub turn: V4,
     /// `ccSys` +0x358 & 1: the frame counter's low bit.
     pub odd: bool,
     /// `WORLD_MAN` +0x420 .. +0x42c: the area's bounds, which the wrap
@@ -120,28 +117,24 @@ pub struct Env<'a> {
     pub bounds: [F; 4],
 }
 
-impl<'a> Env<'a> {
-    /// What `WORLD::Init` and `Generate` see: everything at `centre`, a
-    /// field's bounds.
-    pub fn at(volume: piney_data::volume::Volume, centre: V4, ground: Ground<'a>) -> Env<'a> {
-        Env {
-            volume,
-            player: centre,
-            centre,
-            ofs: [centre[0], centre[1]],
-            ground,
-            eye: centre,
-            eye1: centre,
-            rot: [0; 4],
-            rot2: [0; 4],
-            eye_view: false,
-            odd: false,
-            bounds: crate::field::area::BOUNDS,
-        }
-    }
+/// What `WORLD::Init` reads where it makes the snow (`SNOW`, 0x00503650):
+/// `WORLD_MAN::GetCenter` and the heights about it. No camera and no
+/// player: Init reads neither.
+#[derive(Clone, Copy)]
+pub struct Spot<'a> {
+    pub centre: V4,
+    pub ground: Ground<'a>,
+}
 
-    /// A frame's: the view, and of the area its centre (`WORLD.ofs`), its
-    /// heights and its bounds.
+impl Spot<'_> {
+    pub fn height(&self, x: F, y: F) -> F {
+        self.ground.height(x, y)
+    }
+}
+
+impl<'a> Env<'a> {
+    /// A frame's, at the system's call: the camera list's answers then,
+    /// and of the area its centre (`WORLD.ofs`), its heights and its bounds.
     pub fn of(cx: &'a StepCx) -> Env<'a> {
         let (hits, v) = (&cx.core.hits, cx.view);
         let [x, y] = hits.center;
@@ -151,18 +144,16 @@ impl<'a> Env<'a> {
             centre: [x, y, 0, ONE],
             ofs: [x, y],
             ground: hits.heights.as_deref().map_or(Ground::Flat, Ground::Heights),
-            eye: v.eye,
-            eye1: v.eye1,
-            rot: v.rot,
-            rot2: v.rot2,
-            eye_view: v.eye_view(),
+            eye: v.eye(),
+            eye1: v.eye1(),
+            turn: v.cam_rot(),
             odd: v.odd,
             bounds: hits.bounds.unwrap_or(crate::field::area::BOUNDS),
         }
     }
 }
 
-impl Env<'_> {
+impl<'a> Env<'a> {
     pub fn w2p(&self, p: V4) -> V4 {
         w2p(p, self.player, self.bounds)
     }
@@ -177,18 +168,21 @@ impl Env<'_> {
 
     /// The camera's turn as the eye view picks it.
     pub fn cam_rot(&self) -> V4 {
-        if self.eye_view { self.rot2 } else { self.rot }
+        self.turn
     }
 
-    /// What a `FIREFLY2` reads of it.
+    /// The centre and the heights, as the snow's `calcPos` reads them.
+    pub fn spot(&self) -> Spot<'a> {
+        Spot { centre: self.centre, ground: self.ground }
+    }
+
+    /// What a `FIREFLY2` reads of it: a field's roams about the camera.
     pub fn fly(&self) -> crate::sky::firefly::Fly<'_> {
         crate::sky::firefly::Fly {
             volume: self.volume,
             player: self.player,
             bounds: self.bounds,
-            eye: self.eye,
-            rot: self.cam_rot(),
-            ground: self.ground,
+            roam: Some(crate::sky::firefly::Roam { eye: self.eye, rot: self.cam_rot(), ground: self.ground }),
         }
     }
 }

@@ -99,7 +99,7 @@ fn speak_to_event_npc(s: &mut Session, pad: &mut Pad) -> bool {
                     let w = walk.get_or_insert_with(|| super::town_walk::TownWalker::new([q[0], q[1]], 300.0));
                     w.stick(world, f).unwrap_or_else(|| {
                         let kite = world.kite().pos().map(f32::from_bits);
-                        let cam = f32::from_bits(world.camera().rot()[2]);
+                        let cam = f32::from_bits(world.camera().list.rot()[2]);
                         super::stick_toward(cam, (q[0] - kite[0]).atan2(-(q[1] - kite[1])))
                     })
                 }

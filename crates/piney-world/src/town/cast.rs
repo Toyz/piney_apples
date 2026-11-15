@@ -420,12 +420,12 @@ impl TownCast {
         let affected = self.npcs.take_events();
         self.outs.extend(affected.into_iter().map(|(code, e)| Out::Npc { code, e }));
         self.race_slot(world, host);
-        let t = world.camera.active();
+        let t = world.camera.list.active();
         let f = self.gate.step(world.volume, world.kite().pos(), t.pos, t.deg[1], t.kind == camera::kind::EYE);
         if let Some(se) = f.sound {
             self.outs.push(Out::GateSound { n: se, pos: self.gate.pos });
         }
-        let (player, cam, volume) = (world.kite().pos(), world.camera.active().clone(), world.volume);
+        let (player, cam, volume) = (world.kite().pos(), world.camera.list.active().clone(), world.volume);
         for f in &mut self.flags {
             if f.step(volume, player, &cam).taken {
                 let (n, pos) = (f.n, f.pos);
@@ -436,18 +436,10 @@ impl TownCast {
                 self.outs.push(Out::Race(race::RaceEvent::OpenBox(pos)));
             }
         }
-        let t = world.camera.active();
-        let view = crate::chara::char::View {
-            player: world.kite().pos(),
-            cam: t.pos,
-            deg1: t.deg[1],
-            eye: t.kind == camera::kind::EYE,
-        };
         let mut cx = NpcCtx {
             player: world.kite().pos(),
             player_dirc: world.kite().dirc(),
-            view,
-            cam: world.camera.active(),
+            cams: &mut world.camera.list,
             hits: &mut world.area.core_mut().hits,
             rand: &mut world.combat.rand,
             cc: &mut world.combat.cc,

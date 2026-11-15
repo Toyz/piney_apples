@@ -68,7 +68,8 @@ impl RadWorld for World<'_> {
     /// `cameraGetRot2(camID)` in the eye view (`tcam` +0x40), else
     /// `cameraGetRot(camID)`.
     fn camera_rot(&mut self) -> V4 {
-        if self.camera.active().kind == crate::camera::kind::EYE { self.camera.tcam.rot3 } else { self.camera.rot() }
+        let l = &self.camera.list;
+        if l.kind() == crate::camera::kind::EYE { l.get_rot2(crate::camera::CamId::Field, [0; 4]) } else { l.rot() }
     }
 }
 

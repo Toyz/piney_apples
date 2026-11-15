@@ -207,9 +207,9 @@ program and gcmn on Mutation, Outbreak and Quarantine:
 So `camID` is 2 from the constructor to the death in every reachable case,
 and the thunder reads the boss camera: the eye and view `ccBossCam`'s
 `CamMain` and `SetMode` write (`cameraSetPos`, `cameraSetView` of camera
-2), and the turn `cameraGetRot` works out from them. The port's
-`CamView::active_pos` and `active_view` are `cameraGetPos(camID)` and
-`cameraGetView(camID)`, which Kyvia's hand and thunder read, and the
+2), and the turn `cameraGetRot` works out from them. The port reads
+`cameraGetPos(camID)` and `cameraGetView(camID)` from camera.cpp's list
+at the call (`cams.active()`), as Kyvia's hand and thunder do, and the
 session tests of all four fights check `camID` is 2 on every frame.
 
 ## Unknown

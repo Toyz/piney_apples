@@ -6,6 +6,7 @@
 //! `gate`), the merchants' (`merch`), the walking PCs' (`pc*`) and `gho`;
 //! numbers hex, floats their bits, the fields the harness's.
 
+use piney_world::camera::CamId;
 use std::io::BufRead;
 use std::sync::Arc;
 
@@ -296,7 +297,9 @@ fn props_command(
     match cmd {
         "town" => {
             let t = town(props, archive, volume, n(1));
-            t.step(&piney_world::systems::MapView::at([n(2), n(3), n(4), ee::ONE]));
+            let eye = piney_world::camera::Cam { pos: [n(2), n(3), n(4), ee::ONE], ..Default::default() };
+            let cams = piney_world::camera::CamList::new(volume, eye);
+            t.step(&piney_world::systems::MapView::new(&cams, &piney_world::systems::NO_SCREEN));
             let s = t.systems();
             let (sky, water) = (s.get::<Sky>().unwrap(), s.get::<Water>().unwrap());
             let (models, objects) = (s.get::<StaticModels>().unwrap(), s.get::<StaticObjects>().unwrap());
@@ -400,8 +403,8 @@ struct Merchants {
 }
 
 fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &str, ms: &mut Merchants) -> bool {
+    use piney_world::camera::CamList;
     use piney_world::camera::kind;
-    use piney_world::chara::char::View;
     use piney_world::systems::npcs::NpcCtx;
     use piney_world::town::merchant;
     let n = |i: usize| hex(w[i]);
@@ -478,7 +481,8 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
                 kind: if eye { kind::EYE } else { kind::FOLLOW },
                 ..Cam::default()
             };
-            let view = View { player, cam: cam_pos, deg1, eye };
+            let volume = ms.town.as_ref().unwrap().core.hits.volume;
+            let mut cams = CamList::new(volume, cam);
             let mut rand = Rand(1);
             let hits = &mut ms.town.as_mut().unwrap().core.hits;
             ms.kite.pos = player;
@@ -490,8 +494,7 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
             let mut ctx = NpcCtx {
                 player,
                 player_dirc: [0; 4],
-                view,
-                cam: &cam,
+                cams: &mut cams,
                 hits,
                 rand: &mut rand,
                 cc: &mut cc,
@@ -895,20 +898,12 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let r = pcs.run.as_mut().unwrap();
             r.kite.frame(kite_run::pad_at(w, 1), &mut r.hits);
             r.kite_char = r.hits.char_type;
-            let t = r.kite.camera.tcam.clone();
             let (kite_pos, kite_dirc) = (r.kite.pos(), r.kite.dirc());
-            let view = piney_world::chara::char::View {
-                player: kite_pos,
-                cam: t.pos,
-                deg1: t.deg[1],
-                eye: t.kind == piney_world::camera::kind::EYE,
-            };
             for pc in r.pcs.iter_mut() {
                 let mut ctx = NpcCtx {
                     player: kite_pos,
                     player_dirc: kite_dirc,
-                    view,
-                    cam: &t,
+                    cams: &mut r.kite.camera.list,
                     hits: &mut r.hits,
                     rand: &mut r.kite.combat.rand,
                     cc: &mut r.cc,
@@ -1079,12 +1074,12 @@ fn gate_probe(w: &[&str], volume: piney_data::volume::Volume) -> String {
     let mut pos_view = v4(&mut next);
     let mut camera = Camera::new(volume, [0; 4], [0; 4], 3, Scheme::new(0));
     // The volume's sqrtf (OUT and QUA truncate).
-    camera.cam_id = next() as i32 as i16;
-    for n in [1i16, 3] {
+    camera.list.change(CamId::from_raw(next() as i32).expect("camID 0-3"));
+    for n in [CamId::Field, CamId::Event] {
         let (p, v, r) = (v4(&mut next), v4(&mut next), v4(&mut next));
         let dist = next();
         let d = [next() as i32 as i16, next() as i32 as i16];
-        let c = camera.cam_mut(n);
+        let c = camera.list.cam_mut(n);
         (c.pos, c.view, c.rot, c.dist, c.deg) = (p, v, r, dist, d);
     }
     let mut cam = Scripted { set: next() != 0, ended: false, markers: [[0; 4]; 3] };
@@ -1111,8 +1106,8 @@ fn gate_probe(w: &[&str], volume: piney_data::volume::Volume) -> String {
             pos_view: &mut pos_view,
         };
         gate_hacking_out(&mut g, &mut cam, &mut camera, k);
-        let c = |n: i16| {
-            let c = camera.cam(n);
+        let c = |n: CamId| {
+            let c = camera.list.cam(n);
             format!("[{}, {}, {}, {}, {}, {}]", v(c.pos), v(c.view), v(c.rot), c.dist, c.deg[0], c.deg[1])
         };
         out.push(format!(
@@ -1126,9 +1121,9 @@ fn gate_probe(w: &[&str], volume: piney_data::volume::Volume) -> String {
             v(pos),
             v(pos_cam),
             v(pos_view),
-            camera.cam_id,
-            c(1),
-            c(3)
+            camera.list.id().raw(),
+            c(CamId::Field),
+            c(CamId::Event)
         ));
     }
     format!("[{}]", out.join(", "))

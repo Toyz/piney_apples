@@ -179,7 +179,7 @@ fn kite_stops_at_the_story_box(mut s: Session, (floor, room): (i32, i32)) {
         let p = c.scene.chars[c.kite.unwrap()].pos.map(f32::from_bits);
         let (dx, dy) = (at[0] - p[0], at[1] - p[1]);
         nearest = nearest.min((dx * dx + dy * dy).sqrt());
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         pad.read(&stick_toward(cam_z, dx.atan2(-dy)));
         s.step(&pad);
         s.take_events();
@@ -243,7 +243,7 @@ fn chest_cursor_shots() {
         let c = w.combat();
         let at = c.scene.chars[g].pos.map(f32::from_bits);
         let p = c.scene.chars[c.kite.unwrap()].pos.map(f32::from_bits);
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         pad.read(&stick_toward(cam_z, (at[0] - p[0]).atan2(-(at[1] - p[1]))));
         s.step(&pad);
         s.take_events();

@@ -441,7 +441,8 @@ mod tests {
     #[test]
     fn the_airship_flies_its_first_leg() {
         let Some(mut t) = town() else { return };
-        let v = MapView::default();
+        let cams = crate::camera::CamList::default();
+        let v = MapView::new(&cams, &crate::systems::NO_SCREEN);
         t.step(&v);
         let p = |k: Kind, piece: Piece| Drawn::Piece(k, piece);
         assert_eq!(

@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::affect::{self, AffectCtx};
-use crate::boss::{BossEnv, CamView, FxCall};
+use crate::boss::{BossEnv, FxCall};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -15,6 +15,7 @@ use crate::tables::Tables;
 use piney_data::volume::Volume;
 
 struct Fight {
+    cams: std::cell::RefCell<crate::boss::Cams>,
     t: Tables,
     scene: Scene,
     party: Party,
@@ -51,7 +52,16 @@ fn fight() -> Option<Fight> {
     ch.affect.func = AffectFunc::Boss;
     let me = scene.add(ch, 3);
     let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
-    let mut f = Fight { t, scene, party, me, rand: Rand(11), cc: Genrand::seeded(4357), count: 0 };
+    let mut f = Fight {
+        cams: std::cell::RefCell::new(crate::boss::Cams::at_rest(Volume::Qua)),
+        t,
+        scene,
+        party,
+        me,
+        rand: Rand(11),
+        cc: Genrand::seeded(4357),
+        count: 0,
+    };
     let b = f.with_cx(|cx| new(cx, [0, 0, 0, ONE], VF0, VF0));
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
     Some(f)
@@ -62,7 +72,7 @@ impl Fight {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None, cams: &self.cams };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Qua };
         let mut none = |_| None;
@@ -80,8 +90,6 @@ impl Fight {
             collide: &mut none,
             field: &mut crate::boss::NoField,
             game_over: false,
-            boss_cam: true,
-            cam: CamView { shake: true, ..CamView::default() },
             land: &mut land,
             disc: crate::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -100,7 +108,7 @@ impl Fight {
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
         let cc = std::cell::RefCell::new(std::mem::take(&mut self.cc));
-        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: Some(&cc) };
+        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: Some(&cc), cams: &self.cams };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Qua };
         let mut ev = Events::new();
@@ -202,12 +210,19 @@ fn the_spike_rain_reaches_kite_and_fades() {
 #[test]
 fn the_phantom_rings_and_bursts_its_fourteen_lights() {
     let Some(mut f) = fight() else { return };
-    let fx = f.with_cx(|cx| Fx::Phantom(Box::new(eff::Phantom::new(cx, [0, 0, 0, ONE], 0))));
+    let me = f.me;
+    let mut b = f.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
+    let fx = f.with_cx(|cx| Fx::Phantom(Box::new(eff::Phantom::new(&mut b.base, cx, [0, 0, 0, ONE], 0, 0x00dd_1070))));
+    assert!(b.base.cam.as_ref().is_some_and(|c| c.lock), "the camera free on the lights");
+    let view = b.base.cam.as_ref().map(|c| c.view);
+    assert_eq!(view, Some([0x00dd_1070, 0, 0, 0]), "the target's address its first view");
+    f.scene.chars[me].foe_state_mut().unwrap().boss = Some(b);
     let (frames, out) = f.draw_out(fx, 2000);
     assert!(frames < 2000, "the phantom ends");
     let ring = out.iter().filter(|o| matches!(o, Out::Effect { kind: EffKind::AutoSamonRingOf { n: 195, .. }, .. }));
     assert_eq!(ring.count(), 1);
     let bursts = out.iter().filter(|o| matches!(o, Out::Fx(FxCall::Tarvos(Pic::Burst { .. })))).count();
     assert_eq!(bursts, 14);
-    assert_eq!(out.last(), Some(&Out::CamMode { mode: 6 }), "the camera back last");
+    let cam = f.scene.chars[me].foe_state().unwrap().boss.as_ref().unwrap().base.cam.clone().unwrap();
+    assert_eq!((cam.lock, cam.reset), (false, 0), "the camera back last (mode 6)");
 }

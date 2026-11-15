@@ -586,7 +586,7 @@ impl crate::area::AreaMap for DungeonArea {
     /// none) with its doors' `ccSeOn3D`s, the room and `DrawEff`'s sprites,
     /// and `SetPathFindingMap` once the room entered is built.
     fn disp(&mut self, cx: &mut crate::area::Disp) {
-        let player = cx.view.player;
+        let player = cx.player;
         if cx.awake {
             let here = self.here(player);
             let block = here.map_or(i32::from(NO_ROOM), |h| h as i32);
@@ -598,7 +598,8 @@ impl crate::area::AreaMap for DungeonArea {
                 cx.events.extend(sounds.into_iter().map(|(_, pos)| MapEvent::Se3d { n: se, pos }));
             }
         }
-        let sprites = self.draw(cx.layers, cx.to_screen, cx.view, cx.awake);
+        let v = MapView::of(cx.camera, player, cx.odd);
+        let sprites = self.draw(cx.layers, cx.to_screen, &v, cx.awake);
         cx.sprites.extend(sprites);
         if cx.awake && self.room_enter && self.shown(player).1 {
             self.room_enter = false;
@@ -2341,7 +2342,7 @@ impl DungeonArea {
     /// the room under the player ([`DungeonArea::draw`] runs the def's).
     pub fn run(&mut self, steps: &'static [crate::systems::Step], view: &MapView, here: Option<usize>) {
         let room = here.and_then(|h| self.slot(self.level, h)).map(|s| RoomAt { pos: s.pos, size: s.size });
-        let v = MapView { room, ..view.clone() };
+        let v = MapView { room, ..*view };
         self.frame.clear();
         let mut events = Vec::new();
         self.systems.run(steps, &mut self.core, &v, &mut self.frame, &mut events);

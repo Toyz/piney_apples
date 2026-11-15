@@ -20,6 +20,7 @@ use piney_data::tables::world;
 use piney_data::volume::Volume;
 use piney_desktop::assets::SceneFile;
 
+use crate::camera::{CamId, CamList};
 use crate::chara::body::{Body, TRALL};
 use crate::chara::char::{Char, p2w, w2p};
 use crate::chara::npc::{Core, NpcRow, Stuck};
@@ -347,11 +348,10 @@ pub enum GruntyEvent {
     /// `ccChatMsg::OpenChat(ch, text)` (pgChatTbl's line), `CloseChat()`.
     Chat(usize),
     ChatClose,
-    /// `changeCamera(n)`; `cameraSetPos(v, camID)`, `cameraSetView(v,
-    /// camID)`.
-    Camera(i16),
-    CamPos(V4),
-    CamView(V4),
+    /// The active camera as its `cameraSetPos/View(v, camID)` in its
+    /// `main` left it: the 3D sounds after it are panned by it (`calcPan`
+    /// reads `activeCamPtr` at the call).
+    Ear(piney_battle::camera::Ear),
     /// Kite put at `pos` facing `dirc_z` (`plw->pos`, `plw->dirc.z`).
     Player {
         pos: V4,
@@ -886,7 +886,7 @@ impl Grunty {
                 self.forward_a();
                 self.note_process(0);
                 // ccChar::Draw.
-                if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+                if self.core.ch.fade(ctx.cams, ctx.player) && self.has_a {
                     self.drawn.push((0, self.core.ch.transparency, true));
                 }
             }
@@ -983,7 +983,7 @@ impl Grunty {
                 self.act_old = self.core.acts.num;
             }
             1 => {
-                self.move_cam();
+                self.move_cam(ctx.cams);
                 let t = if self.grow.level < 2 { self.frame_a() } else { self.frame_b() };
                 if matches!(t, 110 | 115 | 120) {
                     self.burp_eff();
@@ -1000,7 +1000,7 @@ impl Grunty {
                 for (c, &t) in self.cam_view.iter_mut().zip(d.iter()).take(3) {
                     *c = set_dist(*c, t, TENTH);
                 }
-                self.events.push(GruntyEvent::CamView(self.cam_view));
+                self.set_cam_view(ctx.cams);
                 self.chat_flag = 1;
             }
             _ => {}
@@ -1009,7 +1009,7 @@ impl Grunty {
 
     /// `ccPGuso::moveCam` (gcmn 0x00510490): the fixed camera's view eased
     /// toward the Grunty (level 0 once more from its feet +50).
-    fn move_cam(&mut self) {
+    fn move_cam(&mut self, cams: &mut CamList) {
         let p = self.core.ch.pos;
         match self.grow.level {
             0 | 1 => {
@@ -1029,7 +1029,28 @@ impl Grunty {
             }
             _ => {}
         }
-        self.events.push(GruntyEvent::CamView(self.cam_view));
+        self.set_cam_view(cams);
+    }
+
+    /// `cameraSetView(camView, camID)` (main 0x00161510) in its `main`:
+    /// the active camera's target, written at the call, the sounds after
+    /// it heard by the camera it left.
+    fn set_cam_view(&mut self, cams: &mut CamList) {
+        self.cam_view_at(self.cam_view, cams);
+    }
+
+    /// `cameraSetPos(camPos, camID)` (main 0x001614d0) in its `main`, as
+    /// [`Grunty::set_cam_view`].
+    fn set_cam_pos(&mut self, cams: &mut CamList) {
+        cams.active_mut().pos = self.cam_pos;
+        self.events.push(GruntyEvent::Ear(cams.ear()));
+    }
+
+    /// `cameraSetView(v, camID)` with a point of its own (the raced one's,
+    /// MUT gcmn 0x005283bc), as [`Grunty::set_cam_view`].
+    fn cam_view_at(&mut self, v: V4, cams: &mut CamList) {
+        cams.active_mut().view = v;
+        self.events.push(GruntyEvent::Ear(cams.ear()));
     }
 
     /// `ccPGuso::paramCalc` (gcmn 0x0050c0f0): the food's effect on the
@@ -1124,7 +1145,7 @@ impl Grunty {
     /// 0 the menu shuts (it walks on), 11 the fixed camera for eating
     /// (Kite and it put at their places) or back, 19 it eats food `arg1`,
     /// `arg2` of it. Nothing while act 8.
-    pub fn dog_action(&mut self, cmd: i16, arg1: i16, arg2: i16, player_dirc: V4) {
+    pub fn dog_action(&mut self, cmd: i16, arg1: i16, arg2: i16, player_dirc: V4, cams: &mut CamList) {
         self.core.affect_type = cmd;
         match cmd {
             15 if self.core.acts.num != 8 => {
@@ -1155,7 +1176,7 @@ impl Grunty {
                 self.events.push(GruntyEvent::ChatClose);
                 self.msg_num = 0;
             }
-            11 => self.fixed_camera(player_dirc),
+            11 => self.fixed_camera(player_dirc, cams),
             19 if self.core.acts.num != 8 => {
                 self.core.acts.num = 6;
                 self.core.acts.process = 0;
@@ -1175,14 +1196,14 @@ impl Grunty {
     /// discNum), act 4, the Grunty at inuPos and Kite at playerPos facing
     /// each other; the second time the field camera back, and a grown one
     /// that ran off (evonum 7, level 4) off the command lists.
-    fn fixed_camera(&mut self, player_dirc: V4) {
+    fn fixed_camera(&mut self, player_dirc: V4, cams: &mut CamList) {
         let d = self.disc_num.clamp(0, 3) as usize;
         if self.cam_flag == 0 {
             self.cam_pos = self.tables.cam_pos[d];
             self.cam_view = self.tables.cam_view[d];
-            self.events.push(GruntyEvent::Camera(3));
-            self.events.push(GruntyEvent::CamPos(self.cam_pos));
-            self.events.push(GruntyEvent::CamView(self.cam_view));
+            cams.change(CamId::Event);
+            cams.active_mut().pos = self.cam_pos;
+            cams.active_mut().view = self.cam_view;
             self.cam_flag = 1;
             self.core.acts.num = 4;
             let inu = self.tables.inu_pos[d];
@@ -1193,7 +1214,7 @@ impl Grunty {
             self.events.push(GruntyEvent::Player { pos: pl, dirc_z: get_dirc0(pl, inu) });
             self.core.ch.dirc[2] = get_dirc0(inu, pl);
         } else {
-            self.events.push(GruntyEvent::Camera(1));
+            cams.change(CamId::Field);
             self.cam_flag = 0;
             if self.evonum == 7 && self.grow.level == 4 {
                 self.core.entry.delete_cmnd(true);
@@ -1228,7 +1249,7 @@ impl Grunty {
     /// `dogActionAdult` (gcmn 0x0050f9d0), a new grown one's: 15 (not act
     /// 8) sits up with a line of its kind's four, 14 sits (line 7), 0 walks
     /// on, 11 as `dogAction`'s.
-    pub fn dog_action_adult(&mut self, cmd: i16, mt: &mut Genrand, player_dirc: V4) {
+    pub fn dog_action_adult(&mut self, cmd: i16, mt: &mut Genrand, player_dirc: V4, cams: &mut CamList) {
         self.core.affect_type = cmd;
         match cmd {
             15 if self.core.acts.num != 8 => {
@@ -1247,17 +1268,18 @@ impl Grunty {
                 self.core.acts.num = 3;
                 self.core.acts.process = 0;
             }
-            11 => self.fixed_camera(player_dirc),
+            11 => self.fixed_camera(player_dirc, cams),
             _ => {}
         }
     }
 
-    /// The Grunty's `affectFunc` for the menu's command.
-    pub fn affect(&mut self, cmd: i16, arg1: i16, arg2: i16, mt: &mut Genrand, player_dirc: V4) {
+    /// The Grunty's `affectFunc` for the menu's command, its camera writes
+    /// on `cams` at the call (no 3D sound follows them in an affect).
+    pub fn affect(&mut self, cmd: i16, arg1: i16, arg2: i16, mt: &mut Genrand, player_dirc: V4, cams: &mut CamList) {
         match self.affect_fn {
-            AffectFn::Young => self.dog_action(cmd, arg1, arg2, player_dirc),
+            AffectFn::Young => self.dog_action(cmd, arg1, arg2, player_dirc, cams),
             AffectFn::Grown => self.dog_action2(cmd, mt),
-            AffectFn::NewGrown => self.dog_action_adult(cmd, mt, player_dirc),
+            AffectFn::NewGrown => self.dog_action_adult(cmd, mt, player_dirc, cams),
         }
     }
 
@@ -1477,7 +1499,7 @@ impl Grunty {
                 }
             }
             4 => {
-                self.ease_camera();
+                self.ease_camera(ctx.cams);
                 self.evoflag = 0;
                 self.growth_num = 0;
                 self.core.acts.process = 3;
@@ -1488,7 +1510,7 @@ impl Grunty {
         self.step_both();
         match self.evonum {
             0 => {
-                if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+                if self.core.ch.fade(ctx.cams, ctx.player) && self.has_a {
                     self.drawn.push((0, self.core.ch.transparency, true));
                 }
             }
@@ -1502,17 +1524,17 @@ impl Grunty {
     }
 
     /// The camera eased back to the town's fixed view and place.
-    fn ease_camera(&mut self) {
+    fn ease_camera(&mut self, cams: &mut CamList) {
         let d = self.disc_num.clamp(0, 3) as usize;
         let (v, p) = (self.tables.cam_view[d], self.tables.cam_pos[d]);
         for (c, &t) in self.cam_view.iter_mut().zip(v.iter()).take(3) {
             *c = set_dist(*c, t, TENTH);
         }
-        self.events.push(GruntyEvent::CamView(self.cam_view));
+        self.set_cam_view(cams);
         for (c, &t) in self.cam_pos.iter_mut().zip(p.iter()).take(3) {
             *c = set_dist(*c, t, TENTH);
         }
-        self.events.push(GruntyEvent::CamPos(self.cam_pos));
+        self.set_cam_pos(cams);
     }
 
     /// `ccPGuso::evoActPon2` (gcmn 0x0050d5a0): to level 3 (row 157): from
@@ -1613,7 +1635,7 @@ impl Grunty {
         self.step_both();
         match self.evonum {
             0 => {
-                if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+                if self.core.ch.fade(ctx.cams, ctx.player) && self.has_a {
                     self.drawn.push((0, self.core.ch.transparency, true));
                 }
             }
@@ -1785,7 +1807,7 @@ impl Grunty {
                 for (c, &t) in self.cam_view.iter_mut().zip(p.iter()).take(3) {
                     *c = set_dist(*c, t, TENTH);
                 }
-                self.events.push(GruntyEvent::CamView(self.cam_view));
+                self.set_cam_view(ctx.cams);
                 if self.evocnt >= 81 {
                     self.scale[1] = sub(self.scale[1], TENTH);
                     if lt(self.scale[1], 0) {
@@ -1833,7 +1855,7 @@ impl Grunty {
         if later {
             match ctx.race.as_mut() {
                 Some(race) if race.kind == self.inu_id - ROW_ADULT => {
-                    if !self.race_step(race, ctx.hits) {
+                    if !self.race_step(race, ctx.hits, ctx.cams) {
                         return;
                     }
                 }
@@ -1871,7 +1893,7 @@ impl Grunty {
         }
         self.note_process(0);
         self.forward_a();
-        if self.core.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
+        if self.core.ch.fade(ctx.cams, ctx.player) && self.has_a {
             self.drawn.push((0, self.core.ch.transparency, false));
         }
     }
@@ -1882,7 +1904,7 @@ impl Grunty {
     /// the town's for kind 0), 5 it walks there 12 a frame turning 256 at
     /// most, the camera on it, 6 it is gone (false: nothing more this
     /// frame), 7 back at its dummy, listed, clip 0.
-    fn race_step(&mut self, race: &mut RaceLink, hits: &mut hit::Hits) -> bool {
+    fn race_step(&mut self, race: &mut RaceLink, hits: &mut hit::Hits, cams: &mut CamList) -> bool {
         let t = piney_data::tables::race::of(hits.volume);
         let above = |p: V4| {
             let mut v = p;
@@ -1895,7 +1917,9 @@ impl Grunty {
             }
         };
         match *race.step {
-            1 => self.events.push(GruntyEvent::CamView(above(self.core.ch.pos))),
+            1 => {
+                self.cam_view_at(above(self.core.ch.pos), cams);
+            }
             2 => {
                 hits.hit_disable(&mut self.core.ch.hit);
                 self.core.entry.listed = false;
@@ -1936,7 +1960,7 @@ impl Grunty {
                 self.core.ch.dirc[2] = ee::deg2rad((i32::from(from) + chg) as i16);
                 self.core.ch.pos[0] = ee::add(self.core.ch.pos[0], ee::mul(0x4140_0000, ee::sinf(dirc)));
                 self.core.ch.pos[1] = ee::sub(self.core.ch.pos[1], ee::mul(0x4140_0000, ee::cosf(dirc)));
-                self.events.push(GruntyEvent::CamView(above(self.core.ch.pos)));
+                self.cam_view_at(above(self.core.ch.pos), cams);
             }
             6 => return false,
             7 => {

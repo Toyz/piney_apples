@@ -7,6 +7,7 @@
 //! lasers rain round it. Every one of them draws `ccRandF`, so the rules
 //! run them whole; what they draw is handed out as [`Pic`]s.
 
+use crate::camera::CamId;
 use piney_data::field::ee;
 use piney_data::libm;
 
@@ -158,8 +159,8 @@ impl StarDust {
         match self.phase {
             0 => self.generate(cx, b, slot),
             1 => self.birst(cx),
-            2 => self.camera_down(cx),
-            3 => self.fall(cx),
+            2 => self.camera_down(cx, b),
+            3 => self.fall(cx, b),
             _ => return false,
         }
         true
@@ -178,9 +179,9 @@ impl StarDust {
         let mut all_four = true;
         // The view the follow reads: the core as written here while the
         // camera is free, else the camera's own.
-        let view = if cx.cam.reset == 5 { self.core } else { cx.cam.boss_view };
-        if cx.cam.reset == 5 {
-            cx.out(Out::CamLook(self.core));
+        let view = if b.cam_reset() == 5 { self.core } else { b.cam_view() };
+        if b.cam_reset() == 5 {
+            b.with_cam(|c| c.view = self.core);
         }
         if self.risen >= STARS as i32 / 3 {
             let c = self.count;
@@ -270,7 +271,7 @@ impl StarDust {
         }
         if self.follow {
             // The camera drawn back 10 along its eye's line.
-            let eye = cx.cam.eye;
+            let eye = b.cam_eye();
             let (ep, vp) = (w2p(cx, eye), w2p(cx, view));
             let d = dist(cx, ep, vp);
             let pt = libm::atan2f(ee::sub(ep[2], vp[2]), d);
@@ -280,8 +281,8 @@ impl StarDust {
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
             let v = geom::apply_matrix(&m, [0x4120_0000, 0, 0, ONE]);
             let eye = p2w(cx, geom::vadd(ep, v));
-            if cx.cam.reset == 5 {
-                cx.out(Out::CamEye(eye));
+            if b.cam_reset() == 5 {
+                b.with_cam(|c| c.pos = eye);
             }
         }
     }
@@ -332,7 +333,7 @@ impl StarDust {
     /// `_CameraDown` (0x00375990): the eye falls from 3000 over the target,
     /// faster each frame, camera 3 rolling a quarter turn a frame; under
     /// 200, the rain begins and the eye goes 2000 out and 110 up.
-    fn camera_down(&mut self, cx: &mut Cx) {
+    fn camera_down(&mut self, cx: &mut Cx, b: &mut BossBase) {
         let z = ee::add(self.top[2], self.cam_spd);
         if ee::lt(z, 0x4348_0000) {
             self.phase += 1;
@@ -345,15 +346,15 @@ impl StarDust {
             let eye = p2w(cx, geom::vadd(tp, v));
             let mut view = self.target;
             view[2] = ee::add(view[2], 0x4396_0000);
-            cx.out(Out::FreeCam { pos: eye, view });
+            b.cam_pos_view(eye, view);
             self.top[2] = z;
             return;
         }
         self.top[2] = z;
         self.cam_spd = ee::add(self.cam_spd, self.cam_acc);
-        cx.out(Out::FreeCam { pos: self.top, view: self.target });
+        b.cam_pos_view(self.top, self.target);
         let r = self.roll;
-        cx.out(Out::CameraRot { cam: 3, rot: [r, 0, 0, ONE] });
+        cx.cams().cam_mut(CamId::Event).rot = [r, 0, 0, ONE];
         let mut r = ee::add(r, HALF_PI);
         if !ee::le(r, PI) {
             r = ee::sub(r, TWO_PI);
@@ -363,15 +364,15 @@ impl StarDust {
 
     /// `_Fall` (0x00375be0): the rain's `Draw`; over, the end. The camera
     /// quakes (50, 50, 50) every frame.
-    fn fall(&mut self, cx: &mut Cx) {
+    fn fall(&mut self, cx: &mut Cx, b: &mut BossBase) {
         if let Some(r) = self.rain.as_mut() {
             r.draw(cx);
             if !r.enabled {
                 self.phase += 1;
             }
         }
-        if cx.boss_cam {
-            cx.quake_vec([0x4248_0000; 3]);
+        if b.cam.is_some() {
+            b.quake_vec(cx, [0x4248_0000; 3]);
         }
     }
 }

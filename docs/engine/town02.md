@@ -438,8 +438,12 @@ ride ([grunty-ride.md](grunty-ride.md)).
 (`set_dog`) and the class (`Grunty`: `main`, the affect functions,
 `inu_check_note`), with its requests as `GruntyEvent`s. `World` keeps the
 Grunties after the dogs and before the walking PCs, steps each (then
-`inuCheckNote` on the last one made), carries out their camera and Kite's
-place after the list, and draws them through `ccChar::Draw`'s shadow.
+`inuCheckNote` on the last one made) with camera.cpp's list lent
+(`NpcCtx.cams`: their `changeCamera` and `cameraSetPos/View(camID)` at the
+call, so the NPCs after them fade by the camera they set, and a
+`GruntyEvent::Ear` after each write pans the sounds after it), puts Kite
+where the fixed camera's affect says, and draws them through
+`ccChar::Draw`'s shadow.
 `piney-game` plays their notes (`se3d::inu_note`), sounds, smoke,
 `effEvolvePG` and `effGrowPG` (piney-effect's `pg`), voices (a grown
 kind's through `ccCheckVoiceGrp`) and lines, and hands the menus the
@@ -462,8 +466,9 @@ Clouds.Start, Water, Scrolls, Sky, PASSES (Models and Objects of
 Obj2 and Obj, Models of Floor), Map, Models(Other), LensFlare, Clouds
 ```
 
-`Town::step` runs them with a `MapView` (the eye, the player, the
-active camera, the flare's camera, `puppetShow`, `world_screen`); each
+`Town::step` runs them with a `MapView` (the camera list, which each
+system asks by the game's call, `cameraGetPos(camID)`, `activeCamPtr` or
+camera 1's; the player, `puppetShow` and `world_screen`); each
 system puts its pieces in the frame, and `Town::requests` hands them back
 as generic draws (models, a `ccAnm`, a `ccEff` as `EffSprite`) which the
 world paints the same way for every town and `piney-game`'s one effect

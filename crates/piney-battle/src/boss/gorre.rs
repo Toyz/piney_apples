@@ -12,6 +12,7 @@ mod message;
 #[cfg(test)]
 mod tests;
 
+use crate::camera::CamId;
 use piney_data::field::ee;
 use piney_data::tables::combat;
 use piney_data::volume::Volume;
@@ -276,9 +277,9 @@ fn focus_camera(cx: &mut Cx, vp: V4, d: V4, off: V4) {
     let m = geom::rot_matrix_z(&m, d[2]);
     let v = geom::apply_matrix(&m, off);
     let eye = super::p2w(cx, geom::vadd(super::w2p(cx, vp), v));
-    cx.out(Out::CameraChange(3));
-    cx.out(Out::CameraPos { cam: 3, pos: eye });
-    cx.out(Out::CameraView { cam: 3, view: vp });
+    cx.cams().change(CamId::Event);
+    cx.cams().cam_mut(CamId::Event).pos = eye;
+    cx.cams().cam_mut(CamId::Event).view = vp;
 }
 
 // --- the constructor ------------------------------------------------------------------------
@@ -310,7 +311,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.use_stage_eff = true;
     // `InitBossCamera(200, 1500)`; `MaxRenge` left at the camera's own
     // 1000 (Fidchell's constructor alone sets its 600 after).
-
+    b.init_boss_camera(cx, 0x4348_0000, 0x44bb_8000);
     let mut brother_me = [0usize; 2];
     for (k, slot) in brother_me.iter_mut().enumerate() {
         let row = BROTHER_ROW[k];
@@ -344,7 +345,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 /// `ccBoss05::Main` (OUT gcmn 0x004aa210) up to `Slave`: `CalcRealEx(0)`,
 /// the centre's distance and heading, the stop's count, `hold` while a
 /// brother's is set, `Think`, the party held while `lockPlayer` (a broken
-/// protect's count on), `Move`, the count handed to both brothers.
+/// protect's count on), `Move` and the boss camera's `CamMain` (OUT
+/// 0x004aa514), the count handed to both brothers.
 fn frame(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let me = cx.me;
     calc_real_ex(b, x, cx);
@@ -360,6 +362,7 @@ fn frame(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
         cx.pp_count_tick();
     }
     b.move_(cx);
+    b.cam_main(cx);
     // No `PreDrawAnm`: Gorre's own clip stands still but in the Kerse.
     // The broken protect's count handed to both brothers' `param`s (after
     // the drain's 21 the one block, written onto itself).
@@ -590,8 +593,8 @@ fn on_wave(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
             b.act_proccess += 1;
         }
         1 if c >= 115 => {
-            if cx.cam.shake {
-                cx.quake_cam(0x4170_0000);
+            if cx.in_shake_range(cx.pos()) {
+                b.quake_cam(cx, 0x4170_0000);
             }
             if c == 115 {
                 cx.out(Out::Flash { t: 15, colour: 0x80e0_ffff });
@@ -857,9 +860,9 @@ fn on_kerse(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
             eye[2] = 0x4248_0000;
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
-            cx.out(Out::CameraChange(3));
-            cx.out(Out::CameraPos { cam: 3, pos: eye });
-            cx.out(Out::CameraView { cam: 3, view: vp });
+            cx.cams().change(CamId::Event);
+            cx.cams().cam_mut(CamId::Event).pos = eye;
+            cx.cams().cam_mut(CamId::Event).view = vp;
             x.kerse.talk_pos = b.calc_effect_camera_pos(cx, b.target_pos, 0xc3fa_0000);
             x.kerse.talk_dirc = get_dirc(super::w2p(cx, x.kerse.talk_pos), super::w2p(cx, eye));
             b.act_proccess += 1;
@@ -950,7 +953,7 @@ fn on_kerse(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
             if c == 15 {
                 entry_brothers(x, cx);
                 cx.out(Out::SwitchLayer);
-                cx.out(Out::CameraChange(2));
+                cx.cams().change(CamId::Battle);
                 b.unlock_player();
                 b.draw_sw = 0;
                 cx.cinema_off();
@@ -1060,7 +1063,7 @@ fn on_skill(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
                 b.unlock_player();
                 entry_brothers(x, cx);
                 cx.out(Out::SwitchLayer);
-                cx.out(Out::CameraChange(2));
+                cx.cams().change(CamId::Battle);
                 x.change_next_pattern(b, cx);
             }
         }
@@ -1120,7 +1123,7 @@ fn on_magic(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
             if c == 15 {
                 cx.out(Out::SwitchLayer);
                 cx.cinema_off();
-                cx.out(Out::CameraChange(2));
+                cx.cams().change(CamId::Battle);
                 let id = std::mem::replace(&mut x.own.stage_eff_id, -1);
                 b.end_stage_effect(cx, id, 0x6400_0000, 15);
                 b.unlock_player();

@@ -450,7 +450,7 @@ fn the_spring_of_myst_takes_an_item() {
                 (Some(g), Some(k)) if menu == -1 && menus.len() <= 2 => {
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let q = c.scene.chars[g].pos.map(f32::from_bits);
-                    let cam_z = f32::from_bits(w.camera().rot()[2]);
+                    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                     let targeted = w.command_target() == Some(g);
                     if !targeted && (q[0] - p[0]).hypot(q[1] - p[1]) > 300.0 {
                         stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))

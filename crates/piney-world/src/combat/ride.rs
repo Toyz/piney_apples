@@ -229,7 +229,7 @@ impl RideWorld for RideStage<'_, '_, '_> {
     fn camera_type(&mut self) -> i32 {
         KiteWorld::camera_type(self.stage)
     }
-    fn camera_id(&mut self) -> i32 {
+    fn camera_id(&mut self) -> crate::camera::CamId {
         KiteWorld::camera_id(self.stage)
     }
     fn camera_rot(&mut self) -> V4 {

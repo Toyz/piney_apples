@@ -412,8 +412,8 @@ The pushes and the camera (worklog 427):
   `piney_battle::world::char_push`, which `Hits::collision_detection`
   uses too. After the body's push its entry is moved with it, for the
   gomoras that move after it in the frame.
-- `piney_world::camera::bosscam::BossCam` keeps `ex_lock`, `zrot_control` (from
-  `Out::CamSway`) and Mutation's `lift`; `pad_control` reads nothing under
+- `piney_battle::boss::cam::BossCam` keeps `ex_lock`, `zrot_control` (set
+  by the constructor) and Mutation's `lift`; `pad_control` reads nothing under
   `ExLock` and turns `zrot_cont` with the flag.
 
 ## Checks
@@ -422,13 +422,13 @@ The pushes and the camera (worklog 427):
 its core and gomoras and runs its `Main` natively (with the effect
 manager's pass), against battle_probe's `kyvia`. A case has one to three
 members, a disc riding in for up to 200 frames, 300-2500 frames, Kite's
-hits on the core or a gomora (and heals) while they are targetable, the
-menu's type and the camera's turn changing. Compared each frame: the
-body's acts, flags, clips and own members; the core's and each gomora's
-acts, places, turns, HP, targets, lists, clips and own members; the
-effects' slots; the boss camera's mode, lock, eye, view and pitch; the
-blur; the party's HP and hold; the calls; the menu; `rand()` and
-`ccRand`'s index. 410 cases (561,061 frames) agree; every act of the
+hits on the core or a gomora (and heals) while they are targetable and
+the menu's type changing. Compared each frame: the body's acts, flags,
+clips and own members; the core's and each gomora's acts, places, turns,
+HP, targets, lists, clips and own members; the effects' slots; camID, the
+three cameras, the shake's slots and the boss camera; the blur; the
+party's HP and hold; the calls; the menu; `rand()` and `ccRand`'s
+index. 410 cases (561,061 frames) agree; every act of the
 body (0-5, 14), the core (0-2, 14) and the gomoras (0-4, 14) is reached.
 
 Stood in for there: the party's affects are off (hits compared by what
@@ -436,8 +436,8 @@ Stood in for there: the party's affects are off (hits compared by what
 lengths; the gomoras' skills are not run (`ccSkillRequestParam` sets the
 caster's `skillID` and `skillStatus` 1 as `_ccSkillRequest` does, and
 nothing clears them); the meteors run natively with their drawing,
-particles and `effSmokeRock` stubbed; the camera's `CamMain` never runs
-and a mode 3 or 4 is cleared after the case's delay; W2P/P2W are
+particles and `effSmokeRock` stubbed; camera.cpp and the boss camera
+(its `CamMain` too) run natively over the case's cameras; W2P/P2W are
 identity.
 
 Each part's stream (+0xcc, the name `CoreInit` and `GomoraInit` asked

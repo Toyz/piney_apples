@@ -7,7 +7,7 @@ use super::first::{self, First, act};
 use super::seed::{self, Seed};
 use super::{Pic, ROW, SEEDS};
 use crate::affect::{self, AffectCtx};
-use crate::boss::{Boss, BossEnv, CamView, Cx, FxCall, Out, Tbl, VF0};
+use crate::boss::{Boss, BossEnv, Cx, FxCall, Out, Tbl, VF0};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -41,6 +41,7 @@ impl crate::boss::Field for Land {
 }
 
 struct Fight {
+    cams: std::cell::RefCell<crate::boss::Cams>,
     t: Tables,
     scene: Scene,
     party: Party,
@@ -48,7 +49,6 @@ struct Fight {
     rand: Rand,
     cc: Genrand,
     count: u32,
-    cam: CamView,
 }
 
 fn pc(ty: i32, id: i16, x: f32) -> Char {
@@ -78,8 +78,16 @@ fn fight() -> Option<Fight> {
     ch.affect.func = AffectFunc::Boss;
     let me = scene.add(ch, 3);
     let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
-    let mut f =
-        Fight { t, scene, party, me, rand: Rand(11), cc: Genrand::seeded(4357), count: 0, cam: CamView::default() };
+    let mut f = Fight {
+        cams: std::cell::RefCell::new(crate::boss::Cams::at_rest(Volume::Qua)),
+        t,
+        scene,
+        party,
+        me,
+        rand: Rand(11),
+        cc: Genrand::seeded(4357),
+        count: 0,
+    };
     let b = f.with_cx(|cx| first::new(cx, [0, 0, 0, ONE], VF0, VF0)).0;
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
     Some(f)
@@ -90,7 +98,7 @@ impl Fight {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None, cams: &self.cams };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Qua };
         let mut none = |_| None;
@@ -108,8 +116,6 @@ impl Fight {
             collide: &mut none,
             field: &mut Land,
             game_over: false,
-            boss_cam: false,
-            cam: self.cam,
             land: &mut land,
             disc: crate::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -137,7 +143,7 @@ impl Fight {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None, cams: &self.cams };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Qua };
         let mut ev = Events::new();
@@ -403,23 +409,27 @@ fn the_eye_entry_throws_the_killer_eyes() {
 fn the_camera_fades_the_body_as_ccboss_draw_does() {
     let Some(mut f) = fight_c() else { return };
     f.frame();
-    let at = |f: &Fight, dx: f32, eye_view: bool| {
+    // Camera 3 made active at the eye (CamMain moves camera 2 only).
+    let at = |f: &mut Fight, dx: f32, eye_view: bool| {
         let pos = f.scene.chars[f.me].pos;
-        let eye = [piney_data::field::ee::add(pos[0], dx.to_bits()), pos[1], pos[2], ONE];
-        Some(crate::boss::CamFade { eye, deg1: 0, eye_view, far: 0x45da_c000, fade: 0x4416_0000 })
+        let e = f.cams.get_mut().list.cam_mut(crate::camera::CamId::Event);
+        e.pos = [piney_data::field::ee::add(pos[0], dx.to_bits()), pos[1], pos[2], ONE];
+        e.deg = [0; 2];
+        e.kind = if eye_view { crate::camera::kind::EYE } else { crate::camera::kind::FOLLOW };
+        f.cams.get_mut().list.change(crate::camera::CamId::Event);
     };
     // Far past 7000 and its 600: gone, not drawn.
-    f.cam.fade = at(&f, 9000.0, false);
+    at(&mut f, 9000.0, false);
     f.frame();
     let b = f.boss();
     assert_eq!((b.base.transparency, b.base.drawn), (0, false), "faded out past the far end");
     // The eye view never fades.
-    f.cam.fade = at(&f, 9000.0, true);
+    at(&mut f, 9000.0, true);
     f.frame();
     let b = f.boss();
     assert_eq!((b.base.transparency, b.base.drawn), (b.base.set_transparency, true), "the eye view: setTransparency");
     // Inside the far end: setTransparency as it is.
-    f.cam.fade = at(&f, 2000.0, false);
+    at(&mut f, 2000.0, false);
     f.frame();
     let b = f.boss();
     assert_eq!(b.base.transparency, b.base.set_transparency, "near enough: no fade");

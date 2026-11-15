@@ -140,7 +140,7 @@ fn an_epitaph_reads_its_pages() {
 /// built with its doors (their count, `doorFlag`) and `inBattle`.
 #[derive(Debug, PartialEq)]
 struct Held {
-    cam: (i16, i32, [u32; 4], [u32; 4], [i16; 2], u32),
+    cam: (piney_world::camera::CamId, i32, [u32; 4], [u32; 4], [i16; 2], u32),
     room: Option<(usize, usize)>,
     doors: (usize, bool),
     fight: i32,
@@ -148,12 +148,12 @@ struct Held {
 
 fn held(s: &Session) -> Held {
     let w = area(s).world();
-    let (c, t) = (w.camera(), &w.camera().tcam);
+    let (c, t) = (w.camera(), w.camera().list.cam(piney_world::camera::CamId::Field));
     let (room, doors) = match w.area().kind() {
         MapKind::Dungeon(d) => (d.room_at, (d.doors.len(), d.door.door_flag)),
         _ => (None, (0, false)),
     };
-    Held { cam: (c.cam_id, t.kind, t.pos, t.view, t.deg, t.dist), room, doors, fight: w.combat().battle.in_battle }
+    Held { cam: (c.list.id(), t.kind, t.pos, t.view, t.deg, t.dist), room, doors, fight: w.combat().battle.in_battle }
 }
 
 /// Kite walks from a random dungeon's entrance until a fight starts, then

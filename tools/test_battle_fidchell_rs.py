@@ -12,14 +12,13 @@ A case lays a party of one to three members out on the command lists
 constructor (ccBoss04::ccBoss04) at BOSS and runs ccBoss::Main frame after
 frame, with ccBossEffManager::Draw's pass before each, scripted affects
 between frames (Kite's hits, the protect gauge and its break, the drain's
-13 and 21, a member down), the menu's type changing and the camera turning.
-Compared each frame: the acts, movement, place, target, HP and gauge,
-flags, clips, Fidchell's own members (the prediction, its camera and fade,
-the spell's steps), the boss camera's MaxRenge, the effects' slots, the
-party's HP and hold, the calls (sounds, flashes, cinema, stage, the
-cameras' changes, eyes and views, the boss camera's modes, voices, skills,
-fly fonts, hit marks, the spells' dust and bursts), the menu's words,
-newlib's rand() and ccRand's index.
+13 and 21, a member down) and the menu's type changing. Compared each
+frame: the acts, movement, place, target, HP and gauge, flags, clips,
+Fidchell's own members (the prediction, its camera and fade, the spell's
+steps), the effects' slots, the party's HP and hold, the calls (sounds,
+flashes, cinema, stage, voices, skills, fly fonts, hit marks, the spells'
+dust and bursts), the menu's words, camID, the three cameras, the shake's
+slots and the boss camera, newlib's rand() and ccRand's index.
 
 What is not the game's here:
 - The party's affects are off (affectFunc 0): the boss's hits are compared
@@ -34,11 +33,9 @@ What is not the game's here:
   controller is a stand-in whose endFlag comes after SKILL_START_LIFE. The
   meteors, the thunder storm and the rock towers run natively, drawing
   nothing.
-- The cameras keep what is set on them; cameraGetRot answers the case's
-  turn; checkCameraShakeRange answers by the case. The boss camera is a
-  zeroed ccBossCam (SetMode and SetFreeCamPosView only note themselves,
-  QuakeCam runs). W2P/P2W are identity and CollisionDetection finds
-  nothing but in the case's push. A skill's request sets the caster's
+- camera.cpp and the boss camera run natively over the case's cameras
+  (test_battle_boss_rs.py `put_cams`), the pad at rest. W2P/P2W are
+  identity and CollisionDetection finds nothing but in the case's push. A skill's request sets the caster's
   skillID and status 9 when cast through it (flag set), as the port's does.
 
     PINEY_VOLUME=outbreak python3 tools/test_battle_fidchell_rs.py             the tests
@@ -70,7 +67,6 @@ FAKE = 0x01340000               # stand-in streams, chunks, objects and effects
 MGR = 0x01380000                # _g_bossEffManager (0x1038 bytes)
 STAGE = 0x01390000              # the stage fader
 WM = 0x013B0000                 # worldman and its event area
-CAM = 0x013C0000                # the boss camera (a zeroed ccBossCam)
 HEAP = 0x01600000               # operator new and new[] for the spells
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
 MENU = 0x01020000               # test_battle's ccMenu
@@ -105,10 +101,8 @@ class Game:
         self.anms = {}          # a ccAnm -> [clip, time]
         self.effs = {}          # a stand-in effect -> [kind, count, life]
         self.starts = {}        # a stand-in skill start -> its count
-        self.cams = {}          # camera -> [pos, view] as set
         self.out = []
         self.fake_at, self.heap_at = FAKE, HEAP
-        self.rot_now, self.shake_now = 0, True
         self.center, self.push, self.frame_no = [0, 0, 0, F_ONE], [0, 0], 0
         self.hooks()
         bb.install_blur(self)
@@ -213,7 +207,7 @@ class Game:
                      "__dt__7ccClumpFv", "Init__7ccLayerFsP6ccView", "SetFrame__6ccViewFffffffff",
                      "ccSqFade__FiUsiUc", "SetHitSW__9ccCharHitFi", "SetActiveLayer__9WORLD_MANFi",
                      "Draw__5ccEffFPfUs", "SetFogBlend__9ccDrawEnvFfUi", "ResetFogBlend__9ccDrawEnvFv",
-                     "SetType__6ccFontFi", "CamMain__9ccBossCamFv"):
+                     "SetType__6ccFontFi"):
             hook(name, nop)
 
         def collide(mm, hit, *_):
@@ -223,12 +217,6 @@ class Game:
             return 0
         hook("CollisionDetection__9ccCharHitFv", collide)
 
-        def init_cam(mm, a, *_):
-            mm.mem[CAM:CAM + 0x150] = bytes(0x150)
-            mm.store(a + 332, 4, CAM)
-            mm.store(a + 336, 4, 1)
-            return 0
-        hook("InitBossCamera__6ccBossFff", init_cam)
 
         def stage_init(mm, a, *_):
             mm.store(a + 0x29340, 4, STAGE + 0x100)
@@ -278,47 +266,10 @@ class Game:
         hook("ccParticleExplode__FPfPffi", lambda mm, *a: out.append(["explode"]) or 0)
         hook("effRadiateSomething2__FPfPffii", lambda mm, *a: out.append(["radiate"]) or 0)
         hook("effFlareRing__FPfi", lambda mm, *a: out.append(["flare"]) or 0)
-        hook("checkCameraShakeRange__FPf", lambda mm, *a: int(self.shake_now))
-        hook("SetMode__9ccBossCamFifPfP6ccChar", lambda mm, a, mode, *_: out.append(["cammode", s32(mode)]) or 0)
 
-        def free_cam(mm, a, p, v, *_):
-            out.append(["freecam"] + [mm.load(p + 4 * k, 4) for k in range(3)]
-                       + [mm.load(v + 4 * k, 4) for k in range(3)])
-            return 0
-        hook("SetFreeCamPosView__9ccBossCamFPfPf", free_cam)
 
-        def change_camera(mm, n, *_):
-            out.append(["cam", s32(n)])
-            mm.store(sym("camID"), 2, n & 0xFFFF)
-            return 0
-        hook("changeCamera__Fi", change_camera)
 
-        def cam_set(key, k):
-            def put(mm, p, n, *_):
-                v = [mm.load(p + 4 * j, 4) for j in range(4)]
-                out.append([key, s32(n)] + v[:3])
-                self.cams.setdefault(s32(n), [[0, 0, 0, F_ONE], [0, 0, 0, F_ONE]])[k] = v
-                return 0
-            return put
-        hook("cameraSetPos__FPfi", cam_set("campos", 0))
-        hook("cameraSetView__FPfi", cam_set("camview", 1))
-        hook("cameraSetRot__FPfi", nop)
 
-        def cam_get(k):
-            def get(mm, p, n, *_):
-                v = self.cams.get(s32(n), [[0, 0, 0, F_ONE], [0, 0, 0, F_ONE]])[k]
-                for j in range(4):
-                    mm.store(p + 4 * j, 4, v[j])
-                return 0
-            return get
-        hook("cameraGetPos__FPfi", cam_get(0))
-        hook("cameraGetView__FPfi", cam_get(1))
-
-        def cam_rot(mm, p, n, *_):
-            for j, v in enumerate((0, 0, self.rot_now, 0)):
-                mm.store(p + 4 * j, 4, v)
-            return 0
-        hook("cameraGetRot__FPfi", cam_rot)
         hook("ccTransPosW2P__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccTransPosP2W__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
 
@@ -448,18 +399,8 @@ def rnd_case(c, rnd):
         a += rnd.randrange(20, 300)
         menus += [(a, rnd.choice((0, 5, 74))), (a + rnd.randrange(1, 60), -1)]
         a = menus[-1][0]
-    rots = [(0, fbits(rnd.uniform(-3.1, 3.1)))]
-    f = 0
-    while rnd.random() < 0.8:
-        f += rnd.randrange(30, 900)
-        if f >= frames:
-            break
-        rots.append((f, fbits(rnd.uniform(-3.1, 3.1))))
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
-    cam2 = ([fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(100, 600)), F_ONE],
-            [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(0, 300)), F_ONE])
-    case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center, "rots": rots,
-            "cam2": cam2, "shake": rnd.choice((0, 0, 2, 3, 7)), "push": push,
+    case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center, "push": push,
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     # Drawn last, so the cases of a seed are the ones before the blur.
@@ -480,19 +421,6 @@ def listed(game, ch):
     return 0
 
 
-def shake_at(case, f):
-    s = case["shake"]
-    return not (s > 0 and f % s == 0)
-
-
-def rot_at(case, f):
-    r = 0
-    for k, v in case["rots"]:
-        if k <= f:
-            r = v
-    return r
-
-
 def run_game(game, case):
     c, g, m = game.c, game.g, game.m
     c.reset()
@@ -507,9 +435,6 @@ def run_game(game, case):
     game.center = case["center"]
     game.push = case["push"]
     game.frame_no = 0
-    game.shake_now = False
-    game.rot_now = rot_at(case, 0)
-    game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
     bb.put_draw_camera(game, case)
     bb.make_manager(game, MGR, case)
@@ -542,14 +467,13 @@ def run_game(game, case):
     m.store(sys_ + 0x358, 4, case["count"])
     game.out.clear()
     m.call(game.sym("__ct__8ccBoss04Fv"), (BOSS,))
+    bb.post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
     for f in range(case["frames"]):
         game.out.clear()
         game.frame_no = f
-        game.shake_now = shake_at(case, f)
-        game.rot_now = rot_at(case, f)
         m.store(sys_ + 0x358, 4, case["count"] + 1 + f)
         mt_now = [v for k, v in menus if k <= f]
         g.env.menu_type = mt_now[-1] if mt_now else -1
@@ -621,7 +545,6 @@ def game_state(game, n):
         "anm": [clip[0] or "", clip[1] >> 8, m.load(anm + 0x9C, 2), wclip[0] or "", wclip[1] >> 8,
                 m.load(wave + 0x9C, 2) if wave else 256],
         "fid": fid,
-        "cam": [m.load(CAM + 0xD8, 4)],
         "eff": game.effects(),
         "party": party,
         "out": list(game.out),
@@ -630,6 +553,8 @@ def game_state(game, n):
         "blur": bb.blur_state(game, MGR),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
     }
 
 
@@ -665,11 +590,7 @@ def request(game, case, pre):
     kite = party[0]
     parts = (["fidchell", len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
              + case["center"][:3] + list(kite.pos) + [0, 0, 0, 0]
-             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["shake"]]
-             + case["push"] + list(case["cam2"][0]) + list(case["cam2"][1]))
-    parts.append(len(case["rots"]))
-    for r in case["rots"]:
-        parts += list(r)
+             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"]] + case["push"])
     parts.append(len(case["script"]))
     for s in case["script"]:
         parts += list(s)

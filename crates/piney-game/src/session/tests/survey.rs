@@ -1082,7 +1082,7 @@ impl StoryPilot {
         }
         let q = w.combat().scene.chars[i].pos.map(f32::from_bits);
         let p = w.kite().pos().map(f32::from_bits);
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
@@ -1131,7 +1131,7 @@ impl StoryPilot {
             return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
         }
         let q = c.scene.chars[i].pos.map(f32::from_bits);
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
@@ -1168,7 +1168,7 @@ impl StoryPilot {
         }
         let q = w.combat().scene.chars[i].pos.map(f32::from_bits);
         let p = w.kite().pos().map(f32::from_bits);
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
@@ -1406,7 +1406,7 @@ impl StoryPilot {
         }
         let to = w.char_pos(3, code as i16)?.map(f32::from_bits);
         let p = w.kite().pos().map(f32::from_bits);
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         if (to[0] - p[0]).hypot(to[1] - p[1]) < 400.0 {
             self.path.clear();
             return Some(stick_toward(cam_z, (to[0] - p[0]).atan2(-(to[1] - p[1]))));
@@ -2399,7 +2399,7 @@ impl StoryPilot {
             if f < self.detour_until {
                 return self.walk_after(w, at(foe), close(foe), f, true);
             }
-            let (q, cam_z) = (at(foe), f32::from_bits(w.camera().rot()[2]));
+            let (q, cam_z) = (at(foe), f32::from_bits(w.camera().list.rot()[2]));
             return Some(run_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))));
         }
         self.walk_after(w, at(foe), close(foe), f, false)
@@ -2439,7 +2439,7 @@ impl StoryPilot {
         if (q[0] - p[0]).hypot(q[1] - p[1]) < 200.0 {
             return None;
         }
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
@@ -2466,7 +2466,7 @@ impl StoryPilot {
             self.chase.clear();
             return None;
         }
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         // Held where the hits show no wall (a member standing where he
         // spawned with him: Infection's field 17 held him at its entrance
         // 100,000 frames): sideways a while, the other way each time.
@@ -2515,7 +2515,7 @@ impl StoryPilot {
         let MapKind::Field(fa) = w.area().kind() else { return None };
         let mid = fa.dungeon_pos()?.map(f32::from_bits);
         let p = w.kite().pos().map(f32::from_bits);
-        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
         let toward = |q: [f32; 2]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
         let far = (mid[0] - p[0]).hypot(mid[1] - p[1]);
         // Pressed into a rock or tree with no way found round it (every
@@ -3411,7 +3411,7 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
     if (q[0] - p[0]).hypot(q[1] - p[1]) < DRAIN_NEAR {
         return None;
     }
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }
 
@@ -3530,7 +3530,7 @@ fn out_of_battle(a: &crate::area::AreaMode) -> Option<Raw> {
     };
     let e = c.enemies().into_iter().filter(|&e| c.scene.chars[e].hp > 0).min_by(|&x, &y| d(x).total_cmp(&d(y)))?;
     let q = c.scene.chars[e].pos.map(f32::from_bits);
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(run_toward(cam_z, (p[0] - q[0]).atan2(-(p[1] - q[1]))))
 }
 
@@ -3799,7 +3799,7 @@ fn flee_seeds(a: &crate::area::AreaMode) -> Option<Raw> {
     if d >= 950.0 {
         return None;
     }
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(stick_toward(cam_z, (p[0] - q[0]).atan2(-(p[1] - q[1]))))
 }
 
@@ -3828,7 +3828,7 @@ fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
         return None;
     }
     let q = c.scene.chars[part].pos.map(f32::from_bits);
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }
 
@@ -3860,7 +3860,7 @@ fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
         return None;
     }
     let q = me.pos.map(f32::from_bits);
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }
 
@@ -3912,7 +3912,7 @@ fn kyvia_place(a: &crate::area::AreaMode) -> Option<Raw> {
     if (q[0] - p[0]).hypot(q[1] - p[1]) < 100.0 {
         return None;
     }
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }
 
@@ -3934,7 +3934,7 @@ fn flee_wave(a: &crate::area::AreaMode) -> Option<Raw> {
     if (q[0] - p[0]).hypot(q[1] - p[1]) >= 1000.0 {
         return None;
     }
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(stick_toward(cam_z, (p[0] - q[0]).atan2(-(p[1] - q[1]))))
 }
 
@@ -3954,7 +3954,7 @@ fn walk_to_door(a: &crate::area::AreaMode) -> Option<Raw> {
     }
     let door = w.area().get::<piney_world::story_map::StoryArea>()?.door()?.map(f32::from_bits);
     let p = w.kite().pos().map(f32::from_bits);
-    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
     Some(stick_toward(cam_z, (door[0] - p[0]).atan2(-(door[1] - p[1]))))
 }
 
@@ -4223,14 +4223,14 @@ fn after_a_fight_shots() {
                 if dx * dx + dy * dy < 250.0 * 250.0 || in_battle && n.is_multiple_of(2) {
                     Raw { buttons: if n % 6 == 0 { Buttons::CROSS } else { Buttons::NONE }, ..still }
                 } else {
-                    stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+                    stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
                 }
             } else {
                 let (dx, dy) = (28600.0 - p[0], 24600.0 - p[1]);
                 if dx * dx + dy * dy < 1500.0 * 1500.0 || fought {
                     still
                 } else {
-                    stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+                    stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
                 }
             };
             (raw, in_battle)
@@ -4423,7 +4423,7 @@ fn event_14_blackrose_after_the_administrator() {
                     _ => None,
                 };
                 let p = w.kite().pos().map(f32::from_bits);
-                let cam_z = f32::from_bits(w.camera().rot()[2]);
+                let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                 let toward = |q: [f32; 4]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
                 match step {
                     1 | 3 if playing || a.ui().menu_type() != -1 => {
@@ -4495,9 +4495,9 @@ fn event_14_blackrose_after_the_administrator() {
                     let c = a.world().camera();
                     let cam = format!(
                         "cam {} dist {:.0} kind {} puppet {} lock {}",
-                        c.cam_id,
-                        f32::from_bits(c.tcam.dist),
-                        c.tcam.kind,
+                        c.list.id().raw(),
+                        f32::from_bits(c.list.cam(piney_world::camera::CamId::Field).dist),
+                        c.list.cam(piney_world::camera::CamId::Field).kind,
                         c.puppet_show,
                         c.type_lock
                     );

@@ -8,7 +8,7 @@
 use piney_data::classes::BossGameClass;
 
 use super::systems::{Hook, Kind, Step};
-use super::{Boss, BossBase, Cx, F, ONE, V4};
+use super::{Boss, BossBase, Cx, F, V4};
 use super::{corbenik, fidchell, gorre, innis, kyvia, macha, magus, skeith, tarvos};
 
 /// Which body draws a clip of the boss's own.
@@ -33,14 +33,6 @@ pub enum PartBody {
     ByClip,
 }
 
-/// The boss camera its constructor makes: none, or `InitBossCamera` at
-/// this transfer, then what the constructor asked of it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CamDef {
-    None,
-    Transfer(V4),
-}
-
 /// Where a boss is made: Kite's place and heading, the arena's centre
 /// (`DMY_center01`), whether Corbenik is in its third form (`saveData`
 /// +0x652f, `eventStatus[55]`, 1) and the look's `DMY_dummy1`.
@@ -62,14 +54,14 @@ pub struct BossDef {
     pub class: BossGameClass,
     /// Its file and body clump, the clumps of that file its images and
     /// parts draw with, Innis's mirrors' shards, which body draws its
-    /// clips and which image a part's.
+    /// clips and which image a part's. Its camera is its constructor's
+    /// (`InitBossCamera`, [`super::BossBase::init_boss_camera`]).
     pub file: &'static str,
     pub clump: &'static str,
     pub images: &'static [&'static str],
     pub shards: bool,
     pub body: BodyPick,
     pub part: PartBody,
-    pub cam: CamDef,
     /// The body hit's radius, when not the base's width.
     pub radius: Option<F>,
     pub make: fn(&mut Cx, &Spawn) -> Boss,
@@ -114,11 +106,17 @@ pub static BASE_BOSS: BossDef = BossDef {
     shards: false,
     body: BodyPick::Body,
     part: PartBody::InOrder,
-    cam: CamDef::None,
     radius: None,
     make: bare,
     systems: &[],
-    order: &[Step::Live(&[Step::Prologue, Step::TickStop, Step::LockParty, Step::Move, Step::ForwardAndDraw])],
+    order: &[Step::Live(&[
+        Step::Prologue,
+        Step::TickStop,
+        Step::LockParty,
+        Step::Move,
+        Step::CamMain,
+        Step::ForwardAndDraw,
+    ])],
     affect: &[Step::BaseAffect],
     pass: &[],
     hand_over: &[],
@@ -126,11 +124,6 @@ pub static BASE_BOSS: BossDef = BossDef {
 
 /// A part: a `ccBoss` of its own character whose frame its master runs.
 pub static BASE_PART: BossDef = BossDef { order: &[], ..BASE_BOSS };
-
-/// `InitBossCamera(z, y)`'s `transfer`: (200, 1000), the eye 1000 behind
-/// Kite and 200 up at its nearest (Skeith's, Tarvos's, Corbenik's second
-/// form's).
-pub const CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x4348_0000, ONE];
 
 /// Skeith (`ccBoss01`, `x11`): his wave and his own; `ccBoss01::Main`
 /// (gcmn 0x0047bd50) is `ccBoss::Main`'s blocks around his `Think` and
@@ -140,7 +133,6 @@ pub static SKEITH: BossDef = BossDef {
     code: Some(0),
     class: BossGameClass::CcBoss01,
     file: "x11",
-    cam: CamDef::Transfer(CAM_TRANSFER),
     make: |cx, s| skeith::new(cx, s.kite_pos, s.kite_dirc, s.center),
     systems: &[Kind::Wave, Kind::Skeith],
     order: &[
@@ -152,6 +144,7 @@ pub static SKEITH: BossDef = BossDef {
             Step::Run(Kind::Skeith, Hook::Action),
             Step::LockParty,
             Step::Move,
+            Step::CamMain,
             Step::Run(Kind::Skeith, Hook::PreDraw),
             Step::ForwardAndDraw,
         ]),
@@ -174,7 +167,6 @@ pub static INNIS: BossDef = BossDef {
     file: "x21",
     images: &["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"],
     shards: true,
-    cam: CamDef::Transfer([0, 0x4461_0000, 0x4348_0000, ONE]),
     make: |cx, s| innis::new(cx, s.kite_pos, s.kite_dirc, s.center),
     systems: &[Kind::Wave, Kind::Missiles, Kind::Images, Kind::Innis],
     order: &[
@@ -186,6 +178,7 @@ pub static INNIS: BossDef = BossDef {
             Step::Run(Kind::Innis, Hook::Action),
             Step::Run(Kind::Innis, Hook::Move),
             Step::Run(Kind::Innis, Hook::Lock),
+            Step::CamMain,
             Step::Run(Kind::Innis, Hook::PreDraw),
             Step::Draw,
             Step::Run(Kind::Images, Hook::Action),
@@ -222,6 +215,7 @@ pub static MAGUS: BossDef = BossDef {
             Step::Run(Kind::Magus, Hook::Think),
             Step::LockParty,
             Step::Run(Kind::Magus, Hook::Move),
+            Step::CamMain,
             Step::Run(Kind::Magus, Hook::PreDraw),
             Step::Run(Kind::Laser, Hook::PreDraw),
             Step::Draw,
@@ -246,7 +240,6 @@ pub static FIDCHELL: BossDef = BossDef {
     clump: "CMP_trall1",
     images: &["CMP_trallx"],
     body: BodyPick::Epitaph("ANM_ex4x"),
-    cam: CamDef::Transfer([0, 0x44bb_8000, 0x437a_0000, ONE]),
     make: |cx, s| fidchell::new(cx, s.kite_pos, s.kite_dirc, s.center),
     systems: &[Kind::Wave, Kind::Fidchell],
     // ccThBossEffect's pass (its effects' Draw), then Outbreak's
@@ -260,6 +253,7 @@ pub static FIDCHELL: BossDef = BossDef {
             Step::Run(Kind::Fidchell, Hook::Think),
             Step::LockParty,
             Step::Move,
+            Step::CamMain,
             Step::ForwardAndDraw,
             Step::ClearHold,
         ]),
@@ -281,7 +275,6 @@ pub static GORRE: BossDef = BossDef {
     file: gorre::FILE,
     images: &["CMP_trall", "CMP_trall2", "CMP_trallx"],
     part: PartBody::ByClip,
-    cam: CamDef::Transfer([0, 0x44bb_8000, 0x4348_0000, ONE]),
     make: |cx, s| gorre::new(cx, s.kite_pos, s.kite_dirc, s.center),
     systems: &[Kind::Brothers, Kind::Gorre, Kind::Kerse],
     order: &[
@@ -307,7 +300,6 @@ pub static MACHA: BossDef = BossDef {
     clump: "CMP_trall1",
     images: &["CMP_trall2"],
     body: BodyPick::Epitaph("ANM_ex6x"),
-    cam: CamDef::Transfer([0, 0x447a_0000, 0x437a_0000, ONE]),
     make: |cx, s| macha::new(cx, s.kite_pos, s.kite_dirc, s.center),
     systems: &[Kind::Wave, Kind::Macha],
     order: &[
@@ -318,6 +310,7 @@ pub static MACHA: BossDef = BossDef {
             Step::Run(Kind::Macha, Hook::Think),
             Step::LockParty,
             Step::Move,
+            Step::CamMain,
             Step::ForwardAndDraw,
             Step::ClearHold,
         ]),
@@ -336,7 +329,6 @@ pub static TARVOS: BossDef = BossDef {
     file: tarvos::FILE,
     images: &["CMP_trall2"],
     body: BodyPick::Epitaph("ANM_ex7x"),
-    cam: CamDef::Transfer(CAM_TRANSFER),
     make: |cx, s| tarvos::new(cx, s.kite_pos, s.kite_dirc, s.center),
     systems: &[Kind::Wave, Kind::Tarvos],
     // ccThBossEffect's pass, then ccBoss07::Main (QUA gcmn 0x003a91e0):
@@ -350,6 +342,7 @@ pub static TARVOS: BossDef = BossDef {
             Step::Run(Kind::Tarvos, Hook::Think),
             Step::LockParty,
             Step::Move,
+            Step::CamMain,
             Step::Run(Kind::Tarvos, Hook::PreDraw),
             Step::Draw,
             Step::ClearHold,
@@ -391,6 +384,7 @@ pub static CORBENIK: BossDef = BossDef {
             Step::Run(Kind::CorbenikFirst, Hook::Think),
             Step::LockParty,
             Step::Move,
+            Step::CamMain,
             Step::Run(Kind::CorbenikFirst, Hook::PreDraw),
             Step::Draw,
             Step::Run(Kind::CorbenikFirst, Hook::Action),
@@ -415,7 +409,6 @@ pub static CORBENIK: BossDef = BossDef {
 pub static CORBENIK_SECOND: BossDef = BossDef {
     code: None,
     class: BossGameClass::CcBoss08B,
-    cam: CamDef::Transfer(CAM_TRANSFER),
     systems: &[Kind::CorbenikSecond],
     order: &[
         Step::Run(Kind::CorbenikSecond, Hook::Lend),
@@ -426,6 +419,7 @@ pub static CORBENIK_SECOND: BossDef = BossDef {
             Step::Run(Kind::CorbenikSecond, Hook::Think),
             Step::LockParty,
             Step::Move,
+            Step::CamMain,
             Step::Run(Kind::CorbenikSecond, Hook::PreDraw),
             Step::Draw,
             Step::Run(Kind::CorbenikSecond, Hook::Action),
@@ -446,7 +440,6 @@ pub static CORBENIK_SECOND: BossDef = BossDef {
 pub static CORBENIK_THIRD: BossDef = BossDef {
     code: None,
     class: BossGameClass::CcBoss08C,
-    cam: CamDef::Transfer([0, corbenik::third::CAM_Y, corbenik::third::CAM_Z, ONE]),
     systems: &[Kind::CorbenikThird],
     order: &[
         Step::Run(Kind::CorbenikThird, Hook::Lend),
@@ -457,6 +450,7 @@ pub static CORBENIK_THIRD: BossDef = BossDef {
             Step::Run(Kind::CorbenikThird, Hook::Think),
             Step::LockParty,
             Step::Move,
+            Step::CamMain,
             Step::Run(Kind::CorbenikThird, Hook::PreDraw),
             Step::Run(Kind::CorbenikThird, Hook::Draw),
             Step::Run(Kind::CorbenikThird, Hook::Action),
@@ -488,7 +482,6 @@ pub static KYVIA: BossDef = BossDef {
     file: kyvia::Fight::First.file(),
     clump: "CMP_trallex01",
     images: &["CMP_trall2", "CMP_trall3"],
-    cam: CamDef::Transfer([0, 0x4483_4000, 0x43e1_0000, ONE]),
     radius: Some(kyvia::BODY_RADIUS),
     make: |cx, _| kyvia::new(cx, kyvia::Fight::First),
     systems: &[Kind::SlaveCore, Kind::Gomoras, Kind::Disc, Kind::Kyvia],
@@ -503,6 +496,7 @@ pub static KYVIA: BossDef = BossDef {
             Step::Run(Kind::Kyvia, Hook::Action),
             Step::Move,
             Step::Run(Kind::Kyvia, Hook::Lock),
+            Step::CamMain,
             Step::ForwardAndDraw,
             Step::Run(Kind::SlaveCore, Hook::Action),
         ]),
@@ -545,7 +539,6 @@ pub static KYVIA_FOURTH: BossDef = BossDef {
     class: BossGameClass::CcBossKyvia04,
     file: kyvia::Fight::Fourth.file(),
     clump: "CMP_trallex04",
-    cam: CamDef::Transfer([0, 0x442f_0000, 0x437a_0000, ONE]),
     make: |cx, _| kyvia::new(cx, kyvia::Fight::Fourth),
     systems: &[Kind::SlaveCore, Kind::Gomoras, Kind::Disc, Kind::Places, Kind::Kyvia],
     order: &[
@@ -560,6 +553,7 @@ pub static KYVIA_FOURTH: BossDef = BossDef {
             Step::Run(Kind::Kyvia, Hook::Action),
             Step::Run(Kind::Kyvia, Hook::Move),
             Step::Run(Kind::Kyvia, Hook::Lock),
+            Step::CamMain,
             Step::ForwardAndDraw,
             Step::Run(Kind::SlaveCore, Hook::Action),
             Step::ClearHold,

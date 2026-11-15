@@ -195,7 +195,9 @@ mod tests {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut t = Town::open(&archive, Volume::Out, 3, false).unwrap();
         let player = [0, ee::k(6000.0), 0, ONE];
-        t.step(&MapView { eye: [0, ee::k(5000.0), ee::k(400.0), ONE], player, ..MapView::default() });
+        let eye = crate::camera::Cam { pos: [0, ee::k(5000.0), ee::k(400.0), ONE], ..Default::default() };
+        let cams = crate::camera::CamList::new(Volume::Inf, eye);
+        t.step(&MapView { player, ..MapView::new(&cams, &crate::systems::NO_SCREEN) });
         let clump = |k: usize| Drawn::Piece(Kind::Sky, Piece::Clump(k));
         assert_eq!(&t.frame()[..5], &[clump(0), clump(1), clump(5), clump(6), clump(7)]);
         assert!(t.frame().contains(&Drawn::Map));

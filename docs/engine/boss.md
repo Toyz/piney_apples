@@ -112,12 +112,14 @@ so their drawn transparency is that alpha faded. Code that reads
 from it, as do Magus's chase and the seeds' fall.
 
 The port: `Boss::draw` (piney_battle::boss) at each of those places,
-`CamView.fade` the active camera (the world's `cam_view`: its eye, pitch
-and the eye view, a field's distances). Every boss harness runs `Draw`
-natively against a stand-in active camera (`draw_case` in
-tools/test_battle_boss_rs.py: near, about the arena or far, a random
-pitch, now and then the eye view) and compares the transparency of the
-boss and its parts each frame.
+reading the active camera of camera.cpp's list as it stands then (after
+the frame's `CamMain`: its eye, pitch and type) and `game.area`'s far end
+and fade. Every boss harness runs `Draw` natively over the game's own
+cameras as the case lays them (`draw_case` and `put_cams` in
+tools/test_battle_boss_rs.py: tcam near, about the arena or far, a random
+pitch, now and then the eye view; the forced cameras put into the active
+one after the constructor, with `bossCamSW` cleared) and compares the
+transparency of the boss and its parts each frame.
 
 ## Actions and patterns
 
@@ -590,8 +592,10 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
 - **`OnCinemaMode(n)`** (0x004618b0) does nothing while `CineMode` is 1-3,
   or while the party is wiped out or a game over forced. Otherwise
   `CinemaOn(n)`:
-  - with `0 <= n < 61` and a file and texture in `_g_cinemaSkillName[n]`
-    (gcmn 0x005eb040, rows of file, texture, row), `SetupSkillName` gives
+  - with `0 <= n < 61` (from Mutation on `n < 79`: MUT 0x00480648, OUT
+    0x0047bfd8, QUA 0x0036e8e8) and a file and texture in
+    `_g_cinemaSkillName[n]` (gcmn 0x005eb040, rows of file, texture, row;
+    the port reads 72, and no call passes 72-78), `SetupSkillName` gives
     the mask that texture, sets its transparency to 0 and shows it. (With
     `game`+0x24 9-12 the file is `x01`-`x04` instead.)
   - `CineMode` becomes 2.
@@ -616,18 +620,22 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
       and -30.
     - 5 slides them out: the name's transparency falls by 1/15, and the
       bars go at `0 - (30 - NowTop)` and `354 + (30 + NowBot)`. Then
-      mode 0.
+      mode 0. From Mutation on (MUT 0x00480ddc, OUT 0x0047c7b4, QUA
+      0x0036f0c4) the name first fades out by 0.1 a frame while the bars
+      hold where `tempDat` has them; they slide once it is 0.
   - **A bar** is `ccScFade::EntryFlash(1, 0x80000000, 0, y, 512, 30)`
     (0x00160240): an element from black at alpha 0x80 to the same colour
     at alpha 0 over one frame, deleted when done. It shows as an opaque
     black band, drawn by both faders' `SendPacket`.
 
-**The port**: `piney_world::camera::cinema::Cinema`, in `BossRun` (`cinema`,
+**The port**: `piney_world::combat::cinema::Cinema`, in `BossRun` (`cinema`,
 `cinema_sent`).
 - **Order.** It steps at the start of the boss's frame (the manager's
   time) and takes `Out::Cinema` after `Main`.
-- **The name** comes from `BossLook::skill_name` (x11's `TEX_ske_skl`,
-  looked up when the boss's files load).
+- **The name** comes from `BossLook::names` (the rows `cinema::takes`
+  reads that name the boss's file, looked up when its files load).
+- **The outro** holds the bars for the name's fade from Mutation on
+  (`Cinema::hold_out`).
 - **The draw.** The field draws the cinema on layer 241 with
   `piney_desktop::sprite` and `fade::draw_rect`.
 - **`tempDat`** starts at 0, as a fresh heap block has it. So the first
@@ -763,30 +771,34 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
    - the stage fader, the after-images (each with its own fade, blend
      and growth: `ccBossAfterImageEx::Draw`, MUT gcmn 0x00471320) and the
      wave are drawn;
-   - the quake and the dead camera go to the boss camera, and the dead
-     effect's `ccSqFade` to the music;
+   - the dead effect's `ccSqFade` goes to the music (its cameras, the
+     quake and the shake are written at the rules' call);
    - the effects are made and drawn ("The effects' pictures"), the
      cross's trail and the reversed layer drawn;
    - the cinema ([above](#the-cinema-ccbosseffcinemafade)) and the blur
      ([above](#the-blur)) are drawn; no script of this volume holds the
      boss (`hold 7`).
-8. The boss camera (`piney_world::camera::bosscam::BossCam`) is made with the
-   boss and runs after its `Main`.
+8. The boss camera (`piney_battle::boss::cam::BossCam`) is the boss's
+   (`ccBoss` +0x14c, `BossBase::cam`, with `bossCamSW` +0x150 its
+   `cam_sw`): made by its constructor on the camera list's camera 2
+   (`InitBossCamera`) and run by its `Main` (`Step::CamMain`, after the
+   move or the class's lock), with camera.cpp lent to the task and its
+   affects (`BossEnv::cams`: the list, the shake, the scheme).
 9. The area host answers `present/absent 7` from the task's exit.
 
 **Defs and requests** (worklog 537). A boss is a def,
 `piney_battle::boss::defs` (`BossDef`): its class (`BossGameClass`), its
 file and body, the clumps its images and parts draw with, which body an
-Epitaph's clips move, its camera (`CamDef`: none, or `InitBossCamera` at
-a transfer, then what its constructor asked of it), its hit's radius and
-its constructor. Every def is `BASE_BOSS` (a part's `BASE_PART`) with its
+Epitaph's clips move, its hit's radius and its constructor (which makes
+its camera, `InitBossCamera(z, y)`, at the game's point:
+`BossBase::init_boss_camera`). Every def is `BASE_BOSS` (a part's `BASE_PART`) with its
 differences; `defs::BOSSES` is `bossFunc`, a def a code, and Corbenik's
 later forms and every part have theirs. Each def is a `static` and not
 `Copy`, so a def is its address: `boss.def == &defs::TARVOS` holds from
 any crate (worklog 544). The field reads a boss only
 through its def and what it asks, the same for every boss:
 
-- `Out`, the frame's calls in order: sounds, cameras, flashes, effects
+- `Out`, the frame's calls in order: sounds, flashes, effects
   made, pictures beside the bodies (`Out::Picture`: an object or a clip of
   its file or xeffect, at a place, a matrix or a node of the body as last
   drawn, at the body's `setTransparency` unless its own), after-images
@@ -841,12 +853,13 @@ fields, the cameras and the view matrix with the port's.
 
 `tools/test_cinema_rs.py` builds the game's `ccBossEffCinemaFade` in eemu
 by its constructor, with a manager holding it. It turns the cinema on
-(numbers 2, -1, 0, 5 and 70) and off at random frames over eight runs of
-300-600 frames, and runs `Draw` every frame against `cinema_probe`. It
-compares every frame's name (transparency bits, `wv`; the cell, place and
-size constant), each bar's `EntryFlash` (y bits; frames, colour, x, width
-and height constant), and which ons set a name (`SetTex`'s file and
-texture: `x11`, `TEX_ske_skl`).
+(numbers 2, -1, 0, 5, 64 and 70) and off at random frames over eight runs
+of 300-600 frames, and runs `Draw` every frame against `cinema_probe`, on
+each volume's own table (`cinema_probe VOLUME`). It compares every frame's
+name (transparency bits, `wv`; the cell, place and size constant), each
+bar's `EntryFlash` (y bits; frames, colour, x, width and height constant),
+and which ons set a name (`SetTex`'s file and texture as the volume's row
+gives them). It passes on all four volumes.
 
 `tools/test_battle_boss_rs.py` runs the game's `ccBoss01` in eemu against
 the port frame by frame over random cases. A case is:

@@ -10,6 +10,7 @@ pub mod eff;
 #[cfg(test)]
 mod tests;
 
+use crate::camera::CamId;
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::tables::combat;
@@ -210,30 +211,30 @@ fn wave<'a>(o: &'a mut Others) -> &'a mut Wave {
 /// `OnMagicCamera(vp, d, offset, 2)` (0x003a8eb0): with a boss camera,
 /// its free eye `offset` from `vp` turned by `Rz(-pi/2) Rx Ry Rz` of `d`,
 /// looking at `vp`.
-fn magic_camera(cx: &mut Cx, vp: V4, d: V4, off: V4) {
+fn magic_camera(b: &mut BossBase, cx: &mut Cx, vp: V4, d: V4, off: V4) {
     let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
     let m = geom::rot_matrix_x(&m, d[0]);
     let m = geom::rot_matrix_y(&m, d[1]);
     let m = geom::rot_matrix_z(&m, d[2]);
     let v = geom::apply_matrix(&m, off);
     let eye = super::p2w(cx, geom::vadd(super::w2p(cx, vp), v));
-    if cx.boss_cam {
-        cx.out(Out::CamMode { mode: 5 });
-        cx.out(Out::FreeCam { pos: eye, view: vp });
+    if b.cam.is_some() {
+        b.cam_mode(cx, 5);
+        b.cam_pos_view(eye, vp);
     }
 }
 
 /// The skill's and the magic's camera: the eye 1500 out and 70 up from
 /// the target along `targetDirc`, looking at the target 200 up.
-fn spell_camera(b: &BossBase, cx: &mut Cx) {
+fn spell_camera(b: &mut BossBase, cx: &mut Cx) {
     let mut vp = b.target_pos;
     vp[2] = 0x4348_0000;
     let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
     let m = geom::rot_matrix_z(&m, b.target_dirc);
     let v = geom::apply_matrix(&m, [0x44bb_8000, 0, 0x428c_0000, ONE]);
     let eye = super::p2w(cx, geom::vadd(super::w2p(cx, b.target_pos), v));
-    cx.out(Out::CamMode { mode: 5 });
-    cx.out(Out::FreeCam { pos: eye, view: vp });
+    b.cam_mode(cx, 5);
+    b.cam_pos_view(eye, vp);
 }
 
 // --- the constructor ------------------------------------------------------------------------
@@ -261,6 +262,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.use_stage_eff = true;
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = super::w2p(cx, b.center_pos);
+    b.init_boss_camera(cx, 0x4348_0000, 0x447a_0000);
     // The blur on (m_exit 0) under ccBoss03BlurParamCB.
     cx.out(Out::Blur(super::blur::Set::Enable));
     cx.out(Out::Blur(super::blur::Set::Func(super::blur::BlurFunc::Boss03)));
@@ -569,7 +571,7 @@ fn on_sacrifice(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             let mut vp = t.map_or(VF0, |t| cx.scene.chars[t].pos);
             vp[2] = 0x4248_0000;
             b.dirc[2] = b.target_dirc;
-            magic_camera(cx, vp, b.dirc, [0x447a_0000, 0, 0x4348_0000, ONE]);
+            magic_camera(b, cx, vp, b.dirc, [0x447a_0000, 0, 0x4348_0000, ONE]);
             cx.out(Out::SwitchLayer);
             x.stage_eff = b.begin_stage_effect(cx, DARK, [30, 15, 30000]);
             b.act_proccess += 1;
@@ -601,8 +603,8 @@ fn on_sacrifice(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.act_count += 1;
             if c == 60 {
                 cx.out(Out::SwitchLayer);
-                if cx.boss_cam {
-                    cx.out(Out::CamMode { mode: 6 });
+                if b.cam.is_some() {
+                    b.cam_mode(cx, 6);
                 }
                 cx.out(Out::Cinema(None));
                 b.unlock_player();
@@ -646,7 +648,7 @@ fn on_wave(b: &mut BossBase, x: &mut Tarvos, w: &mut Wave, cx: &mut Cx) {
                 let pos = cx.pos();
                 b.skill_damage(cx, None, Some(pos), 23);
             }
-            cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
+            b.quake(cx, [0x420c_0000, 0x4170_0000, 0x420c_0000]);
             w.anm.forward();
             let pos = cx.pos();
             cx.out(Out::Wave { who: cx.me, time: w.anm.posed, pos, dirc: b.dirc, scale: ONE });
@@ -722,13 +724,13 @@ fn on_skill(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.act_count = 0;
         }
         3 if c == 15 => {
-            cx.out(Out::CamMode { mode: 6 });
+            b.cam_mode(cx, 6);
             cx.out(Out::Cinema(None));
             cx.out(Out::SwitchLayer);
             b.unlock_player();
             b.entry_cmnd_target(cx);
             cx.cursor(false);
-            cx.out(Out::CameraChange(2));
+            cx.cams().change(CamId::Battle);
             x.change_next_pattern(b, cx);
         }
         _ => {}
@@ -819,8 +821,8 @@ fn on_magic(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
         }
         2 => {
             let end = if matches!(x.skill_id, 268 | 276) { 120 } else { 240 };
-            if cx.boss_cam && (100..161).contains(&c) {
-                cx.quake_vec([0x420c_0000, 0x420c_0000, 0x420c_0000]);
+            if b.cam.is_some() && (100..161).contains(&c) {
+                b.quake_vec(cx, [0x420c_0000, 0x420c_0000, 0x420c_0000]);
                 if (c - 100) % 20 == 0 {
                     cx.out(Out::Noise(20));
                 }
@@ -838,8 +840,8 @@ fn on_magic(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.entry_cmnd_target(cx);
             cx.cursor(false);
             b.unlock_player();
-            if cx.boss_cam {
-                cx.out(Out::CamMode { mode: 6 });
+            if b.cam.is_some() {
+                b.cam_mode(cx, 6);
             }
             x.change_next_pattern(b, cx);
         }
@@ -870,7 +872,11 @@ fn on_phantom(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             cx.out(Out::Cinema(Some(25)));
             b.erase_cmnd_target(cx);
             cx.cursor(true);
-            let fx = Fx::Phantom(Box::new(eff::Phantom::new(cx, pos, b.center_dirc)));
+            // `$s1`, the target's `ccChar *`: Kite or the member SelectTarget
+            // found, both the party's.
+            let slot = cx.party.members.iter().position(|&m| m == Some(t));
+            let va = slot.map_or(0, |k| cx.env.party_va[k]);
+            let fx = Fx::Phantom(Box::new(eff::Phantom::new(b, cx, pos, b.center_dirc, va)));
             x.eff_phantom = Some(b.make_fx(cx, EffKind::Phantom, fx, pos, VF0));
             b.act_proccess += 1;
         }
@@ -1060,7 +1066,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
                 let pos = cx.pos();
                 cx.out(Out::Se3dNote { se: 56, pos, note: 60 });
             }
-            cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
+            b.quake(cx, [0x420c_0000, 0x4170_0000, 0x420c_0000]);
             let mut r = ee::add(x.blend_rate, ONE);
             if !ee::le(r, 0x428c_0000) {
                 r = 0x428c_0000;
@@ -1096,7 +1102,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
                 cx.out(Out::Se3dNote { se: 56, pos, note: 60 });
             }
             if f & 7 == 7 {
-                cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
+                b.quake(cx, [0x420c_0000, 0x4170_0000, 0x420c_0000]);
             }
             if (80..101).contains(&(f as u32)) {
                 x.blend_rate = ee::sub(x.blend_rate, 0x4060_0000);
@@ -1274,7 +1280,7 @@ fn on_epitaph_wave(b: &mut BossBase, x: &mut Tarvos, w: &mut Wave, cx: &mut Cx) 
                 let pos = cx.pos();
                 b.skill_damage(cx, None, Some(pos), 23);
             }
-            cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
+            b.quake(cx, [0x420c_0000, 0x4170_0000, 0x420c_0000]);
             let done = w.anm.forward();
             let pos = cx.pos();
             cx.out(Out::Wave { who: cx.me, time: w.anm.posed, pos, dirc: b.dirc, scale: ONE });

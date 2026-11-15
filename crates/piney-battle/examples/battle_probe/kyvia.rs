@@ -12,9 +12,7 @@ use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::fourth::Places;
 use piney_battle::boss::kyvia::gomora::Gomora;
 use piney_battle::boss::kyvia::{Disc, Fight, Gen, GenOp, Held, Kyvia, Place, SlaveCore};
-use piney_battle::boss::{
-    Boss, BossEnv, CamView, Cx, DiscView, EffKind, FadeView, Field, Follow, Fx, FxCall, Out, Picture,
-};
+use piney_battle::boss::{Boss, BossEnv, Cx, DiscView, EffKind, FadeView, Field, Follow, Fx, FxCall, Out, Picture};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::{Event, Events, Who};
@@ -80,82 +78,6 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
             run(*fight, tables, clips, t)
         }
     }))
-}
-
-fn v4(t: &mut Toks) -> V4 {
-    std::array::from_fn(|_| t.u32())
-}
-
-/// The boss camera as the game's zeroed `ccBossCam` holds it under the
-/// rules' `SetMode`, `SetFreeCamPosView` and pitch (CamMain never runs):
-/// the harness clears a mode 3 or 4 (`ResetFlg`) `delay` frames after it
-/// was set, standing in for `SetTransfer`'s ease.
-#[derive(Default)]
-struct FakeCam {
-    reset: i32,
-    lock: u8,
-    view: V4,
-    pos: V4,
-    temp_view: V4,
-    temp_pos: V4,
-    xrot: u32,
-    left: i32,
-    /// +0x138 `ExLock` (modes 3 and 5 set bits 4 and 0, 4 and 6 clear
-    /// them) and +0x139 `ZrotControlFlg`.
-    ex_lock: u8,
-    sway: u8,
-}
-
-impl FakeCam {
-    fn take(&mut self, o: &Out) {
-        match o {
-            Out::CamMode { mode } | Out::CamModeRange { mode, .. } => {
-                self.reset = *mode;
-                match mode {
-                    3 => self.ex_lock |= 0x10,
-                    4 => self.ex_lock &= 1,
-                    5 => {
-                        self.ex_lock |= 1;
-                        self.lock = 1;
-                        self.temp_view = self.view;
-                        self.temp_pos = self.pos;
-                    }
-                    6 => {
-                        self.ex_lock &= 0x10;
-                        self.lock = 0;
-                        self.view = self.temp_view;
-                        self.pos = self.temp_pos;
-                        self.reset = 0;
-                    }
-                    _ => {}
-                }
-            }
-            Out::FreeCam { pos, view } if self.reset == 5 => {
-                self.view = *view;
-                self.pos = *pos;
-            }
-            Out::CamEye(pos) => self.pos = *pos,
-            Out::CamPitch { add, v } => self.xrot = if *add { ee::add(self.xrot, *v) } else { *v },
-            Out::CamSway(on) => self.sway = u8::from(*on),
-            _ => {}
-        }
-    }
-
-    /// The harness's step before a frame: a mode 3 or 4 counts down and
-    /// clears.
-    fn step(&mut self, delay: i32) {
-        if matches!(self.reset, 3 | 4) {
-            if self.left == 0 {
-                self.left = delay;
-            }
-            self.left -= 1;
-            if self.left == 0 {
-                self.reset = 0;
-            }
-        } else {
-            self.left = 0;
-        }
-    }
 }
 
 /// `scFadeDef`'s four elements as the harness steps them (main fade.cpp:
@@ -263,14 +185,9 @@ fn ee_vadd(a: V4, b: V4) -> V4 {
 }
 
 struct Case {
-    frames: usize,
-    rot: Vec<u32>,
     moving: Vec<bool>,
     prev: Vec<V4>,
     marker: V4,
-    cam_pos: V4,
-    cam_view: V4,
-    delay: i32,
 }
 
 fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
@@ -292,10 +209,6 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let count0 = t.u32();
     let frames = t.int() as usize;
     let ride2 = t.i32();
-    let cam_pos = v4(t);
-    let cam_view = v4(t);
-    let delay = t.i32();
-    let rot: Vec<u32> = (0..frames).map(|_| t.u32()).collect();
     let moving: Vec<bool> = (0..frames).map(|_| t.int() != 0).collect();
     let prev: Vec<V4> = (0..frames).map(|_| [t.u32(), t.u32(), t.u32(), 0x3f80_0000]).collect();
     let ns = t.int() as usize;
@@ -311,9 +224,9 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         Vec::new()
     };
     let mut blur = crate::boss::ProbeBlur::read(t);
-    let cam_fade = crate::boss::read_fade(t);
+    let (cams, post) = crate::boss::read_cams(t);
     let mut fade = FakeFade::default();
-    let case = Case { frames, rot, moving, prev, marker, cam_pos, cam_view, delay };
+    let case = Case { moving, prev, marker };
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -323,23 +236,8 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
     let mut menu = [0i32; 7];
-    let mut cam = FakeCam::default();
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let view = |f: usize, reset: i32, eye: V4| CamView {
-        rot: [0, 0, case.rot[f.min(case.frames.saturating_sub(1))], 0],
-        pos: case.cam_pos,
-        view: case.cam_view,
-        moving: false,
-        reset,
-        shake: false,
-        eye,
-        active: 2,
-        active_pos: case.cam_pos,
-        active_view: case.cam_view,
-        boss_view: [0; 4],
-        fade: cam_fade,
-    };
     // The frames the disc rides on after the body's `Move`.
     let mut ride = 0;
     let disc = |f: usize, ride: i32, blur: &crate::boss::ProbeBlur, fade: &FakeFade| DiscView {
@@ -353,7 +251,7 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None, cams: &cams };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let list = RefCell::new(HitList { volume: crate::probe_volume(), chars: Vec::new() });
@@ -372,8 +270,6 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         collide: &mut none,
         field: &mut Shared(&list),
         game_over: false,
-        boss_cam: true,
-        cam: view(0, 0, [0; 4]),
         land: &mut land,
         disc: disc(0, 0, &blur, &fade),
         gen_alive: &|_| true,
@@ -411,16 +307,17 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     HELD.with(|s| s.borrow_mut().clear());
     PAUSED.with(|s| s.borrow_mut().clear());
     ROLES.with(|r| *r.borrow_mut() = roles(&boss, &scene));
+    post.apply(&cams, &mut boss.base);
     for o in &out {
-        cam.take(o);
         fade.take(o);
     }
     blur.apply(&out);
     let outs: Vec<String> = out.iter().filter_map(kout).collect();
-    lines.push(with_ball(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
+    let line = with_ball(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &blur.json()), &boss);
+    lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None, cams: &cams };
         let actx = AffectCtx {
             party: &party,
             menu: true,
@@ -428,7 +325,6 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             boss: Some(&benv),
             volume: crate::probe_volume(),
         };
-        cam.step(case.delay);
         ride = (ride - 1).max(0);
         for &(_, p) in walks.iter().filter(|w| w.0 == f) {
             if let Some(k) = members[0] {
@@ -493,8 +389,6 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             collide: &mut body_push,
             field: &mut Shared(&list),
             game_over: false,
-            boss_cam: true,
-            cam: view(f, cam.reset, cam.pos),
             land: &mut land,
             disc: disc(f, ride, &blur, &fade),
             gen_alive: &|_| true,
@@ -506,14 +400,9 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         let fx_out = std::mem::take(&mut cx.out);
         blur.apply(&fx_out);
         blur.frame();
-        // The effects' camera modes before the boss reads ResetFlg.
-        for o in fx_out.iter().filter(|o| matches!(o, Out::CamMode { .. } | Out::CamModeRange { .. })) {
-            cam.take(o);
-        }
         for o in &fx_out {
             fade.take(o);
         }
-        cx.cam = view(f, cam.reset, cam.pos);
         cx.disc.blur_abgr = blur.blur.abgr;
         cx.disc.blur_scale = blur.blur.scale;
         cx.disc.fades = fade.view();
@@ -521,17 +410,13 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         let main_out = std::mem::take(&mut cx.out);
         drop(cx);
         outs.extend(fx_out.iter().chain(&main_out).filter_map(kout));
-        let fx_at = out.len()..out.len() + fx_out.len();
         out.extend(fx_out);
         let pre = out.len();
         out.extend(main_out);
-        let early =
-            |k: usize, o: &Out| fx_at.contains(&k) && matches!(o, Out::CamMode { .. } | Out::CamModeRange { .. });
         for o in &out[pre..] {
             fade.take(o);
         }
-        for (_, o) in out.iter().enumerate().filter(|&(k, o)| !early(k, o)) {
-            cam.take(o);
+        for o in &out {
             match o {
                 Out::DummyTarget(t) => menu[6] = t.map_or(0, |_| 1),
                 Out::DiscNextStage => ride = ride2,
@@ -557,7 +442,8 @@ fn run(fight: Fight, tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         }
         blur.apply(&out[pre..]);
         fade.step();
-        lines.push(with_ball(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
+        let line = with_ball(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &blur.json()), &boss);
+        lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     }
     format!("[{}]", lines.join(","))
 }
@@ -710,7 +596,6 @@ fn kout(o: &Out) -> Option<String> {
             return None;
         }
         Out::FieldBodyHit { n, on } => format!("[\"gate\",{n},{}]", u8::from(*on)),
-        Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) => return None,
         // DrawParts(anmw, 0) at the arm's frame (its place is tesPOS).
         Out::Picture(Picture::Anm { time, .. }) | Out::Wave { time, .. } => {
             format!("[\"draw_parts\",{},0]", time >> 8)
@@ -1026,7 +911,6 @@ fn frame_json(
     rand: &Rand,
     cc: &Genrand,
     menu: &[i32; 7],
-    cam: &FakeCam,
     blur: &str,
 ) -> String {
     let (Some(x), Some(core)) = (b.systems.get::<Kyvia>(), b.systems.get::<SlaveCore>().map(|c| c.me)) else {
@@ -1064,7 +948,7 @@ fn frame_json(
     };
     format!(
         "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
-         \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{},{},{}],\"blur\":{},\
+         \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"blur\":{},\
          \"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.base.act_num,
         b.base.act_proccess,
@@ -1087,13 +971,6 @@ fn frame_json(
         kyvia_json(b),
         core_s,
         gs.join(","),
-        cam.reset,
-        cam.lock,
-        v3(&cam.view),
-        v3(&cam.pos),
-        cam.xrot,
-        cam.ex_lock,
-        cam.sway,
         blur,
         effs.join(","),
         party.join(","),

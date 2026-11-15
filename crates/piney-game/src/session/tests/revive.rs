@@ -287,7 +287,7 @@ fn a_member_spoken_to_and_left_follows_again() {
             let c = w.combat();
             let (p, q) = (c.scene.chars[c.kite.unwrap()].pos, c.scene.chars[mia].pos);
             let (dx, dy) = (f32::from_bits(q[0]) - f32::from_bits(p[0]), f32::from_bits(q[1]) - f32::from_bits(p[1]));
-            stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+            stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
         };
         pad.read(&raw);
         s.step(&pad);
@@ -308,7 +308,7 @@ fn a_member_spoken_to_and_left_follows_again() {
     let start = pos(&mut s, mia);
     for _ in 0..240 {
         let w = area(&mut s).world();
-        let raw = stick_toward(f32::from_bits(w.camera().rot()[2]), 0.0);
+        let raw = stick_toward(f32::from_bits(w.camera().list.rot()[2]), 0.0);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();

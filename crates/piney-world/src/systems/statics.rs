@@ -376,7 +376,7 @@ impl MapSystem for StaticObjects {
     fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
         match hook {
             Hook::Pass(pass) => {
-                for row in self.step_pass(pass, cx.view.eye, cx.core.hits.volume) {
+                for row in self.step_pass(pass, cx.view.eye(), cx.core.hits.volume) {
                     cx.put(Kind::Objects, Piece::Object(row));
                 }
             }

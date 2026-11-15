@@ -1,6 +1,6 @@
 use super::*;
 use crate::affect::{self, AffectCtx};
-use crate::boss::{BossEnv, CamView, DiscView};
+use crate::boss::{BossEnv, DiscView};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -15,6 +15,7 @@ use piney_data::volume::Volume;
 /// Kyvia over Kite and a member on its volume's tables, the disc at the
 /// origin and the body 3000 off it.
 struct Bout {
+    cams: std::cell::RefCell<crate::boss::Cams>,
     volume: Volume,
     t: Tables,
     scene: Scene,
@@ -60,7 +61,18 @@ fn bout(volume: Volume, which: Fight) -> Option<Bout> {
         marker: [0, 0x453b_8000, 0x4348_0000, ONE],
         ..DiscView::default()
     };
-    let mut f = Bout { volume, t, scene, party, me, rand: Rand(7), cc: Genrand::seeded(4357), count: 0, disc };
+    let mut f = Bout {
+        cams: std::cell::RefCell::new(crate::boss::Cams::at_rest(volume)),
+        volume,
+        t,
+        scene,
+        party,
+        me,
+        rand: Rand(7),
+        cc: Genrand::seeded(4357),
+        count: 0,
+        disc,
+    };
     let b = f.with_cx(|cx| new(cx, which));
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
     Some(f)
@@ -71,7 +83,7 @@ impl Bout {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None, cams: &self.cams };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: self.volume };
         let mut none = |_| None;
@@ -89,8 +101,6 @@ impl Bout {
             collide: &mut none,
             field: &mut crate::boss::NoField,
             game_over: false,
-            boss_cam: true,
-            cam: CamView::default(),
             land: &mut land,
             disc: self.disc,
             gen_alive: &|_| true,
@@ -168,11 +178,12 @@ fn stands_at_the_marker_with_its_core_and_gomoras() {
 #[test]
 fn the_core_rises_once_the_disc_stops() {
     let Some(mut f) = fight() else { return };
-    let out = f.frame();
-    assert!(out.iter().any(|o| matches!(o, Out::FreeCam { .. })), "the camera rides with the disc");
+    f.frame();
+    let cam = |f: &Bout| f.part(f.me).base.cam.clone().unwrap();
+    assert_eq!((cam(&f).reset, cam(&f).lock), (5, true), "the camera rides with the disc, free");
     f.disc.moving = false;
-    let out = f.frame();
-    assert!(out.contains(&Out::CamMode { mode: 6 }));
+    f.frame();
+    assert_eq!((cam(&f).reset, cam(&f).lock), (0, false), "and back (mode 6)");
     for _ in 0..49 {
         f.frame();
     }
@@ -222,7 +233,7 @@ fn a_hit_on_the_core_shows_its_resistance() {
     let clip = |_: &str| Some((60, false));
     let env = Env { count: 1, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: &f.t, clips: &clip, env: &env, game_over: false, cc: None };
+    let benv = BossEnv { t: &f.t, clips: &clip, env: &env, game_over: false, cc: None, cams: &f.cams };
     let actx = AffectCtx { party: &f.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Mut };
     let mut ev = Events::new();
     // A normal attack (skill 1): physical, which attribute 0 resists.

@@ -8,6 +8,8 @@
 //! and boss-innis.md, boss-magus.md, boss-kyvia.md, boss-fidchell.md.
 
 pub mod blur;
+#[doc(alias = "ccBossCam")]
+pub mod cam;
 pub mod corbenik;
 pub mod defs;
 pub mod fidchell;
@@ -25,6 +27,9 @@ pub mod tarvos;
 use piney_data::field::ee;
 
 use crate::affect::{self, AffectCtx};
+use std::cell::{Ref, RefCell, RefMut};
+
+use crate::camera::{CamId, CamList, Scheme, Shake};
 use crate::chara::{self, Env};
 use crate::damage::{self, Roll};
 use crate::enemy_ai::{World, rand_f, search_near_person};
@@ -540,6 +545,10 @@ pub enum Out {
     /// the wave (`xeffect`'s `ANM_xx11wave`, posed as [`Output::wave`])
     /// drawn at the boss this frame, on objLayer.
     DrawWave,
+    /// The active camera as the 3D sounds after it are panned by it
+    /// ([`crate::camera::Ear`]): written before each (`calcPan` reads
+    /// `activeCamPtr` at `ccSeOn3D`'s call, before or after `CamMain`).
+    Ear(crate::camera::Ear),
     /// `ccSeOn3D(se, pos)`.
     Se3d {
         se: i32,
@@ -568,9 +577,6 @@ pub enum Out {
         pos: V4,
         dirc: V4,
     },
-    /// `bossCam->QuakeCam(q)` (with a boss camera): the vector of three
-    /// `ccRandF(q[k])` it drew.
-    Quake([F; 3]),
     /// `ccMenu +0x26 cursolOff`.
     CursorOff(bool),
     /// `ccMenu->forbid` (+0xfe) and `forbidChatExcept` (+0x100).
@@ -601,14 +607,6 @@ pub enum Out {
     },
     /// `ccBufferReverce` drawn on its own layer (the magic's last part).
     Reverse,
-    /// `BeginDeadEffect`'s camera: the boss camera handed to camera 1 and
-    /// camera 3 set at `eye` looking at the boss (`view`, its place then);
-    /// `ccSqFade(0, 0, 30, 3)` when `music_fade`.
-    DeadCamera {
-        eye: V4,
-        view: V4,
-        music_fade: bool,
-    },
     /// `ccItemSkillRequest(this, target, sid, flag)`: the target's scene
     /// index and what the request made.
     Skill(usize, ItemSkill),
@@ -626,22 +624,6 @@ pub enum Out {
     /// `ccClearSpcCondition()`: the party's conditions cleared (the boss
     /// is down).
     ClearSpcCondition,
-    /// `bossCam->SetMode(mode, range, hi, who)` (MUT gcmn 0x00475ae0).
-    CamMode {
-        mode: i32,
-    },
-    /// `bossCam->SetFreeCamPosView(pos, view)` (MUT 0x00475c90): the eye
-    /// and the point looked at while the camera is in mode 5.
-    FreeCam {
-        pos: V4,
-        view: V4,
-    },
-    /// `bossCam` +0xe0 (Mutation's pitch) set to `v`, or with `add` raised
-    /// by it.
-    CamPitch {
-        add: bool,
-        v: F,
-    },
     /// A write to the effect manager's blur through `ccBoss` +0x148.
     Blur(blur::Set),
     /// An effect beside the ones the boss keeps, for the effects to make.
@@ -653,11 +635,6 @@ pub enum Out {
         magic: i32,
         stretched: bool,
     },
-    /// `bossCam->SetRotXLimit(v)` (MUT gcmn 0x00475a40).
-    CamRotXLimit(F),
-    /// `bossCam` +0x139 `ZrotControlFlg` (Kyvia's): the right stick, or
-    /// L1 and R1, turns the eye about the player.
-    CamSway(bool),
     /// `EVENTAREAB8::Move()` (MUT gcmn 0x0041e750): the disc on to its next
     /// stage.
     DiscNextStage,
@@ -683,15 +660,6 @@ pub enum Out {
         pos: V4,
         rot: V4,
     },
-    /// `bossCam->SetMode(mode, range, 0, 0)` (MUT gcmn 0x00475ae0) for modes
-    /// 3 and 4: the eye eased to `range` behind (3), then back (4).
-    CamModeRange {
-        mode: i32,
-        range: F,
-    },
-    /// `bossCam` +0x01 `InitLock` set: the next turn goes straight to the
-    /// boss.
-    CamInitLock,
     /// A picture drawn beside the bodies this frame ([`Picture`]): Kyvia's
     /// arm, Macha's light ball, Corbenik's barrier, images, elements, root
     /// and lasers.
@@ -725,24 +693,6 @@ pub enum Out {
         pos: V4,
         dirc: V4,
         scale: F,
-    },
-    /// `changeCamera(n)` (main): the active camera (1 the field's, 3 the
-    /// event's).
-    CameraChange(i32),
-    /// `cameraSetPos(pos, cam)`, `cameraSetView(view, cam)`.
-    CameraPos {
-        cam: i32,
-        pos: V4,
-    },
-    CameraView {
-        cam: i32,
-        view: V4,
-    },
-    /// `if (checkCameraShakeRange(pos)) cameraShake(s[0], s[1], s[2],
-    /// s[3])`: the runtime checks the range and shakes (its `rand()`).
-    CameraShake {
-        pos: V4,
-        s: [i32; 4],
     },
     /// `scFadeDef->EntryFlash2(t_in, t_out, colour)` (no hold) or
     /// `EntryFlash3(t_in, t_out, hold, colour)`: in, held, out.
@@ -793,15 +743,6 @@ pub enum Out {
     /// `OnCinemaMode` with a skill's name (OUT gcmn 0x004733b0): the bars
     /// and the name `sid`'s row gives (OUT 0x00472550).
     CinemaSkill(i32),
-    /// `bossCam->MaxRenge` (+0xd8) set.
-    CamMaxRange(F),
-    /// `OffBossCamera()` (OUT gcmn 0x004700a0) while `useBossCam`: camera 1
-    /// takes the boss camera's eye, view and turn, `changeCamera(1)`, the
-    /// boss camera off.
-    BossCamOff,
-    /// `bossCam->CamPos` (+0x20) written straight (Kyvia's fourth fight's
-    /// scene).
-    CamEye(V4),
     /// `EVENTAREAB8`'s `body[n]` hit off (`HitDisable`) or on, on field 12
     /// (QUA gcmn 0x0030c620, 0x0030c690).
     FieldBodyHit {
@@ -835,20 +776,6 @@ pub enum Out {
     /// The boss made anew on its character (Corbenik's next form): its
     /// hit, parts, after-images and camera as its def makes them.
     Remade,
-    /// `bossCam` +0xe4 (the eye's lift) set.
-    CamLift(F),
-    /// `activeCamPtr->type` (+0x5c) set.
-    CameraType(i32),
-    /// `bossCam->lock` (+0x00) set.
-    CamLock(bool),
-    /// `bossCam->CamView` (+0x10) written straight (Corbenik's star dust
-    /// while the camera is free).
-    CamLook(V4),
-    /// `cameraSetRot(rot, cam)`.
-    CameraRot {
-        cam: i32,
-        rot: V4,
-    },
     /// `ccMenu->panelStatus` (+0x0c) set.
     PanelStatus(i16),
     /// `g_sinRot` (`ccBoss06BlurParamFuncCB`'s phase) set.
@@ -937,6 +864,11 @@ impl Default for Boss {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossBase {
     // ccBoss
+    /// +0x14c `bossCam`, which `InitBossCamera` makes, and +0x150
+    /// `bossCamSW`: `Main` runs its `CamMain` after `Move` while both hold
+    /// (`OffBossCamera` clears the switch).
+    pub cam: Option<cam::BossCam>,
+    pub cam_sw: bool,
     /// `actAnmTbl` (+0x1a8): the act's clip, by act (none for some).
     pub anm_tbl: &'static [Option<&'static str>],
     pub target_pos: V4,
@@ -1026,11 +958,6 @@ pub struct Cx<'a> {
     pub field: &'a mut dyn Field,
     /// `compulsionGameOver`.
     pub game_over: bool,
-    /// `bossCam` is set: `InitBossCamera` made the camera, so `QuakeCam`
-    /// runs and draws from `ccRand`.
-    pub boss_cam: bool,
-    /// What the cameras show this frame ([`CamView`]).
-    pub cam: CamView,
     /// `ccLandHitCheck(pos, 0x20000000)`: the ground's height under `pos`.
     pub land: &'a mut dyn FnMut(V4) -> F,
     /// `EVENTAREAB8`'s disc as Kyvia reads it ([`DiscView`]).
@@ -1114,48 +1041,24 @@ impl Field for NoField {
     fn sync(&mut self, _: usize, _: &CharHit) {}
 }
 
-/// The cameras as a boss's rules read them: `cameraGetRot(camID)` (the
-/// active camera's turn), `cameraGetPos(2)`, `cameraGetView(2)` (the boss
-/// camera's eye and view), `bossCam->CheckMoveCamera()`, the boss
-/// camera's `ResetFlg` (+0x04: 0 once a mode 3 or 4 move is done),
-/// `checkCameraShakeRange` of the boss's place as the frame starts, and
-/// `cameraGetPos(camID)`, `cameraGetView(camID)` (Kyvia's).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CamView {
-    pub rot: V4,
-    pub pos: V4,
-    pub view: V4,
-    pub moving: bool,
-    pub reset: i32,
-    pub shake: bool,
-    /// The boss camera's own eye (`CamPos`, +0x20), which Kyvia's fourth
-    /// fight reads and moves.
-    pub eye: V4,
-    /// `camID`, the active camera, which some rules set by number.
-    pub active: i32,
-    /// The active camera's eye and view: in Kyvia's fights always the boss
-    /// camera's, as nothing reachable there changes `camID` from 2
-    /// (docs/engine/boss-kyvia-second.md "Which camera").
-    pub active_pos: V4,
-    pub active_view: V4,
-    /// The boss camera's own view (`CamView`, +0x10), which Corbenik's
-    /// second form reads and moves.
-    pub boss_view: V4,
-    /// What `ccBoss::Draw`'s camera fade reads, None for no fade.
-    pub fade: Option<CamFade>,
+/// camera.cpp as a boss reaches it: `cameraList` and `camID` (every
+/// `changeCamera`, `cameraGet/Set*` and `activeCamPtr` of the rules, at
+/// their call), the shake (`cameraShake`) and `cameraControlType`
+/// (`ccBossCam::Pad_Control`'s). The field's own, taken for the boss's
+/// task and its affects (as its `ccRand` is) and put back after.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Cams {
+    pub list: CamList,
+    pub shake: Shake,
+    pub scheme: Scheme,
 }
 
-/// `ccBoss::Draw`'s camera fade (`ccGetCameraTransparency`): the active
-/// camera's eye (`activeCamPtr->pos`) and pitch (`->deg[1]`), whether it is
-/// the eye view (`checkCameraType() == 1`: no fade), and the far end and
-/// fade `game.area` picks (a town 4000 and 400, else 7000 and 600).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CamFade {
-    pub eye: V4,
-    pub deg1: i16,
-    pub eye_view: bool,
-    pub far: F,
-    pub fade: F,
+impl Cams {
+    /// Zeroed cameras on camera 1 of `volume`, a free shake, scheme A-1,
+    /// the pad at rest (a test's).
+    pub fn at_rest(volume: piney_data::volume::Volume) -> Cams {
+        Cams { list: CamList::new(volume, crate::camera::Cam::default()), scheme: Scheme::new(0), ..Cams::default() }
+    }
 }
 
 /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` for Kyvia's rules: `IsMove()`,
@@ -1184,26 +1087,45 @@ pub struct FadeView {
     pub tcnt: i16,
 }
 
-impl Cx<'_> {
+impl<'a> Cx<'a> {
     fn out(&mut self, o: impl Into<Out>) {
         let o = o.into();
+        if matches!(o, Out::Se3d { .. } | Out::Se3dNote { .. } | Out::SeLoop { op: LoopOp::On(_), .. }) {
+            let ear = self.cams_ref().ear();
+            self.out.push(Out::Ear(ear));
+        }
         self.out.push(o);
     }
 
-    /// `if (bossCam) bossCam->QuakeCam((q, q, q, 1))` (0x0045ff80): three
-    /// `ccRandF(q)` for x, y and z.
-    fn quake_cam(&mut self, q: F) {
-        if self.boss_cam {
-            let v = std::array::from_fn(|_| rand_f(self.cc, q));
-            self.out(Out::Quake(v));
-        }
+    /// camera.cpp ([`BossEnv::cams`]), held for the call.
+    fn camera(&self) -> RefMut<'a, Cams> {
+        self.actx.boss.expect("a boss's context").cams.borrow_mut()
     }
 
-    /// `bossCam->QuakeCam(q)` (0x0045ff80) where the caller has no
-    /// `if (bossCam)`: Innis's fight always has the camera.
-    fn quake_vec(&mut self, q: [F; 3]) {
-        let v = std::array::from_fn(|k| rand_f(self.cc, q[k]));
-        self.out(Out::Quake(v));
+    /// The cameras (`cameraList`, `camID`) for the call.
+    fn cams(&self) -> RefMut<'a, CamList> {
+        RefMut::map(self.camera(), |c| &mut c.list)
+    }
+
+    fn cams_ref(&self) -> Ref<'a, CamList> {
+        Ref::map(self.actx.boss.expect("a boss's context").cams.borrow(), |c| &c.list)
+    }
+
+    /// `checkCameraShakeRange(pos)` (main 0x00162f10) by the cameras as
+    /// they stand.
+    fn in_shake_range(&self, pos: V4) -> bool {
+        crate::camera::shake_range(&self.cams_ref(), self.world.frame, pos)
+    }
+
+    /// `if (checkCameraShakeRange(pos)) cameraShake(s[0], s[1], s[2],
+    /// s[3])` (main 0x00162f10, 0x00162cd0): the range by the cameras as
+    /// they stand, the shake's `rand()` at the call.
+    fn camera_shake(&mut self, pos: V4, s: [i32; 4]) {
+        let mut c = self.camera();
+        if crate::camera::shake_range(&c.list, self.world.frame, pos) {
+            let rand = &mut *self.rand;
+            c.shake.shake(s[0], s[1], s[2], s[3], &mut || rand.rand());
+        }
     }
 
     fn pos(&self) -> V4 {
@@ -1253,28 +1175,6 @@ impl Cx<'_> {
         self.out(Out::Cinema(None));
     }
 
-    /// The camera free (mode 5) at `pos`, looking at `view`.
-    fn free_cam(&mut self, pos: V4, view: V4) {
-        self.out(Out::CamMode { mode: 5 });
-        self.out(Out::FreeCam { pos, view });
-    }
-
-    /// The camera free looking at `vp`, its eye `off` from it turned by
-    /// `Rz(-pi/2)`, then `d`'s x, y and z turns (Macha's action cameras).
-    fn free_cam_from(&mut self, vp: V4, d: V4, off: V4) {
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
-        let m = geom::rot_matrix_z(&geom::rot_matrix_y(&geom::rot_matrix_x(&m, d[0]), d[1]), d[2]);
-        let eye = p2w(self, geom::vadd(w2p(self, vp), geom::apply_matrix(&m, off)));
-        self.free_cam(eye, vp);
-    }
-
-    /// `QuakeCam` by `q` on each axis, with the boss's camera made.
-    fn quake(&mut self, q: [F; 3]) {
-        if self.boss_cam {
-            self.quake_vec(q);
-        }
-    }
-
     /// `ccCheckTarget(t)` and not dead.
     fn target_ok(&self, t: Option<usize>) -> bool {
         self.valid(t) && t.is_some_and(|t| !self.dead(t))
@@ -1285,6 +1185,15 @@ impl Cx<'_> {
         let mut ev = Events::new();
         affect::entry_affect(self.t, self.scene, self.actx, on, Some(me), kind, [p0, 0, 0], self.rand, &mut ev);
         self.ev.extend(ev);
+    }
+}
+
+/// `cam->QuakeCam(q)` (0x0045ff80) on a boss camera as a part holds it
+/// (a gomora's `DammyBossCam`): the three `ccRandF` drawn whatever.
+pub(crate) fn quake_on(cam: &mut Option<cam::BossCam>, cx: &mut Cx, q: [F; 3]) {
+    let v = std::array::from_fn(|k| rand_f(cx.cc, q[k]));
+    if let Some(c) = cam.as_mut() {
+        c.quake(v);
     }
 }
 
@@ -1357,6 +1266,131 @@ impl BossBase {
                 e => cx.ev.push(e),
             }
         }
+    }
+
+    // --- the camera (`bossCam`) ------------------------------------------------------------
+
+    /// `InitBossCamera(z, y)` (INF gcmn 0x0045e750), from the class's
+    /// constructor: the old camera deleted (`~ccBossCam`: `changeCamera(1)`),
+    /// a new `ccBossCam` over the player (`plw+0x20`, `tempChar`) at
+    /// transfer (0, y, z, 1) on camera 2, `bossCamSW` set.
+    pub(crate) fn init_boss_camera(&mut self, cx: &mut Cx, z: F, y: F) {
+        if self.cam.take().is_some() {
+            cx.cams().change(CamId::Field);
+        }
+        let player = cx.world.player.map_or(VF0, |p| cx.scene.chars[p].pos);
+        let mut c = cx.camera();
+        let scheme = c.scheme;
+        self.cam = Some(cam::BossCam::new(&mut c.list, scheme, [0, y, z, ONE], player));
+        self.cam_sw = true;
+    }
+
+    /// `if (bossCam && bossCamSW) bossCam->CamMain()` (ccBoss::Main, INF
+    /// gcmn 0x0045c52c): the eye over the player, the boss's `pos` (`PView`)
+    /// ahead, set on camera 2.
+    pub(crate) fn cam_main(&mut self, cx: &mut Cx) {
+        let (Some(c), true, Some(p)) = (self.cam.as_mut(), self.cam_sw, cx.world.player) else { return };
+        let (player, at) = (cx.scene.chars[p].pos, cx.scene.chars[cx.me].pos);
+        let mut k = cx.camera();
+        let scheme = k.scheme;
+        c.cam_main(&mut k.list, scheme, &cx.env.pad, player, at);
+    }
+
+    /// `bossCam->SetMode(mode, 0, 0, 0)` (MUT gcmn 0x00475ae0).
+    pub(crate) fn cam_mode(&mut self, cx: &mut Cx, mode: i32) {
+        if let Some(c) = self.cam.as_mut() {
+            c.set_mode(mode, &mut cx.cams());
+        }
+    }
+
+    /// `bossCam->SetMode(mode, range, 0, 0)`: modes 3 and 4 with a range.
+    pub(crate) fn cam_mode_range(&mut self, cx: &mut Cx, mode: i32, range: F) {
+        if let Some(c) = self.cam.as_mut() {
+            c.set_mode_range(mode, range, &mut cx.cams());
+        }
+    }
+
+    /// `bossCam->SetFreeCamPosView(pos, view)` (MUT 0x00475c90).
+    pub(crate) fn cam_pos_view(&mut self, pos: V4, view: V4) {
+        if let Some(c) = self.cam.as_mut() {
+            c.free_cam_pos_view(pos, view);
+        }
+    }
+
+    /// The camera free (mode 5) at `pos`, looking at `view`.
+    pub(crate) fn free_cam(&mut self, cx: &mut Cx, pos: V4, view: V4) {
+        self.cam_mode(cx, 5);
+        self.cam_pos_view(pos, view);
+    }
+
+    /// The camera free looking at `vp`, its eye `off` from it turned by
+    /// `Rz(-pi/2)`, then `d`'s x, y and z turns (Macha's action cameras).
+    pub(crate) fn free_cam_from(&mut self, cx: &mut Cx, vp: V4, d: V4, off: V4) {
+        let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+        let m = geom::rot_matrix_z(&geom::rot_matrix_y(&geom::rot_matrix_x(&m, d[0]), d[1]), d[2]);
+        let eye = p2w(cx, geom::vadd(w2p(cx, vp), geom::apply_matrix(&m, off)));
+        self.free_cam(cx, eye, vp);
+    }
+
+    /// `if (bossCam) bossCam->QuakeCam((q, q, q, 1))` (0x0045ff80): three
+    /// `ccRandF(q)` for x, y and z.
+    pub(crate) fn quake_cam(&mut self, cx: &mut Cx, q: F) {
+        if self.cam.is_some() {
+            self.quake_vec(cx, [q; 3]);
+        }
+    }
+
+    /// `bossCam->QuakeCam(q)` (0x0045ff80) where the caller has no
+    /// `if (bossCam)`: the three `ccRandF` drawn whatever.
+    pub(crate) fn quake_vec(&mut self, cx: &mut Cx, q: [F; 3]) {
+        quake_on(&mut self.cam, cx, q);
+    }
+
+    /// `QuakeCam` by `q` on each axis, with the boss's camera made.
+    pub(crate) fn quake(&mut self, cx: &mut Cx, q: [F; 3]) {
+        if self.cam.is_some() {
+            self.quake_vec(cx, q);
+        }
+    }
+
+    /// A write to `bossCam`'s members, with the camera made.
+    pub(crate) fn with_cam(&mut self, f: impl FnOnce(&mut cam::BossCam)) {
+        if let Some(c) = self.cam.as_mut() {
+            f(c);
+        }
+    }
+
+    /// `bossCam->CamPos` (+0x20) and `CamView` (+0x10).
+    pub(crate) fn cam_eye(&self) -> V4 {
+        self.cam.as_ref().map_or([0; 4], |c| c.pos)
+    }
+
+    pub(crate) fn cam_view(&self) -> V4 {
+        self.cam.as_ref().map_or([0; 4], |c| c.view)
+    }
+
+    /// `bossCam->ResetFlg` (+0x04): 0 once a mode 3 or 4 move is done.
+    pub(crate) fn cam_reset(&self) -> i32 {
+        self.cam.as_ref().map_or(0, |c| c.reset)
+    }
+
+    /// `bossCam->CheckMoveCamera()`.
+    pub(crate) fn cam_moving(&self) -> bool {
+        self.cam.as_ref().is_some_and(cam::BossCam::check_move_camera)
+    }
+
+    /// `OffBossCamera()` (0x0045ede0): while `bossCamSW`, camera 2's eye,
+    /// view and turn to camera 1 (with a camera) and `changeCamera(1)`;
+    /// then `bossCamSW` 0.
+    pub(crate) fn off_boss_camera(&mut self, cx: &mut Cx) {
+        if self.cam_sw {
+            if self.cam.is_some() {
+                cam::off_boss_camera(&mut cx.cams());
+            } else {
+                cx.cams().change(CamId::Field);
+            }
+        }
+        self.cam_sw = false;
     }
 
     // --- actions --------------------------------------------------------------------------
@@ -1512,23 +1546,27 @@ impl BossBase {
         let me = cx.me;
         let pos = cx.scene.chars[me].pos;
         let (w, h) = (cx.scene.chars[me].base().width, cx.scene.chars[me].base().height);
-        let (t, hide) = match cx.cam.fade {
-            Some(f) if !f.eye_view && !self.trans_dist_off => {
+        // ccGetCameraTransparency (main 0x001da8b0): the active camera's
+        // eye and pitch, none in the eye view (`checkCameraType() == 1`),
+        // the far end and fade `game.area` picks.
+        let (kind, eye, deg1) = {
+            let c = cx.cams_ref();
+            (c.active().kind, c.active().pos, c.active().deg[1])
+        };
+        let (t, hide) = match kind {
+            crate::camera::kind::EYE => (self.set_transparency, false),
+            _ if self.trans_dist_off => (self.set_transparency, false),
+            _ => {
                 let mut hide = false;
-                let k = geom::camera_transparency(
-                    cx.actx.volume,
-                    w2p(cx, pos),
-                    w2p(cx, f.eye),
-                    f.deg1,
-                    w,
-                    h,
-                    f.far,
-                    f.fade,
-                    &mut hide,
-                );
+                let at = w2p(cx, eye);
+                let (far, fade) = if cx.env.area == 0 {
+                    (geom::TOWN_FAR, geom::TOWN_FADE)
+                } else {
+                    (geom::AREA_FAR, geom::AREA_FADE)
+                };
+                let k = geom::camera_transparency(cx.actx.volume, w2p(cx, pos), at, deg1, w, h, far, fade, &mut hide);
                 (ee::mul(self.set_transparency, k), hide)
             }
-            _ => (self.set_transparency, false),
         };
         self.transparency = t;
         self.drawn = hide || !ee::lt(t, 0x3d4c_cccd);
@@ -1833,7 +1871,18 @@ impl BossBase {
         let eye = p2w(cx, geom::vadd(cx.scene.chars[me].pos_p, v));
         let id = i32::from(cx.scene.chars[me].id());
         let view = cx.pos();
-        cx.out(Out::DeadCamera { eye, view, music_fade: !(7..10).contains(&id) });
+        // Camera 1 takes the boss camera's place, then camera 3 behind the
+        // boss looking at it (0x0045ef34-0x0045efe0).
+        self.off_boss_camera(cx);
+        let mut cams = cx.cams();
+        cams.change(CamId::Event);
+        let e = cams.cam_mut(CamId::Event);
+        e.pos = eye;
+        e.view = view;
+        drop(cams);
+        if !(7..10).contains(&id) {
+            cx.out(Out::MusicFade { t: 30 });
+        }
         self.lock_player(cx, false);
         self.effect(cx, EffKind::Dead)
     }
@@ -1935,6 +1984,10 @@ pub struct BossEnv<'a> {
     /// The fight's `ccRand`, for an Affect that draws it (Tarvos's blows'
     /// notes, a table its gauge brings); None draws from a throwaway.
     pub cc: Option<&'a std::cell::RefCell<crate::rand::Genrand>>,
+    /// camera.cpp ([`Cams`]): the boss's task and every `Affect`
+    /// (`bossAffectFunc`, at the hit) call it (Gorre's brothers' reports
+    /// end in `OffBossCamera`).
+    pub cams: &'a RefCell<Cams>,
 }
 
 /// `bossAffectFunc` (gcmn 0x0045f090) from `EntryAffect` on the boss
@@ -1976,9 +2029,6 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         collide: &mut collide,
         field: &mut NoField,
         game_over: benv.game_over,
-        // Affect never quakes.
-        boss_cam: false,
-        cam: CamView::default(),
         land: &mut land,
         disc: DiscView::default(),
         gen_alive: &|_| true,

@@ -692,17 +692,19 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
     // InitBossCamera(450, 1050) (the fourth's 250, 700); the pitch (0.26,
     // the third's 0.25, the fourth's 0.13), its limit 0.6 (none in the
     // fourth), the sway.
+    let (z, y) = if fight == Fight::Fourth { (0x437a_0000, 0x442f_0000) } else { (0x43e1_0000, 0x4483_4000) };
+    b.init_boss_camera(cx, z, y);
     x.cam_rot_x = match fight {
         Fight::Third => 0x3e80_0000,
         Fight::Fourth => 0x3e05_1eb8,
         _ => 0x3e85_1eb8,
     };
     x.cam_pitch = x.cam_rot_x;
-    cx.out(Out::CamPitch { add: false, v: x.cam_pitch });
+    b.with_cam(|c| c.xrot = x.cam_pitch);
     if fight != Fight::Fourth {
-        cx.out(Out::CamRotXLimit(0x3f19_999a));
+        b.with_cam(|c| c.set_rot_x_limit(0x3f19_999a));
     }
-    cx.out(Out::CamSway(true));
+    b.with_cam(|c| c.zrot_control = true);
     x.anm_w.set("ANM_ex0batc0", cx.clips);
     // InitStageEffect: the stage fader.
     b.use_stage_eff = true;
@@ -738,7 +740,7 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
 // --- the frame ---------------------------------------------------------------------------
 
 impl BossSystem for SlaveCore {
-    fn step(&mut self, hook: Hook, _b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
+    fn step(&mut self, hook: Hook, b: &mut BossBase, o: &mut Others, cx: &mut Cx) {
         match hook {
             Hook::Lend => self.part = Part::take(cx, self.me),
             Hook::Return => {
@@ -750,7 +752,7 @@ impl BossSystem for SlaveCore {
             Hook::Action => {
                 let gs = o.take::<Gomoras>().expect("Kyvia's def has the gomoras");
                 if let Some(c) = self.part.as_mut() {
-                    self::core::main(c, &mut gs.parts, cx);
+                    self::core::main(c, &mut gs.parts, &mut b.cam, cx);
                 }
             }
             _ => {}
@@ -1003,14 +1005,14 @@ fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 }
                 x.quake_vector = [0x41a0_0000, 0x41a0_0000, 0x41a0_0000, x.quake_vector[3]];
                 cx.out(Out::Se3dNote { se: 56, pos: at, note: 60 });
-                cx.out(Out::CamMode { mode: 6 });
-                cx.out(Out::CamInitLock);
+                b.cam_mode(cx, 6);
+                b.with_cam(|c| c.init_lock = true);
                 t.disc.ex_flg = 1;
             }
             t.disc.wait_count += 1;
             if t.disc.wait_count < 21 {
                 let q = x.quake_vector;
-                cx.quake_vec([q[0], q[1], q[2]]);
+                b.quake_vec(cx, [q[0], q[1], q[2]]);
                 cx.out(Out::Blur(Set::Scale(0x3f83_d70a)));
             }
             if t.disc.wait_count == 21 {
@@ -1034,7 +1036,7 @@ fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
             return;
         }
-        ride_camera(x, t.disc, cx);
+        ride_camera(b, x, t.disc, cx);
         if b.act_num == act::NEUTRAL && matches!(b.anm.frame(), 20 | 60) {
             cx.out(Out::Se3d { se: 232, pos: at });
         }
@@ -1054,9 +1056,9 @@ fn check_disc_move(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
 /// body and 500 up, looking 150 over the disc (the second fight's at the
 /// disc itself: it passes the disc's place for the view; the third's as
 /// the first's).
-fn ride_camera(x: &mut Kyvia, disc: &mut Disc, cx: &mut Cx) {
+fn ride_camera(b: &mut BossBase, x: &mut Kyvia, disc: &mut Disc, cx: &mut Cx) {
     if disc.ex_flg != 0 {
-        cx.out(Out::CamMode { mode: 5 });
+        b.cam_mode(cx, 5);
         disc.ex_flg = 0;
     }
     let d = get_dirc(disc.pos, cx.scene.chars[cx.me].pos);
@@ -1069,7 +1071,7 @@ fn ride_camera(x: &mut Kyvia, disc: &mut Disc, cx: &mut Cx) {
             disc.pos
         }
     };
-    cx.out(Out::FreeCam { pos: eye, view });
+    b.cam_pos_view(eye, view);
 }
 
 /// `CheckDiscMove` after a core's death with a stage to come (OUT gcmn
@@ -1084,7 +1086,7 @@ fn next_stage(b: &mut BossBase, x: &mut Kyvia, disc: &mut Disc, cx: &mut Cx) {
             cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             b.lock_player(cx, false);
         }
-        20 => ride_camera(x, disc, cx),
+        20 => ride_camera(b, x, disc, cx),
         40 => cx.out(Out::Blur(Set::Abgr(0x5080_8080))),
         60 => {
             b.unlock_player();
@@ -1098,7 +1100,7 @@ fn next_stage(b: &mut BossBase, x: &mut Kyvia, disc: &mut Disc, cx: &mut Cx) {
         }
         n if n >= 41 => {
             let q = x.quake_vector;
-            cx.quake_vec([q[0], q[1], q[2]]);
+            b.quake_vec(cx, [q[0], q[1], q[2]]);
             if n % 6 == 0 {
                 cx.out(Out::Se3dNote { se: 56, pos: disc.pos, note: 60 });
             }
@@ -1210,8 +1212,8 @@ fn action(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                             Fight::Second | Fight::Third => (0x4422_8000, 0x4489_8000, 0xc461_0000),
                             Fight::Fourth => (0x4483_4000, 0x44c8_0000, 0xc461_0000),
                         };
-                        damage_camera(x, cx, [back, up, eye], None);
-                        set_pitch(x, cx, 0);
+                        damage_camera(b, x, cx, [back, up, eye], None);
+                        set_pitch(b, x, 0);
                     }
                     let pos = cx.scene.chars[me].pos;
                     cx.out(Out::Se3dNote { se: 191, pos, note: 72 });
@@ -1224,12 +1226,12 @@ fn action(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                     if b.anm_status != 0 {
                         b.act_proccess = 50;
                         cx.out(Out::Blur(Set::Abgr(x.default_argb)));
-                        cx.out(Out::CamMode { mode: 6 });
-                        set_pitch(x, cx, x.cam_rot_x);
+                        b.cam_mode(cx, 6);
+                        set_pitch(b, x, x.cam_rot_x);
                     }
                 }
                 50 if b.anm_status != 0 => {
-                    set_pitch(x, cx, x.cam_rot_x);
+                    set_pitch(b, x, x.cam_rot_x);
                     b.change_action(cx, act::NEUTRAL, 0, true);
                     x.dmg_anm_flg = 0;
                     b.unlock_player();
@@ -1238,7 +1240,7 @@ fn action(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
             if x.dmg_anm_flg != 0 {
                 let q = x.quake_vector;
-                cx.quake_vec([q[0], q[1], q[2]]);
+                b.quake_vec(cx, [q[0], q[1], q[2]]);
             }
             b.spd_down(0, 0x40a0_0000);
         }
@@ -1296,16 +1298,16 @@ fn action(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
 }
 
 /// The pitch (`bossCam` +0xe0) set.
-pub(super) fn set_pitch(x: &mut Kyvia, cx: &mut Cx, v: F) {
+pub(super) fn set_pitch(b: &mut BossBase, x: &mut Kyvia, v: F) {
     x.cam_pitch = v;
-    cx.out(Out::CamPitch { add: false, v });
+    b.with_cam(|c| c.xrot = v);
 }
 
 /// The free camera round the body the hit and death use: mode 5, the point
 /// looked at `back` behind and `up` above the body's place (`LOffset`),
 /// the eye `Atk_vec` (0, `eye`, 0) turned about z by `Z` (a fresh
 /// `ccRandF(1)`, or `z` given) and added to it.
-fn damage_camera(x: &mut Kyvia, cx: &mut Cx, [back, up, eye]: [F; 3], z: Option<F>) {
+fn damage_camera(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx, [back, up, eye]: [F; 3], z: Option<F>) {
     let me = cx.me;
     x.l_offset = VF0;
     x.move_transfer = VF0;
@@ -1315,7 +1317,7 @@ fn damage_camera(x: &mut Kyvia, cx: &mut Cx, [back, up, eye]: [F; 3], z: Option<
     x.l_offset[1] = ee::sub(x.l_offset[1], back);
     x.l_offset[2] = ee::add(x.l_offset[2], up);
     x.atk_vec[1] = eye;
-    cx.out(Out::CamMode { mode: 5 });
+    b.cam_mode(cx, 5);
     x.z = match z {
         Some(z) => z,
         None => rand_f(cx.cc, ONE),
@@ -1323,7 +1325,7 @@ fn damage_camera(x: &mut Kyvia, cx: &mut Cx, [back, up, eye]: [F; 3], z: Option<
     x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
     x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
     x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
-    cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
+    b.cam_pos_view(x.atk_vec, x.l_offset);
 }
 
 /// Act 14 (MUT gcmn 0x004d3898): the body's death, the voices and the
@@ -1380,7 +1382,7 @@ fn dead(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
             }
             if ee::lt(ONE, ee::mul(0x42c8_0000, x.cam_pitch)) {
                 let v = ee::sub(x.cam_pitch, ee::div(x.cam_pitch, 0x41a0_0000));
-                set_pitch(x, cx, v);
+                set_pitch(b, x, v);
             }
             dead_voice(b, x.fight, cx);
             dead_cam(b, x, cx);
@@ -1392,7 +1394,7 @@ fn dead(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
             };
             x.ded_dmg_vec[1] = ee::add(x.ded_dmg_vec[1], rise);
             let q = x.quake_vector;
-            cx.quake_vec([q[0], q[1], q[2]]);
+            b.quake_vec(cx, [q[0], q[1], q[2]]);
             if b.anm_status != 0 {
                 b.act_proccess += 1;
                 b.act_count = 0;
@@ -1481,7 +1483,7 @@ pub(super) fn dead_voice(b: &BossBase, fight: Fight, cx: &mut Cx) {
 /// `DeadKyviaCam` (MUT gcmn 0x004d3fc0, OUT 0x004d6eb0, QUA 0x003d2080):
 /// the death's cameras at 70 (the third fight's 60) and 150, then the eye
 /// rising 4 a frame.
-pub(super) fn dead_cam(b: &BossBase, x: &mut Kyvia, cx: &mut Cx) {
+pub(super) fn dead_cam(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
     let me = cx.me;
     let second = x.fight.later();
     // The third fight's first camera at 60, 650 back (the fourth's 1050
@@ -1498,11 +1500,11 @@ pub(super) fn dead_cam(b: &BossBase, x: &mut Kyvia, cx: &mut Cx) {
             cx.out(Out::Blur(Set::Scale(0x3f82_8f5c)));
             let z = rand_abs(cx, ONE);
             let (up, eye) = if fourth { (0x44c8_0000, 0xc496_0000) } else { (0x447a_0000, 0xc461_0000) };
-            damage_camera(x, cx, [back, up, eye], Some(z));
+            damage_camera(b, x, cx, [back, up, eye], Some(z));
         } else {
             cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             let z = fabs(rand_f(cx.cc, ONE)) ^ 0x8000_0000;
-            damage_camera(x, cx, [0x43af_0000, 0x4409_8000, 0xc448_0000], Some(z));
+            damage_camera(b, x, cx, [0x43af_0000, 0x4409_8000, 0xc448_0000], Some(z));
         }
     }
     if b.act_count == 150 {
@@ -1527,11 +1529,11 @@ pub(super) fn dead_cam(b: &BossBase, x: &mut Kyvia, cx: &mut Cx) {
         x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
         x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
         x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
-        cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
+        b.cam_pos_view(x.atk_vec, x.l_offset);
     }
     if b.act_count >= 161 {
         x.atk_vec[2] = ee::add(x.atk_vec[2], if fourth { 0x4100_0000 } else { 0x4080_0000 });
-        cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
+        b.cam_pos_view(x.atk_vec, x.l_offset);
     }
 }
 
@@ -1632,18 +1634,18 @@ fn hand_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 }
                 (Fight::Fourth, _) => ee::add(0x44e1_0000, super::dist(cx, cx.scene.chars[me].pos, t.disc.pos)),
             };
-            cx.out(Out::CamModeRange { mode: 3, range });
+            b.cam_mode_range(cx, 3, range);
             b.act_proccess += 1;
         }
         3 => {
-            if cx.cam.reset == 0 {
+            if b.cam_reset() == 0 {
                 b.act_proccess += 1;
             }
         }
         4 => {
             let m = geom::unit_matrix();
-            x.tes_pos = cx.cam.active_pos;
-            x.tes_dirc = cx.cam.rot;
+            x.tes_pos = cx.cams_ref().active().pos;
+            x.tes_dirc = cx.cams_ref().rot();
             let arm = match x.fight {
                 Fight::Fourth => [0, 0xc535_4000, 0xc396_0000, ONE],
                 _ => [0xc2dc_0000, 0xc509_8000, 0, ONE],
@@ -1696,16 +1698,16 @@ fn hand_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 }
             }
             let q = x.quake_vector;
-            cx.quake_vec([q[0], q[1], q[2]]);
+            b.quake_vec(cx, [q[0], q[1], q[2]]);
             if ended {
-                cx.out(Out::CamMode { mode: 4 });
+                b.cam_mode(cx, 4);
                 core_state(t, cx, 7);
                 x.anm_w.set("ANM_ex0batc0", cx.clips);
                 b.act_proccess += 1;
             }
         }
         6 => {
-            if cx.cam.reset == 0 {
+            if b.cam_reset() == 0 {
                 b.act_proccess += 1;
                 cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
@@ -1774,13 +1776,13 @@ fn megid_flame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         1 => {
             if ex || core_state_is(t, 6) {
                 b.act_proccess += 1;
-                cx.out(Out::CamModeRange { mode: 3, range: 0x451c_4000 });
+                b.cam_mode_range(cx, 3, 0x451c_4000);
                 cx.out(Out::Blur(Set::Enable));
                 cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             }
         }
         2 => {
-            if cx.cam.reset == 0 {
+            if b.cam_reset() == 0 {
                 b.act_proccess += 1;
             }
         }
@@ -1797,7 +1799,7 @@ fn megid_flame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 Fight::Fourth => (110, 0x4409_8000, 0x4489_8000, 0xc52f_0000),
             };
             cx.out(Out::StreamMenu { stream, mask: 0 });
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             x.l_offset = cx.scene.chars[me].pos;
             x.l_offset[1] = ee::sub(x.l_offset[1], back);
             x.l_offset[2] = ee::add(x.l_offset[2], up);
@@ -1809,7 +1811,7 @@ fn megid_flame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             x.atk_mat = geom::rot_matrix_x(&x.atk_mat, 0x3e4c_cccd);
             let mut eye = geom::vadd(geom::apply_matrix(&x.atk_mat, x.atk_vec), x.l_offset);
             eye[3] = ONE;
-            cx.out(Out::FreeCam { pos: eye, view: x.l_offset });
+            b.cam_pos_view(eye, x.l_offset);
             b.act_proccess += 1;
         }
         4 => {
@@ -1838,7 +1840,7 @@ fn megid_flame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                     if x.fight == Fight::Second {
                         x.quake_vector = [0x41a0_0000, 0x4248_0000, 0x42a0_0000, x.quake_vector[3]];
                         let q = x.quake_vector;
-                        cx.quake_vec([q[0], q[1], q[2]]);
+                        b.quake_vec(cx, [q[0], q[1], q[2]]);
                     }
                 }
                 _ => {}
@@ -1847,18 +1849,18 @@ fn megid_flame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             b.act_count += 1;
             if c == 100 {
                 b.act_proccess += 1;
-                cx.out(Out::CamMode { mode: 6 });
+                b.cam_mode(cx, 6);
             }
         }
         7 => {
             if !ex {
                 core_state(t, cx, 7);
             }
-            cx.out(Out::CamMode { mode: 4 });
+            b.cam_mode(cx, 4);
             b.act_proccess += 1;
         }
         8 => {
-            if cx.cam.reset == 0 {
+            if b.cam_reset() == 0 {
                 b.act_proccess += 1;
                 cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
@@ -1943,7 +1945,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             x.l_offset[1] = ee::sub(x.l_offset[1], 0x4448_0000);
             x.l_offset[2] = ee::add(x.l_offset[2], 0x44ce_4000);
             b.act_proccess += 1;
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             x.atk_vec = VF0;
             x.atk_mat = geom::unit_matrix();
             x.atk_vec[1] = 0xc409_8000;
@@ -1951,7 +1953,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
             x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
             x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
-            cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
+            b.cam_pos_view(x.atk_vec, x.l_offset);
             cx.out(Out::Blur(Set::Enable));
             cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             let mut at = [0x4188_0000, 0xc4c7_c000, 0x447a_0000, ONE];
@@ -1982,7 +1984,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             if core_ready(t) {
                 core_state(t, cx, 8);
                 b.act_proccess += 1;
-                cx.out(Out::CamMode { mode: 5 });
+                b.cam_mode(cx, 5);
                 x.atk_vec = VF0;
                 x.atk_mat = geom::unit_matrix();
                 x.atk_vec[1] = back ^ 0x8000_0000;
@@ -1990,7 +1992,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
                 x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
                 x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
-                cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
+                b.cam_pos_view(x.atk_vec, x.l_offset);
                 b.lock_player(cx, false);
             }
             cx.out(Out::Blur(Set::Enable));
@@ -2037,7 +2039,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         3 => {
             let q = x.quake_vector;
-            cx.quake_vec([q[0], q[1], q[2]]);
+            b.quake_vec(cx, [q[0], q[1], q[2]]);
             let c = b.act_count;
             b.act_count += 1;
             if c == 40 {
@@ -2075,7 +2077,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             if fourth {
                 view[2] = ee::sub(view[2], 0x43e1_0000);
             }
-            cx.out(Out::FreeCam { pos: eye, view });
+            b.cam_pos_view(eye, view);
             // The third fight counts after the check (and raises the beams'
             // start 180): its beams leave a frame later in the count.
             let c = b.act_count;
@@ -2111,7 +2113,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             b.act_count += 1;
             if c < 10 {
                 let q = x.quake_vector;
-                cx.quake_vec([q[0], q[1], q[2]]);
+                b.quake_vec(cx, [q[0], q[1], q[2]]);
             }
             if !ee::le(x.btime, ONE) {
                 x.time_mode += 1;
@@ -2177,7 +2179,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         7 => {
             let q = x.quake_vector;
-            cx.quake_vec([q[0], q[1], q[2]]);
+            b.quake_vec(cx, [q[0], q[1], q[2]]);
             let c = b.act_count;
             b.act_count += 1;
             if c == 30 {
@@ -2185,7 +2187,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
         }
         8 => {
-            cx.out(Out::CamMode { mode: 6 });
+            b.cam_mode(cx, 6);
             cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             if !ex {
                 core_state(t, cx, 7);
@@ -2332,7 +2334,7 @@ impl Meteorite {
 
     /// One `Draw` in the fight: the flights, then their calls in order.
     /// The first's landing calls `fight`'s `KyviaMagicDamage`.
-    fn draw(&mut self, fight: Fight, t: &mut Tree, cx: &mut Cx) -> bool {
+    fn draw(&mut self, b: &mut BossBase, fight: Fight, t: &mut Tree, cx: &mut Cx) -> bool {
         let mut calls = Vec::new();
         let alive = self.fly(&mut calls);
         for c in calls {
@@ -2345,7 +2347,7 @@ impl Meteorite {
                         let mut up = VF0;
                         up[2] = 0x42f0_0000;
                         particles(cx, Gen::Burst(11), Place::At(geom::vadd(up, self.pos)), None);
-                        let mut rot = cx.cam.rot;
+                        let mut rot = cx.cams_ref().rot();
                         rot[2] = wrap(ee::sub(rot[2], PI));
                         rot[0] = 0;
                         rot[1] = 0;
@@ -2354,7 +2356,7 @@ impl Meteorite {
                 }
                 MeteorCall::Quake => {
                     let q = self.quake;
-                    cx.quake_vec([q[0], q[1], q[2]]);
+                    b.quake_vec(cx, [q[0], q[1], q[2]]);
                 }
                 MeteorCall::Due => {
                     magic_damage(fight, t, cx);
@@ -2383,7 +2385,7 @@ fn manager_pass(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             let (abgr, scale) = (cx.disc.blur_abgr, cx.disc.blur_scale);
             hell.draw(&mut hell::FightHell { b, cx, slot: k, abgr, scale })
         }
-        Fx::Meteorite(m) => m.draw(x.fight, t, cx),
+        Fx::Meteorite(m) => m.draw(b, x.fight, t, cx),
         Fx::Bolt(bolt) => bolt.draw(cx),
         _ => true,
     });

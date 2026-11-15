@@ -87,7 +87,7 @@ impl TownWalker {
             self.path.remove(0);
         }
         let q = self.path.first().copied().unwrap_or(to);
-        let cam_z = f32::from_bits(world.camera().rot()[2]);
+        let cam_z = f32::from_bits(world.camera().list.rot()[2]);
         Some(super::survey::run_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 }

@@ -1065,7 +1065,7 @@ impl Host for BattleHost<'_, '_> {
         self.kite_pos()
     }
     fn camera_rot(&self, out: V4) -> V4 {
-        self.w.camera.get_rot(self.w.camera.cam_id, out)
+        self.w.camera.list.get_rot(self.w.camera.list.id(), out)
     }
     fn bounds(&self) -> [u32; 4] {
         let b = self.w.bounds;

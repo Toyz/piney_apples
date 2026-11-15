@@ -354,8 +354,9 @@ The tables are views of the volume's `tables::combat` (`innis_pattern`,
 (they call `MagicDamage`), run in the manager's pass: `Missile::step` is
 the `Draw` with what it asks in order (`innis::Call`) and what it drew
 (`Missile::shown`). The camera's modes,
-eye and pitch are `Out::CamMode`, `FreeCam` and `CamPitch`, which
-`piney_world::camera::bosscam::BossCam` applies. The blur's colour, the
+eye and pitch are calls on the boss's own camera
+(`piney_battle::boss::cam::BossCam`, `BossBase::cam_mode`, `cam_pos_view`
+and its `xrot`) at the rules' point. The blur's colour, the
 particles and the shield are `Out::Blur`, `Particles` and `Shield`.
 
 `piney_effect::innis` draws the missiles: each made at its `Out::Effect`

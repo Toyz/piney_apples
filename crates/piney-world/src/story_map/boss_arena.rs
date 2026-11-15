@@ -402,7 +402,8 @@ mod tests {
     }
 
     fn kinds(a: &mut StoryArea) -> Vec<Kind> {
-        let v = MapView { player: [0, 0, 0, ONE], ..MapView::default() };
+        let cams = crate::camera::CamList::default();
+        let v = MapView { player: [0, 0, 0, ONE], ..MapView::new(&cams, &crate::systems::NO_SCREEN) };
         a.step(&v, true, None);
         a.frame().iter().filter_map(|d| if let Drawn::Piece(k, _) = d { Some(*k) } else { None }).collect()
     }
@@ -433,7 +434,8 @@ mod tests {
         s[crate::town::scroll_statics::ARENA_BG] = 0x3e80_0000;
         a.take(&Carried { statics: &s, move_tex: None, field: None });
         assert_eq!(a.systems().get::<Scrolls>().unwrap().v[0], 0x3e80_0000);
-        a.step(&MapView::default(), true, None);
+        let cams = crate::camera::CamList::default();
+        a.step(&MapView::new(&cams, &crate::systems::NO_SCREEN), true, None);
         let mut out = [0; piney_desktop::SCROLL_STATICS];
         a.put(&mut out, &mut [[0; 2]; piney_desktop::MOVE_TEX_ROWS]);
         assert_eq!(out[crate::town::scroll_statics::ARENA_BG], ee::add(0x3e80_0000, 0x3ac4_9ba6));

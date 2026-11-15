@@ -50,6 +50,7 @@ use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
 use crate::area::AreaCore;
+use crate::camera::{CamId, CamList};
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, Fogging};
 use crate::ee::{F, V4};
@@ -57,7 +58,6 @@ use crate::field::ambient::Weather;
 use crate::field::area::FieldArea;
 use crate::field::def::FieldDef;
 use crate::hit::HitModel;
-use crate::sky::lensflare::FlareCamera;
 use crate::sprite::EffSprite;
 use crate::story_map::StoryFrame;
 use crate::town::{anm_pieces, object_morph};
@@ -142,28 +142,22 @@ impl MapEvent {
     }
 }
 
-/// What a map's `Draw` reads of the rest of the field.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct MapView {
-    /// `cameraGetPos(camID)`.
-    pub eye: V4,
+/// What a map's `Draw` reads of the rest of the field: the camera list,
+/// asked live by each reader's call (`cameraGetPos(camID)`,
+/// `cameraGetPos(1)`, `activeCamPtr`, ...), the ccCam's view, and the
+/// frame's own values.
+#[derive(Clone, Copy, Debug)]
+pub struct MapView<'a> {
+    /// `cameraList` and `camID`.
+    pub cams: &'a CamList,
+    /// The field view's `world_screen` as the camera left it, which
+    /// `waterUVModifi2` projects the water through (sysLayer's view +0xd0).
+    pub world_screen: &'a [V4; 4],
     /// The player's `pos` (`plw`): the clouds gather about it and
     /// `ccCheckCameraDeg` and `W2P` measure from it.
     pub player: V4,
-    /// `activeCamPtr`, which `ccCheckCameraDeg` reads.
-    pub cam: crate::camera::Cam,
-    /// What `LENSFLARE::Draw` reads of the camera.
-    pub flare: FlareCamera,
     /// `eventMng.puppetShow` (+0x78c).
     pub puppet_show: bool,
-    /// The field view's `world_screen` as the camera left it, which
-    /// `waterUVModifi2` projects the water through (sysLayer's view +0xd0).
-    pub world_screen: [V4; 4],
-    /// `cameraGetPos(1)`, `cameraGetRot(1)` and `cameraGetRot2(1)`, which
-    /// a field's rain, thunder and heat haze read.
-    pub eye1: V4,
-    pub rot: V4,
-    pub rot2: V4,
     /// `ccSys` +0x358 & 1: the frame counter's low bit.
     pub odd: bool,
     /// In a dungeon, the room under the player (`DUNGEON::Draw`'s).
@@ -222,21 +216,48 @@ pub struct RoomCx<'a> {
     pub joined: &'a mut Vec<Joined>,
 }
 
-impl MapView {
-    /// A view with only the camera eye (all Mac Anu's `Draw` reads).
-    pub fn at(eye: V4) -> MapView {
-        MapView { eye, ..MapView::default() }
+/// A view matrix of zeros: what a view made only for a map's steps (a
+/// test's, a probe's) projects through.
+pub const NO_SCREEN: [V4; 4] = [[0; 4]; 4];
+
+impl<'a> MapView<'a> {
+    /// A view through `cams` and `world_screen`, the player at the origin.
+    pub fn new(cams: &'a CamList, world_screen: &'a [V4; 4]) -> MapView<'a> {
+        MapView { cams, world_screen, player: [0; 4], puppet_show: false, odd: false, room: None }
+    }
+
+    /// The field's: its camera's list, ccCam and puppet show.
+    pub fn of(camera: &'a crate::camera::Camera, player: V4, odd: bool) -> MapView<'a> {
+        MapView { player, odd, puppet_show: camera.puppet_show, ..MapView::new(&camera.list, &camera.world_screen) }
+    }
+
+    /// `cameraGetPos(camID)`: the active camera's eye.
+    pub fn eye(&self) -> V4 {
+        self.cams.active().pos
+    }
+
+    /// `cameraGetPos(1)`: the field camera's eye.
+    pub fn eye1(&self) -> V4 {
+        self.cams.cam(CamId::Field).pos
     }
 
     /// `checkCameraType()` 1: the eye view, which turns by
     /// `cameraGetRot2(1)` in place of `cameraGetRot(1)`.
     pub fn eye_view(&self) -> bool {
-        self.cam.kind == crate::camera::kind::EYE
+        self.cams.kind() == crate::camera::kind::EYE
     }
 
     /// The camera's turn as the eye view picks it.
     pub fn cam_rot(&self) -> V4 {
-        if self.eye_view() { self.rot2 } else { self.rot }
+        crate::camera::field_turn(self.cams)
+    }
+
+    /// `WORLD::Draw`'s turn, the heat haze's (gcmn 0x005a9968, MUT
+    /// 0x005d4f18, OUT 0x005d2804, QUA 0x004c5264): `cameraGetRot2(1)` in
+    /// the eye view, else `cameraGetRot(r, checkCameraID())`, the active
+    /// camera's (its scratch's y and w unread: zero here).
+    pub fn draw_turn(&self) -> V4 {
+        if self.eye_view() { self.cams.get_rot2(CamId::Field, [0; 4]) } else { self.cams.rot() }
     }
 }
 
@@ -635,7 +656,7 @@ pub struct Report {
 /// `Draw` draws from it (`EVENTAREAB8`'s rocks).
 pub struct StepCx<'a> {
     pub core: &'a mut AreaCore,
-    pub view: &'a MapView,
+    pub view: &'a MapView<'a>,
     pub frame: &'a mut Vec<Drawn>,
     pub events: &'a mut Vec<MapEvent>,
     pub cc: Option<&'a mut dyn piney_battle::rand::Rng>,

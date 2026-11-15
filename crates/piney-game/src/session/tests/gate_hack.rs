@@ -136,7 +136,7 @@ fn player(w: &AreaMode, f: u64) -> Raw {
     let Some((gate, _)) = world.char_place(CharId::Object(16)) else { return still(Buttons::NONE) };
     let g = gate.map(f32::from_bits);
     let p = world.kite().pos().map(f32::from_bits);
-    let cam_z = f32::from_bits(world.camera().rot()[2]);
+    let cam_z = f32::from_bits(world.camera().list.rot()[2]);
     stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1])))
 }
 
@@ -325,13 +325,13 @@ fn gate_hack_arrives_hacking_out() {
         }
         let g = c.cast.gate.flag();
         gho_seen |= g;
-        ecam_seen |= g && w.camera().cam_id == piney_world::camera::id::EVENT;
+        ecam_seen |= g && w.camera().list.id() == piney_world::camera::CamId::Event;
         if let Some(a) = c.cast.get(k).and_then(|a| a.arms) {
             arms_hidden |= a == 0.0;
             arms_fading |= a > 0.0 && a < 1.0;
         }
         if gho_seen && !g && stood.is_none() {
-            stood = Some((act, w.camera().cam_id, w.gt_hack()));
+            stood = Some((act, w.camera().list.id(), w.gt_hack()));
         }
         if stood.is_some() && members.values().all(|m| m.1.is_some()) && members.len() == 2 {
             break;
@@ -348,7 +348,7 @@ fn gate_hack_arrives_hacking_out() {
     assert!(ecam_seen, "the cutscene camera never ran");
     assert!(acts.starts_with(&[24, 23]), "Kite's acts {acts:?}");
     assert!(arms_hidden && arms_fading, "the blades: hidden {arms_hidden}, fading {arms_fading}");
-    assert_eq!(stood, Some((2, piney_world::camera::id::FIELD, true)), "after GateHackingOut");
+    assert_eq!(stood, Some((2, piney_world::camera::CamId::Field, true)), "after GateHackingOut");
     let want: Vec<(i32, Arrival)> = vec![(MIA, ((true, false, 2), Some(65))), (ELK, ((true, false, 2), Some(65)))];
     assert_eq!(members.into_iter().collect::<Vec<_>>(), want, "the members (hidden, listed, act), shown after");
 }

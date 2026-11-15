@@ -6,6 +6,7 @@
 //! `kite`, `unchar`, `mark`, `markerpos`, `cmd`, `teach`, `ban`, `pad`;
 //! numbers hex, floats their bits, the fields the harness's.
 
+use piney_world::camera::CamId;
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::sync::Arc;
@@ -151,12 +152,12 @@ fn state(r: &Run) -> String {
     let mut kv = vec![
         ("ctrl", list(&ctrl_words(&r.ev.ctrl))),
         ("running", u8::from(r.ev.running()).to_string()),
-        ("cam_id", c.cam_id.to_string()),
-        ("normal", r.ev.normal_cam_id.to_string()),
+        ("cam_id", c.list.id().raw().to_string()),
+        ("normal", r.ev.normal_cam_id.raw().to_string()),
         ("puppet", u8::from(c.puppet_show).to_string()),
-        ("tcam", list(&cam_words(&c.tcam))),
-        ("ecam", list(&cam_words(&c.ecam))),
-        ("bcam", list(&cam_words(&c.bcam))),
+        ("tcam", list(&cam_words(c.list.cam(CamId::Field)))),
+        ("ecam", list(&cam_words(c.list.cam(CamId::Event)))),
+        ("bcam", list(&cam_words(c.list.cam(CamId::Battle)))),
         ("resetting", u8::from(c.resetting).to_string()),
         ("mem_dirc_z", c.mem_dirc_z.to_string()),
         ("mode", r.kite.mode.to_string()),

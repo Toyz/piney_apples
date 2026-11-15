@@ -187,7 +187,7 @@ impl KiteRun {
 
     /// The field camera's state under the harnesses' names.
     pub fn camera_fields(&self) -> Vec<(&'static str, String)> {
-        let (c, t) = (&self.camera, &self.camera.tcam);
+        let (c, t) = (&self.camera, self.camera.list.cam(piney_world::camera::CamId::Field));
         vec![
             ("cam_pos", list(&t.pos)),
             ("cam_view", list(&t.view)),

@@ -126,7 +126,7 @@ fn to_the_gate(w: &AreaMode, f: u64, to: i32) -> Raw {
     let Some((gate, _)) = world.char_place(CharId::Object(16)) else { return still(Buttons::NONE) };
     let g = gate.map(f32::from_bits);
     let p = world.kite().pos().map(f32::from_bits);
-    let cam_z = f32::from_bits(world.camera().rot()[2]);
+    let cam_z = f32::from_bits(world.camera().list.rot()[2]);
     stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1])))
 }
 
@@ -603,7 +603,7 @@ fn the_grunty_eats_and_grows() {
         if !w.in_town() {
             panic!("left the town")
         }
-        assert_eq!(w.world().camera().cam_id, 3, "not the fixed camera");
+        assert_eq!(w.world().camera().list.id(), piney_world::camera::CamId::Event, "not the fixed camera");
     }
     assert_eq!(grunties(&s)[0].2, 0, "the Grunty did not sit");
     // Give Food: the food, up to three, OK.
@@ -684,7 +684,7 @@ fn the_grunty_eats_and_grows() {
         panic!("left the town")
     }
     assert_eq!(w.ui().menu_type(), -1);
-    assert_eq!(w.world().camera().cam_id, 1);
+    assert_eq!(w.world().camera().list.id(), piney_world::camera::CamId::Field);
     assert_eq!(grunties(&s)[0].2, 3, "the Grunty did not walk on");
 }
 

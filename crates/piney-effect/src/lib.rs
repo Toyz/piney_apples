@@ -61,6 +61,7 @@ pub mod tornado;
 pub mod upheaval;
 pub mod vu;
 
+use piney_battle::camera::CamId;
 use piney_data::Result;
 use piney_data::archive::Archive;
 use piney_data::volume::Volume;
@@ -168,8 +169,8 @@ pub trait Host {
     }
     /// `checkCameraID()` (main 0x00160ca0, `camID`) and `checkCameraType()`
     /// (0x00160cb0, `activeCamPtr` +0x5c).
-    fn camera_id(&self) -> i16 {
-        0
+    fn camera_id(&self) -> CamId {
+        CamId::Field
     }
     fn camera_type(&self) -> i32 {
         0

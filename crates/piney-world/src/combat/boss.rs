@@ -12,8 +12,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use piney_battle::affect::AffectCtx;
-use piney_battle::boss::defs::{BodyPick, BossDef, CamDef, PartBody, Spawn};
-use piney_battle::boss::{self, Boss, BossEnv, CamView, Out};
+use piney_battle::boss::defs::{BodyPick, BossDef, PartBody, Spawn};
+use piney_battle::boss::{self, Boss, BossEnv, Cams, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::World;
 use piney_battle::event::{Event, Events, Who};
@@ -22,10 +22,9 @@ use piney_battle::world::CharHit;
 
 use super::Combat;
 use super::cast::{Actor, Look};
+use super::cinema::{Cinema, Name as CinemaName, Sent as CinemaSent};
 use super::stage::Show;
-use crate::camera::bosscam::BossCam;
-use crate::camera::cinema::{Cinema, Name as CinemaName, Sent as CinemaSent};
-use crate::camera::{CamPad, Camera, id};
+use crate::camera::Camera;
 use crate::chara::body::Body;
 use crate::ee::{self, F, ONE, V4};
 use crate::sky::lattice::{Lattice, StripVertex};
@@ -46,6 +45,14 @@ pub const HEAP_EXIT: u32 = 0x0100_003f;
 /// "ccBoss08's m_exit"). The port keeps the 900-frame word: the
 /// manager's own blur until `ccBoss08_b`'s constructor writes its own.
 pub const BOSS08_HEAP_EXIT: u32 = 0;
+
+/// Where `_ccMalloc` puts the party's objects in Tarvos's arena (field 7),
+/// `ccParty.member[k]`: Kite's `ccPlayer`, BlackRose's and Balmung's
+/// `ccFellow`, for the save loaded after 900 frames at the title, town 4,
+/// the two invited (docs/engine/heap.md "Tarvos's phantom"). It moves with
+/// the play; the port keeps this history's. The phantom's first view reads
+/// its target's as a float (`piney_battle::chara::Env::party_va`).
+pub const PARTY_VA: [u32; 3] = [0x00dd_1070, 0x0130_42f0, 0x0130_ae40];
 
 /// The effects' file.
 pub const EFF_FILE: &str = "xeffect";
@@ -82,10 +89,6 @@ pub struct BossRun {
     /// What the boss draws this frame besides its bodies, its waves and
     /// its after-images ([`Picture`]).
     pub pictures: Vec<Picture>,
-    /// `bossCam` and `bossCamSW` (+0x14c, +0x150): the camera, and whether
-    /// `Main` still runs it.
-    pub cam: Option<BossCam>,
-    pub cam_sw: bool,
     /// `ccBufferReverce::MakePacket` this frame (Skeith's magic's last
     /// part): the frame inverted on the boss's own layer.
     pub reverse: bool,
@@ -347,7 +350,8 @@ impl BossLook {
         };
         let mut names = HashMap::new();
         let mut textures: HashMap<&str, Option<piney_desktop::message::WindowTexture>> = HashMap::new();
-        for (n, row) in piney_data::tables::combat::of(volume).cinema_skill_names.iter().enumerate() {
+        let rows = piney_data::tables::combat::of(volume).cinema_skill_names.iter().enumerate();
+        for (n, row) in rows.filter(|&(n, _)| super::cinema::takes(volume, n as i32)) {
             let (Some(f), Some(tex)) = (row_file(row.file), row.tex) else { continue };
             if f != file {
                 continue;
@@ -414,7 +418,8 @@ impl Combat {
         let clip = |name: &str| clips.get(name).copied();
         let party = self.party;
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &d.t, clips: &clip, env, game_over: false, cc: None };
+        let cams = take_cams(camera);
+        let benv = BossEnv { t: &d.t, clips: &clip, env, game_over: false, cc: None, cams: &cams };
         let actx =
             AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: self.data.volume };
         let mut none = |_| None;
@@ -432,8 +437,6 @@ impl Combat {
             collide: &mut none,
             field: &mut boss::NoField,
             game_over: false,
-            boss_cam: true,
-            cam: cam_view(camera, None, false),
             land: &mut land,
             disc,
             gen_alive: &|_| true,
@@ -446,7 +449,9 @@ impl Combat {
         b.show(&mut cx);
         let out = std::mem::take(&mut cx.out);
         drop(cx);
-        let ctor_out = out.clone();
+        put_cams(camera, cams);
+        // The constructor's writes to the effect manager's blur.
+        let blurs: Vec<_> = out.iter().filter_map(|o| if let Out::Blur(s) = o { Some(*s) } else { None }).collect();
         for o in out {
             self.shows.push(Show::Boss(me, o));
         }
@@ -464,15 +469,12 @@ impl Combat {
         }
         let images = b.output.figures.iter().map(|f| f.me).collect();
         let parts = b.output.parts.clone();
-        let (cam_def, radius) = (b.def.cam, b.def.radius.unwrap_or(w));
+        let radius = b.def.radius.unwrap_or(w);
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
             f.boss = Some(Box::new(b));
         }
         let ty = self.scene.chars[me].ty() as u32;
         let hit = CharHit { pos, radius, height: h, kind: ty, ..CharHit::default() };
-        // InitBossCamera(z, y), in the constructor, and what the
-        // constructor set on it then.
-        let cam = new_cam(cam_def, camera, kite_pos, &ctor_out);
         self.boss = Some(BossRun {
             code,
             me,
@@ -486,22 +488,18 @@ impl Combat {
             light: None,
             fog: None,
             pictures: Vec::new(),
-            cam_sw: cam.is_some(),
-            cam,
             reverse: false,
             blur: {
                 let mut blur = boss::blur::Blur::new(self.heap_exit);
-                for o in &ctor_out {
-                    if let Out::Blur(s) = o {
-                        blur.set(*s);
-                    }
+                for s in blurs {
+                    blur.set(s);
                 }
                 blur
             },
             reflex: None,
             lattice: Lattice::new(2, 7),
             trail: (Vec::new(), 0),
-            cinema: Cinema::new(),
+            cinema: Cinema::new(self.data.volume),
             cinema_sent: CinemaSent::default(),
             text: None,
             text_shown: false,
@@ -542,7 +540,6 @@ impl Combat {
         check: &dyn Fn(usize) -> i32,
         hits: &mut crate::hit::Hits,
         camera: &mut Camera,
-        pad: &CamPad,
     ) -> Events {
         let mut ev = Events::new();
         let Some(run) = self.boss.as_mut() else { return ev };
@@ -556,13 +553,12 @@ impl Combat {
         let me = run.me;
         let hit = run.hit;
         let clips = run.clips.clone();
-        // checkCameraShakeRange of the boss's place, as its Think asks it.
-        let shake = shake_range(camera, &world, self.scene.chars[me].pos);
-        let cv = cam_view(camera, run.cam.as_ref(), shake);
         let d = self.data.clone();
         let clip = |name: &str| clips.get(name).copied();
         let party = self.party;
-        let benv = BossEnv { t: &d.t, clips: &clip, env, game_over: false, cc: None };
+        // camera.cpp for the task: the affects queued and the rules call it.
+        let cams = take_cams(camera);
+        let benv = BossEnv { t: &d.t, clips: &clip, env, game_over: false, cc: None, cams: &cams };
         let actx =
             AffectCtx { party: &party, menu: true, skill_check: check, boss: Some(&benv), volume: self.data.volume };
         // The frame's hits on the boss, with the fight's ccRand.
@@ -589,7 +585,10 @@ impl Combat {
                 part_out.extend(pb.base.take_pending().into_iter().map(|o| (p, o)));
             }
         }
-        let Some(mut b) = self.scene.chars[me].foe_state_mut().and_then(|f| f.boss.take()) else { return ev };
+        let Some(mut b) = self.scene.chars[me].foe_state_mut().and_then(|f| f.boss.take()) else {
+            put_cams(camera, cams);
+            return ev;
+        };
         let mut out = b.base.take_pending();
         // ccBoss::Move: SetHitSW(bodyHitSW), then the body at the new place
         // pushed out of the others (CollisionDetection).
@@ -627,8 +626,6 @@ impl Combat {
             collide: &mut collide,
             field: &mut field,
             game_over: false,
-            boss_cam: true,
-            cam: cv,
             land: &mut land,
             disc,
             gen_alive: &gen_alive,
@@ -657,34 +654,22 @@ impl Combat {
             cx.disc.blur_abgr = r.blur.abgr;
             cx.disc.blur_scale = r.blur.scale;
             cx.disc.blur_exit = r.blur.exit;
-            // A mode the effects set (the ball's end) is the camera's
-            // before the boss reads its ResetFlg.
-            if let Some(c) = r.cam.as_mut() {
-                for o in &fx_out {
-                    match o {
-                        Out::CamMode { mode } => c.set_mode(*mode, camera),
-                        Out::CamModeRange { .. } => cam_out(c, o, camera),
-                        _ => {}
-                    }
-                }
-                cx.cam.reset = c.reset;
-            }
         }
-        let early = |o: &Out| matches!(o, Out::Blur(_) | Out::CamMode { .. } | Out::CamModeRange { .. });
-        out.extend(fx_out.into_iter().filter(|o| !early(o)));
+        out.extend(fx_out.into_iter().filter(|o| !matches!(o, Out::Blur(_))));
         b.main(&mut cx);
         b.hand_over(&mut cx);
         b.show(&mut cx);
         out.extend(std::mem::take(&mut cx.out));
         ev.extend(std::mem::take(&mut cx.ev));
         drop(cx);
+        put_cams(camera, cams);
         let hits = hits.into_inner();
         // A boss made anew on its character (Corbenik's next form, the same
         // frame): its hit, parts, after-images and camera as its def makes
         // them, and the parts gone with the old one off the field.
         let (mut hit, mut parts) = (hit, parts);
         if out.contains(&Out::Remade)
-            && let (Some(r), Some(k)) = (self.boss.as_mut(), kite)
+            && let (Some(r), Some(_)) = (self.boss.as_mut(), kite)
         {
             let base = self.scene.chars[me].base();
             let (h, w, ty) = (base.height, base.width, base.ty as u32);
@@ -692,8 +677,6 @@ impl Combat {
             r.hit = CharHit { pos: self.scene.chars[me].pos, radius, height: h, kind: ty, ..CharHit::default() };
             r.parts = b.output.parts.clone();
             r.afterimages.clear();
-            r.cam = new_cam(b.def.cam, camera, self.scene.chars[k].pos, &[]);
-            r.cam_sw = true;
             (hit, parts) = (r.hit, r.parts.clone());
         }
         for o in &out {
@@ -732,11 +715,9 @@ impl Combat {
         let wave_time = shown.wave.unwrap_or(0);
         let clip = b.base.anm.clip.clone().unwrap_or_default();
         let time = b.base.anm.posed;
-        let kite_pos = kite.map(|k| self.scene.chars[k].pos);
         if let Some(r) = self.boss.as_mut() {
-            // Think and Action's QuakeCam, SetMode, SetFreeCamPosView and
-            // BeginDeadEffect, then after Move the camera (bossCam &&
-            // bossCamSW: CamMain).
+            // What the frame asked of the effect manager, the blur, the
+            // cinema and the arena, in order.
             let text_was = std::mem::take(&mut r.text_shown);
             for o in &out {
                 match o {
@@ -770,96 +751,11 @@ impl Combat {
                         }
                         r.text_shown = true;
                     }
-                    Out::Quake(v) => {
-                        if let Some(c) = r.cam.as_mut() {
-                            c.quake(*v);
-                        }
-                    }
-                    Out::CamMode { mode } => {
-                        if let Some(c) = r.cam.as_mut() {
-                            c.set_mode(*mode, camera);
-                        }
-                    }
-                    Out::FreeCam { pos, view } => {
-                        if let Some(c) = r.cam.as_mut() {
-                            c.free_cam_pos_view(*pos, *view);
-                        }
-                    }
-                    // Mutation's +0xe0, the pitch CamMain turns the view by.
-                    Out::CamPitch { add, v } => {
-                        if let Some(c) = r.cam.as_mut() {
-                            c.xrot = if *add { ee::add(c.xrot, *v) } else { *v };
-                        }
-                    }
-                    Out::CamModeRange { .. }
-                    | Out::CamInitLock
-                    | Out::CamRotXLimit(_)
-                    | Out::CamMaxRange(_)
-                    | Out::CamLift(_)
-                    | Out::CamSway(_) => {
-                        if let Some(c) = r.cam.as_mut() {
-                            cam_out(c, o, camera);
-                        }
-                    }
                     Out::DiscNextStage => r.disc_next = true,
-                    // Kyvia's fourth fight: CamPos written, field 12's walls.
-                    // Corbenik's forms write CamView and the lock too.
-                    Out::CamEye(pos) => {
-                        if let Some(c) = r.cam.as_mut() {
-                            c.pos = *pos;
-                        }
-                    }
-                    Out::CamLook(view) => {
-                        if let Some(c) = r.cam.as_mut() {
-                            c.view = *view;
-                        }
-                    }
-                    Out::CamLock(on) => {
-                        if let Some(c) = r.cam.as_mut() {
-                            c.lock = *on;
-                        }
-                    }
-                    // activeCamPtr->type (Corbenik's death: 3).
-                    Out::CameraType(t) => camera.active_mut().kind = *t,
                     Out::FieldBodyHit { n, on } => r.body_hits.push((*n, *on)),
                     Out::StageClump(on) => r.arena_clump.push(*on),
-                    // Magus's cameras: changeCamera, cameraSetPos/View.
-                    Out::CameraChange(n) => camera.change_camera(*n as i16),
-                    Out::CameraPos { cam, pos } => camera.cam_mut(*cam as i16).pos = *pos,
-                    Out::CameraView { cam, view } => camera.cam_mut(*cam as i16).view = *view,
-                    // Gorre's fall (OffBossCamera): the boss camera handed
-                    // to camera 1, off.
-                    Out::BossCamOff => {
-                        if r.cam_sw {
-                            if r.cam.is_some() {
-                                camera.boss_cam_off();
-                            } else {
-                                camera.change_camera(id::FIELD);
-                            }
-                        }
-                        r.cam_sw = false;
-                    }
-                    Out::DeadCamera { eye, view, .. } => {
-                        if r.cam_sw {
-                            if r.cam.is_some() {
-                                camera.boss_cam_off();
-                            } else {
-                                camera.change_camera(id::FIELD);
-                            }
-                        }
-                        r.cam_sw = false;
-                        camera.change_camera(id::EVENT);
-                        let e = camera.cam_mut(id::EVENT);
-                        e.pos = *eye;
-                        e.view = *view;
-                    }
                     _ => {}
                 }
-            }
-            if r.cam_sw
-                && let (Some(c), Some(k)) = (r.cam.as_mut(), kite_pos)
-            {
-                c.cam_main(camera, pad, k, at.pos);
             }
             r.hit = at;
             // EntryAfterImage in the frame's Think, then DrawAfterImages:
@@ -1006,13 +902,6 @@ impl Combat {
             match &o {
                 // ccDeleteCmnd: the rules took the character off the
                 // lists themselves (a part's comes with the boss's outs).
-                // checkCameraShakeRange(pos), then cameraShake: its `rand()`.
-                Out::CameraShake { pos, s } => {
-                    if shake_range(camera, &world, *pos) {
-                        let rand = &mut self.rand;
-                        camera.shake.shake(s[0], s[1], s[2], s[3], &mut || piney_battle::Rng::rand(rand));
-                    }
-                }
                 // ccItemSkillRequest: the skill run from the boss on its
                 // target, as an item's through a character.
                 Out::Skill(tp, k) => self.item_skill(me, *tp, k),
@@ -1269,17 +1158,6 @@ fn part_image(look: &BossLook, k: usize, clip: &str) -> Option<usize> {
     (k < look.images.len()).then_some(k)
 }
 
-/// The boss camera its def makes (`InitBossCamera` at the transfer, behind
-/// `player`), and what its constructor set on it then (`ctor`).
-fn new_cam(def: CamDef, camera: &mut Camera, player: V4, ctor: &[Out]) -> Option<BossCam> {
-    let CamDef::Transfer(transfer) = def else { return None };
-    let mut cam = BossCam::new(camera, transfer, player);
-    for o in ctor {
-        cam_out(&mut cam, o, camera);
-    }
-    Some(cam)
-}
-
 /// An actor posed as a `ccAnm` left it: its clip (set anew when it
 /// changed), the time and the pose `PreDrawAnm`'s step made, the place.
 fn pose(a: &mut Actor, anm: &piney_battle::boss::Anm, pos: V4, dirc: V4) {
@@ -1294,33 +1172,17 @@ fn pose(a: &mut Actor, anm: &piney_battle::boss::Anm, pos: V4, dirc: V4) {
     a.ch.dirc = dirc;
 }
 
-/// What a boss's rules read of the cameras this frame: the active
-/// camera's turn (`cameraGetRot(camID)`), camera 2's eye and view, and
-/// the boss camera's `CheckMoveCamera`.
-pub(super) fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
-    let c = camera.cam(id::BATTLE);
-    CamView {
-        rot: camera.rot(),
-        pos: c.pos,
-        view: c.view,
-        moving: bcam.is_some_and(BossCam::check_move_camera),
-        reset: bcam.map_or(0, |b| b.reset),
-        shake,
-        eye: bcam.map_or(c.pos, |b| b.pos),
-        active: i32::from(camera.cam_id),
-        active_pos: camera.cam(camera.cam_id).pos,
-        active_view: camera.cam(camera.cam_id).view,
-        boss_view: bcam.map_or(c.view, |b| b.view),
-        // ccBoss::Draw's fade: the active camera, a field's distances.
-        fade: Some(boss::CamFade {
-            eye: camera.active().pos,
-            deg1: camera.active().deg[1],
-            // checkCameraType(): activeCamPtr->type.
-            eye_view: camera.active().kind == crate::camera::kind::EYE,
-            far: crate::chara::foe::AREA_FAR,
-            fade: crate::chara::foe::AREA_FADE,
-        }),
-    }
+/// camera.cpp taken from the field's for a boss's task and its affects
+/// ([`Cams`]): the list, the shake and the scheme, put back by
+/// [`put_cams`].
+pub(super) fn take_cams(camera: &mut Camera) -> RefCell<Cams> {
+    let (list, shake) = (std::mem::take(&mut camera.list), std::mem::take(&mut camera.shake));
+    RefCell::new(Cams { list, shake, scheme: camera.scheme })
+}
+
+pub(super) fn put_cams(camera: &mut Camera, cams: RefCell<Cams>) {
+    let c = cams.into_inner();
+    (camera.list, camera.shake) = (c.list, c.shake);
 }
 
 /// Two dummies of the boss's file (`points`) under `node`'s world matrix
@@ -1349,22 +1211,6 @@ fn node_world(body: &Body, play: &crate::chara::pose::Play, pos: V4, dirc: V4, n
     body.worlds(play, crate::chara::body::root(pos, dirc)).get(&n).copied()
 }
 
-/// `checkCameraShakeRange(pos)` (main 0x00162f10): `pos` in the active
-/// camera's view (`ccCheckCameraDeg(pos, 12288)`) and nearer its eye than
-/// 2000, all through `W2PPos`.
-fn shake_range(camera: &Camera, world: &World, pos: V4) -> bool {
-    let cam = camera.active();
-    let (p, c, v) = (world.frame.w2p(pos), world.frame.w2p(cam.pos), world.frame.w2p(cam.view));
-    let a = ee::rad2deg(ee::atan2f(ee::sub(p[1], c[1]), ee::sub(p[0], c[0])));
-    let b = ee::rad2deg(ee::atan2f(ee::sub(v[1], c[1]), ee::sub(v[0], c[0])));
-    let d = (12288 + (i32::from(a) - i32::from(b))) as i16;
-    if !(d > 0 && i32::from(d) < 2 * 12288) {
-        return false;
-    }
-    let dv = ee::vsub(pos, cam.pos);
-    ee::lt(ee::sqrtf_on(camera.volume, ee::dot(dv, dv)), 0x44fa_0000)
-}
-
 /// A matrix in the EE's rows (x, y, z axes, the place).
 fn rows(m: glam::Mat4) -> piney_battle::geom::M4 {
     let row = |v: glam::Vec4| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), v.w.to_bits()];
@@ -1384,21 +1230,6 @@ pub fn objects_named(body: &Body, play: &crate::chara::pose::Play, names: &[&str
     let file = &body.file;
     let entries = file.anims[play.anim].objects.iter().map(|&(e, _)| e);
     entries.filter(|&e| file.ccs.object_name(e).is_some_and(|n| names.contains(&n))).collect()
-}
-
-/// What a boss asks of its camera beside the frame's moves: a mode with a
-/// range (Kyvia's 3 and 4), `InitLock`, `SetRotXLimit` and the pitch.
-fn cam_out(c: &mut BossCam, o: &Out, camera: &mut Camera) {
-    match o {
-        Out::CamModeRange { mode, range } => c.set_mode_range(*mode, *range, camera),
-        Out::CamInitLock => c.init_lock = true,
-        Out::CamRotXLimit(v) => c.set_rot_x_limit(*v),
-        Out::CamPitch { add, v } => c.xrot = if *add { ee::add(c.xrot, *v) } else { *v },
-        Out::CamMaxRange(v) => c.max_range = *v,
-        Out::CamLift(v) => c.lift = *v,
-        Out::CamSway(on) => c.zrot_control = *on,
-        _ => {}
-    }
 }
 
 /// The boss's position with its z raised by `dz`, for a sound or a look.

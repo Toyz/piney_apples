@@ -1011,11 +1011,8 @@ impl AreaMode {
                 }
                 // The boss's death: ccClearSpcCondition.
                 Show::Boss(_, Out::ClearSpcCondition) => self.world.clear_spc_condition(),
-                // BeginDeadEffect: ccSqFade(0, 0, 30, 3), the music out;
-                // Kyvia's death its own.
-                Show::Boss(_, Out::DeadCamera { music_fade: true, .. }) => {
-                    self.events.push(Event::SqFade { seq: 0, volume: 0, time: 30, mode: 3 });
-                }
+                // ccSqFade(0, 0, t, 3), the music out: BeginDeadEffect's 30
+                // (but Kyvia's), Kyvia's death its own.
                 Show::Boss(_, Out::MusicFade { t }) => {
                     self.events.push(Event::SqFade { seq: 0, volume: 0, time: *t, mode: 3 });
                 }
@@ -1302,6 +1299,8 @@ impl AreaMode {
                 }
             }
             NpcEvent::Pc(_) => {}
+            // The world's shows carry it as Show::Ear.
+            NpcEvent::Ear(_) => {}
         }
     }
 
@@ -1341,15 +1340,9 @@ impl AreaMode {
                 }
                 E::VoiceStop => self.events.push(Event::VoiceStop),
                 E::ChatClose => self.ui.close_chat(),
-                // Carried out by the world (its line as NpcEvent::Line); off
-                // the lists (its own flag).
-                E::Chat(_)
-                | E::Camera(_)
-                | E::CamPos(_)
-                | E::CamView(_)
-                | E::Player { .. }
-                | E::Dropped
-                | E::Debug(_) => {}
+                // Carried out by the world (its line as NpcEvent::Line, the
+                // listener as Show::Ear); off the lists (its own flag).
+                E::Chat(_) | E::Ear(_) | E::Player { .. } | E::Dropped | E::Debug(_) => {}
             }
         }
     }
@@ -1650,7 +1643,7 @@ impl AreaMode {
                     self.world.set_merchant_camera(who, self.world.scene().server);
                 }
             }
-            TalkReq::Camera(n) => self.world.change_camera(n as i16),
+            TalkReq::Camera(n) => self.world.change_camera(n),
             TalkReq::FountainCamera => self.world.fountain_camera(),
             TalkReq::FountainParty(on) => self.world.fountain_party(on),
             // Give Food: EntryAffect(grunty, plw, 19, food, num, 0).
@@ -1881,9 +1874,11 @@ impl Mode for AreaMode {
         {
             use piney_world::combat::Show;
             let names = self.world.state().names();
-            let cam = self.world.camera().active();
-            let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
-            for s in &shows {
+            // Each sound by the active camera at its call (Show::Ear), the
+            // camera as the frame ends before any mark.
+            let end = self.world.camera().list.ear();
+            for (s, ear) in piney_world::combat::heard(&shows, end) {
+                let ear = Some(listener(ear));
                 match s {
                     Show::Cast(o) => self.cast_out(o, &names, ear),
                     // ccPlayer::DamageActuate: Kite hit, the small motor and
@@ -1893,7 +1888,7 @@ impl Mode for AreaMode {
                     }
                     s => {
                         let one = std::slice::from_ref(s);
-                        show_sounds(&self.world, &mut self.ui, one, &mut self.events);
+                        show_sounds(&self.world, &mut self.ui, one, ear, &mut self.events);
                         party_chats(&self.world, &mut self.ui, one);
                     }
                 }
@@ -1908,7 +1903,7 @@ impl Mode for AreaMode {
         let file = &self.world.area().core().file;
         let breeder = file.ccs.find_object("DMY_merchant6").and_then(|o| file.scene.dummies.get(&o));
         let scene_sound = piney_audio::scene::SceneInput {
-            camera: Some(self.world.camera().active().pos),
+            camera: Some(self.world.camera().list.active().pos),
             kite: self.world.kite().pos(),
             block: scene.block,
             town: self.world.town_type(),
@@ -2620,6 +2615,12 @@ pub fn set_generate_code(
 
 /// `ccMenuCtrl::GateoutMenu`'s end (menu 10, confirmed): back to the
 /// town. The field's menus raise it; `--press F:gateout` too.
+/// The listener a 3D sound is panned by (`piney_battle::camera::Ear`, the
+/// active camera at its call) as the sound driver takes it.
+pub(crate) fn listener(e: piney_battle::camera::Ear) -> piney_audio::se3d::Listener {
+    piney_audio::se3d::Listener { pos: e.pos, view: e.view, kind: e.kind }
+}
+
 /// `ccSeOn3D` and the animation notes' `ccSeSetParamEnemy` /
 /// `ccSeSetParamSPC` the battle's tasks called this frame, and the
 /// effects' sounds, as [`Event::Se3d`] in order.
@@ -2627,6 +2628,7 @@ pub(crate) fn show_sounds(
     world: &World,
     ui: &mut FieldUi,
     shows: &[piney_world::combat::Show],
+    ear: Option<piney_audio::se3d::Listener>,
     events: &mut Vec<Event>,
 ) {
     use piney_audio::se3d;
@@ -2634,8 +2636,6 @@ pub(crate) fn show_sounds(
     let w = world;
     let v = w.volume();
     let c = w.combat();
-    let cam = w.camera().active();
-    let ear = Some(se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
     let pos = |i: usize| c.scene.chars.get(i).map_or([0, 0, 0, 0x3f80_0000], |ch| ch.pos);
     let spc = |i: usize, param: u32| {
         let ch = c.scene.chars.get(i)?;
@@ -2766,7 +2766,7 @@ pub(crate) fn show_sounds(
 /// and noises, then the area's own draw's calls (a field's thunder, steam,
 /// TOBJ's hum, a dungeon's doors, a town's airship), after the shows'.
 pub(crate) fn fx_sounds(world: &mut World, ui: &mut FieldUi, st: &mut FieldState, events: &mut Vec<Event>) {
-    let cam = world.camera().active();
+    let cam = world.camera().list.active();
     let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
     let mut out = Vec::new();
     for (se, p, note) in world.fx_mut().take_sounds() {

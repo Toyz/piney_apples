@@ -15,6 +15,7 @@ use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_world::area::Exit;
 use piney_world::area::{Scene, WorldMan};
+use piney_world::camera::CamList;
 use piney_world::dungeon::DungeonArea;
 use piney_world::ee::{self, V4};
 use piney_world::hit::LAND_MASK;
@@ -25,7 +26,7 @@ use piney_world::systems::pieces::Pieces;
 use piney_world::systems::room_lights::RoomLights;
 use piney_world::systems::room_water::RoomWater;
 use piney_world::systems::sparks::Sparks;
-use piney_world::systems::{Hook, Kind, MapView, Request, Step};
+use piney_world::systems::{Hook, Kind, MapView, NO_SCREEN, Request, Step};
 
 #[path = "common/kite_run.rs"]
 mod kite_run;
@@ -203,6 +204,8 @@ fn main() {
         save.set_u8(piney_data::save::offset::AREA_BAN + k, 0xff);
     }
     let stdin = std::io::stdin();
+    // The camera the dungeon's steps read: none of the probed ones reads it.
+    let still = CamList::default();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
         let w: Vec<&str> = line.split_whitespace().collect();
@@ -319,7 +322,7 @@ fn main() {
                 let a = d.as_mut().unwrap();
                 let frames: Vec<String> = (0..n(1))
                     .map(|_| {
-                        a.run(LEAF_EFF, &MapView::default(), None);
+                        a.run(LEAF_EFF, &MapView::new(&still, &NO_SCREEN), None);
                         let l = a.systems().get::<Leaves>();
                         let ms: Vec<String> = l.map_or(&[][..], |l| &l.matrices).iter().map(mat).collect();
                         let r = *a.rng();
@@ -350,8 +353,8 @@ fn main() {
                 let player = (w.len() > 3).then(|| [hex(w[2]), hex(w[3]), 0, ee::ONE]);
                 for _ in 0..n(1) {
                     match player {
-                        Some(player) => a.run(DRAW_EFF, &MapView { player, ..MapView::default() }, None),
-                        None => a.run(&DRAW_EFF[..2], &MapView::default(), None),
+                        Some(player) => a.run(DRAW_EFF, &MapView { player, ..MapView::new(&still, &NO_SCREEN) }, None),
+                        None => a.run(&DRAW_EFF[..2], &MapView::new(&still, &NO_SCREEN), None),
                     }
                     let rows = std::collections::HashMap::new();
                     let sprites: Vec<String> = a
@@ -383,7 +386,7 @@ fn main() {
                 let here = Some(n(1) as usize);
                 let frames: Vec<String> = (0..n(2))
                     .map(|_| {
-                        a.run(DRAW_BG, &MapView::default(), here);
+                        a.run(DRAW_BG, &MapView::new(&still, &NO_SCREEN), here);
                         let sky = a.systems().get::<LakeSky>();
                         let v = sky.filter(|s| s.material.is_some()).map_or(-1, |s| i64::from(s.shown));
                         let m = sky

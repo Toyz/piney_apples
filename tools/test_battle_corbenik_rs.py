@@ -20,8 +20,8 @@ acts, movement, place, target, HP, flags, clips, Corbenik's own members
 (the dead effect, the stage, the counts, the leap, the shake), each seed's
 (acts, place, throw, HP, flags, lists, fade, clip, count, blink, spin, the
 land, the burst, the charge, the flush), the effects' slots, the party's
-HP and hold, the calls, the menu's words, the active camera's type, the
-blur, newlib's rand() and ccRand's index.
+HP and hold, the calls, the menu's words, the blur, camID, the three
+cameras and the shake's slots, newlib's rand() and ccRand's index.
 
 What is not the game's here:
 - The party's affects are off (affectFunc 0): the boss's hits are compared
@@ -35,10 +35,9 @@ What is not the game's here:
   stand-ins that only note themselves (ccCheckParticleGenerator: any made
   one lives); the burst, the shield, the after-images and the count's font
   only note themselves.
-- The cameras keep what is set on them (changeCamera sets camID);
-  activeCamPtr is a stand-in whose type is compared. No boss camera:
-  cmn_bossCam stays 0. W2P/P2W are identity and CollisionDetection finds
-  nothing. ccHitCheckLM finds the plane z 0 short of the case's x.
+- camera.cpp runs natively over the case's cameras (test_battle_boss_rs.py
+  `put_cams`); the first form makes no boss camera (cmn_bossCam stays 0).
+  W2P/P2W are identity and CollisionDetection finds nothing. ccHitCheckLM finds the plane z 0 short of the case's x.
 
     PINEY_VOLUME=quarantine python3 tools/test_battle_corbenik_rs.py             the tests
     PINEY_VOLUME=quarantine python3 tools/test_battle_corbenik_rs.py bulk N [S]  N cases from seed S
@@ -70,7 +69,6 @@ FAKE = 0x01A00000               # stand-in streams, chunks, objects and effects
 MGR = 0x01A80000                # _g_bossEffManager (0x1038 bytes)
 STAGE = 0x01A90000              # the stage fader
 WM = 0x01AB0000                 # worldman and its event area
-ACAM = 0x01AC0000               # activeCamPtr's stand-in
 FONT = 0x01AC1000               # font's
 HEAP = 0x01B00000               # operator new for the wave, the flush and the clips
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
@@ -103,7 +101,6 @@ class Game:
         self.names = {}         # a stand-in chunk or stream -> its name
         self.anms = {}          # a ccAnm -> [clip, time]
         self.effs = {}          # a stand-in effect -> [kind, count, life]
-        self.cams = {}          # camera -> [pos, view] as set
         self.out = []
         self.fake_at, self.heap_at = FAKE, HEAP
         self.center, self.hole = [0, 0, 0, F_ONE], 1e30
@@ -289,34 +286,8 @@ class Game:
              lambda mm, k, n, *_: out.append(["flyfont", s32(k), s32(n)]) or 0)
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
-        hook("checkCameraShakeRange__FPf", lambda mm, *a: 1)
 
-        def change_camera(mm, n, *_):
-            out.append(["cam", s32(n)])
-            mm.store(sym("camID"), 2, n & 0xFFFF)
-            return 0
-        hook("changeCamera__Fi", change_camera)
 
-        def cam_set(key, k):
-            def put(mm, p, n, *_):
-                v = [mm.load(p + 4 * j, 4) for j in range(4)]
-                out.append([key, s32(n)] + v[:3])
-                self.cams.setdefault(s32(n), [[0, 0, 0, F_ONE], [0, 0, 0, F_ONE]])[k] = v
-                return 0
-            return put
-        hook("cameraSetPos__FPfi", cam_set("campos", 0))
-        hook("cameraSetView__FPfi", cam_set("camview", 1))
-        hook("cameraSetRot__FPfi", nop)
-
-        def cam_get(k):
-            def get(mm, p, n, *_):
-                v = self.cams.get(s32(n), [[0, 0, 0, F_ONE], [0, 0, 0, F_ONE]])[k]
-                for j in range(4):
-                    mm.store(p + 4 * j, 4, v[j])
-                return 0
-            return get
-        hook("cameraGetPos__FPfi", cam_get(0))
-        hook("cameraGetView__FPfi", cam_get(1))
         hook("ccTransPosW2P__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccTransPosP2W__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
 
@@ -420,11 +391,9 @@ def rnd_case(c, rnd):
         menus += [(a, rnd.choice((0, 5, 74))), (a + rnd.randrange(1, 60), -1)]
         a = menus[-1][0]
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
-    cam2 = ([fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(100, 600)), F_ONE],
-            [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(0, 300)), F_ONE])
     hole = fbits(rnd.uniform(-600, 900)) if rnd.random() < 0.4 else fbits(1e30)
     case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
-            "cam2": cam2, "hole": hole,
+            "hole": hole,
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     case.update(bb.blur_case(rnd))
@@ -456,9 +425,8 @@ def run_game(game, case):
     game.stage_on = False
     game.center = case["center"]
     game.hole = struct.unpack("<f", struct.pack("<I", case["hole"]))[0]
-    game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.store(game.sym("camID"), 2, 1)
-    bb.put_draw_camera(game, case, ACAM)
+    bb.put_draw_camera(game, case)
     m.mem[FONT:FONT + 0x100] = bytes(0x100)
     m.store(game.sym("font"), 4, FONT)
     m.store(game.sym("cmn_bossCam__10ccIBossEff"), 4, 0)
@@ -493,6 +461,7 @@ def run_game(game, case):
     m.store(sys_ + 0x358, 4, case["count"])
     game.out.clear()
     m.call(game.sym("__ct__8ccBoss08Fv"), (BOSS,))
+    bb.post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
@@ -584,7 +553,8 @@ def game_state(game, n):
         "anm": [clip[0] or "", clip[1] >> 8, m.load(anm + 0x9C, 2)],
         "first": first,
         "seeds": [seed_state(game, k) for k in range(8)],
-        "cam": [s32(m.load(ACAM + 0x5C, 4))],
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
         "eff": game.effects(),
         "party": party,
         "out": list(game.out),
@@ -629,8 +599,7 @@ def request(game, case, pre):
     kite = party[0]
     parts = (["corbenik", len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
              + case["center"][:3] + list(kite.pos) + [0, 0, 0, 0]
-             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["hole"]]
-             + list(case["cam2"][0]) + list(case["cam2"][1]))
+             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["hole"]])
     parts.append(len(case["script"]))
     for s in case["script"]:
         parts += list(s)

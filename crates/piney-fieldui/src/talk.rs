@@ -413,8 +413,8 @@ pub fn prev_base(m: &MenuCtrl, x: &Ctx) -> Option<Base> {
 /// What these menus ask of the rest of the game.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TalkReq {
-    /// `changeCamera(n)` (main 0x00161ff0): 1 the player's camera back.
-    Camera(i32),
+    /// `changeCamera(n)` (INF main 0x001617f0): the player's camera back.
+    Camera(piney_battle::camera::CamId),
     /// `ccMenuCtrl::SetMerchantCamera()` (gcmn 0x005269d0): the camera
     /// turned to the merchant (`changeCamera(3)`; a breeder's fixed view,
     /// else 500 in front of `cmndTarget` at its height plus 100, facing
@@ -452,7 +452,7 @@ impl TalkReq {
     /// The request as `tools/test_fieldui_*` logs it.
     pub fn trace(&self) -> String {
         match self {
-            TalkReq::Camera(n) => format!("[\"camera\",{n}]"),
+            TalkReq::Camera(n) => format!("[\"camera\",{}]", n.raw()),
             TalkReq::MerchantCamera => "[\"merchant_camera\"]".into(),
             TalkReq::SpcUseItem { spc, code } => format!("[\"use_item\",{spc},{code}]"),
             TalkReq::PresentOther(c) => format!("[\"present_other\",{c}]"),

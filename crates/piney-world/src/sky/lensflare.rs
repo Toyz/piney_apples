@@ -7,27 +7,8 @@
 //! the towns) and no puppet show runs; mode 1 (the fields) takes the sun
 //! through `P2W` (docs/engine/town02.md, "LENSFLARE").
 
+use crate::camera::CamList;
 use crate::ee::{self, F, V4};
-
-/// What the camera gives `DrawLensFlare`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct FlareCamera {
-    /// `cameraGetPos(camID)` and `cameraGetView(camID)`.
-    pub eye: V4,
-    pub view: V4,
-    /// `cameraGetRot(1)`, or with the eye view (`checkCameraType()` 1)
-    /// `cameraGetRot2(1)`: `tcam`'s +0x20 or +0x40, all four lanes.
-    pub rot: V4,
-}
-
-impl FlareCamera {
-    /// The field camera's as `DrawLensFlare` reads them.
-    pub fn of(c: &crate::camera::Camera) -> FlareCamera {
-        let a = c.active();
-        let rot = if a.kind == crate::camera::kind::EYE { c.tcam.rot3 } else { c.tcam.rot };
-        FlareCamera { eye: a.pos, view: a.view, rot }
-    }
-}
 
 /// The six `ccEff`s (+0x00 .. +0x14) in the order the constructor makes
 /// them, of `town_z`.
@@ -45,14 +26,16 @@ const K_M200: F = 0xc348_0000;
 /// `ccCheckCameraDeg(sun, 12288)`.
 pub const VIEW_DEG: i16 = 12288;
 
-/// Where the six flares are drawn for the sun at `sun` (w 1) and the
-/// camera `cam`.
-pub fn points(sun: V4, cam: &FlareCamera) -> [V4; 6] {
+/// Where the six flares are drawn for the sun at `sun` (w 1): what
+/// `DrawLensFlare` reads of the camera is `cameraGetPos(camID)`,
+/// `cameraGetView(camID)` and the field turn ([`crate::camera::field_turn`]).
+pub fn points(sun: V4, cams: &CamList) -> [V4; 6] {
+    let (eye, view, rot) = (cams.active().pos, cams.active().view, crate::camera::field_turn(cams));
     std::array::from_fn(|i| {
-        let m = piney_data::anim::rot_bits([cam.rot[0], cam.rot[1], cam.rot[2]]);
-        let mut ahead = [0, K_M2500, 0, cam.view[3]];
+        let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
+        let mut ahead = [0, K_M2500, 0, view[3]];
         ahead = ee::apply(&m, ahead);
-        ahead = ee::vadd(ahead, cam.eye);
+        ahead = ee::vadd(ahead, eye);
         ahead[2] = ee::add(ahead[2], K500);
         let mut v = ee::vsub(sun, ahead);
         v[0] = ee::mul(v[0], K_M0_2);
@@ -67,6 +50,6 @@ pub fn points(sun: V4, cam: &FlareCamera) -> [V4; 6] {
 
 /// `LENSFLARE::Draw(s, name, 0)`: the flares' places, or None when it draws
 /// nothing. `sun_in_view` is `ccCheckCameraDeg(sun, 12288)`.
-pub fn draw(sun: V4, cam: &FlareCamera, puppet_show: bool, sun_in_view: bool) -> Option<[V4; 6]> {
-    (!puppet_show && sun_in_view).then(|| points(sun, cam))
+pub fn draw(sun: V4, cams: &CamList, puppet_show: bool, sun_in_view: bool) -> Option<[V4; 6]> {
+    (!puppet_show && sun_in_view).then(|| points(sun, cams))
 }

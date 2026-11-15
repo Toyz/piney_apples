@@ -323,6 +323,7 @@ impl Cast {
             a.second_draw = None;
             a.drawn = false;
             a.arms = None;
+            a.how = None;
         }
     }
 }

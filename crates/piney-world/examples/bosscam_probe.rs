@@ -1,19 +1,22 @@
-//! Answers `tools/test_bosscam_rs.py`: the boss camera (`piney_world::camera::bosscam`,
+//! Answers `tools/test_bosscam_rs.py`: the boss camera (`piney_battle::boss::cam`,
 //! `ccBossCam`) over the camera and the battle's tasks (Kite), as `merchcam_probe`
 //! runs them. One request a line (numbers in hex), one JSON line back:
 //! `start` (Kite and the camera), `frame` (one frame of the tasks), `boss`
 //! (`BossCam::new`), `quake` (`QuakeCam`), `main` (`CamMain` toward the boss),
-//! `sway` (`ZrotControlFlg` set), `mode` (`SetMode(mode, range)`) and `off`
-//! (`OffBossCamera`), each followed by the cameras.
+//! `sway` (`ZrotControlFlg` set), `mode` (`SetMode(mode, range)`), `note` (a
+//! sound of Kite's) and `off` (`OffBossCamera`), each followed by the
+//! cameras; `main` with the frame's sounds and their listeners.
 
 use std::io::BufRead;
 use std::sync::Arc;
 
+use piney_battle::boss::cam::{BossCam, off_boss_camera};
+use piney_battle::kite;
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
-use piney_world::camera::bosscam::BossCam;
 use piney_world::camera::{Cam, CamPad, Camera};
+use piney_world::combat::Show;
 use piney_world::ee;
 use piney_world::hit::{HitModel, Hits};
 
@@ -37,12 +40,32 @@ fn cameras(c: &Camera) -> String {
     let m = |m: &[[u32; 4]; 4]| list(&m.iter().flatten().copied().collect::<Vec<_>>());
     format!(
         "{{\"cam_id\": {}, \"tcam\": {}, \"bcam\": {}, \"world_view\": {}, \"world_screen\": {}}}",
-        c.cam_id,
-        cam(&c.tcam),
-        cam(&c.bcam),
+        c.list.id().raw(),
+        cam(c.list.cam(piney_world::camera::CamId::Field)),
+        cam(c.list.cam(piney_world::camera::CamId::Battle)),
         m(&c.world_view),
         m(&c.world_screen)
     )
+}
+
+/// Kite's sounds of the last frame as the show stream hands them on
+/// (`piney_world::combat::heard`, the camera as it stands now before any
+/// mark): param, his place, the listener's eye, view and type.
+fn sounds(k: &KiteRun) -> String {
+    let end = k.camera.list.ear();
+    let v: Vec<String> = piney_world::combat::heard(&k.combat.shows, end)
+        .filter_map(|(s, e)| match s {
+            Show::Kite(i, kite::Out::Sound { param }) => Some(format!(
+                "[{param}, {}, [{}, {}, {}]]",
+                list(&k.combat.scene.chars[*i].pos),
+                list(&e.pos),
+                list(&e.view),
+                e.kind
+            )),
+            _ => None,
+        })
+        .collect();
+    format!("[{}]", v.join(", "))
 }
 
 fn boss_cam(b: &BossCam) -> String {
@@ -128,7 +151,8 @@ fn main() {
             Some("boss") => {
                 let r = run.as_mut().unwrap();
                 let at = r.kite.pos();
-                let b = BossCam::new(&mut r.kite.camera, v4(1), at);
+                let c = &mut r.kite.camera;
+                let b = BossCam::new(&mut c.list, c.scheme, v4(1), at);
                 println!("{{\"boss\": {}, \"cameras\": {}}}", boss_cam(&b), cameras(&r.kite.camera));
                 r.boss = Some(b);
             }
@@ -139,7 +163,7 @@ fn main() {
             Some("mode") => {
                 let r = run.as_mut().unwrap();
                 let b = r.boss.as_mut().unwrap();
-                b.set_mode_range(n(1) as i32, n(2), &mut r.kite.camera);
+                b.set_mode_range(n(1) as i32, n(2), &mut r.kite.camera.list);
                 println!("{{\"boss\": {}}}", boss_cam(b));
             }
             Some("quake") => {
@@ -152,12 +176,23 @@ fn main() {
                 let pad = pad_at(&w, 5);
                 let at = r.kite.pos();
                 let b = r.boss.as_mut().unwrap();
-                b.cam_main(&mut r.kite.camera, &pad, at, v4(1));
-                println!("{{\"boss\": {}, \"cameras\": {}}}", boss_cam(b), cameras(&r.kite.camera));
+                let c = &mut r.kite.camera;
+                b.cam_main(&mut c.list, c.scheme, &pad, at, v4(1));
+                let (b, s) = (boss_cam(b), sounds(&r.kite));
+                println!("{{\"boss\": {b}, \"cameras\": {}, \"sounds\": {s}}}", cameras(&r.kite.camera));
+            }
+            // A note's sound at Kite's Draw (ccPlayer::Main's, after its
+            // CameraPosSet): `ccSeSetParamSPC(param, Kite)` in the frame's
+            // show stream.
+            Some("note") => {
+                let r = run.as_mut().unwrap();
+                let k = r.kite.kite();
+                r.kite.combat.shows.push(Show::Kite(k, kite::Out::Sound { param: hex(w[1]) }));
+                println!("{{}}");
             }
             Some("off") => {
                 let r = run.as_mut().unwrap();
-                r.kite.camera.boss_cam_off();
+                off_boss_camera(&mut r.kite.camera.list);
                 println!("{}", cameras(&r.kite.camera));
             }
             _ => panic!("bad request: {line}"),

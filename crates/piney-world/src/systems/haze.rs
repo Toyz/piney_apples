@@ -50,7 +50,7 @@ pub(super) fn sample(water: &mut WaterZero, file: &SceneFile, play: &Play, root:
     });
     if let Some((_, lw)) = lw {
         let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
-        water.modify(cx.core.hits.volume, &lw, lw[3], lw[3], &cx.view.world_screen);
+        water.modify(cx.core.hits.volume, &lw, lw[3], lw[3], cx.view.world_screen);
     }
 }
 
@@ -74,12 +74,11 @@ impl Haze {
         Ok(Haze { def, made, matrix: [[0; 4]; 4] })
     }
 
-    /// Where it stands: `ahead` along the camera's heading from the
+    /// Where it stands: `ahead` along the camera's heading `rot` from the
     /// player on the ground, brought to the player's side of the field.
-    fn stand(&self, env: &Env) -> [V4; 4] {
+    fn stand(&self, env: &Env, mut rot: V4) -> [V4; 4] {
         let mut pos = env.player;
         pos[2] = 0;
-        let mut rot = env.cam_rot();
         rot[0] = 0;
         rot[1] = 0;
         let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
@@ -97,7 +96,7 @@ impl MapSystem for Haze {
     fn step(&mut self, hook: Hook, cx: &mut StepCx, _: &mut Others) {
         match hook {
             Hook::Draw => {
-                self.matrix = self.stand(&Env::of(cx));
+                self.matrix = self.stand(&Env::of(cx), cx.view.draw_turn());
                 if let Some((file, play, _)) = &mut self.made {
                     play.forward(file);
                 }

@@ -9,7 +9,7 @@ use piney_data::dungeon::Rng;
 
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Eff, Env, Ground, Layer, Weather, fr};
+use crate::field::ambient::{Eff, Env, Ground, Layer, Spot, Weather, fr};
 use crate::sprite::EffSprite;
 
 /// What a field type makes: its embers, or flakes as the weather asks,
@@ -49,7 +49,7 @@ pub struct Flake {
 impl Flake {
     /// `calcPos` (0x005028e0): a new flake about the centre, 800 above the
     /// ground (never under 0), drifting and falling.
-    fn calc_pos(&mut self, env: &Env, rng: &mut Rng) {
+    fn calc_pos(&mut self, env: &Spot, rng: &mut Rng) {
         let x = fr(rng, 2600);
         let y = fr(rng, 2600);
         let c = env.centre;
@@ -69,7 +69,7 @@ impl Flake {
 
     /// `calcPos2` (0x00502ba0): an ember on the ground about the centre,
     /// rising.
-    fn calc_pos2(&mut self, env: &Env, rng: &mut Rng) {
+    fn calc_pos2(&mut self, env: &Spot, rng: &mut Rng) {
         let x = fr(rng, 2600);
         let y = fr(rng, 2600);
         let c = env.centre;
@@ -95,7 +95,7 @@ impl Flake {
 
     /// `SNOW(stream, kind)` (0x00503650) for kinds 0-2, a flake one of
     /// `effs`.
-    pub fn new(kind: u32, file: &'static str, effs: [&'static str; 4], env: &Env, rng: &mut Rng) -> Flake {
+    pub fn new(kind: u32, file: &'static str, effs: [&'static str; 4], env: &Spot, rng: &mut Rng) -> Flake {
         let (a, b) = match kind {
             0 => (0x4248_0000, TWO),
             1 => (0x4348_0000, 0x4080_0000),
@@ -158,7 +158,7 @@ impl Flake {
         self.eff.pos = env.p2w(d);
         if self.kind <= 1 {
             if ee::lt(self.pos[2], 0) {
-                self.calc_pos(env, rng);
+                self.calc_pos(&env.spot(), rng);
                 if self.kind == 1 {
                     self.vel[2] = ee::from_int(-(rng.below(40) as i32 + 10));
                 }
@@ -172,7 +172,7 @@ impl Flake {
             self.drift(rng);
         }
         if self.timer == 0 {
-            self.calc_pos2(env, rng);
+            self.calc_pos2(&env.spot(), rng);
             let d = env.w2p(self.pos);
             self.eff.pos = env.p2w(d);
             self.timer = rng.below(60) as i32 + 20;
@@ -205,7 +205,7 @@ impl Snow {
     pub fn new(def: &'static SnowDef, cx: &mut BuildCx) -> Result<Snow> {
         let f = cx.field.expect("a field's snow");
         let w = f.weather;
-        let env = Env::at(cx.volume, f.centre, Ground::Blank);
+        let env = Spot { centre: f.centre, ground: Ground::Blank };
         let (count, kind, effs) = match *def {
             SnowDef::Embers(n) => (n, 2, [""; 4]),
             SnowDef::Flakes { heavy, effs, .. } if w.weather() == 5 => (heavy, 1, effs),

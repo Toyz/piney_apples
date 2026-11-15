@@ -40,6 +40,8 @@ card; the logo movies end at once. The environment steers it:
 | `EE_HEAP` | the heap's handouts and frees; at Gorre's manager, its `m_exit` and what came into its hole |
 | `EE_HEAP_MODEL` | with `EE_HEAP`: `heap::Heap` checked against every handout |
 | `EE_TRACE`, `EE_DUMP`, `EE_DUMP_FREED` | every handout, free and cut to a file; the hole's bytes; a freed block's bytes |
+| `EE_PRINT` | `name,0xaddr,...`: each call printed with its first four arguments; `name@k` also the four words argument k points at |
+| `EE_POKE` | `vblank:addr:value:mask;...`: a word's masked bits set at a vblank (a boss's act forced) |
 
 It stands in for the title's Load and the desktop: the save arrives
 without them.

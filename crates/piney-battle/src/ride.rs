@@ -443,8 +443,8 @@ pub trait RideWorld {
     fn hit_switch(&mut self, hit: &mut CharHit, on: bool);
     /// `checkCameraType()` / `activeCamPtr->type`: 1 the eye view.
     fn camera_type(&mut self) -> i32;
-    /// `checkCameraID()`: 1 the field's camera.
-    fn camera_id(&mut self) -> i32;
+    /// `checkCameraID()`: the active camera.
+    fn camera_id(&mut self) -> crate::camera::CamId;
     /// `cameraGetRot(&v, camID)`.
     fn camera_rot(&mut self) -> V4;
     /// `activeCamPtr->resetFlag` and `resetDirc`.
@@ -1289,7 +1289,7 @@ pub fn camera_pos_set(r: &mut Ride, w: &mut dyn RideWorld) {
     if w.camera_type() == 1 {
         let eye = r.pos_eye;
         w.camera_set_eye_level(eye, &mut r.angle);
-        if w.camera_id() == 1 {
+        if w.camera_id() == crate::camera::CamId::Field {
             r.flags |= flag::LOST_HEAD;
             r.rot[2] = r.angle[2];
         } else {

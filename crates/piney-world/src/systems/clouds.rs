@@ -71,7 +71,8 @@ impl MapSystem for Clouds {
                     if let Some(rng) = &mut cx.core.field_rand {
                         c.step(volume, v.player, rng, &|_, _| 0);
                     }
-                    let in_view = crate::chara::char::check_camera_deg(c.pos, cloud::VIEW_DEG, &v.cam, v.player);
+                    let in_view =
+                        crate::chara::char::check_camera_deg(c.pos, cloud::VIEW_DEG, v.cams.active(), v.player);
                     if c.drawn(volume, v.player, in_view) {
                         cx.put(Kind::Clouds, Piece::Item(k));
                     }

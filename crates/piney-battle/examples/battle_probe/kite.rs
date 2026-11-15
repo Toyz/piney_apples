@@ -84,7 +84,7 @@ struct Script {
     last_result: Option<u32>,
     pending: Vec<Note>,
     cam_type: i32,
-    cam_id: i32,
+    cam_id: piney_battle::camera::CamId,
     cam_rot: V4,
     cam_reset: i32,
     cam_reset_dirc: u32,
@@ -332,7 +332,7 @@ impl KiteWorld for Script {
         self.cam_type
     }
 
-    fn camera_id(&mut self) -> i32 {
+    fn camera_id(&mut self) -> piney_battle::camera::CamId {
         self.cam_id
     }
 
@@ -633,7 +633,7 @@ fn read_kite(t: &mut Toks, w: &mut Case) {
     let bounds = MapBounds { min: [b[0], b[1]], max: [b[2], b[3]] };
     let sc = &mut w.script;
     sc.cam_type = t.i32();
-    sc.cam_id = t.i32();
+    sc.cam_id = piney_battle::camera::CamId::from_raw(t.i32()).expect("camID 0-3");
     sc.cam_rot = vec4(t);
     sc.cam_reset = t.i32();
     sc.cam_reset_dirc = t.u32();

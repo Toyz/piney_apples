@@ -435,7 +435,7 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
             }
             if th.kind == Kind::Storm {
                 b.act_proccess = 50;
-                cx.out(Out::CamMode { mode: 5 });
+                b.cam_mode(cx, 5);
                 // 3800 off turned 0.7 over the body (the third's 3500
                 // turned 0.6 over the disc).
                 let (tilt, far, view) = if third {
@@ -444,39 +444,39 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
                     (0x3f33_3333, 0x456d_8000, cx.scene.chars[me].pos)
                 };
                 let rx = geom::rot_matrix_x(&geom::unit_matrix(), tilt);
-                let m = geom::rot_matrix_z(&rx, cx.cam.rot[2]);
+                let m = geom::rot_matrix_z(&rx, cx.cams_ref().rot()[2]);
                 let eye = geom::vadd(geom::apply_matrix(&m, [0, far, 0, ONE]), t.disc.pos);
-                cx.out(Out::FreeCam { pos: eye, view });
+                b.cam_pos_view(eye, view);
                 b.act_count = 0;
             } else {
                 b.act_proccess = 2;
-                // The fourth's by Kite: 2000 past it (1800 at the third
-                // place, none at the last; the EX turn's none at the third).
+                // The fourth's by `DiscLV` (QUA gcmn 0x003e4960): 1800 past
+                // Kite at level 1, 2000 at 2 and 3, none past; the EX
+                // turn's (0x003e4b70) 2000 at 1, 2 and 4, none at 3.
                 let near = |far: F| ee::add(far, super::super::dist(cx, cx.scene.chars[me].pos, t.disc.pos));
-                let range = match (x.fight, t.disc.lv) {
-                    (Fight::Fourth, 3) if ex => None,
-                    (Fight::Fourth, 4) if !ex => None,
-                    (Fight::Fourth, 3) => Some(near(0x44e1_0000)),
-                    (Fight::Fourth, _) => Some(near(0x44fa_0000)),
-                    (Fight::Third, 1) => Some(0x45bb_8000),
-                    (Fight::Third, 2) => Some(0x451c_4000),
-                    (Fight::Third, _) => Some(0x458c_a000),
+                let range = match (x.fight, t.disc.lv, ex) {
+                    (Fight::Fourth, 1, false) => Some(near(0x44e1_0000)),
+                    (Fight::Fourth, 2 | 3, false) | (Fight::Fourth, 1 | 2 | 4, true) => Some(near(0x44fa_0000)),
+                    (Fight::Fourth, ..) => None,
+                    (Fight::Third, 1, _) => Some(0x45bb_8000),
+                    (Fight::Third, 2, _) => Some(0x451c_4000),
+                    (Fight::Third, ..) => Some(0x458c_a000),
                     _ if t.disc.lv != t.disc.max_lv => Some(0x457a_0000),
                     _ => Some(0x453b_8000),
                 };
                 if let Some(range) = range {
-                    cx.out(Out::CamModeRange { mode: 3, range });
+                    b.cam_mode_range(cx, 3, range);
                 }
             }
         }
         50 => {
             let (back, down, lift) =
                 if third { (0xc100_0000, 0xc080_0000, 0x40a0_0000) } else { (0xc020_0000, 0xc190_0000, 0x4120_0000) };
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), cx.cam.rot[2]);
-            let pos = geom::vadd(cx.cam.active_pos, geom::apply_matrix(&m, [0, back, down, ONE]));
-            let mut view = cx.cam.active_view;
+            let m = geom::rot_matrix_z(&geom::unit_matrix(), cx.cams_ref().rot()[2]);
+            let pos = geom::vadd(cx.cams_ref().active().pos, geom::apply_matrix(&m, [0, back, down, ONE]));
+            let mut view = cx.cams_ref().active().view;
             view[2] = ee::add(view[2], lift);
-            cx.out(Out::FreeCam { pos, view });
+            b.cam_pos_view(pos, view);
             if thunder_sound(b, x.fight, cx) {
                 b.act_proccess = 3;
                 b.act_count = 0;
@@ -487,7 +487,7 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
             }
         }
         2 => {
-            if !(thunder_sound(b, x.fight, cx) && cx.cam.reset == 0) {
+            if !(thunder_sound(b, x.fight, cx) && b.cam_reset() == 0) {
                 x.thunder = Some(th);
                 return;
             }
@@ -532,7 +532,7 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
                 cx.out(Out::Se { se: 94 });
             }
             let v = x.quake_vector;
-            cx.quake_vec([v[0], v[1], v[2]]);
+            b.quake_vec(cx, [v[0], v[1], v[2]]);
             b.act_count += 1;
             if i32::from(c) == th.time {
                 b.act_proccess = 4;
@@ -551,12 +551,12 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
             if !ex {
                 core_state(t, cx, 7);
             }
-            cx.out(Out::CamMode { mode: if th.kind == Kind::Storm { 6 } else { 4 } });
+            b.cam_mode(cx, if th.kind == Kind::Storm { 6 } else { 4 });
             b.act_proccess += 1;
             let id = std::mem::replace(&mut th.stage_id, -1);
             b.end_stage_effect(cx, id, 0x6400_0000, 35);
         }
-        8 if cx.cam.reset == 0 => b.act_proccess += 1,
+        8 if b.cam_reset() == 0 => b.act_proccess += 1,
         9 if ex => {
             super::core_end_fade_ex(t, cx);
             b.change_action(cx, super::act::NEUTRAL, 1, true);

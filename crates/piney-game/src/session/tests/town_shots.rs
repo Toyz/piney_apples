@@ -129,7 +129,7 @@ fn pc_menu_shot() {
                 }
                 Some((_, q)) => {
                     let (dx, dy) = (q[0] - kite[0], q[1] - kite[1]);
-                    super::stick_toward(f32::from_bits(world.camera().active().rot[2]), dx.atan2(-dy))
+                    super::stick_toward(f32::from_bits(world.camera().list.active().rot[2]), dx.atan2(-dy))
                 }
                 None => still(Buttons::NONE),
             }

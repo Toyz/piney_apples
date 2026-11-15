@@ -224,8 +224,8 @@ impl Phantom {
     /// The constructor (0x0037a4b0): the eye 1500 out from the target's
     /// place along the boss's heading, 500 up; eight lights on a circle of
     /// 400 about the place, 200 up, light `k` waiting `15 k`; the boss
-    /// camera free on them.
-    pub fn new(cx: &mut Cx, pos: V4, dirc: F) -> Phantom {
+    /// camera free on them, its view the target's address (`target_va`).
+    pub fn new(b: &mut BossBase, cx: &mut Cx, pos: V4, dirc: F, target_va: u32) -> Phantom {
         let p = crate::boss::w2p(cx, pos);
         let m = geom::rot_matrix_z(&geom::unit_matrix(), dirc);
         let v = geom::apply_matrix(&m, [0x44bb_8000, 0, 0, ONE]);
@@ -245,13 +245,14 @@ impl Phantom {
             l.wait = 15 * k as i32;
             l.kind = k as i32 & 7;
         }
-        // The view is sp+144, never written here: operator new's frame
-        // left `$s1` there (OnThinkPhantom's target, a pointer: a float
-        // under 1e-37, then its sign word; above, `$s1`'s upper half,
-        // which no code of the game writes but by saving and restoring).
-        if cx.boss_cam {
-            cx.out(Out::CamMode { mode: 5 });
-            cx.out(Out::FreeCam { pos, view: [0; 4] });
+        // The view is sp+144, never written here: `_ccMalloc`'s frame under
+        // operator new (main 0x001006e0, `sq $s1, 16(sp)`) left `$s1` there,
+        // OnThinkPhantom's target (QUA 0x003aaedc / 0x003aaf2c): its address
+        // as float bits, its sign word 0, then `$s1`'s upper half, 0 (no code
+        // writes one but by saving and restoring). The heap runs 0x00670320
+        // to 0x01ff3ff0: from 0x00800000 a normal float, not read as 0.
+        if b.cam.is_some() {
+            b.free_cam(cx, pos, [target_va, 0, 0, 0]);
         }
         cx.out(Pic::PhantomStart);
         cx.out(Pic::PhantomLights(Box::new(lights.map(|l| (l.pos, l.state)))));
@@ -310,7 +311,7 @@ impl Phantom {
     /// (bursts, a quake each; at three a radiate and an explosion); 6 25
     /// frames, the camera back, the effect off.
     fn draw(&mut self, cx: &mut Cx, b: &mut BossBase) -> bool {
-        let cam = cx.boss_cam;
+        let cam = b.cam.is_some();
         let mut view = self.pos;
         match self.state {
             0 => {
@@ -325,7 +326,7 @@ impl Phantom {
                     cx.out(Out::SeNote { se: 63, note: 55 });
                 }
                 if cam {
-                    cx.out(Out::FreeCam { pos: self.eye, view });
+                    b.cam_pos_view(self.eye, view);
                 }
             }
             1 | 2 => {
@@ -357,7 +358,7 @@ impl Phantom {
                     view[2] = ee::sub(view[2], 0x4348_0000);
                 }
                 if cam {
-                    cx.out(Out::FreeCam { pos: self.eye, view });
+                    b.cam_pos_view(self.eye, view);
                 }
             }
             3 => {
@@ -421,7 +422,7 @@ impl Phantom {
                             }
                             l.state = 5;
                             if cam {
-                                cx.quake_vec([0x41f0_0000, 0x4170_0000, 0x41a0_0000]);
+                                b.quake_vec(cx, [0x41f0_0000, 0x4170_0000, 0x41a0_0000]);
                             }
                         }
                     }
@@ -436,7 +437,7 @@ impl Phantom {
                 }
                 if cam {
                     view[2] = ee::sub(view[2], 0x4348_0000);
-                    cx.out(Out::FreeCam { pos: self.eye, view });
+                    b.cam_pos_view(self.eye, view);
                 }
                 self.pos[2] = ee::sub(self.pos[2], 0x42c8_0000);
                 if ee::lt(self.lights[0].pos[2], 0x447a_0000) {
@@ -460,7 +461,7 @@ impl Phantom {
                 let c = self.count;
                 self.count += 1;
                 if c == 25 {
-                    cx.out(Out::CamMode { mode: 6 });
+                    b.cam_mode(cx, 6);
                     return false;
                 }
             }

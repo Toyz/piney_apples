@@ -364,9 +364,10 @@ the tests' fields answer with the case's places): the field answers from x31's b
 pictures"), at the place the last frame left. That is `PreDrawAnm`'s own: the laser keeps Magus's
 place through `Move`, and `CalcCamera`, which puts it over Kite at the
 clip's frame 135, runs after `PreDrawAnm` (`ccBoss03::Main` is
-`ccBoss::Main` then `CalcCamera`). Camera 3 moves are `Out::CameraChange`,
-`CameraPos`, `CameraView`; the shake `Out::CameraShake` (the runtime
-checks its range and draws its `rand()`).
+`ccBoss::Main` then `CalcCamera`). Camera 3 moves are `changeCamera` and
+`cameraSetPos/View` on camera.cpp's list at the call; the shake is
+`checkCameraShakeRange` and `cameraShake` at the call, its `rand()` drawn
+in the rules' order.
 
 The flashes and the grow's loop (worklog 428):
 

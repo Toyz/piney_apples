@@ -13,13 +13,14 @@ frame after frame, the manager's pass before each, with scripted affects
 13, the stop's affects, a member down, the HP set to reach the half, now
 and then an act forced). Compared each frame: the body's acts, movement,
 place, target, HP, flags, clips and own members; each eye's and killer
-eye's; the effects' slots, the party, the calls, the menu, the blur, the
-boss camera, newlib's rand() and ccRand's index.
+eye's; the effects' slots, the party, the calls, the menu, the blur, camID,
+the three cameras, the shake's slots and the boss camera, newlib's rand()
+and ccRand's index.
 
 What is not the game's here (beyond the second form's harness):
 - ccBoss::Draw and SetMatrix_PosRotZYX run natively (the camera's fade
-  from activeCamPtr, a stand-in at the case's eye, game.area 1); the
-  clip's draw only leaves its world matrix (+0) its local one (+0x40).
+  from the active camera, game.area 1); the clip's draw only leaves its
+  world matrix (+0) its local one (+0x40).
 - DMY_dummy1 is a stand-in chunk with the file's place at +0x10
   (battle_probe `corbenikdummy`).
 - ccBossEffExplode2Create and the arena's clump switch (0x0030aa40) only
@@ -52,9 +53,9 @@ BOSS_SIZE = 0xA4FB0
 KILLER0, KILLER_SIZE = 0x293A0, 0x293E0
 EYE_SIZE = 0x293D0
 SCRATCH = 0x01AC4000            # ccSys's matrix stack for SetMatrix_*
-FAKE, MGR, STAGE, WM, ACAM, FONT, HEAP = cb.FAKE, cb.MGR, cb.STAGE, cb.WM, cb.ACAM, cb.FONT, cb.HEAP
+FAKE, MGR, STAGE, WM, FONT, HEAP = cb.FAKE, cb.MGR, cb.STAGE, cb.WM, cb.FONT, cb.HEAP
 PLW, PARTY, MENU = cb.PLW, cb.PARTY, cb.MENU
-CAM, DENV = cbb.CAM, cbb.DENV
+DENV = cbb.DENV
 
 WAVE, RING = 0, 3
 TERA, REFRECT = 32, 33
@@ -210,17 +211,12 @@ def rnd_case(c, rnd):
         menus += [(a, rnd.choice((0, 5, 74))), (a + rnd.randrange(1, 60), -1)]
         a = menus[-1][0]
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
-    cam2 = ([fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(100, 600)), F_ONE],
-            [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(0, 300)), F_ONE])
-    # The active camera: near, or far enough that the eyes and the body
-    # fade (7000 out, over 600).
-    r = 2500 if rnd.random() < 0.6 else 9000
-    acam = [fbits(rnd.uniform(-r, r)), fbits(rnd.uniform(-r, r)), fbits(rnd.uniform(0, 1500)), F_ONE]
     case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
-            "cam2": cam2, "acam": acam, "gen_life": rnd.randrange(30, 400),
+            "gen_life": rnd.randrange(30, 400),
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     case.update(bb.blur_case(rnd))
+    case.update(bb.draw_case(rnd))
     return case
 
 
@@ -238,14 +234,9 @@ def run_game(game, case):
     game.frame_no = 0
     game.stage_on = False
     game.center = case["center"]
-    game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
-    m.store(game.sym("camID"), 2, 1)
-    m.mem[ACAM:ACAM + 0x70] = bytes(0x70)
-    for k in range(4):
-        m.store(ACAM + 4 * k, 4, case["acam"][k])
-    m.store(game.sym("activeCamPtr"), 4, ACAM)
-    # A field's game.area: ccBoss::Draw's fade from 7000 over 600.
-    m.store(m.load(game.sym("game"), 4) + 0x14, 4, 1)
+    # camera.cpp as the case lays it; a field's game.area: ccBoss::Draw's
+    # fade from 7000 over 600.
+    bb.put_draw_camera(game, case)
     m.mem[FONT:FONT + 0x100] = bytes(0x100)
     m.store(game.sym("font"), 4, FONT)
     m.mem[DENV:DENV + 0x200] = bytes(0x200)
@@ -284,6 +275,7 @@ def run_game(game, case):
     m.store(sys_ + 604, 4, SCRATCH)
     game.out.clear()
     m.call(game.sym("__ct__10ccBoss08_cFv"), (BOSS,))
+    bb.post_cams(game, BOSS, case["cam"])
     eyes = m.load(BOSS + 656, 4)
     frames = [game_state(game, len(party), eyes)]
     menus = case["menus"]
@@ -404,7 +396,8 @@ def game_state(game, n, eyes):
                  s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2)),
                  s16(m.load(MENU + 0x0C, 2))],
         "blur": cbb.blur_state(game),
-        "bosscam": cbb.cam_state(game),
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
     }
@@ -433,8 +426,7 @@ def request(game, case, pre):
     kite = party[0]
     parts = (["corbenikc", len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
              + case["center"][:3] + list(kite.pos) + [0, 0, 0, 0]
-             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["gen_life"]]
-             + list(case["cam2"][0]) + list(case["cam2"][1]) + list(case["acam"]))
+             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["gen_life"]])
     parts.append(len(case["script"]))
     for s in case["script"]:
         parts += list(s)
@@ -442,6 +434,7 @@ def request(game, case, pre):
     for mm in case["menus"]:
         parts += list(mm)
     parts += bb.blur_tokens(case)
+    parts += bb.draw_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

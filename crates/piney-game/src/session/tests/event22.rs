@@ -535,7 +535,7 @@ fn piros_in_mac_anu(follow: bool, frames: u64) -> Option<(f32, f32, Vec<i16>, f3
         }
         let raw = match &s.stage {
             Stage::Area(w) if w.in_town() && f >= f0 + 150 && f < f0 + 450 => {
-                stick(f32::from_bits(w.world().camera().rot()[2]), 0.0)
+                stick(f32::from_bits(w.world().camera().list.rot()[2]), 0.0)
             }
             _ => still(Buttons::NONE),
         };
@@ -613,7 +613,7 @@ fn piros_follow_shots() {
         }
         let raw = match &s.stage {
             Stage::Area(w) if w.in_town() && f >= f0 + 150 && f < f0 + 450 => {
-                stick(f32::from_bits(w.world().camera().rot()[2]), 0.0)
+                stick(f32::from_bits(w.world().camera().list.rot()[2]), 0.0)
             }
             _ => still(Buttons::NONE),
         };
@@ -817,7 +817,7 @@ fn piros_menu_shot() {
             {
                 let (dx, dy) =
                     (f32::from_bits(at[0]) - f32::from_bits(kite[0]), f32::from_bits(at[1]) - f32::from_bits(kite[1]));
-                let cam = f32::from_bits(world.camera().active().rot[2]);
+                let cam = f32::from_bits(world.camera().list.active().rot[2]);
                 stick(cam, dx.atan2(-dy))
             } else {
                 still(Buttons::NONE)

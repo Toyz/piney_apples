@@ -708,7 +708,7 @@ impl Race {
 /// camera's turn (its pitch and heading, no roll) from the eye, at `height`
 /// unless that is 0, facing back at the camera.
 fn before_camera(cam: &crate::camera::Camera, dist: F, height: F) -> (V4, V4) {
-    before_camera_at(cam.rot(), cam.active().pos, dist, height)
+    before_camera_at(cam.list.rot(), cam.list.active().pos, dist, height)
 }
 
 /// 0x005ff880 on `cameraGetRot`'s `rot` and `cameraGetPos`'s `eye`.
@@ -834,15 +834,15 @@ impl crate::town::cast::TownCast {
                 Pc::IntroTop => {
                     match r.intro {
                         0 => {
-                            world.camera.change_camera(3);
+                            world.camera.list.change(crate::camera::CamId::Event);
                             let (pos, view) = if r.kind != 0 {
                                 let k = r.kind as usize;
                                 (t.intro_pos_kind[k], t.intro_view_kind[k])
                             } else {
                                 (t.intro_pos_server[s], t.intro_view_server[s])
                             };
-                            let n = world.camera.cam_id;
-                            let c = world.camera.cam_mut(n);
+                            let n = world.camera.list.id();
+                            let c = world.camera.list.cam_mut(n);
                             c.pos = pos.map(f32::to_bits);
                             c.view = view.map(f32::to_bits);
                             r.intro += 1;
@@ -885,17 +885,17 @@ impl crate::town::cast::TownCast {
                         continue;
                     }
                     r.events.push(RaceEvent::BgmStop);
-                    world.camera.change_camera(1);
+                    world.camera.list.change(crate::camera::CamId::Field);
                     world.camera.soft_reset(world.kite().dirc()[2]);
                     r.pc = Pc::SetupCam;
                     return;
                 }
                 Pc::SetupCam => {
                     // The field camera's place held by the event camera.
-                    let (pos, view) = (world.camera.active().pos, world.camera.active().view);
-                    world.camera.change_camera(3);
-                    let n = world.camera.cam_id;
-                    let c = world.camera.cam_mut(n);
+                    let (pos, view) = (world.camera.list.active().pos, world.camera.list.active().view);
+                    world.camera.list.change(crate::camera::CamId::Event);
+                    let n = world.camera.list.id();
+                    let c = world.camera.list.cam_mut(n);
                     c.pos = pos;
                     c.view = view;
                     r.events.push(RaceEvent::Map(3));
@@ -960,9 +960,9 @@ impl crate::town::cast::TownCast {
                     if finish {
                         world.put_kite(pos, rot);
                     }
-                    world.camera.change_camera(3);
-                    let n = world.camera.cam_id;
-                    let c = world.camera.cam_mut(n);
+                    world.camera.list.change(crate::camera::CamId::Event);
+                    let n = world.camera.list.id();
+                    let c = world.camera.list.cam_mut(n);
                     c.pos = t.finish_cam_pos[s].map(f32::to_bits);
                     c.view = t.finish_cam_view[s].map(f32::to_bits);
                     r.ride.ease_off = ONE;
@@ -1023,7 +1023,7 @@ impl crate::town::cast::TownCast {
                     r.events.push(RaceEvent::BgmStop);
                     r.end = true;
                     r.intro = 7;
-                    world.camera.change_camera(1);
+                    world.camera.list.change(crate::camera::CamId::Field);
                     r.events.push(RaceEvent::Panel(1));
                     r.events.push(RaceEvent::Map(1));
                     r.events.push(RaceEvent::PgBgmEnd);
@@ -1090,7 +1090,7 @@ impl crate::town::cast::TownCast {
     fn race_countdown(&mut self, world: &mut crate::world::World, r: &mut Race, s: usize) {
         if r.countdown() {
             world.set_pause(false);
-            world.camera.change_camera(1);
+            world.camera.list.change(crate::camera::CamId::Field);
         }
         let h = piney_data::tables::race::of(world.volume).count_height[s].to_bits();
         self.race_clip(world, r, Clip::Count, 0xc448_0000, h);

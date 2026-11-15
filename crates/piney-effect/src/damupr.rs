@@ -258,7 +258,7 @@ fn place(u: &mut Uproll, host: &dyn Host, ch: CharRef, world_screen: &[V4; 4]) {
     let mut lift = 0;
     let mut p = host.char_pos(ch);
     if host.char_type(ch) & 2 != 0 {
-        if host.camera_id() == 1 && host.camera_type() == 1 {
+        if host.camera_id() == piney_battle::camera::CamId::Field && host.camera_type() == 1 {
             let n = host.party_slot(ch);
             let k = host.condition_icon_num(ch).wrapping_add(4);
             u.x = n.wrapping_mul(170).wrapping_add(60) as i16;

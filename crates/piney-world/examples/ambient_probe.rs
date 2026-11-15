@@ -18,9 +18,9 @@ use piney_data::dungeon::Rng;
 use piney_data::field;
 use piney_data::iso::Iso;
 use piney_data::volume::Volume;
+use piney_world::camera::{self, Cam, CamId, CamList};
 use piney_world::ee::{ONE, V4};
 use piney_world::field::area::{FieldArea, active_layer};
-use piney_world::sky::lensflare::FlareCamera;
 use piney_world::systems::bird::Bird;
 use piney_world::systems::fireflies::{Fireflies, Fireflies2};
 use piney_world::systems::fires::Fires;
@@ -33,7 +33,7 @@ use piney_world::systems::sky::{ClumpName, Sky, SkyLayer};
 use piney_world::systems::smoke::Smoke2d;
 use piney_world::systems::snow::Snow;
 use piney_world::systems::tobj::Tobj;
-use piney_world::systems::{BuildCx, Drawn, FieldCx, Kind, MapEvent, MapView, Piece, Request, Systems};
+use piney_world::systems::{BuildCx, Drawn, FieldCx, Kind, MapEvent, MapView, NO_SCREEN, Piece, Request, Systems};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -313,10 +313,12 @@ fn main() {
                 let eye_view = r(25) != 0;
                 let odd = r(26) != 0;
                 f.core.hits.center = [r(27), r(28)];
-                let kind = if eye_view { piney_world::camera::kind::EYE } else { 0 };
-                let cam = piney_world::camera::Cam { pos: eye, view, kind, ..Default::default() };
-                let flare = FlareCamera { eye, view, rot: if eye_view { rot2 } else { rot } };
-                let v = MapView { eye, player, cam, flare, eye1, rot, rot2, odd, ..MapView::default() };
+                // The harness's cameras: tcam (camera 1) and, active, ecam.
+                let kind = if eye_view { camera::kind::EYE } else { 0 };
+                let mut cams = CamList::new(volume, Cam { pos: eye1, rot, rot3: rot2, ..Cam::default() });
+                *cams.cam_mut(CamId::Event) = Cam { pos: eye, view, kind, ..Cam::default() };
+                cams.change(CamId::Event);
+                let v = MapView { player, odd, ..MapView::new(&cams, &NO_SCREEN) };
                 let mut count = 0u32;
                 let mut counted = || {
                     count += 1;

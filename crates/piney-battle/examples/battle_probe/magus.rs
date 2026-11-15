@@ -11,7 +11,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::magus::leaf::Leaf;
 use piney_battle::boss::magus::{self, Gen, Held, Laser, Leaves, Magus, Pic, Place};
 use piney_battle::boss::systems::wave::Wave;
-use piney_battle::boss::{Boss, BossEnv, CamView, Cx, EffKind, FxCall, GenOp, LoopOp, Out};
+use piney_battle::boss::{Boss, BossEnv, Cx, EffKind, FxCall, GenOp, LoopOp, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -168,7 +168,7 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = crate::boss::ProbeBlur::read(t);
-    let fade = crate::boss::read_fade(t);
+    let (cams, post) = crate::boss::read_cams(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -180,10 +180,9 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut menu = [0i32; 6];
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let view = CamView { fade, ..CamView::default() };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None, cams: &cams };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let mut none = |_| None;
@@ -201,8 +200,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         collide: &mut none,
         field: &mut body,
         game_over: false,
-        boss_cam: false,
-        cam: view,
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
         gen_alive: &|_| true,
@@ -213,15 +210,17 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut boss = magus::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
+    post.apply(&cams, &mut boss.base);
     HELD.with(|h| h.borrow_mut().clear());
     let leaves = boss.systems.get::<Leaves>().expect("Magus's leaves").me.clone();
     LEAVES.with(|l| *l.borrow_mut() = leaves);
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
-    lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur));
+    let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+    lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None, cams: &cams };
         let actx = AffectCtx {
             party: &party,
             menu: true,
@@ -301,8 +300,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             collide: &mut pushed,
             field: &mut body,
             game_over: false,
-            boss_cam: false,
-            cam: view,
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -337,7 +334,8 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             }
         }
         let outs: Vec<String> = all.iter().filter_map(mout).collect();
-        lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur));
+        let line = with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur);
+        lines.push(crate::boss::with_cams(&line, &cams, &boss.base));
     }
     format!("[{}]", lines.join(","))
 }
@@ -358,15 +356,7 @@ fn mout(o: &Out) -> Option<String> {
         },
         Out::Count { n, .. } => format!("[\"count\",{n}]"),
         Out::AfterImagePart { frame, .. } => format!("[\"afterimage_leaf\",{frame}]"),
-        Out::CameraChange(n) => format!("[\"cam\",{n}]"),
-        Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
-        Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),
-        Out::CameraShake { .. } => "[\"shake\"]".into(),
         Out::Skill(_, s) => format!("[\"skill\",{},{}]", s.sid, u8::from(s.stype == 2)),
-        // BeginDeadEffect with no boss camera: camera 3 at the eye.
-        Out::DeadCamera { eye, view, .. } => {
-            format!("[\"cam\",3],[\"campos\",3,{}],[\"camview\",3,{}]", v3(eye), v3(view))
-        }
         Out::FlashFade { t_in, t_out, hold: None, colour } => format!("[\"flash2\",{t_in},{t_out},{colour}]"),
         Out::FlashFade { t_in, t_out, hold: Some(h), colour } => {
             format!("[\"flash3\",{t_in},{t_out},{h},{colour}]")

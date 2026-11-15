@@ -213,7 +213,7 @@ class Looks:
         `look` gives."""
         h, m, sp = self.h, self.m, self.sp
         race = next(r for r in range(22) if h.race_first[r] <= row < h.race_first[r] + h.race_num[r])
-        sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0)
+        sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0)
         ent = h.rnd_ent(rnd, sc, 0, row)
         sc["attr"] = sc["attr"] or [inf_va(0x00304050)]
         saved = self.install()
@@ -607,7 +607,9 @@ class CharDraw:
         m.hooks[sym("SetFogBlend__9ccDrawEnvFfUi")] = fog_blend
         m.hooks[sym("SetActiveLayer__9WORLD_MANFi")] = lambda mm, w, n, *a: me.ev.append(("layer", n)) or 0
         m.hooks[sym("SleepDistantLight__9WORLD_MANFv")] = lambda mm, *a: me.ev.append(("sleep",)) or 0
-        m.hooks[sym("AwakeDistantLight__9WORLD_MANFv")] = lambda mm, *a: me.ev.append(("awake",)) or 0
+        # Outbreak and Quarantine name no AwakeDistantLight: left to run.
+        if prog.symbol_named("AwakeDistantLight__9WORLD_MANFv") is not None:
+            m.hooks[sym("AwakeDistantLight__9WORLD_MANFv")] = lambda mm, *a: me.ev.append(("awake",)) or 0
         m.hooks[sym("checkCameraType__Fv")] = lambda mm, *a: 1 if me.eye else 3
 
     def run(self, c):

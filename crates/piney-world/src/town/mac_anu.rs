@@ -177,7 +177,7 @@ impl Clip {
 
 impl MapSystem for Clip {
     fn step(&mut self, hook: Hook, cx: &mut StepCx, others: &mut Others) {
-        let eye = cx.view.eye;
+        let eye = cx.view.eye();
         let (x, y) = (eye[0], eye[1]);
         let clip = self.clip;
         let Hook::Pass(pass) = hook else {
@@ -304,7 +304,11 @@ mod tests {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut t = Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
         let eye = [0, 5600f32.to_bits(), 880f32.to_bits(), ONE];
-        t.step(&MapView::at(eye));
+        let cams = crate::camera::CamList::new(
+            piney_data::volume::Volume::Inf,
+            crate::camera::Cam { pos: eye, ..Default::default() },
+        );
+        t.step(&MapView::new(&cams, &crate::systems::NO_SCREEN));
         let (m, o, w) = (Kind::Models, Kind::Objects, Kind::Water);
         let p = |k: Kind, piece: Piece| Drawn::Piece(k, piece);
         use Piece::{Anim, Clump, Model, Object};

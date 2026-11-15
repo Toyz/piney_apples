@@ -148,19 +148,6 @@ impl CharFade {
     }
 }
 
-/// Where the camera is, for `ccChar::Draw`'s fade.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct View {
-    /// The player's position (`plw->pos`).
-    pub player: V4,
-    /// The active camera's eye and pitch (`activeCamPtr->pos`, `->deg[1]`:
-    /// `tcam`'s, or `ecam`'s while an event runs its camera).
-    pub cam: V4,
-    pub deg1: i16,
-    /// The eye view (`checkCameraType() == 1`).
-    pub eye: bool,
-}
-
 /// `ccCheckCameraDeg(pos, deg)` (main 0x001da710) with the camera `cam`
 /// and Kite at `player`: `pos`, the eye and the point looked at through
 /// `W2PPos` ([`w2p`]), then [`piney_battle::geom::camera_deg`].
@@ -300,17 +287,20 @@ impl Char {
         Some([foot("OBJ_t0 l foot")?, foot("OBJ_t0 r foot")?])
     }
 
-    /// `ccChar::Draw` up to the draw in a town: the camera fade (`+0x90`
-    /// on: hidden only in the eye view) into `transparency`; whether it is
-    /// drawn.
-    pub fn fade(&mut self, volume: piney_data::volume::Volume, view: &View) -> bool {
-        let mut hide = !self.trans_dist || view.eye;
+    /// `ccChar::Draw` up to the draw in a town, with Kite at `player`: the
+    /// camera fade (`+0x90` on: hidden only in the eye view,
+    /// `checkCameraType()` at gcmn 0x0056b448) by the active camera's eye
+    /// and pitch as they stand at the call (`activeCamPtr`) into
+    /// `transparency`; whether it is drawn.
+    pub fn fade(&mut self, cams: &crate::camera::CamList, player: V4) -> bool {
+        let cam = cams.active();
+        let mut hide = !self.trans_dist || cam.kind == crate::camera::kind::EYE;
         let t = camera_transparency(
-            volume,
+            cams.volume(),
             self.pos,
-            view.player,
-            view.cam,
-            view.deg1,
+            player,
+            cam.pos,
+            cam.deg[1],
             self.width,
             self.height,
             FADE_FAR,

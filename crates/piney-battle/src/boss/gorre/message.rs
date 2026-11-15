@@ -2,6 +2,7 @@
 //! to Gorre ([`Msg`]) and what Gorre does of it, the three's one HP among
 //! it.
 
+use crate::camera::CamId;
 use piney_data::field::ee;
 
 use super::brother::Msg;
@@ -41,11 +42,11 @@ pub(super) fn send(b: &mut BossBase, x: &mut G<'_>, from: usize, msg: Msg, cx: &
             let mut eye = b.calc_effect_camera_pos(cx, vp, CAM_Y);
             eye[2] = ee::add(eye[2], 0x42c8_0000);
             vp[2] = ee::add(vp[2], 0x4348_0000);
-            cx.out(Out::CameraPos { cam: 3, pos: eye });
-            cx.out(Out::CameraView { cam: 3, view: vp });
+            cx.cams().cam_mut(CamId::Event).pos = eye;
+            cx.cams().cam_mut(CamId::Event).view = vp;
         }
         Msg::TornadeDone => {
-            cx.out(Out::CameraChange(2));
+            cx.cams().change(CamId::Battle);
             b.unlock_player();
             entry_brothers(x, cx);
             cx.cinema_off();
@@ -185,7 +186,7 @@ fn share_protect(x: &G<'_>, me: usize, from: usize, cx: &mut Cx) {
 /// Gorre's Dead (forbid 2).
 fn fall(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     if std::mem::take(&mut x.own.cam_sw) {
-        cx.out(Out::BossCamOff);
+        b.off_boss_camera(cx);
     }
     cx.out(Out::ClearSpcCondition);
     b.lock_player(cx, false);

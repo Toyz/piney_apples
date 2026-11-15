@@ -3,7 +3,7 @@ title: Bosses - Tarvos
 status: partial
 volumes: QUA, INF
 covers: QUA gcmn.prg:0x003a81e0-0x003ac9f0 (boss07.cpp), 0x003a8300 ccBoss07::ccBoss07, 0x003a8700 ExecPatternIndex, 0x003a8e00 SetPatternMode, 0x003a8eb0 OnMagicCamera, 0x003a9040 SetDefMode, 0x003a91e0 Main, 0x003a9260 Affect, 0x003a96b0 PreDrawAnm, 0x003a9750 Think, 0x003a9920 OnThinkNeutral, 0x003a9a80 OnThinkDrain, 0x003a9bc0 OnThinkDead, 0x003a9cb0 OnThinkSacrifice, 0x003aa060 OnThinkWave, 0x003aa2a0 OnThinkSkill, 0x003aa7b0 OnThinkDashCenter, 0x003aa9b0 OnThinkMagic, 0x003aaea0 OnThinkPhantom, 0x003ab0d0 OnThinkDataDrainAtk, 0x003ab360 OnThinkSpikeShot, 0x003ab560 _SpikeShotCB, 0x003ab620 OnThinkWander, 0x003ab7b0 OnThinkTransfer, 0x003abf20 OnThinkChase, 0x003ac210 OnThinkEscape, 0x003ac4d0 OnThinkReturn, 0x003ac5f0 OnThinkEpitaph, 0x003ac750 OnThinkEpitaphWave, 0x003ac9e0 OnThinkPoison, 0x003738f0 ccBossEffSpikeRain::ccBossEffSpikeRain, 0x00373d60 ccBossEffSpikeRain::Draw, 0x0037a4b0 ccBossEffPhantom::ccBossEffPhantom, 0x0037a980 InitRadiateParam, 0x0037ac50 ChangePtclGenerator, 0x0037add0 ccBossEffPhantom::Draw, 0x0037b7b0 ccBossEffEruptionCreate, 0x0037d180 ccBossEffSpikeRainCreate, 0x0037d760 ccBossEffExplode2Create, 0x0037db00 ccBossEffTransEffectCreate, 0x0037dca0 ccBossEffPhantomCreate, 0x005ec420 boss0xAnmTbl, 0x005ec490 boss07NormalActTbl, 0x005ec510 boss07SuperActTbl, 0x005ec5a0 boss07EpitaphActTbl, 0x005ec5f8 @1178, 0x005ec618 @1517, 0x003781e0 @1568; QUA gcmn.prg:0x0047f170 ccChar::EntryAffect, 0x00362c70 bossAffectFunc, 0x0043ede0 ccMenuCtrl::DataDrainMenu
-worklog: 447, 548
+worklog: 447, 548, 602
 ---
 
 # Bosses - Tarvos
@@ -132,14 +132,20 @@ Magic, 25 Data Drain attack, 26 Poison (returns at once); any other
   generators only, no slot.
 
 The phantom's constructor hands `SetFreeCamPosView` a view it never
-writes (sp+144): `operator new`'s frame left `$s1` there, the target's
-pointer (a float under 1e-37), its sign word and `$s1`'s upper half,
-which no code of the game writes but by saving and restoring. The port
-takes (0, 0, 0). One frame draws with it: the boss's `CamMain` copies the
-locked eye and view to camera 2 after `Move`, in the frame the phantom is
-made, and its first `Draw` sets the view anew only in the next pass. That
-frame looks from the target's place toward (0, 0, z), `z` the upper half's
-first word.
+writes (sp+144): `_ccMalloc`'s frame (144, under `operator new` in
+`ccBossEffPhantomCreate`) left `$s1` there, OnThinkPhantom's target:
+`plw.pw`, Kite's `ccPlayer` (QUA gcmn 0x003aaedc), or the boss's
+`SelectTarget` (0x003aaf2c). So the view is the target's heap address as
+float bits, its sign word 0 and `$s1`'s upper half, which no code of any
+volume writes but by saving and restoring (a scan of main and gcmn for `lq`
+from another base and MMI writes). The boss's `CamMain` copies the locked
+eye and view to camera 2 after `Move`, in the frame the phantom is made,
+and its first `Draw` sets the view anew only in the next pass: that frame
+looks from the target's place toward the address, a float of 2^-126 or
+more for every party object a run has placed (heap.md "Tarvos's phantom"),
+which camera 2's readers do not take as 0. The port carries the party's
+addresses (`Env::party_va`, the world's `PARTY_VA` from one history) and
+the phantom takes its target's.
 
 ## In the port
 
@@ -165,8 +171,12 @@ first word.
 `battle_probe` frame by frame: 300 random cases (913,177 frames) agree,
 every act but the passing ones (1, 2, 11), the forced dash, chase,
 escape, return, wander and poison, hit types 1 and 3 and blows by skill;
-the spike rain and the phantom run natively, their slots compared. Its
-unittests run the stand-ins' lives. `boss::tarvos::tests` hold the
+the spike rain and the phantom run natively, their slots compared.
+Operator new leaves `_ccMalloc`'s register saves under the caller's sp;
+`test_phantom_first_view` runs the game's own `_ccMalloc` on `InitFirst`'s
+region and finds camera 2 at Kite's address (SCN), the port's from the
+members' addresses (with them 0 it fails). Its unittests run the
+stand-ins' lives. `boss::tarvos::tests` hold the
 constructor's guard, the shield, the super table, the drain, the rain's
 eruptions and the phantom's bursts.
 
@@ -180,6 +190,8 @@ of them. `tarvos_fight_to_its_end` and
 
 - The spikes', sprite's and lights' pictures are not checked against the
   game's draw frame by frame.
-- The upper half of `$s1` at the phantom's making: what the kernel's
+- The phantom's first view: `$s1`'s upper half, what the kernel's
   `StartThread` put in the boss thread's first context (`ccTscb::GoThread`
-  makes a kernel thread on a `ccMalloc`'d stack); taken as 0.
+  makes a kernel thread on a `ccMalloc`'d stack), taken as 0: the BIOS's
+  code, not on the disc. The target's address moves with the play; the
+  port keeps one history's.

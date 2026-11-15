@@ -137,6 +137,9 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.stop_time = 0;
     b.stop_counter = 0;
     b.set_pattern_tbl(Tbl::Normal);
+    // InitAfterImage, InitBossEffect, InitBossCamera(200, 1000) (INF gcmn
+    // ccBoss01::ccBoss01 0x0047b410), InitCenterPos, InitStageEffect.
+    b.init_boss_camera(cx, 0x4348_0000, 0x447a_0000);
     let mut boss = Boss::build(&super::defs::SKEITH, b);
     let Boss { base: b, systems, .. } = &mut boss;
     let (skeith, _) = systems.split::<Skeith>().expect("Skeith's def has him");
@@ -289,7 +292,7 @@ fn on_epitaph_wave(b: &mut BossBase, w: &mut Wave, cx: &mut Cx) {
                 let done = w.anm.forward();
                 w.anm.speed = 512;
                 cx.out(Out::DrawWave);
-                cx.quake_cam(0x420c_0000);
+                b.quake_cam(cx, 0x420c_0000);
                 if b.anm_status != 0 && done {
                     b.change_action(cx, act::EPITAPH_NEUTRAL, 3, true);
                 }
@@ -429,7 +432,7 @@ fn on_wave(b: &mut BossBase, s: &mut Skeith, w: &mut Wave, cx: &mut Cx) {
                 let pos = cx.pos();
                 b.skill_damage(cx, None, Some(pos), SKILL_WAVE);
             }
-            cx.quake_cam(0x420c_0000);
+            b.quake_cam(cx, 0x420c_0000);
             let done = w.anm.forward();
             cx.out(Out::DrawWave);
             if b.anm_status != 0 && done {

@@ -15,11 +15,12 @@ affects between frames (Kite's hits of types 1 and 3, a skill's blow of
 type 1 the guard may hold off, the gauge, the drain's 13 and 21, a member
 down, now and then an act forced: the dash, the chase, the escape and
 return, the wander and the rest no pattern reaches), the menu's type
-changing and the camera turning. Compared each frame: the acts, movement,
+changing. Compared each frame: the acts, movement,
 place, target, HP and gauge, flags, clips, Tarvos's own members (its
 effects, the skill, the stage, the pattern and guard modes, the fog), the
 effects' slots, the party's HP and hold, the calls, the menu's words, the
-blur, newlib's rand() and ccRand's index.
+blur, camID, the three cameras, the shake's slots and the boss camera,
+newlib's rand() and ccRand's index.
 
 What is not the game's here:
 - The party's affects are off (affectFunc 0): the boss's hits are compared
@@ -34,13 +35,13 @@ What is not the game's here:
   the explosion, the bursts, the radiate, the shield, the noise and the
   fog only note themselves. effSkillStart's controller is a stand-in whose
   endFlag comes after SKILL_START_LIFE.
-- The phantom's constructor hands SetFreeCamPosView a view it never wrote
-  (sp+144: `$s1` as operator new saved it); noted as zeros, the port's.
-- The cameras keep what is set on them; cameraGetRot answers the case's
-  turn; checkCameraShakeRange answers by the case. The boss camera is a
-  zeroed ccBossCam (SetMode and SetFreeCamPosView only note themselves,
-  QuakeCam runs). W2P/P2W are identity and CollisionDetection finds
-  nothing but in the case's push. A skill's request sets the caster's
+- operator new hands out from HEAP, leaving `_ccMalloc`'s frame (its
+  register saves) under the caller's sp, as the phantom's constructor reads
+  one of them for its first view (sp+144: `$s1`, the target, a member's
+  place on the scene; the probe takes the members' addresses).
+- camera.cpp and the boss camera run natively over the case's cameras
+  (test_battle_boss_rs.py `put_cams`), the pad at rest. W2P/P2W are
+  identity and CollisionDetection finds nothing but in the case's push. A skill's request sets the caster's
   skillID and status 9 when cast through it (flag set), as the port's does.
 
     PINEY_VOLUME=quarantine python3 tools/test_battle_tarvos_rs.py             the tests
@@ -72,7 +73,6 @@ FAKE = 0x01340000               # stand-in streams, chunks, objects and effects
 MGR = 0x01380000                # _g_bossEffManager (0x1038 bytes)
 STAGE = 0x01390000              # the stage fader
 WM = 0x013B0000                 # worldman and its event area
-CAM = 0x013C0000                # the boss camera (a zeroed ccBossCam)
 HEAP = 0x01600000               # operator new for the spikes, the phantom and the eruption
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
 MENU = 0x01020000               # test_battle's ccMenu
@@ -101,10 +101,8 @@ class Game:
         self.anms = {}          # a ccAnm -> [clip, time]
         self.effs = {}          # a stand-in effect -> [kind, count, life]
         self.starts = {}        # a stand-in skill start -> its count
-        self.cams = {}          # camera -> [pos, view] as set
         self.out = []
         self.fake_at, self.heap_at = FAKE, HEAP
-        self.rot_now, self.shake_now = 0, True
         self.center, self.push, self.frame_no = [0, 0, 0, F_ONE], [0, 0], 0
         self.hooks()
         bb.install_blur(self)
@@ -143,13 +141,31 @@ class Game:
         h.pop(sym("EntryAffect__6ccCharFP6ccCharssss"), None)
         h.pop(sym("checkPartyAnnihilation__Fv"), None)
 
+        def ccmalloc_frame(mm, sp, ra):
+            # _ccMalloc's frame under operator new (main 0x001006e0, which
+            # new tail-jumps to): 144 bytes, s0-s7 by sq, ra by sd at +128.
+            for k in range(8):
+                mm.store(sp - 144 + 16 * k, 16, mm.r[16 + k])
+            mm.store(sp - 16, 8, ra)
+
         def new(mm, n, *_):
+            ccmalloc_frame(mm, mm.r[29] & 0xFFFFFFFF, mm.r[31] & 0xFFFFFFFFFFFFFFFF)
+            a = self.heap_at
+            self.heap_at += (n + 15) & ~15
+            mm.mem[a:a + n] = bytes(n)
+            return a
+
+        def new_array(mm, n, *_):
+            # operator new[] (main 0x0010be70): its own 16 bytes (ra), then new.
+            sp = (mm.r[29] & 0xFFFFFFFF) - 16
+            mm.store(sp, 8, mm.r[31] & 0xFFFFFFFFFFFFFFFF)
+            ccmalloc_frame(mm, sp, sym("__nwa__FUi") + 0x10)
             a = self.heap_at
             self.heap_at += (n + 15) & ~15
             mm.mem[a:a + n] = bytes(n)
             return a
         hook("__nw__FUi", new)
-        hook("__nwa__FUi", new)
+        hook("__nwa__FUi", new_array)
         hook("GetCCSAdrs__8ccStreamFPCc", lambda mm, n, *_: self.alloc(16, self.cstr(n)))
 
         def chunk(mm, s, n, *_):
@@ -209,7 +225,7 @@ class Game:
                      "__dt__7ccClumpFv", "Init__7ccLayerFsP6ccView", "SetFrame__6ccViewFffffffff",
                      "ccSqFade__FiUsiUc", "SetHitSW__9ccCharHitFi", "SetActiveLayer__9WORLD_MANFi",
                      "Draw__5ccEffFPfUs", "ResetFogBlend__9ccDrawEnvFv",
-                     "SetType__6ccFontFi", "CamMain__9ccBossCamFv"):
+                     "SetType__6ccFontFi"):
             hook(name, nop)
 
         def collide(mm, hit, *_):
@@ -230,14 +246,6 @@ class Game:
             return 0
         hook("ccHitCheckLM__FPfPfUi", land)
 
-        def init_cam(mm, a, *_):
-            mm.mem[CAM:CAM + 0x150] = bytes(0x150)
-            mm.store(a + 332, 4, CAM)
-            mm.store(a + 336, 4, 1)
-            # ccIBossEff::cmn_bossCam: the effects' camera (the phantom's).
-            mm.store(sym("cmn_bossCam__10ccIBossEff"), 4, CAM)
-            return 0
-        hook("InitBossCamera__6ccBossFff", init_cam)
 
         def stage_init(mm, a, *_):
             mm.store(a + 0x29340, 4, STAGE + 0x100)
@@ -305,49 +313,10 @@ class Game:
         hook("ccParticleExplode__FPfPffi", lambda mm, *a: out.append(["explode"]) or 0)
         hook("effRadiateSomething2__FPfPffii", lambda mm, *a: out.append(["radiate"]) or 0)
         hook("effFlareRing__FPfi", lambda mm, *a: out.append(["flare"]) or 0)
-        hook("checkCameraShakeRange__FPf", lambda mm, *a: int(self.shake_now))
-        hook("SetMode__9ccBossCamFifPfP6ccChar", lambda mm, a, mode, *_: out.append(["cammode", s32(mode)]) or 0)
 
-        ct = volume.span("__ct__16ccBossEffPhantomFPff")
 
-        def free_cam(mm, a, p, v, *_):
-            view = [0, 0, 0] if ct[0] <= mm.r[31] < ct[1] else [mm.load(v + 4 * k, 4) for k in range(3)]
-            out.append(["freecam"] + [mm.load(p + 4 * k, 4) for k in range(3)] + view)
-            return 0
-        hook("SetFreeCamPosView__9ccBossCamFPfPf", free_cam)
 
-        def change_camera(mm, n, *_):
-            out.append(["cam", s32(n)])
-            mm.store(sym("camID"), 2, n & 0xFFFF)
-            return 0
-        hook("changeCamera__Fi", change_camera)
 
-        def cam_set(key, k):
-            def put(mm, p, n, *_):
-                v = [mm.load(p + 4 * j, 4) for j in range(4)]
-                out.append([key, s32(n)] + v[:3])
-                self.cams.setdefault(s32(n), [[0, 0, 0, F_ONE], [0, 0, 0, F_ONE]])[k] = v
-                return 0
-            return put
-        hook("cameraSetPos__FPfi", cam_set("campos", 0))
-        hook("cameraSetView__FPfi", cam_set("camview", 1))
-        hook("cameraSetRot__FPfi", nop)
-
-        def cam_get(k):
-            def get(mm, p, n, *_):
-                v = self.cams.get(s32(n), [[0, 0, 0, F_ONE], [0, 0, 0, F_ONE]])[k]
-                for j in range(4):
-                    mm.store(p + 4 * j, 4, v[j])
-                return 0
-            return get
-        hook("cameraGetPos__FPfi", cam_get(0))
-        hook("cameraGetView__FPfi", cam_get(1))
-
-        def cam_rot(mm, p, n, *_):
-            for j, v in enumerate((0, 0, self.rot_now, 0)):
-                mm.store(p + 4 * j, 4, v)
-            return 0
-        hook("cameraGetRot__FPfi", cam_rot)
         hook("ccTransPosW2P__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccTransPosP2W__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
 
@@ -476,19 +445,9 @@ def rnd_case(c, rnd):
         a += rnd.randrange(20, 300)
         menus += [(a, rnd.choice((0, 5, 74))), (a + rnd.randrange(1, 60), -1)]
         a = menus[-1][0]
-    rots = [(0, fbits(rnd.uniform(-3.1, 3.1)))]
-    f = 0
-    while rnd.random() < 0.8:
-        f += rnd.randrange(30, 900)
-        if f >= frames:
-            break
-        rots.append((f, fbits(rnd.uniform(-3.1, 3.1))))
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
-    cam2 = ([fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(100, 600)), F_ONE],
-            [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(0, 300)), F_ONE])
     case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
-            "rots": rots,
-            "cam2": cam2, "shake": rnd.choice((0, 0, 2, 3, 7)), "push": push,
+            "push": push,
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     # Drawn last, so the cases of a seed are the ones before the blur.
@@ -509,19 +468,6 @@ def listed(game, ch):
     return 0
 
 
-def shake_at(case, f):
-    s = case["shake"]
-    return not (s > 0 and f % s == 0)
-
-
-def rot_at(case, f):
-    r = 0
-    for k, v in case["rots"]:
-        if k <= f:
-            r = v
-    return r
-
-
 def run_game(game, case):
     c, g, m = game.c, game.g, game.m
     c.reset()
@@ -536,9 +482,6 @@ def run_game(game, case):
     game.center = case["center"]
     game.push = case["push"]
     game.frame_no = 0
-    game.shake_now = False
-    game.rot_now = rot_at(case, 0)
-    game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
     bb.put_draw_camera(game, case)
     bb.make_manager(game, MGR, case)
@@ -571,14 +514,13 @@ def run_game(game, case):
     m.store(sys_ + 0x358, 4, case["count"])
     game.out.clear()
     m.call(game.sym("__ct__8ccBoss07Fv"), (BOSS,))
+    bb.post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
     for f in range(case["frames"]):
         game.out.clear()
         game.frame_no = f
-        game.shake_now = shake_at(case, f)
-        game.rot_now = rot_at(case, f)
         m.store(sys_ + 0x358, 4, case["count"] + 1 + f)
         mt_now = [v for k, v in menus if k <= f]
         g.env.menu_type = mt_now[-1] if mt_now else -1
@@ -654,7 +596,6 @@ def game_state(game, n):
         "anm": [clip[0] or "", clip[1] >> 8, m.load(anm + 0x9C, 2), wclip[0] or "", wclip[1] >> 8,
                 m.load(wave + 0x9C, 2) if wave else 256],
         "tarvos": tarvos,
-        "cam": [m.load(CAM + 0xD8, 4)],
         "eff": game.effects(),
         "party": party,
         "out": list(game.out),
@@ -663,6 +604,8 @@ def game_state(game, n):
         "blur": blur,
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
     }
 
 
@@ -695,14 +638,12 @@ def request(game, case, pre):
     n = len(party)
     members = [k if k < n else -1 for k in range(3)]
     ids = [party[k].id if k < n else -1 for k in range(3)]
+    va = [SCN + 0x1000 * k if k < n else 0 for k in range(3)]
     kite = party[0]
-    parts = (["tarvos", len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
+    parts = (["tarvos", len(chars)] + chars + [n] + list(range(n)) + members + ids + va + [n]
              + case["center"][:3] + list(kite.pos) + [0, 0, 0, 0]
-             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["shake"]]
-             + case["push"] + list(case["cam2"][0]) + list(case["cam2"][1]))
-    parts.append(len(case["rots"]))
-    for r in case["rots"]:
-        parts += list(r)
+             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"]]
+             + case["push"])
     parts.append(len(case["script"]))
     for s in case["script"]:
         parts += list(s)
@@ -810,6 +751,36 @@ class Against(unittest.TestCase):
             kind, arg = create[4]
             with self.subTest(create[0], arg=arg):
                 self.assertEqual(native_life(self.game, create), eff_life(kind, arg))
+
+    def test_phantom_first_view(self):
+        """The phantom's constructor hands SetFreeCamPosView sp+144, where
+        _ccMalloc's frame left `$s1`: OnThinkPhantom's target (QUA gcmn
+        0x003aaedc), Kite at SCN, 0x01100000. Here operator new runs the
+        game's own _ccMalloc on ccHeap as InitFirst sets it up. The heap
+        runs 0x00670320 to 0x01ff3ff0; from 0x00800000 an address is a
+        normal float, which camera.cpp's readers do not take as 0. Camera 2
+        looks at it for the frame; the port's from the members' addresses."""
+        game = self.game
+        m, sym = game.m, game.sym
+        case = rnd_case(game.c, random.Random(8790))
+        case.update(frames=300, script=[(20, 8, 0, 6)], menus=[], push=[0, 0])  # act 6, the phantom
+        case["cam"]["post"] = [0, 1]
+        names = ("__nw__FUi", "__nwa__FUi", "malloc", "DIntr")
+        kept = {n: m.hooks.pop(sym(n), None) for n in names}
+        # The C library's block for InitFirst where the boot's lies (heapTop
+        # 0x00670310, ee_run); interrupts already off for DIntr.
+        m.hooks[sym("malloc")] = lambda mm, *_: 0x00670308
+        m.hooks[sym("DIntr")] = lambda mm, *_: 0
+        try:
+            m.call(sym("InitFirst__6ccHeapFv"), ())
+            frames = compare(game, case, "phantom")
+        finally:
+            for n, h in kept.items():
+                m.hooks.pop(sym(n), None)
+                if h is not None:
+                    m.hooks[sym(n)] = h
+        views = [f["cams"][2][1] for f in frames]
+        self.assertIn([SCN, 0, 0], views, "camera 2 at Kite's address")
 
     def test_cases(self):
         for seed in range(6):

@@ -270,6 +270,13 @@ pub fn get_dirc_chg_f(from: F, to: F, mode: i32) -> F {
     deg2rad(get_dirc_chg(rad2deg(from), rad2deg(to), mode) as i16)
 }
 
+/// `ccGetCameraTransparency`'s far end and fade as its callers pick them
+/// by `game.area`: a town (0) 4000 and 400, a field or dungeon 7000 and 600.
+pub const TOWN_FAR: F = 0x457a_0000;
+pub const TOWN_FADE: F = 0x43c8_0000;
+pub const AREA_FAR: F = 0x45da_c000;
+pub const AREA_FADE: F = 0x4416_0000;
+
 /// `ccGetCameraTransparency(pos, width, height, far, fade, &hide)` (QUA
 /// main 0x001eefa0) with both points already in the player's frame: toward 0 as the camera comes within 1.25 r of the point (r the
 /// pitch's blend of `width` and `height`, at least 180; `hide` set, unless

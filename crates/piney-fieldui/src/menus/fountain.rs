@@ -549,7 +549,7 @@ fn menu3(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         14 => {
             if x.target_prev.is_none() {
                 x.req.push(Request::TargetFix(false));
-                talk::req(x, TalkReq::Camera(1));
+                talk::req(x, TalkReq::Camera(piney_battle::camera::CamId::Field));
                 m.wait_count = 0;
                 talk::req(x, TalkReq::FountainParty(false));
                 m.proccess += 1;

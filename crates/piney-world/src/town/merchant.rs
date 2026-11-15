@@ -16,9 +16,9 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
-use crate::camera::Cam;
+use crate::camera::CamList;
 use crate::chara::body::{Body, TRALL};
-use crate::chara::char::{Char, View, check_camera_deg, w2p};
+use crate::chara::char::{Char, check_camera_deg, w2p};
 use crate::chara::npc::{Core, NpcRow};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::{self, Hits};
@@ -479,15 +479,16 @@ impl Merchant {
     }
 
     /// `ccMerchan::main` (0x00505e20) after `routine`, with Kite at
-    /// `player`, the camera `cam` and `view`, the town's `hits`.
-    pub fn main(&mut self, player: V4, cam: &Cam, view: &View, hits: &mut Hits) -> MerchantFrame {
+    /// `player`, camera.cpp's list `cams` (the active camera's view cone
+    /// and fade), the town's `hits`.
+    pub fn main(&mut self, player: V4, cams: &CamList, hits: &mut Hits) -> MerchantFrame {
         self.core.ch.pos_p = w2p(self.core.ch.pos, player);
         let p = self.core.ch.pos_p;
         // x x + y y (adda), + z z (madd); fptodp, sqrt, dptofp (sqrt.s
         // from Outbreak on, OUT gcmn 0x0051beec).
         let d2 = ee::add(ee::add(ee::mul(p[0], p[0]), ee::mul(p[1], p[1])), ee::mul(p[2], p[2]));
         let dist = ee::dsqrt_on(hits.volume, d2);
-        let in_view = check_camera_deg(self.core.ch.pos, VIEW_DEG, cam, player);
+        let in_view = check_camera_deg(self.core.ch.pos, VIEW_DEG, cams.active(), player);
         // Infection's acts and collides for every one; from Mutation on
         // (MUT gcmn 0x00521134) only the Administrator, the quiz man, the
         // Grunt Shops and the Event NPC do.
@@ -521,7 +522,7 @@ impl Merchant {
             self.core.ch.transparency = self.transrate;
             self.core.ch.set_transparency = self.transrate;
             f.stepped = true;
-            f.drawn = self.core.ch.fade(hits.volume, view);
+            f.drawn = self.core.ch.fade(cams, player);
         } else {
             self.core.ch.drawn = false;
         }
@@ -548,7 +549,7 @@ impl Merchant {
     /// this frame).
     pub fn step(&mut self, ctx: &mut NpcCtx) {
         self.core.entry.routine(ctx.hits.volume, &mut self.core.ch, ctx.player);
-        self.main(ctx.player, ctx.cam, &ctx.view, ctx.hits);
+        self.main(ctx.player, ctx.cams, ctx.hits);
         // main returned 1: the entry control deletes it at once, and
         // `~ccCharHit` takes its body off the character list.
         if self.gone {
@@ -673,6 +674,7 @@ pub fn event_merchant(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::camera::Cam;
 
     #[test]
     fn dummies_and_tables() {
@@ -763,15 +765,14 @@ mod tests {
             kind: crate::camera::kind::FOLLOW,
             ..Cam::default()
         };
-        let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
+        let mut cams = CamList::new(Volume::Inf, cam);
         let mut rand = crate::Rand(1);
         let mut cc = piney_battle::rand::Genrand::default();
         let mut save = piney_data::save::SaveData::default();
         let mut ctx = NpcCtx {
             player: kite,
             player_dirc: [0; 4],
-            view,
-            cam: &cam,
+            cams: &mut cams,
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,
@@ -789,8 +790,7 @@ mod tests {
         // The Weapon Shop is 6000 away.
         assert!(!m[0].frame.near && !m[0].frame.stepped);
         // Turned away.
-        let back = Cam { view: [ee::k(1500.0), ee::k(3600.0), ee::k(420.0), ONE], ..cam };
-        ctx.cam = &back;
+        ctx.cams.active_mut().view = [ee::k(1500.0), ee::k(3600.0), ee::k(420.0), ONE];
         for x in &mut m {
             x.step(&mut ctx);
         }
@@ -808,9 +808,9 @@ mod tests {
     #[test]
     fn touching_kite() {
         let Some((mut m, mut hits)) = mac_anu() else { return };
-        let cam = Cam::default();
+        let cam = Cam { deg: [0, 1512], ..Cam::default() };
         let kite = [ee::k(-800.0), ee::k(3600.0), ee::k(300.0), ONE];
-        let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
+        let mut cams = CamList::new(Volume::Inf, cam);
         let mut rand = crate::Rand(1);
         let mut cc = piney_battle::rand::Genrand::default();
         let mut save = piney_data::save::SaveData::default();
@@ -819,8 +819,7 @@ mod tests {
         let mut ctx = NpcCtx {
             player: kite,
             player_dirc: [0; 4],
-            view,
-            cam: &cam,
+            cams: &mut cams,
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,
@@ -842,8 +841,7 @@ mod tests {
         let mut ctx = NpcCtx {
             player: kite,
             player_dirc: [0; 4],
-            view,
-            cam: &cam,
+            cams: &mut cams,
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,
@@ -866,17 +864,17 @@ mod tests {
         let cam = Cam {
             pos: [ee::k(-850.0), ee::k(2900.0), ee::k(600.0), ONE],
             view: [ee::k(-850.0), ee::k(3600.0), ee::k(420.0), ONE],
+            deg: [0, 1512],
             ..Cam::default()
         };
-        let view = View { player: kite, cam: cam.pos, deg1: 1512, eye: false };
+        let mut cams = CamList::new(Volume::Inf, cam);
         let mut rand = crate::Rand(1);
         let mut cc = piney_battle::rand::Genrand::default();
         let mut save = piney_data::save::SaveData::default();
         let mut ctx = NpcCtx {
             player: kite,
             player_dirc: [0; 4],
-            view,
-            cam: &cam,
+            cams: &mut cams,
             hits: &mut hits,
             rand: &mut rand,
             cc: &mut cc,

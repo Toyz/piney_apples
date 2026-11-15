@@ -147,11 +147,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ee::f(p[1]),
                 ee::f(p[2]),
                 ee::f(s.dirc[2]),
-                ee::f(c.tcam.pos[0]),
-                ee::f(c.tcam.pos[1]),
-                ee::f(c.tcam.pos[2]),
-                c.tcam.deg,
-                ee::f(c.tcam.dist),
+                ee::f(c.list.cam(piney_world::camera::CamId::Field).pos[0]),
+                ee::f(c.list.cam(piney_world::camera::CamId::Field).pos[1]),
+                ee::f(c.list.cam(piney_world::camera::CamId::Field).pos[2]),
+                c.list.cam(piney_world::camera::CamId::Field).deg,
+                ee::f(c.list.cam(piney_world::camera::CamId::Field).dist),
                 frame.cmds.len()
             );
         }

@@ -75,7 +75,7 @@ impl RoomWater {
         });
         if let Some((_, lw)) = lw {
             let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
-            w0.modify(cx.core.hits.volume, &lw, lw[3], lw[3], &cx.view.world_screen);
+            w0.modify(cx.core.hits.volume, &lw, lw[3], lw[3], cx.view.world_screen);
         }
     }
 }

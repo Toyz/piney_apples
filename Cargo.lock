@@ -1648,6 +1648,7 @@ name = "piney-battle"
 version = "0.1.0"
 dependencies = [
  "piney-data",
+ "piney-input",
 ]
 
 [[package]]

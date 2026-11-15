@@ -500,25 +500,49 @@ fn main() {
         });
     }
     // EE_PRINT=name,0xaddr,...: each call of these printed with its vblank,
-    // its first four arguments and the active ccLayer (its priority).
+    // its first four arguments and the active ccLayer (its priority); a
+    // `name@k` also the four words argument k points at.
     if let Ok(list) = std::env::var("EE_PRINT") {
         let active = sym("active__7ccLayer").unwrap();
         for w in list.split(',').filter(|w| !w.is_empty()) {
-            let at = match u32::from_str_radix(w.trim_start_matches("0x"), 16) {
-                Ok(a) if w.starts_with("0x") => a,
-                _ => sym(w).unwrap_or_else(|| panic!("no symbol {w}")),
+            let (f, peek) = match w.split_once('@') {
+                Some((f, k)) => (f, Some(k.parse::<usize>().expect("an argument number"))),
+                None => (w, None),
+            };
+            let at = match u32::from_str_radix(f.trim_start_matches("0x"), 16) {
+                Ok(a) if f.starts_with("0x") => a,
+                _ => sym(f).unwrap_or_else(|| panic!("no symbol {f}")),
             };
             let name = w.to_string();
             sys.watch(at, move |sys, a| {
                 let lay = sys.r32(active);
                 let pri = if lay != 0 { sys.r32(lay + 4) as i16 } else { 0 };
+                let words = peek.map_or(String::new(), |k| {
+                    let w: Vec<String> = (0..4).map(|i| format!("{:#010x}", sys.r32(a[k] + 4 * i))).collect();
+                    format!(" [{}]", w.join(" "))
+                });
                 eprintln!(
-                    "PRINT {} {name} {:#x} {:#x} {:#x} {:#x} active {lay:#x} pri {pri}",
+                    "PRINT {} {name} {:#x} {:#x} {:#x} {:#x}{words} active {lay:#x} pri {pri}",
                     sys.vblanks, a[0], a[1], a[2], a[3]
                 );
             });
         }
     }
+    // EE_POKE=vblank:0xaddr:0xvalue:0xmask;...: at that vblank the word at
+    // addr has its mask's bits set from value (a boss's act forced, say).
+    let pokes: Vec<(u64, u32, u32, u32)> = std::env::var("EE_POKE")
+        .ok()
+        .map(|v| {
+            v.split(';')
+                .filter(|e| !e.is_empty())
+                .map(|e| {
+                    let f: Vec<&str> = e.split(':').collect();
+                    let hex = |s: &str| u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap();
+                    (f[0].parse().unwrap(), hex(f[1]), hex(f[2]), hex(f[3]))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let save = std::env::var("EE_SAVE").ok().map(|p| std::fs::read(p).unwrap());
     let go_at: u64 = std::env::var("EE_GO").ok().and_then(|v| v.parse().ok()).unwrap_or(240);
     let scene: Vec<i32> = std::env::var("EE_SCENE")
@@ -575,6 +599,13 @@ fn main() {
             sys.call(sym("ChangeRequest__6ccGameFii").unwrap(), &[game, 5, 8], gp).unwrap();
             let sc: Vec<u32> = std::iter::once(game).chain(scene.iter().map(|&v| v as u32)).collect();
             sys.call(sym("ChangeScene__6ccGameFiiiiii").unwrap(), &sc, gp).unwrap();
+        }
+        for &(at, addr, value, mask) in &pokes {
+            if at == done {
+                let w = sys.r32(addr) & !mask | value & mask;
+                eprintln!("poke {addr:#x} = {w:#010x} at vblank {}", sys.vblanks);
+                sys.w32(addr, w);
+            }
         }
         for (at, sc) in &then {
             if *at == done {

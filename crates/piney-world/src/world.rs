@@ -34,7 +34,7 @@ use crate::field::def::FieldDef;
 use crate::hit::Hits;
 use crate::sprite::{EffSprite, EffState};
 use crate::story_map::Kept;
-use crate::systems::{MapEvent, MapView, Signal};
+use crate::systems::{MapEvent, Signal};
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
 use piney_data::store::Table;
 
@@ -207,6 +207,14 @@ pub enum Kite<'a> {
 }
 
 impl<'a> Kite<'a> {
+    /// The battle's Kite once built, else where he will start.
+    fn of(combat: &'a Combat, (pos, dirc): (V4, V4)) -> Self {
+        match combat.kite_ref() {
+            Some(k) => Kite::Built(k),
+            None => Kite::Starting { pos, dirc },
+        }
+    }
+
     /// Where he stands (`plw +0x40`).
     pub fn pos(&self) -> V4 {
         match self {
@@ -889,24 +897,6 @@ impl World {
         &*self.fx
     }
 
-    /// What a map's `Draw` reads of the camera, the player and the frame.
-    fn map_view(&self) -> MapView {
-        let c = &self.camera;
-        MapView {
-            eye: c.active().pos,
-            player: self.kite().pos(),
-            cam: c.active().clone(),
-            flare: crate::sky::lensflare::FlareCamera::of(c),
-            puppet_show: c.puppet_show,
-            world_screen: c.world_screen,
-            eye1: c.tcam.pos,
-            rot: c.tcam.rot,
-            rot2: c.tcam.rot3,
-            odd: self.count & 1 != 0,
-            room: None,
-        }
-    }
-
     /// The area's calls since the last take, in order: `ccSeOn` (the
     /// thunder), `ccSeOn3D` (the steam, a dungeon's doors), TOBJ's hum and
     /// the storm's `scFadeDef->EntryFlash` ([`MapEvent`]'s `Se`, `Se3d`,
@@ -1015,10 +1005,7 @@ impl World {
     /// rotation the game wrote into the dummy this visit if it did (only a
     /// town's `setMerchant` writes one, [`crate::area::AreaCore::written`]).
     pub fn marker_dummy(&self, n: i16) -> Option<(V4, V4)> {
-        let (pos, rot) = crate::event::marker_dummy_in(self.area.marker_file()?, self.volume, n)?;
-        let name = piney_data::tables::world::of(self.volume).markers.get(n as usize).copied();
-        let written = self.area.core().written.iter().find(|(d, _)| Some(d.as_str()) == name).map(|&(_, r)| r);
-        Some((pos, written.unwrap_or(rot)))
+        marker_dummy_of(&*self.area, self.volume, n)
     }
 
     /// [`crate::event::event_marker_in`] as [`World::marker_dummy`] reads
@@ -1047,49 +1034,9 @@ impl World {
         self.find_char_pos(&*self.cast, ty, code)
     }
 
-    /// `ccEvent::Execute`'s lookup by `1 << type` (`sllv`, the low five
-    /// bits; cases 59, 64, 72, 161, 162): 4 `GetSpc(code)` (main
-    /// 0x001b2bb0), 0x18 `GetNpc(code)` (0x001b2cc0), 0x60 `GetEnemy(code)`
-    /// (0x001b2d50), anything else no one. The character's place (+0x40).
+    /// [`Finder::find_char_pos`] with `cast` lent.
     pub(crate) fn find_char_pos(&self, cast: &dyn cast::Cast, ty: i16, code: i16) -> Option<V4> {
-        let bit = 1u32 << (ty as u32 & 31);
-        let code = i32::from(code);
-        if bit & 4 != 0 {
-            self.spc_pos(code)
-        } else if bit & 0x18 != 0 {
-            cast.npcs()?.get_npc(code).map(|n| n.core().ch.pos)
-        } else if bit & 0x60 != 0 {
-            let who = piney_battle::evparty::get_enemy(&self.combat.ctrl, &self.combat.scene, code)?;
-            self.scene_pos(who)
-        } else {
-            None
-        }
-    }
-
-    /// The event camera's lookup (`ccEvent::CamCtrl` 0x001b3704, the
-    /// camera instructions 23, 24, 27, 30): [`World::find_char_pos`], and
-    /// for any other type `ccCheckTargetTypeId(1 << type, code)` (gcmn
-    /// 0x005199e0) on the command lists - types 0 and 1 the listed party
-    /// members whose base type has that bit (Kite's 7, the others' 6).
-    fn camera_char_pos(&self, cast: &dyn cast::Cast, ty: i16, code: i16) -> Option<V4> {
-        let bit = 1u32 << (ty as u32 & 31);
-        if bit & 0x7c != 0 {
-            return self.find_char_pos(cast, ty, code);
-        }
-        let who = piney_battle::evparty::check_target_type_id(&self.combat.scene, bit as i32, i32::from(code))?;
-        self.scene_pos(who)
-    }
-
-    /// `GetSpc(code)`'s character's place: the registry's (a negative code
-    /// a party slot, [`crate::chara::party::Spcs::get_spc`]).
-    fn spc_pos(&self, code: i32) -> Option<V4> {
-        let id = self.spcs.get_spc(code)?;
-        self.combat.who(id).map(|w| self.combat.scene.chars[w].pos)
-    }
-
-    /// A battle character's place.
-    fn scene_pos(&self, who: usize) -> Option<V4> {
-        self.combat.scene.chars.get(who).map(|c| c.pos)
+        Finder { combat: &self.combat, spcs: &self.spcs, cast }.find_char_pos(ty, code)
     }
 
     pub fn frame_rate(&self) -> u32 {
@@ -1142,13 +1089,7 @@ impl World {
     /// Kite (`plw`: the battle's ccPlayer, in every area), or before
     /// `ccSPC::Reboot` builds him, where he will start.
     pub fn kite(&self) -> Kite<'_> {
-        match self.combat.kite_ref() {
-            Some(k) => Kite::Built(k),
-            None => {
-                let (pos, dirc) = self.start();
-                Kite::Starting { pos, dirc }
-            }
-        }
+        Kite::of(&self.combat, self.start())
     }
 
     pub fn camera(&self) -> &Camera {
@@ -1611,7 +1552,7 @@ impl World {
         let input = talk::Input {
             pow_l: pad.pow_l,
             // checkCameraType(): activeCamPtr->type.
-            eye: self.camera.active().kind == crate::camera::kind::EYE,
+            eye: self.camera.list.active().kind == crate::camera::kind::EYE,
             action: pushed(offset::ASSIGN_PAD_ACTION, crate::DEFAULT_ACTION),
             personal: pushed(offset::ASSIGN_PAD_ACTION + 2, B::TRIANGLE.bits() as u16),
             chat: pushed(offset::ASSIGN_PAD_ACTION + 4, B::SQUARE.bits() as u16),
@@ -1666,8 +1607,14 @@ impl World {
         };
         let mut game = self.combat.battle;
         let hits = &mut self.area.core_mut().hits;
-        let mut host =
-            CtrlHost { combat: &mut self.combat, save: &mut self.save, hits, area: self.scene.area, kite: k };
+        let mut host = CtrlHost {
+            combat: &mut self.combat,
+            save: &mut self.save,
+            hits,
+            camera: &mut self.camera,
+            area: self.scene.area,
+            kite: k,
+        };
         let out = self.targeting.frame(&leader, &mut cands, &input, &battle, &mut game, &mut host);
         self.combat.battle = game;
         if let Some(p) = out.pause {
@@ -1837,8 +1784,10 @@ impl World {
             menu_type: self.menu_type,
             sp_regene_speed: false,
             area,
+            pad: self.combat.env.pad,
+            party_va: self.combat.env.party_va,
         };
-        self.combat.affect_now(on, by, kind, p, hits, b, &mut self.save.save, &ents);
+        self.combat.affect_now(on, by, kind, p, hits, b, &mut self.save.save, &ents, &mut self.camera);
     }
 
     /// Data Drain's rules on the scene ([`Combat::data_drain`]): Kite drains
@@ -1928,7 +1877,7 @@ impl World {
                 let area = self.scene.area;
                 let hits = &mut self.area.core_mut().hits;
                 let b = Combat::bounds(area, hits);
-                self.combat.entry_affect_with(on, who(by), kind, p, hits, b);
+                self.combat.entry_affect_with(on, who(by), kind, p, hits, b, &mut self.camera);
             }
             Step::Affect(_) => {}
             Step::Skill(ref k) => self.combat.item_skill(user, target, k),
@@ -2092,12 +2041,12 @@ impl World {
         let bar = crate::chara::char::calc_tag_pos(ws, pos, [0, 0, ee::mul(h, 0x3f66_6666), 0], 1)
             .map_or((0, 0), |t| (t.0, t.1));
         let d = piney_battle::geom::get_dirc(player, c.pos);
-        let r = ee::sub(d, self.camera.active().rot[2]);
+        let r = ee::sub(d, self.camera.list.active().rot[2]);
         let arrow = (
             ee::to_int(ee::add(0x4380_0000, ee::mul(0xc3c0_0000, ee::sinf(r)))),
             ee::to_int(ee::add(0x4380_0000, ee::mul(0xc3c0_0000, ee::cosf(r)))),
         );
-        let cam = self.camera.active();
+        let cam = self.camera.list.active();
         let w2p = |p: V4| piney_battle::kite::w2p_pos(&bounds, player, p).0;
         let (p, cp, vp) = (w2p(c.pos), w2p(cam.pos), w2p(cam.view));
         let a = ee::rad2deg(ee::atan2f(ee::sub(p[1], cp[1]), ee::sub(p[0], cp[0])));
@@ -2565,7 +2514,7 @@ impl World {
         // tasks' second frame; what they step (and the hit list a field's
         // passes leave) only while awake.
         if drawn {
-            let v = self.map_view();
+            let player = self.kite().pos();
             // A story map's message closed, for its scene while awake.
             let message_closed = awake && std::mem::take(&mut self.story_message_closed);
             let (ctrl, foes) = (&self.combat.ctrl, &self.combat.foes);
@@ -2573,7 +2522,8 @@ impl World {
             let mut cx = Disp {
                 layers: &mut ctx.layers,
                 to_screen,
-                view: &v,
+                player,
+                odd: self.count & 1 != 0,
                 awake,
                 cc: &mut self.combat.cc,
                 save: &self.save.save,
@@ -3295,7 +3245,7 @@ impl World {
         // The cinema's bars and name (ccBossEffManager::Draw's last step).
         let cinema = run.cinema.packets(&run.cinema_sent);
         if !cinema.is_empty() {
-            ctx.layers.prepend(crate::camera::cinema::CINEMA_LAYER, cinema);
+            ctx.layers.prepend(crate::combat::cinema::CINEMA_LAYER, cinema);
         }
         if let Some(cmd) = trail_packet(&run.trail.0, &self.camera.world_screen) {
             ctx.layers.sorted(draw::EFF_LAYER, f32::from_bits(run.trail.1), cmd);
@@ -3471,11 +3421,26 @@ impl World {
 
     /// [`World::event_camera`] with the cast lent (a cast's own code).
     pub(crate) fn event_camera_with(&mut self, cast: &dyn cast::Cast, c: piney_event::host::CameraCommand) {
-        let mut ev = std::mem::take(&mut self.evcam);
-        let mut cam = self.camera.clone();
-        ev.command(c, &mut cam, &EvScene { w: self, cast });
-        self.evcam = ev;
-        self.camera = cam;
+        let (scene, ev, cam) = self.event_camera_parts(cast);
+        ev.command(c, cam, &scene);
+    }
+
+    /// The event camera (eventMng.cam), the cameras it drives and what it
+    /// looks up, lent apart.
+    fn event_camera_parts<'a>(
+        &'a mut self,
+        cast: &'a dyn cast::Cast,
+    ) -> (EvScene<'a>, &'a mut crate::camera::evcam::EventCam, &'a mut Camera) {
+        let kite = Kite::of(&self.combat, self.start());
+        let scene = EvScene {
+            find: Finder { combat: &self.combat, spcs: &self.spcs, cast },
+            area: &*self.area,
+            area_kind: self.scene.area,
+            volume: self.volume,
+            positions: &self.event_entries.2,
+            kite,
+        };
+        (scene, &mut self.evcam, &mut self.camera)
     }
 
     /// `menu_ban` / `menu_clear`'s camera part.
@@ -3501,11 +3466,8 @@ impl World {
             pad: *pad,
             zoom: [button(offset::ASSIGN_PAD_ACTION + 0xe, 0x8), button(offset::ASSIGN_PAD_ACTION + 0x10, 0x2)],
         };
-        let mut ev = std::mem::take(&mut self.evcam);
-        let mut cam = self.camera.clone();
-        ev.frame(&mut cam, &EvScene { w: self, cast }, &input);
-        self.evcam = ev;
-        self.camera = cam;
+        let (scene, ev, cam) = self.event_camera_parts(cast);
+        ev.frame(cam, &scene, &input);
     }
 
     /// The field's fellow tasks deleted as the scene changes
@@ -3663,9 +3625,9 @@ impl World {
         self.camera.set_event(pos, view);
     }
 
-    /// `changeCamera(n)` from the menus (1: the player's camera back).
-    pub fn change_camera(&mut self, n: i16) {
-        self.camera.change_camera(n);
+    /// `changeCamera(n)` from the menus (the player's camera back).
+    pub fn change_camera(&mut self, n: crate::camera::CamId) {
+        self.camera.list.change(n);
     }
 
     /// `party_add pc` (`ccEvent::Execute` case 77, main 0x001af270) and
@@ -3897,35 +3859,107 @@ impl World {
     }
 }
 
-/// What the event camera looks up: the world with its cast (lent while
-/// the camera runs, so a cast's own frame can run the camera too).
+/// Who an event instruction's `type code` names: the battle's characters,
+/// the registry and the cast's NPC list (lent while a cast's own frame runs).
+pub(crate) struct Finder<'a> {
+    combat: &'a Combat,
+    spcs: &'a crate::chara::party::Spcs,
+    cast: &'a dyn cast::Cast,
+}
+
+impl Finder<'_> {
+    /// `ccEvent::Execute`'s lookup by `1 << type` (`sllv`, the low five
+    /// bits; cases 59, 64, 72, 161, 162): 4 `GetSpc(code)` (main
+    /// 0x001b2bb0), 0x18 `GetNpc(code)` (0x001b2cc0), 0x60 `GetEnemy(code)`
+    /// (0x001b2d50), anything else no one. The character's place (+0x40).
+    fn find_char_pos(&self, ty: i16, code: i16) -> Option<V4> {
+        let bit = 1u32 << (ty as u32 & 31);
+        let code = i32::from(code);
+        if bit & 4 != 0 {
+            self.spc_pos(code)
+        } else if bit & 0x18 != 0 {
+            self.cast.npcs()?.get_npc(code).map(|n| n.core().ch.pos)
+        } else if bit & 0x60 != 0 {
+            let who = piney_battle::evparty::get_enemy(&self.combat.ctrl, &self.combat.scene, code)?;
+            self.scene_pos(who)
+        } else {
+            None
+        }
+    }
+
+    /// The event camera's lookup (`ccEvent::CamCtrl` 0x001b3704, the
+    /// camera instructions 23, 24, 27, 30): [`Finder::find_char_pos`], and
+    /// for any other type `ccCheckTargetTypeId(1 << type, code)` (gcmn
+    /// 0x005199e0) on the command lists - types 0 and 1 the listed party
+    /// members whose base type has that bit (Kite's 7, the others' 6).
+    fn camera_char_pos(&self, ty: i16, code: i16) -> Option<V4> {
+        let bit = 1u32 << (ty as u32 & 31);
+        if bit & 0x7c != 0 {
+            return self.find_char_pos(ty, code);
+        }
+        let who = piney_battle::evparty::check_target_type_id(&self.combat.scene, bit as i32, i32::from(code))?;
+        self.scene_pos(who)
+    }
+
+    /// `GetSpc(code)`'s character's place: the registry's (a negative code
+    /// a party slot, [`crate::chara::party::Spcs::get_spc`]).
+    fn spc_pos(&self, code: i32) -> Option<V4> {
+        let id = self.spcs.get_spc(code)?;
+        self.combat.who(id).map(|w| self.combat.scene.chars[w].pos)
+    }
+
+    /// A battle character's place.
+    fn scene_pos(&self, who: usize) -> Option<V4> {
+        self.combat.scene.chars.get(who).map(|c| c.pos)
+    }
+}
+
+/// [`crate::event::marker_dummy_in`] of the area's marker file, with the
+/// rotation the game wrote into the dummy this visit if it did (only a
+/// town's `setMerchant` writes one, [`crate::area::AreaCore::written`]).
+fn marker_dummy_of(area: &dyn AreaMap, volume: piney_data::volume::Volume, n: i16) -> Option<(V4, V4)> {
+    let (pos, rot) = crate::event::marker_dummy_in(area.marker_file()?, volume, n)?;
+    let name = piney_data::tables::world::of(volume).markers.get(n as usize).copied();
+    let written = area.core().written.iter().find(|(d, _)| Some(d.as_str()) == name).map(|&(_, r)| r);
+    Some((pos, written.unwrap_or(rot)))
+}
+
+/// What the event camera looks up, borrowed apart from the cameras it
+/// drives: who a `type code` names, the area's markers and event
+/// positions, and Kite.
 pub(crate) struct EvScene<'a> {
-    pub w: &'a World,
-    pub cast: &'a dyn cast::Cast,
+    find: Finder<'a>,
+    area: &'a dyn AreaMap,
+    /// `game.area`.
+    area_kind: i32,
+    volume: piney_data::volume::Volume,
+    /// eventMng's `evPos`s (+0x1c0).
+    positions: &'a [piney_battle::entry::EvPos],
+    kite: Kite<'a>,
 }
 
 impl crate::camera::evcam::Scene for EvScene<'_> {
     fn char_pos(&self, ty: i32, code: i32) -> Option<V4> {
-        self.w.camera_char_pos(self.cast, ty as i16, code as i16)
+        self.find.camera_char_pos(ty as i16, code as i16)
     }
     fn leader_pos(&self) -> V4 {
-        self.w.kite().pos()
+        self.kite.pos()
     }
     /// `cam_look_marker` and `cam_pan_marker` (main 0x001aaec0) by
     /// `game.area`: a town's `markerEvTbl[marker]` dummy (+0x10), a
     /// field's or dungeon's `evPos` of that number (eventMng +0x1c0, 16 of
     /// 0x20 bytes: number +0x04, position +0x10), anything else nothing.
     fn marker_pos(&self, marker: i16) -> Option<V4> {
-        match self.w.scene.area {
-            kind::TOWN => self.w.marker_bits(marker).map(|(p, _)| p),
+        match self.area_kind {
+            kind::TOWN => marker_dummy_of(self.area, self.volume, marker).map(|(p, _)| p),
             kind::FIELD | kind::DUNGEON => {
-                self.w.event_entries.2.iter().take(16).find(|e| e.num == i32::from(marker)).map(|e| e.pos)
+                self.positions.iter().take(16).find(|e| e.num == i32::from(marker)).map(|e| e.pos)
             }
             _ => None,
         }
     }
     fn player_dirc(&self) -> V4 {
-        self.w.kite().dirc()
+        self.kite.dirc()
     }
 }
 
@@ -3936,6 +3970,7 @@ struct CtrlHost<'a> {
     combat: &'a mut Combat,
     save: &'a mut SaveState,
     hits: &'a mut crate::hit::Hits,
+    camera: &'a mut crate::camera::Camera,
     area: i32,
     kite: usize,
 }
@@ -3966,7 +4001,7 @@ impl talk::Host for CtrlHost<'_> {
         self.combat.recovery = reqs;
         let bounds = Combat::bounds(self.area, self.hits);
         for (ch, n) in heals {
-            self.combat.entry_affect_with(ch, Some(ch), 7, [n, 0, 0], self.hits, bounds);
+            self.combat.entry_affect_with(ch, Some(ch), 7, [n, 0, 0], self.hits, bounds, self.camera);
         }
     }
 }

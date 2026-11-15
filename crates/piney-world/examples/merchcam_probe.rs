@@ -5,6 +5,7 @@
 //! Anu's as `ccSetMerchant(0)` places them), `start`, `frame`, `merchant`
 //! (`set_merchant` on that character), `change N` and `getrot N S0..S3`.
 
+use piney_world::camera::CamId;
 use std::io::BufRead;
 use std::sync::Arc;
 
@@ -35,9 +36,9 @@ fn cameras(c: &Camera) -> String {
     let m = |m: &[[u32; 4]; 4]| list(&m.iter().flatten().copied().collect::<Vec<_>>());
     format!(
         "{{\"cam_id\": {}, \"tcam\": {}, \"ecam\": {}, \"world_view\": {}, \"world_screen\": {}}}",
-        c.cam_id,
-        cam(&c.tcam),
-        cam(&c.ecam),
+        c.list.id().raw(),
+        cam(c.list.cam(CamId::Field)),
+        cam(c.list.cam(CamId::Event)),
         m(&c.world_view),
         m(&c.world_screen)
     )
@@ -135,12 +136,15 @@ fn main() {
             }
             Some("change") => {
                 let r = run.as_mut().unwrap();
-                r.kite.camera.change_camera(n(1) as i16);
+                r.kite.camera.list.change(CamId::from_raw(n(1) as i32).expect("camID 0-3"));
                 println!("{}", cameras(&r.kite.camera));
             }
             Some("getrot") => {
                 let r = run.as_mut().unwrap();
-                println!("{}", list(&r.kite.camera.get_rot(n(1) as i16, v4(2))));
+                println!(
+                    "{}",
+                    list(&r.kite.camera.list.get_rot(CamId::from_raw(n(1) as i32).expect("camID 0-3"), v4(2)))
+                );
             }
             _ => panic!("bad request: {line}"),
         }

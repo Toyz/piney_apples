@@ -12,8 +12,9 @@ same case goes to battle_probe's `boss` request, and every frame is
 compared: the acts, patterns and waits, the movement and position, the
 target, HP and protect gauge, the flags, the animations' clips and frames,
 the effects, the party's HP and hold, the calls (sounds, flashes, effects,
-the menu's bar and cursor, the stream menu, the camera, the stage), newlib's
-rand() and ccRand's index.
+the menu's bar and cursor, the stream menu, the stage), camID and the
+three cameras, the shake's slots and the boss camera, newlib's rand() and
+ccRand's index.
 
 What is not the game's here:
 - The party's affects are off (affectFunc 0): the boss's hits and holds are
@@ -25,8 +26,9 @@ What is not the game's here:
 - The effects: each ccBossEff*Create makes a stand-in whose m_bEnabled
   goes to 0 after the port's lifetime for its kind. test_effect_lives
   checks those lifetimes against the game's Create and Draw run natively.
-- No boss camera, no stage fader (the calls are compared), W2P/P2W are
-  identity.
+- No stage fader (the calls are compared); W2P/P2W are identity.
+- camera.cpp and the boss camera run natively in the game's own memory
+  (`put_cams`): the case's cameras, the pad at rest.
 
     python3 tools/test_battle_boss_rs.py            the unit tests
     python3 tools/test_battle_boss_rs.py bulk N     N random cases
@@ -123,11 +125,149 @@ def make_manager(game, mgr, case):
         m.store(rad_at, 4, rad if init else 0)
 
 
+# camera.cpp in the game's own memory, the same for every boss harness
+# (docs/engine/field-game.md "Three cameras"): the case lays the scheme
+# (setCameraCtrlType), camID and tcam, bcam and ecam, the shake's slots
+# free and the pad at rest; changeCamera, cameraGet/Set*, checkCameraID,
+# checkCameraType, cameraShake, checkCameraShakeRange, InitBossCamera and
+# the ccBossCam (SetMode, SetFreeCamPosView, QuakeCam, CheckMoveCamera,
+# CamMain) run natively. After the constructor the case may put its draw
+# camera into the active one and set bossCamSW. Each frame camID, the
+# cameras, the shake's slots and the boss camera are compared.
+CAMERAS = ("tcam", "bcam", "ecam")
+CAMERA_CALLS = ("changeCamera__Fi", "cameraGetPos__FPfi", "cameraGetView__FPfi", "cameraGetRot__FPfi",
+                "cameraGetRot2__FPfi", "cameraSetPos__FPfi", "cameraSetView__FPfi", "cameraSetRot__FPfi",
+                "checkCameraID__Fv", "checkCameraType__Fv", "cameraShake__Fiiii", "checkCameraShakeRange__FPf",
+                "InitBossCamera__6ccBossFff", "SetMode__9ccBossCamFifPfP6ccChar",
+                "SetFreeCamPosView__9ccBossCamFPfPf", "QuakeCam__9ccBossCamFPf", "CamMain__9ccBossCamFv",
+                "SetRotXLimit__9ccBossCamFf", "CheckMoveCamera__9ccBossCamFv")
+# From Mutation on a float at +0xdc of the ccBossCam (0x150 bytes) moves
+# Xrot to the count 4 further, and from +0xf0 0x10 further
+# (tools/test_bosscam_rs.py).
+LATER = volume.NAME != "infection"
+
+
+def cam_off(o):
+    """A ccBossCam member's (Infection's offset) offset on this volume."""
+    if not LATER or o < 0xDC:
+        return o
+    return o + 4 if o < 0xF0 else o + 0x10
+
+
+def cam_case(rnd, draw):
+    """The cameras as the field leaves them: a scheme, camera 1 active,
+    tcam at the draw camera (`draw_case`'s eye, pitch and type), bcam and
+    ecam about the arena; after the constructor bossCamSW kept (now and
+    then cleared)."""
+    def vec(r, lo, hi):
+        return [fbits(rnd.uniform(-r, r)), fbits(rnd.uniform(-r, r)), fbits(rnd.uniform(lo, hi))]
+
+    def cam(eye, deg1, kind):
+        rot = [fbits(rnd.uniform(-0.6, 0.6)), 0, fbits(rnd.uniform(-3.1, 3.1)), 0]
+        rot3 = [fbits(rnd.uniform(-0.6, 0.6)), 0, fbits(rnd.uniform(-3.1, 3.1)), 0]
+        return eye + vec(2500, 0, 600) + rot + rot3 + [rnd.randrange(-0x8000, 0x8000), deg1, kind]
+    x, y, z, deg1, kind = draw
+    cams = [cam([x, y, z], deg1, kind)] + [cam(vec(2500, 0, 1500), rnd.choice((0, 0x800)), 3) for _ in range(2)]
+    return {"scheme": rnd.randrange(4), "cam_id": 1, "cams": cams, "post": [0, int(rnd.random() >= 0.2)]}
+
+
+def forced_post(draw):
+    """The draw camera written into the active camera after the
+    constructor, bossCamSW cleared so that CamMain leaves it."""
+    return [1] + list(draw) + [0]
+
+
+def cam_tokens(cams):
+    return [cams["scheme"], cams["cam_id"]] + [w for c in cams["cams"] for w in c]
+
+
+def put_cams(game, cams):
+    """camera.cpp as the case lays it, before the constructor."""
+    m, sym = game.m, game.sym
+    for name in CAMERA_CALLS:
+        m.hooks.pop(sym(name), None)
+    m.call(sym("setCameraCtrlType__Fi"), (cams["scheme"],))
+    for name, c in zip(CAMERAS, cams["cams"]):
+        a = sym(name)
+        m.mem[a:a + 0x70] = bytes(0x70)
+        for k, w in enumerate(c[0:3] + [F_ONE] + c[3:6] + [F_ONE] + c[6:10]):
+            m.store(a + 4 * k, 4, w)
+        for k, w in enumerate(c[10:14]):
+            m.store(a + 0x40 + 4 * k, 4, w)
+        m.store(a + 0x58, 2, c[14] & 0xFFFF)
+        m.store(a + 0x5A, 2, c[15] & 0xFFFF)
+        m.store(a + 0x5C, 4, c[16] & 0xFFFFFFFF)
+    m.call(sym("changeCamera__Fi"), (cams["cam_id"],))
+    sf = sym("sfList")
+    m.mem[sf:sf + 0x40] = bytes([0x0F, 0, 0, 0, 0, 0, 0, 0] * 8)
+    pad = m.load(sym("ccSys"), 4) + 0x268
+    m.mem[pad + 0x48:pad + 0x6C] = bytes(0x24)
+
+
+def post_tokens(cams):
+    return list(cams["post"])
+
+
+def post_cams(game, boss, cams):
+    """The case's writes after the constructor: the draw camera into the
+    active one, and bossCamSW (with a boss camera)."""
+    m = game.m
+    post = cams["post"]
+    if post[0]:
+        a = m.load(game.sym("activeCamPtr"), 4)
+        for k, w in enumerate(post[1:4] + [F_ONE]):
+            m.store(a + 4 * k, 4, w)
+        m.store(a + 0x5A, 2, post[4] & 0xFFFF)
+        m.store(a + 0x5C, 4, post[5])
+    if m.load(boss + 0x14C, 4):
+        m.store(boss + 0x150, 4, post[-1])
+
+
+def cams_state(game):
+    """camID, each camera's eye, view, rot's x and z, deg and type, and
+    the shake's slots (power, cycle, rot, time, dirc)."""
+    m, sym = game.m, game.sym
+
+    def cam(a):
+        return [[m.load(a + 4 * k, 4) for k in range(3)], [m.load(a + 0x10 + 4 * k, 4) for k in range(3)],
+                m.load(a + 0x20, 4), m.load(a + 0x28, 4), s16(m.load(a + 0x58, 2)), s16(m.load(a + 0x5A, 2)),
+                s32(m.load(a + 0x5C, 4))]
+
+    def nib(v):
+        v &= 0xF
+        return v - 16 if v & 8 else v
+    sf = []
+    for k in range(8):
+        a = sym("sfList") + 8 * k
+        b0, b1 = m.load(a, 1), m.load(a + 1, 1)
+        sf.append([nib(b0), (b0 >> 4) & 0xF, b1 & 0xF, s16(m.load(a + 2, 2)), s16(m.load(a + 4, 2))])
+    return [s16(m.load(sym("camID"), 2))] + [cam(sym(n)) for n in CAMERAS] + [sf]
+
+
+def bosscam_state(game, boss):
+    """The boss camera (+0x14c) and bossCamSW (+0x150), None without one:
+    as battle_probe's bcam_json."""
+    m = game.m
+    c = m.load(boss + 0x14C, 4)
+    if not c:
+        return None
+
+    def v3(o):
+        return [m.load(c + o + 4 * k, 4) for k in range(3)]
+
+    def ld(o, n=4, signed=False):
+        return m.load(c + cam_off(o), n, signed)
+    return [int(m.load(boss + 0x150, 4) != 0), m.load(c, 1), m.load(c + 1, 1), m.load(c + 2, 1),
+            s32(m.load(c + 4, 4)), v3(0x10), v3(0x20), v3(0x30), v3(0x40), v3(0x50), v3(0xB0), v3(0xC0),
+            m.load(c + 0xD8, 4), ld(0xDC), ld(0xE0, 2, True), ld(0xE2, 2, True), ld(0xE4, 2, True),
+            ld(0xE8, 4, True), ld(0x100), ld(0x10C, 4, True), ld(0x128, 1), ld(0x129, 1), ld(0x104), ld(0x108)]
+
+
 # ccBoss::Draw run natively (docs/engine/boss.md "The camera fade"): its
 # transparency is setTransparency times ccGetCameraTransparency from the
-# active camera, a stand-in at the case's eye, pitch and type, in a field
-# (game.area 1: 7000 out over 600). Only the clip's drawing is left out.
-DRAW_CAM = 0x01AB0000           # activeCamPtr's stand-in
+# active camera (the case's draw camera: tcam, or the active one after
+# the constructor), in a field (game.area 1: 7000 out over 600). Only the
+# clip's drawing is left out.
 DRAW_SCRATCH = 0x01AB1000       # ccSys's matrix stack (+604)
 DRAW_STUBS = ("SetActiveLayer__9WORLD_MANFi", "SetFogBlend__9ccDrawEnvFfUi", "ResetFogBlend__9ccDrawEnvFv",
               "GetAmbient__9ccDrawEnvFPf", "SetAmbient__9ccDrawEnvFPf", "SleepDistantLight__9WORLD_MANFv",
@@ -148,7 +288,8 @@ def draw_case(rnd):
         x, y = rnd.uniform(-r, r), rnd.uniform(-r, r)
     eye = [fbits(x), fbits(y), fbits(rnd.uniform(0, 600 if kind == 0 else 1500))]
     deg1 = rnd.choice((0, rnd.randrange(-0x2000, 0x4000)))
-    return {"draw_cam": eye + [deg1, int(rnd.random() < 0.1)]}
+    draw = eye + [deg1, int(rnd.random() < 0.1)]
+    return {"draw_cam": draw, "cam": cam_case(rnd, draw)}
 
 
 # Cameras that fade whatever stands about the origin: 7360 out (half
@@ -165,11 +306,13 @@ def forced_draw_cases(c, rnd_case, seed0):
     for k, cam in enumerate(FORCED_DRAW_CAMS):
         case = rnd_case(c, random.Random(seed0 + k))
         case["draw_cam"] = list(cam)
+        case["cam"]["post"] = forced_post(cam)
         yield k, case
 
 
 def draw_tokens(case):
-    return list(case["draw_cam"])
+    """The cameras' tokens (`cam_tokens`, `post_tokens`)."""
+    return cam_tokens(case["cam"]) + post_tokens(case["cam"])
 
 
 def install_draw(game):
@@ -194,17 +337,11 @@ def own_fog(out):
     return fog
 
 
-def put_draw_camera(game, case, at=DRAW_CAM):
-    """activeCamPtr at `at` with the case's eye, deg[1] (+90) and type
-    (+92); game.area 1; ccSys's matrix stack."""
+def put_draw_camera(game, case):
+    """camera.cpp as the case lays it (`put_cams`); game.area 1; ccSys's
+    matrix stack."""
     m, sym = game.m, game.sym
-    x, y, z, deg1, kind = case["draw_cam"]
-    m.mem[at:at + 0x70] = bytes(0x70)
-    for k, w in enumerate((x, y, z, F_ONE)):
-        m.store(at + 4 * k, 4, w)
-    m.store(at + 90, 2, deg1 & 0xFFFF)
-    m.store(at + 92, 4, kind)
-    m.store(sym("activeCamPtr"), 4, at)
+    put_cams(game, case["cam"])
     m.store(m.load(sym("game"), 4) + 0x14, 4, 1)
     m.store(m.load(sym("ccSys"), 4) + 604, 4, DRAW_SCRATCH)
 
@@ -360,7 +497,6 @@ class Game:
                      "InitAfterImage__6ccBossFP5ccAnmi", "NextVertex__9ccLatticeFv", "SetPos__9ccLatticeFPfi",
                      "Disp__9ccLatticeFv", "__dl__FPv", "MakePacket__15ccBufferReverceFv"):
             hook(name, nop)
-        hook("InitBossCamera__6ccBossFff", nop)
         hook("__ct__15ccBufferReverceFv", this)
         hook("Init__7ccLayerFsP6ccView", nop)
         hook("SetFrame__6ccViewFffffffff", nop)
@@ -433,9 +569,6 @@ class Game:
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
         hook("ccSqFade__FiUsiUc", nop)
-        for name in ("cameraGetPos__FPfi", "cameraGetView__FPfi", "cameraGetRot__FPfi", "cameraSetPos__FPfi",
-                     "cameraSetView__FPfi", "cameraSetRot__FPfi", "changeCamera__Fi"):
-            hook(name, nop)
         hook("ccTransPosW2P__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccTransPosP2W__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("SetHitSW__9ccCharHitFi", nop)
@@ -583,6 +716,7 @@ def run_game(game, case):
     sys_ = m.load(g.sym("ccSys"), 4)
     m.store(sys_ + 0x358, 4, case["count"])
     m.call(game.sym("__ct__8ccBoss01Fv"), (BOSS,))
+    post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     kite_va = SCN
@@ -651,6 +785,8 @@ def game_state(game, n):
         "blur": blur_state(game, MGR),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
+        "cams": cams_state(game),
+        "bcam": bosscam_state(game, BOSS),
     }
 
 

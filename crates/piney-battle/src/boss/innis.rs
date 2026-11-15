@@ -14,6 +14,7 @@ use super::blur::Set;
 use super::systems::wave::Wave;
 use super::systems::{BossSystem, Hook, Others, Systems};
 use super::{Anm, BodyDraw, Boss, BossBase, Cx, EffKind, Figure, Fx, FxCall, Out, Output, PassMode, VF0, word};
+use crate::camera::CamId;
 use crate::chara::AffectFunc;
 use crate::enemy_ai::rand_f;
 use crate::geom::get_dirc;
@@ -335,6 +336,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     pos[2] = ee::add(pos[2], 0x41a0_0000);
     cx.scene.chars[me].pos = pos;
     b.dirc = kite_dirc;
+    b.init_boss_camera(cx, 0x4348_0000, 0x4461_0000);
     x.hipos = pos[2];
     b.anm.set("ANM_ex21nut0", cx.clips);
     b.change_action(cx, act::NEUTRAL, 0, true);
@@ -642,7 +644,7 @@ impl Missile {
                     let id = b.effects.create(EffKind::WaveShock);
                     cx.out(Out::Effect { id, kind: EffKind::WaveShock, pos, dirc: VF0 });
                 }
-                Call::Quake => cx.quake_vec([0x4120_0000; 3]),
+                Call::Quake => b.quake_vec(cx, [0x4120_0000; 3]),
                 Call::Due { mode } => {
                     if !self.hits || magic_damage(b, x, mode, cx) {
                         alive = false;
@@ -680,13 +682,13 @@ fn magic_damage(b: &mut BossBase, x: &mut Innis, mode: i32, cx: &mut Cx) -> bool
     x.eny_int += 1;
     if x.eny_int < 21 {
         let q = x.quake_vector;
-        cx.quake_vec([q[0], q[1], q[2]]);
+        b.quake_vec(cx, [q[0], q[1], q[2]]);
     }
     if x.eny_int == 60 {
         cx.out(Out::Cinema(None));
         b.change_action(cx, act::NEUTRAL, 1, true);
         b.unlock_player();
-        cx.out(Out::CamMode { mode: 6 });
+        b.cam_mode(cx, 6);
         return true;
     }
     false
@@ -872,7 +874,7 @@ fn reset_data(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
 /// `ccBoss02::SetCameraEyes` (0x00499b40): face the camera (its heading
 /// turned round), 256 at a time.
 fn set_camera_eyes(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
-    x.cam_rot = cx.cam.rot;
+    x.cam_rot = cx.cams_ref().rot();
     let to = wrap(ee::add(x.cam_rot[2], PI));
     b.dirc[2] = geom::set_dirc(b.dirc[2], to, 256);
 }
@@ -1148,7 +1150,7 @@ fn pattern02(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
         x.p_dist = b.target_dist;
         x.p_flg = 0;
         let side = cx.cc.rand() % 2 != 0;
-        let r = cx.cam.rot[2];
+        let r = cx.cams_ref().rot()[2];
         b.move_dirc = if side { ee::sub(r, THIRD_PI) } else { ee::add(THIRD_PI, r) };
     }
     b.spd_up(0x4316_0000, 0x40a0_0000);
@@ -1179,7 +1181,7 @@ fn pattern05(b: &mut BossBase, x: &mut Innis, dist: i32, cx: &mut Cx) {
     if x.p_flg != 0 {
         x.p_dist = b.target_dist;
         x.p_flg = 0;
-        let r = cx.cam.rot[2];
+        let r = cx.cams_ref().rot()[2];
         b.move_dirc = wrap(if x.action_flg == 0 { r } else { ee::add(PI, r) });
     }
     b.spd_up(0x4348_0000, 0x41f0_0000);
@@ -1249,7 +1251,7 @@ fn pattern08(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     if x.cou % 10 == 0 {
         let pos = cx.pos();
         cx.out(Out::Se3dNote { se: 57, pos, note: 55 });
-        let r = cx.cam.rot[2];
+        let r = cx.cams_ref().rot()[2];
         if x.eny_flg != 0 {
             b.move_dirc = ee::add(THIRD_PI, r);
             x.eny_flg = 0;
@@ -1393,12 +1395,12 @@ fn pattern11(b: &mut BossBase, x: &mut Innis, dist: i32, cx: &mut Cx) {
     if x.p_flg != 0 {
         x.p_dist = b.target_dist;
         x.p_flg = 0;
-        let r = cx.cam.rot[2];
+        let r = cx.cams_ref().rot()[2];
         b.move_dirc = wrap(if x.action_flg == 0 { r } else { ee::add(PI, r) });
     }
     char_all_hold(cx);
     if ee::lt(d, b.target_dist) {
-        if !cx.cam.moving {
+        if !b.cam_moving() {
             reset_data(b, x, cx);
         } else {
             b.move_spd = 0;
@@ -1446,8 +1448,8 @@ fn skill_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     if c == 90 {
         cx.out(Out::Cinema(None));
         cx.out(Out::Blur(Set::Abgr(x.default_argb)));
-        cx.out(Out::CamMode { mode: 6 });
-        cx.out(Out::CamPitch { add: false, v: 0 });
+        b.cam_mode(cx, 6);
+        b.with_cam(|c| c.xrot = 0);
         b.unlock_player();
         reset_data(b, x, cx);
         b.entry_cmnd_target(cx);
@@ -1477,18 +1479,18 @@ fn skill_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             cx.out(Out::Cinema(Some(70)));
             x.zoom_vec = VF0;
             x.zoom_view = VF0;
-            x.cam_pos = cx.cam.pos;
-            x.cam_view = cx.cam.view;
+            x.cam_pos = cx.cams_ref().cam(CamId::Battle).pos;
+            x.cam_view = cx.cams_ref().cam(CamId::Battle).view;
             let pos = cx.pos();
             x.cam_mat = geom::rot_matrix_z(&geom::unit_matrix(), get_dirc(b.target_pos, pos));
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x4448_0000);
             x.zoom_vec[2] = ee::add(x.zoom_vec[2], 0x4248_0000);
             // The view's x and y are the stack's leftover, SetCameraEyes'
             // saved return address, which the FPU reads as zero.
             let view = [pos[0], pos[1], ee::add(0x437a_0000, pos[2]), pos[3]];
             let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), b.target_pos);
-            cx.out(Out::FreeCam { pos: eye, view });
+            b.cam_pos_view(eye, view);
             b.erase_cmnd_target(cx);
             cx.out(Out::CursorOff(true));
             x.no += 1;
@@ -1499,7 +1501,7 @@ fn skill_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             };
             x.skill_id = rnd_skill(atb, cx);
         }
-        _ => cx.out(Out::CamPitch { add: true, v: 0x3c23_d70a }),
+        _ => b.with_cam(|c| c.xrot = ee::add(c.xrot, 0x3c23_d70a)),
     }
 }
 
@@ -1529,10 +1531,10 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             b.lock_player(cx, false);
             x.zoom_vec = VF0;
             x.zoom_view = VF0;
-            x.cam_pos = cx.cam.pos;
-            x.cam_view = cx.cam.view;
+            x.cam_pos = cx.cams_ref().cam(CamId::Battle).pos;
+            x.cam_view = cx.cams_ref().cam(CamId::Battle).view;
             x.cam_mat = geom::rot_matrix_z(&geom::unit_matrix(), b.dirc[2]);
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             x.cou = 1;
             x.eny_flg = 0;
             cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
@@ -1546,7 +1548,7 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.zoom_view[1] = ee::add(ONE, x.zoom_vec[1]);
             let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), pos);
             let view = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_view), x.cam_view);
-            cx.out(Out::FreeCam { pos: eye, view });
+            b.cam_pos_view(eye, view);
             x.cou += 1;
         }
         2 if x.eny_flg == 0 => {
@@ -1561,13 +1563,13 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.eny_float = ee::from_int(sid);
             x.zoom_vec = VF0;
             x.zoom_view = VF0;
-            x.cam_pos = cx.cam.pos;
-            x.cam_view = cx.cam.view;
+            x.cam_pos = cx.cams_ref().cam(CamId::Battle).pos;
+            x.cam_view = cx.cams_ref().cam(CamId::Battle).view;
             x.cam_mat = geom::rot_matrix_z(&geom::unit_matrix(), get_dirc(b.target_pos, pos));
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x442f_0000);
             x.zoom_vec[2] = ee::add(x.zoom_vec[2], 0x4248_0000);
             let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), x.cam_pos);
-            cx.out(Out::FreeCam { pos: eye, view: pos });
+            b.cam_pos_view(eye, pos);
             x.cou += 1;
         }
         50 if x.eny_flg == 0 => {
@@ -1575,7 +1577,7 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.zoom_vec[1] = 0x448f_c000;
             x.zoom_vec[2] = 0x4316_0000;
             let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), b.target_pos);
-            cx.out(Out::FreeCam { pos: eye, view: pos });
+            b.cam_pos_view(eye, pos);
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x42b4_0000);
             x.zoom_view[1] = ee::sub(x.zoom_vec[1], ONE);
             x.eny_flg = 1;
@@ -1584,9 +1586,9 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
         1 | 2 | 50 => {}
         _ if x.eny_flg == 0 => {
             x.cou = c + 1;
-            let mut eye = cx.cam.pos;
+            let mut eye = cx.cams_ref().cam(CamId::Battle).pos;
             eye[2] = ee::add(eye[2], 0x4120_0000);
-            cx.out(Out::FreeCam { pos: eye, view: pos });
+            b.cam_pos_view(eye, pos);
         }
         _ => {}
     }
@@ -1639,7 +1641,7 @@ fn all_attack(b: &mut BossBase, x: &mut Innis, wave: &mut Anm, cx: &mut Cx) {
             b.act_count += 1;
             if b.act_count < 51 {
                 let q = x.quake_vector;
-                cx.quake_vec([q[0], q[1], q[2]]);
+                b.quake_vec(cx, [q[0], q[1], q[2]]);
             }
             if b.act_count == 3 {
                 cx.out(Out::Flash { t: 30, colour: 0x80ff_ffff });
@@ -2003,12 +2005,12 @@ fn images(b: &mut BossBase, x: &mut Innis, ims: &mut Images, cx: &mut Cx) {
             b.act_proccess = 5;
             x.zoom_vec = VF0;
             x.cam_mat = geom::unit_matrix();
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             x.cam_mat = geom::rot_matrix_z(&x.cam_mat, get_dirc(b.target_pos, pos));
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x44bb_8000);
             x.zoom_vec[2] = ee::add(x.zoom_vec[2], 0x43af_0000);
             let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), b.target_pos);
-            cx.out(Out::FreeCam { pos: eye, view: pos });
+            b.cam_pos_view(eye, pos);
             return;
         }
         5 => {
@@ -2041,7 +2043,7 @@ fn images(b: &mut BossBase, x: &mut Innis, ims: &mut Images, cx: &mut Cx) {
         return;
     }
     b.unlock_player();
-    cx.out(Out::CamMode { mode: 6 });
+    b.cam_mode(cx, 6);
     b.act_proccess = 0;
     x.cou = 0;
     x.end_flg = 0;
@@ -2220,7 +2222,7 @@ impl Slave {
                     self.quake_time -= 1;
                     if q >= 0 {
                         let v = self.quake_vector;
-                        cx.quake_vec([v[0], v[1], v[2]]);
+                        master.quake_vec(cx, [v[0], v[1], v[2]]);
                     }
                     if self.mirror.check_anm_end() {
                         sb.change_action(cx, 0, 0, true);
@@ -2240,7 +2242,7 @@ impl Slave {
     /// `slaveID` starts from, round the camera's back, and its spins.
     fn set_start_position(&mut self, sb: &mut BossBase, cx: &mut Cx) {
         let me = self.me;
-        let f20 = wrap(ee::add(PI, cx.cam.rot[2]));
+        let f20 = wrap(ee::add(PI, cx.cams_ref().rot()[2]));
         sb.dirc[2] = f20;
         let mut v = VF0;
         let unit = geom::unit_matrix();
@@ -2315,7 +2317,7 @@ impl Slave {
         let mut up = tp;
         up[2] = ee::add(up[2], 0x4248_0000);
         cx.out(FxCall::Innis { which: Gen::Burst(4), pos: up });
-        let r = cx.cam.rot;
+        let r = cx.cams_ref().rot();
         let mut rot = VF0;
         rot[1] = fp(dp(rand_f(cx.cc, 0x3e4c_cccd)) + 0.785_398_185_253_143_3);
         rot[2] = wrap(fp(dp(r[2]) + 0.628_318_548_202_514_6));
@@ -2471,7 +2473,7 @@ impl Mirror {
 mod tests {
     use super::*;
     use crate::affect::{self, AffectCtx};
-    use crate::boss::{BossEnv, CamView};
+    use crate::boss::BossEnv;
     use crate::chara::{Char, Env};
     use crate::enemy_ai::{Genrand, IDENTITY, World};
     use crate::event::Events;
@@ -2484,6 +2486,7 @@ mod tests {
 
     /// Innis over Kite and a member, 500 apart, on Mutation's tables.
     struct Fight {
+        cams: std::cell::RefCell<crate::boss::Cams>,
         t: Tables,
         scene: Scene,
         party: Party,
@@ -2520,7 +2523,16 @@ mod tests {
         ch.affect.func = AffectFunc::Boss;
         let me = scene.add(ch, 3);
         let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
-        let mut f = Fight { t, scene, party, me, rand: Rand(7), cc: Genrand::seeded(4357), count: 0 };
+        let mut f = Fight {
+            cams: std::cell::RefCell::new(crate::boss::Cams::at_rest(Volume::Mut)),
+            t,
+            scene,
+            party,
+            me,
+            rand: Rand(7),
+            cc: Genrand::seeded(4357),
+            count: 0,
+        };
         let b = f.with_cx(|cx| new(cx, [0, 0, 0, ONE], VF0, VF0));
         f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
         Some(f)
@@ -2531,7 +2543,7 @@ mod tests {
             let clip = |_: &str| Some((60, false));
             let env = Env { count: self.count, menu_type: -1, ..Env::default() };
             let check = |_: usize| 0;
-            let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
+            let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None, cams: &self.cams };
             let actx = AffectCtx {
                 party: &self.party,
                 menu: true,
@@ -2554,8 +2566,6 @@ mod tests {
                 collide: &mut none,
                 field: &mut crate::boss::NoField,
                 game_over: false,
-                boss_cam: true,
-                cam: CamView::default(),
                 land: &mut land,
                 disc: crate::boss::DiscView::default(),
                 gen_alive: &|_| true,
@@ -2586,7 +2596,7 @@ mod tests {
             let clip = |_: &str| Some((60, false));
             let env = Env { count: self.count, menu_type: -1, ..Env::default() };
             let check = |_: usize| 0;
-            let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None };
+            let benv = BossEnv { t: &self.t, clips: &clip, env: &env, game_over: false, cc: None, cams: &self.cams };
             let actx = AffectCtx {
                 party: &self.party,
                 menu: true,
@@ -2663,8 +2673,10 @@ mod tests {
         f.innis().move_flg = 19;
         let mut outs = Vec::new();
         let mut waited = false;
+        let mut freed = false;
         for _ in 0..400 {
             outs.extend(f.frame());
+            freed |= f.boss().base.cam.as_ref().is_some_and(|c| c.lock);
             waited |= f.boss().base.act_num == act::MAGIC;
             if waited && f.boss().base.act_num == act::NEUTRAL {
                 break;
@@ -2674,7 +2686,8 @@ mod tests {
         assert_eq!(f.boss().base.act_num, act::NEUTRAL);
         assert_eq!(f.boss().base.lock_player, 0);
         assert_eq!(f.innis().eny_int, 60, "MagicDamage called 60 times");
-        assert!(outs.contains(&Out::CamMode { mode: 6 }));
+        let cam = f.boss().base.cam.clone().unwrap();
+        assert!(freed && !cam.lock && cam.reset == 0, "the camera free, then back (mode 6)");
         let missiles = outs.iter().filter(|o| matches!(o, Out::Effect { kind: EffKind::Missile { .. }, .. })).count();
         assert_eq!(missiles, 3);
     }

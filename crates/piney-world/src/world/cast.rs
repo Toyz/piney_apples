@@ -15,7 +15,6 @@ use piney_desktop::anm::Ctx;
 use super::{CharId, World};
 use crate::combat::Show;
 use crate::ee::{F, V4};
-use crate::grunty::GruntyEvent;
 use crate::grunty::race::{RaceEvent, RaceHost};
 use crate::systems::npcs::{NpcCtx, NpcEvent, Npcs};
 use crate::town::merchant::SysopEvent;
@@ -192,41 +191,27 @@ pub(super) struct Lent;
 
 impl Cast for Lent {}
 
-/// [`Npcs::affect`] with the world's `ccRand` and Kite's heading, a
-/// Grunty's camera writes and Kite's place carried out at once.
+/// [`Npcs::affect`] with the world's `ccRand`, Kite's heading and
+/// camera.cpp's list (a Grunty's fixed camera written at the call), and
+/// Kite put where the fixed camera puts him.
 pub(crate) fn npc_affect(npcs: &mut Npcs, w: &mut World, id: i32, cmnd: i16, p: [i16; 2]) {
     let dirc = w.kite().dirc();
-    npcs.affect(id, cmnd, p, &mut w.combat.cc, dirc);
-    apply_after(w, npcs.take_after());
+    if let Some((pos, dirc_z)) = npcs.affect(id, cmnd, p, &mut w.combat.cc, dirc, &mut w.camera.list) {
+        let mut dirc = dirc;
+        dirc[2] = dirc_z;
+        w.put_kite(pos, dirc);
+    }
 }
 
 /// What the NPC list asked this slot, out with the battle's shows in its
-/// order (the Administrator's `noise2` the menu's), then the Grunties'
-/// camera writes and Kite's place.
+/// order (the Administrator's `noise2` the menu's; the camera after an
+/// NPC's camera write a [`Show::Ear`] for the sounds after it).
 pub(crate) fn npc_outs(w: &mut World, npcs: &mut Npcs) {
     for (code, e) in npcs.take_events() {
         match e {
             NpcEvent::Merchant(SysopEvent::Noise) => w.noise = true,
+            NpcEvent::Ear(ear) => w.combat.shows.push(Show::Ear(ear)),
             e => w.combat.shows.push(Show::Cast(Out::Npc { code, e })),
-        }
-    }
-    apply_after(w, npcs.take_after());
-}
-
-/// A Grunty's `changeCamera`, `cameraSetPos` and `cameraSetView` on
-/// `camID`'s camera, and Kite put where it says.
-fn apply_after(w: &mut World, events: Vec<GruntyEvent>) {
-    for e in events {
-        match e {
-            GruntyEvent::Camera(n) => w.camera.change_camera(n),
-            GruntyEvent::CamPos(v) => w.camera.active_mut().pos = v,
-            GruntyEvent::CamView(v) => w.camera.active_mut().view = v,
-            GruntyEvent::Player { pos, dirc_z } => {
-                let mut dirc = w.kite().dirc();
-                dirc[2] = dirc_z;
-                w.put_kite(pos, dirc);
-            }
-            _ => {}
         }
     }
 }
@@ -267,25 +252,15 @@ impl Cast for BattleCast {
     /// frame's shows after what the menus' `EntryAffect` asked since the
     /// last slot.
     fn entry_slot(&mut self, w: &mut World, _fades: &mut dyn RaceHost) {
-        for (code, e) in self.npcs.take_events() {
-            w.combat.shows.push(Show::Cast(Out::Npc { code, e }));
-        }
+        npc_outs(w, &mut self.npcs);
         if self.npcs.is_empty() {
             return;
         }
-        let a = w.camera.active();
-        let view = crate::chara::char::View {
-            player: w.kite().pos(),
-            cam: a.pos,
-            deg1: a.deg[1],
-            eye: a.kind == crate::camera::kind::EYE,
-        };
         let (player, player_dirc) = (w.kite().pos(), w.kite().dirc());
         let mut cx = NpcCtx {
             player,
             player_dirc,
-            view,
-            cam: w.camera.active(),
+            cams: &mut w.camera.list,
             hits: &mut w.area.core_mut().hits,
             rand: &mut w.combat.rand,
             cc: &mut w.combat.cc,

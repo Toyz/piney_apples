@@ -425,15 +425,15 @@ fn kyvia_scene(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) -> bo
         let eye = add(point, [0, 0xc4fa_0000, 0x42c8_0000, ONE]);
         cx.out(Out::Blur(Set::Scale(0x3f82_8f5c)));
         cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
-        cx.out(Out::CamMode { mode: 5 });
-        cx.out(Out::FreeCam { pos: eye, view: point });
+        b.cam_mode(cx, 5);
+        b.cam_pos_view(eye, point);
         cx.out(Out::SeNote { se: 191, note: 60 });
     }
     if c >= 40 {
         let rise = if c < 155 { 0x40a0_0000 } else { 0x4040_0000 };
-        let eye = add(cx.cam.eye, [0, rise, 0, ONE]);
-        if cx.cam.reset == 5 {
-            cx.out(Out::CamEye(eye));
+        let eye = add(b.cam_eye(), [0, rise, 0, ONE]);
+        if b.cam_reset() == 5 {
+            b.with_cam(|c| c.pos = eye);
         }
     }
     if c == 155 {
@@ -444,7 +444,7 @@ fn kyvia_scene(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) -> bo
     }
     if c == 280 {
         cx.out(Out::Blur(Set::Abgr(x.default_argb)));
-        cx.out(Out::CamMode { mode: 6 });
+        b.cam_mode(cx, 6);
         return true;
     }
     false
@@ -827,10 +827,10 @@ pub(super) fn big_megid(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut 
             }
             b.act_proccess += 1;
             cx.out(Out::Flash { t: 50, colour: 0x80ff_ffff });
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             let pos = [0, 0xc57a_0000, 0x44af_0000, ONE];
             let view = [0, 0xc42f_0000, 0x4496_0000, ONE];
-            cx.out(Out::FreeCam { pos, view });
+            b.cam_pos_view(pos, view);
             cx.out(Out::Blur(Set::Abgr(0x7080_8080)));
             cx.out(Out::Blur(Set::Scale(0x3f82_8f5c)));
             b.lock_player(cx, false);
@@ -866,7 +866,7 @@ pub(super) fn big_megid(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut 
                 cx.out(Out::Blur(Set::Abgr(x.default_argb)));
                 b.change_action(cx, act::NEUTRAL, 1, true);
                 b.unlock_player();
-                cx.out(Out::CamMode { mode: 6 });
+                b.cam_mode(cx, 6);
                 if ex(x) {
                     super::core_end_fade_ex(t, cx);
                 }
@@ -890,12 +890,12 @@ pub(super) fn skill_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut 
             // `DMY_marker01`'s chunk is fetched and not read.
             particles(cx, Gen::Fourth(Make::Skill), Place::At([0, 0xc461_0000, 0x44bb_8000, ONE]), None);
             b.lock_player(cx, false);
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             let core = t.core.as_ref().map_or(cx.me, |c| c.me);
             let view = cx.scene.chars[core].pos;
             let r = rand_f(cx.cc, 0x3e19_999a);
             let eye = core_eye(cx, r, view);
-            cx.out(Out::FreeCam { pos: eye, view });
+            b.cam_pos_view(eye, view);
         }
         1 => {
             b.act_count += 1;
@@ -918,7 +918,7 @@ pub(super) fn skill_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut 
             }
         }
         2 => {
-            cx.out(Out::CamMode { mode: 6 });
+            b.cam_mode(cx, 6);
             b.unlock_player();
             b.change_action(cx, act::NEUTRAL, 0, true);
             super::core_end_fade_ex(t, cx);
@@ -992,25 +992,25 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
         6 => {
             if ex {
                 b.act_proccess += 1;
-                cx.out(Out::CamMode { mode: 5 });
+                b.cam_mode(cx, 5);
                 cx.out(Out::Blur(Set::Abgr(0x6080_8080)));
                 let core = t.core.as_ref().map_or(cx.me, |c| c.me);
                 let r = rand_f(cx.cc, 0x3e19_999a);
                 let view = cx.scene.chars[core].pos;
                 let eye = core_eye(cx, r, view);
                 cx.out(Out::SeNote { se: 191, note: 60 });
-                cx.out(Out::FreeCam { pos: eye, view });
+                b.cam_pos_view(eye, view);
             } else if core_state_is(t, 6) {
                 b.act_proccess += 1;
                 let me = cx.me;
                 let d = super::super::dist(cx, cx.scene.chars[me].pos, t.disc.pos);
-                cx.out(Out::CamModeRange { mode: 3, range: ee::add(0x44fa_0000, d) });
+                b.cam_mode_range(cx, 3, ee::add(0x44fa_0000, d));
                 cx.out(Out::Blur(Set::Abgr(0x6080_8080)));
                 cx.out(Out::SeNote { se: 191, note: 60 });
             }
         }
         7 => {
-            if ex || cx.cam.reset == 0 {
+            if ex || b.cam_reset() == 0 {
                 b.act_proccess += 1;
                 super::magic_ball::create(b, t.disc.pos, cx);
                 if ex {
@@ -1022,18 +1022,18 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
             b.act_count += 1;
             if ex && b.act_count >= 36 {
                 let q = x.quake_vector;
-                cx.quake_vec([q[0], q[1], q[2]]);
+                b.quake_vec(cx, [q[0], q[1], q[2]]);
             }
         }
         9 => {
-            if ex || cx.cam.reset == 0 {
+            if ex || b.cam_reset() == 0 {
                 b.act_proccess += 1;
                 cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
         }
         10 => {
             if ex {
-                cx.out(Out::CamMode { mode: 6 });
+                b.cam_mode(cx, 6);
                 super::core_end_fade_ex(t, cx);
             } else if !core_fade_check(t) {
                 return;
@@ -1059,7 +1059,7 @@ pub(super) fn ball_damage(b: &mut BossBase, t: &mut Tree, cx: &mut Cx, pos: V4, 
         2 => {
             b.act_proccess += 1;
             core_state(t, cx, 7);
-            cx.out(Out::CamMode { mode: 4 });
+            b.cam_mode(cx, 4);
         }
         _ => {}
     }
@@ -1090,10 +1090,10 @@ pub(super) fn rebirth(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx
             b.anm.speed = 128;
             particles(cx, Gen::Fourth(Make::Rebirth(0)), Place::At(at), None);
             particles(cx, Gen::Fourth(Make::Rebirth(1)), Place::At(at), None);
-            cx.out(Out::CamMode { mode: 5 });
+            b.cam_mode(cx, 5);
             let pos = [0, 0xc57a_0000, 0x44af_0000, ONE];
             let view = [0, 0xc42f_0000, 0x4496_0000, ONE];
-            cx.out(Out::FreeCam { pos, view });
+            b.cam_pos_view(pos, view);
         }
         30 => {
             if (b.anm.frame() as u32) < 68 && fourth_of(x).rebirth_cnt % 8 == 0 {
@@ -1101,7 +1101,7 @@ pub(super) fn rebirth(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx
                 cx.out(Out::SeNote { se: 191, note: n as u8 });
             }
             if b.anm_status != 0 {
-                cx.out(Out::CamMode { mode: 6 });
+                b.cam_mode(cx, 6);
                 b.act_proccess += 1;
                 cx.out(Out::StreamMenu { stream: 85, mask: 0 });
                 cx.out(Out::Blur(Set::Scale(ONE)));
@@ -1197,7 +1197,7 @@ pub(super) fn dead(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
             if ee::lt(ONE, ee::mul(0x42c8_0000, x.cam_pitch)) {
                 let v = ee::sub(x.cam_pitch, ee::div(x.cam_pitch, 0x41a0_0000));
-                super::set_pitch(x, cx, v);
+                super::set_pitch(b, x, v);
             }
             super::dead_voice(b, x.fight, cx);
             super::dead_cam(b, x, cx);
@@ -1205,7 +1205,7 @@ pub(super) fn dead(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             x.ded_dmg_vec[2] = ee::sub(x.ded_dmg_vec[2], ONE);
             x.ded_dmg_vec[1] = ee::add(x.ded_dmg_vec[1], 0x4080_0000);
             let q = x.quake_vector;
-            cx.quake_vec([q[0], q[1], q[2]]);
+            b.quake_vec(cx, [q[0], q[1], q[2]]);
             let max = cx.scene.chars[me].max_hp;
             if let Some(core) = t.core.as_ref() {
                 let ch = &mut cx.scene.chars[core.me];

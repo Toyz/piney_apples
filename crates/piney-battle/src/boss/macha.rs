@@ -254,6 +254,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = super::w2p(cx, b.center_pos);
     b.use_stage_eff = true;
+    b.init_boss_camera(cx, 0x437a_0000, 0x447a_0000);
     // The blur on (m_exit 0) under ccBoss03BlurParamCB.
     cx.out(Out::Blur(Set::Enable));
     cx.out(Out::Blur(Set::Func(BlurFunc::Boss03)));
@@ -602,7 +603,7 @@ fn on_skill(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 30000]);
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
-            cx.free_cam_from(vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0, ONE]);
+            b.free_cam_from(cx, vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0, ONE]);
             b.erase_cmnd_target(cx);
             cx.cursor(true);
             b.lock_player(cx, true);
@@ -650,7 +651,7 @@ fn on_skill(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             b.unlock_player();
             b.entry_cmnd_target(cx);
             cx.cursor(false);
-            cx.out(Out::CamMode { mode: 6 });
+            b.cam_mode(cx, 6);
             cx.out(Out::SwitchLayer);
             cx.out(Out::Cinema(None));
             x.change_next_pattern(b, cx);
@@ -773,7 +774,7 @@ fn on_back_dash(b: &mut BossBase, cx: &mut Cx) {
         b.spd_up(0x4316_0000, 0x4316_0000);
         let pp = cx.scene.chars[me].pos_p;
         if !super::fidchell::valid_area(b, cx, pp) {
-            b.move_dirc = wrap(ee::add(PI, cx.cam.rot[2]));
+            b.move_dirc = wrap(ee::add(PI, cx.cams_ref().rot()[2]));
         }
         b.dirc[2] = b.move_dirc;
         return;
@@ -788,7 +789,7 @@ fn on_back_dash(b: &mut BossBase, cx: &mut Cx) {
         return;
     }
     if b.act_count % 10 == 0 {
-        let r = cx.cam.rot[2];
+        let r = cx.cams_ref().rot()[2];
         b.move_dirc = if b.act_proccess != 0 { ee::add(0x3f86_0a92, r) } else { ee::sub(r, 0x3f86_0a92) };
         b.act_proccess ^= 1;
         b.move_dirc = wrap(b.move_dirc);
@@ -837,7 +838,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             let mut vp = cx.pos();
             vp[2] = ee::add(vp[2], 0x4396_0000);
             let d = [b.dirc[0], b.dirc[1], b.target_dirc, b.dirc[3]];
-            cx.free_cam_from(vp, d, [0x44fa_0000, 0, 0, ONE]);
+            b.free_cam_from(cx, vp, d, [0x44fa_0000, 0, 0, ONE]);
             b.dirc[2] = b.target_dirc;
             cx.out(Out::Se { se: 242 });
             b.act_proccess += 1;
@@ -883,7 +884,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             cx.out(crate::boss::Picture::anm(clip, time, x.ball_pos, b.dirc, crate::boss::AnmLayer::Eff));
             if f == 140 {
                 let vp = b.target_pos;
-                cx.free_cam_from(vp, b.dirc, [0x44bb_8000, 0, 0x42c8_0000, ONE]);
+                b.free_cam_from(cx, vp, b.dirc, [0x44bb_8000, 0, 0x42c8_0000, ONE]);
             }
             x.ball_speed = ee::add(x.ball_speed, 0x4020_0000);
             if !ee::le(x.ball_speed, 0x43fa_0000) {
@@ -910,7 +911,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             if c < 60 || b.anm_status == 0 {
                 return;
             }
-            cx.out(Out::CamMode { mode: 6 });
+            b.cam_mode(cx, 6);
             let id = std::mem::replace(&mut x.stage_eff, -1);
             b.end_stage_effect(cx, id, DARK, 15);
             b.act_count = 0;
@@ -970,8 +971,8 @@ fn on_wave(b: &mut BossBase, x: &mut Macha, w: &mut Wave, cx: &mut Cx) {
             if done && b.anm_status != 0 {
                 x.change_next_pattern(b, cx);
             }
-            if cx.cam.shake {
-                cx.quake_cam(0x420c_0000);
+            if cx.in_shake_range(cx.pos()) {
+                b.quake_cam(cx, 0x420c_0000);
             }
         }
         _ => {}
@@ -1028,8 +1029,8 @@ fn on_epitaph_wave(b: &mut BossBase, w: &mut Wave, cx: &mut Cx) {
             if b.anm_status != 0 && done {
                 b.change_action(cx, act::EPITAPH, 3, true);
             }
-            if cx.cam.shake {
-                cx.quake_cam(0x420c_0000);
+            if cx.in_shake_range(cx.pos()) {
+                b.quake_cam(cx, 0x420c_0000);
             }
         }
         _ => {}
@@ -1061,7 +1062,7 @@ fn on_charm(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             b.dirc[2] = b.target_dirc;
             let mut vp = cx.pos();
             vp[2] = ee::add(vp[2], 0x4348_0000);
-            cx.free_cam_from(vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0x4316_0000, ONE]);
+            b.free_cam_from(cx, vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0x4316_0000, ONE]);
             b.act_proccess += 1;
         }
         1 => {
@@ -1094,7 +1095,7 @@ fn on_charm(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             if c == 15 {
                 cx.out(Out::Cinema(None));
                 cx.out(Out::SwitchLayer);
-                cx.out(Out::CamMode { mode: 6 });
+                b.cam_mode(cx, 6);
                 b.unlock_player();
                 b.entry_cmnd_target(cx);
                 cx.cursor(false);
@@ -1230,7 +1231,7 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             cx.out(Out::CinemaSkill(x.skill_id));
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
-            cx.free_cam_from(vp, [0, 0, b.target_dirc, 0], [0x44fa_0000, 0, 0, ONE]);
+            b.free_cam_from(cx, vp, [0, 0, b.target_dirc, 0], [0x44fa_0000, 0, 0, ONE]);
             b.act_proccess += 1;
         }
         1 if c == 45 => {
@@ -1262,7 +1263,7 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             cx.cursor(false);
             cx.out(Out::SwitchLayer);
             b.unlock_player();
-            cx.out(Out::CamMode { mode: 6 });
+            b.cam_mode(cx, 6);
             x.change_next_pattern(b, cx);
         }
         _ => {}

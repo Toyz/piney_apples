@@ -34,7 +34,7 @@ fn area_43_flies_over_and_sends_the_party_back() {
     };
     hold(&mut s, 128, 128, 400, |s| calls(s).iter().any(|c| c == "message_open story"));
     let w = playing(&s).unwrap();
-    assert_eq!(w.camera().cam_id, piney_world::camera::id::EVENT);
+    assert_eq!(w.camera().list.id(), piney_world::camera::CamId::Event);
     assert!(calls(&s).iter().any(|c| c == "menu_ban true"));
     assert_eq!(fly(w).cnt, 141);
     // OK until the line closes and the town comes.

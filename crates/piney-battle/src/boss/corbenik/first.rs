@@ -5,6 +5,7 @@
 //! wait, run off, throw seeds, cast and leap; the flash, the pollen and the
 //! body press have no pattern of their own (no table holds their words).
 
+use crate::camera::CamId;
 use piney_data::field::ee;
 use piney_data::volume::Volume;
 
@@ -568,10 +569,10 @@ fn on_die(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             view[2] = 0x4348_0000;
             let v = geom::apply_matrix(&m, [0x44fa_0000, 0, 0x4248_0000, ONE]);
             let eye = crate::boss::p2w(cx, geom::vadd(v, crate::boss::w2p(cx, view)));
-            cx.out(Out::CameraChange(2));
-            cx.out(Out::CameraPos { cam: 2, pos: eye });
-            cx.out(Out::CameraView { cam: 2, view });
-            cx.out(Out::CameraType(3));
+            cx.cams().change(CamId::Battle);
+            cx.cams().cam_mut(CamId::Battle).pos = eye;
+            cx.cams().cam_mut(CamId::Battle).view = view;
+            cx.cams().active_mut().kind = 3;
             x.pause_cnt_down = true;
             x.stage_eff = -1;
             b.act_proccess += 1;
@@ -584,9 +585,9 @@ fn on_die(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
                 let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
                 let m = geom::rot_matrix_z(&m, b.center_dirc);
                 let v = geom::apply_matrix(&m, [0x4120_0000, 0, 0, ONE]);
-                let eye = crate::boss::w2p(cx, cx.cam.active_pos);
+                let eye = crate::boss::w2p(cx, cx.cams_ref().active().pos);
                 let pos = crate::boss::p2w(cx, geom::vadd(eye, v));
-                cx.out(Out::CameraPos { cam: cx.cam.active, pos });
+                cx.cams().active_mut().pos = pos;
             }
             if c == 150 {
                 // The flash's element lands in `m_stageEff`.
@@ -612,7 +613,7 @@ fn on_die(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             b.exit = 1;
             crate::fellow::delete_cmnd(cx.scene, me);
             cx.out(Out::DeleteCmnd);
-            cx.out(Out::CameraChange(1));
+            cx.cams().change(CamId::Field);
         }
         _ => {}
     }
@@ -648,9 +649,9 @@ fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             let m = geom::rot_matrix_z(&m, d);
             let v = geom::apply_matrix(&m, [0x451c_4000, 0, 0x43fa_0000, ONE]);
             let eye = crate::boss::p2w(cx, geom::vadd(crate::boss::w2p(cx, tp), v));
-            cx.out(Out::CameraChange(2));
-            cx.out(Out::CameraPos { cam: 2, pos: eye });
-            cx.out(Out::CameraView { cam: 2, view });
+            cx.cams().change(CamId::Battle);
+            cx.cams().cam_mut(CamId::Battle).pos = eye;
+            cx.cams().cam_mut(CamId::Battle).view = view;
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -682,8 +683,8 @@ fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             }
             // `cameraGetView` and `cameraSetView` on `camID`, the active
             // camera (QUA gcmn 0x003afd98), not camera 2.
-            let view = geom::vadd(cx.cam.active_view, x.act_pos);
-            cx.out(Out::CameraView { cam: cx.cam.active, view });
+            let view = geom::vadd(cx.cams_ref().active().view, x.act_pos);
+            cx.cams().active_mut().view = view;
             let v = ee::mul(x.act_pos[2], 0xbf66_6666);
             x.act_pos[2] = v;
             if f64::from(f32::from_bits(v)).abs() < 10.0 {
@@ -700,7 +701,7 @@ fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             cx.out(Out::CursorOff(false));
             cx.out(Out::SwitchLayer);
             cx.out(Out::Cinema(None));
-            cx.out(Out::CameraChange(1));
+            cx.cams().change(CamId::Field);
             x.change_next_pattern(b, cx);
             b.act_proccess += 1;
         }

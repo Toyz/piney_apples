@@ -37,7 +37,6 @@ BOSS = 0x01300000               # the ccBossKyvia01 (0x296a0 bytes) or 02 (0x297
 FAKE = 0x01340000               # stand-in streams, chunks and effects
 MGR = 0x01380000                # _g_bossEffManager (0x1038 bytes)
 STAGE = 0x01390000              # the stage fader
-CAM = 0x013A0000                # the boss camera (Mutation's ccBossCam)
 WM = 0x013B0000                 # worldman, its event area and the area's stream
 SLAVES = 0x01400000             # operator new[]: the core, the gomoras, the meteors' arrays
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
@@ -86,7 +85,6 @@ class Game:
         self.out = []
         self.moving = 0
         self.ride = 0           # frames the disc rides on after Move
-        self.frame = {"rot": 0, "pos": [0, 0, 0, F_ONE], "view": [0, 0, 0, F_ONE]}
         self.hooks()
         bb.install_blur(self)
         bb.install_draw(self)
@@ -212,7 +210,7 @@ class Game:
         for name in ("SetMatrix_PosRotZYX__7ccCoordFPfPf", "Draw__5ccAnmFv", "Draw__6ccBossFv",
                      "DrawAfterImages__6ccBossFv", "DrawStageEffect__6ccBossFv",
                      "InitAfterImage__6ccBossFP5ccAnmi", "__dl__FPv", "DrawBossEffect__6ccBossFv",
-                     "CamMain__9ccBossCamFv", "SetMatrix_PosRotXYZScale__7ccCoordFPfPfPf",
+                     "SetMatrix_PosRotXYZScale__7ccCoordFPfPfPf",
                      "SetMatrix_PosRotZYXScale__7ccCoordFPfPfPf", "SetMatrix_PosRotXYZ__7ccCoordFPfPf",
                      "Draw__7ccClumpFv", "SetTransparency__7ccClumpFf", "__dt__7ccClumpFv",
                      "ParticleDelete__19ccParticleGeneratorFv",
@@ -230,12 +228,6 @@ class Game:
         hook("ccModelHitCheckQ__FPfPffUii", no_ground)
         hook("__ct__16ccDrawPacketCtrlFv", this)
 
-        def init_cam(mm, a, *_):
-            mm.mem[CAM:CAM + 0x150] = bytes(0x150)
-            mm.store(a + 332, 4, CAM)
-            mm.store(a + 336, 4, 1)
-            return 0
-        hook("InitBossCamera__6ccBossFff", init_cam)
 
         def stage_init(mm, a, *_):
             mm.store(a + 0x29340, 4, STAGE + 0x100)
@@ -290,8 +282,6 @@ class Game:
             mm.store(cp + 0x7E, 2, 1)
             return 0
         hook("ccSkillRequestParam__FP6ccCharP6ccCharii", own_skill)
-        hook("cameraSetPos__FPfi", nop)
-        hook("cameraSetView__FPfi", nop)
         hook("IsMove__11EVENTAREAB8Fv", lambda mm, *a: int(self.moving or self.ride > 0))
 
         def disc_next(mm, *a):
@@ -353,20 +343,7 @@ class Game:
         hook("Duplicate__7ccClumpFUi", nop)
         hook("ChangeClut__7ccClumpFP11ccClutChunkP11ccClutChunk", nop)
 
-        def cam_rot(mm, p, n, *_):
-            mm.store(p, 4, 0)
-            mm.store(p + 8, 4, self.frame["rot"])
-            return 0
-        hook("cameraGetRot__FPfi", cam_rot)
 
-        def cam_vec(key):
-            def get(mm, p, n, *_):
-                for k in range(4):
-                    mm.store(p + 4 * k, 4, self.frame[key][k])
-                return 0
-            return get
-        hook("cameraGetPos__FPfi", cam_vec("pos"))
-        hook("cameraGetView__FPfi", cam_vec("view"))
         hook("ccTransPosW2P__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccTransPosP2W__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccLandHitCheck__FPfUi", lambda mm, *_: 0)
@@ -499,20 +476,8 @@ def rnd_case(c, rnd):
         a += rnd.randrange(20, 300)
         menus += [(a, rnd.choice((0, 5))), (a + rnd.randrange(1, 60), -1)]
         a = menus[-1][0]
-    rot = [0] * frames
-    r = rnd.uniform(-3.1, 3.1)
-    for f in range(frames):
-        r += rnd.uniform(-0.05, 0.05)
-        if r > 3.14159:
-            r -= 6.28318
-        if r < -3.14159:
-            r += 6.28318
-        rot[f] = fbits(r)
-    cam_pos = [fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(100, 400)), F_ONE]
-    cam_view = [fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(0, 200)), F_ONE]
     case = {"party": party, "frames": frames, "script": script, "menus": menus, "marker": marker,
-            "rot": rot, "moving": moving, "prev": prev, "cam_pos": cam_pos, "cam_view": cam_view,
-            "delay": rnd.randrange(1, 40), "ride2": rnd.randrange(0, 150),
+            "moving": moving, "prev": prev, "ride2": rnd.randrange(0, 150),
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     if FIGHT == 4:
@@ -609,9 +574,6 @@ def run_game(game, case):
     game.gens.clear()
     game.out.clear()
     game.marker = case["marker"]
-    game.frame["pos"] = case["cam_pos"]
-    game.frame["view"] = case["cam_view"]
-    game.frame["rot"] = case["rot"][0]
     game.moving = case["moving"][0]
     game.meteor_vt = game.sym("__vt__25ccBossEffMeteoriteMissile")
     game.bolt_vt = game.sym("__vt__20ccBossEffThunderbolt")
@@ -622,7 +584,6 @@ def run_game(game, case):
     m.mem[BOSS:BOSS + f_["size"]] = bytes(f_["size"])
     bb.put_draw_camera(game, case)
     bb.make_manager(game, MGR, case)
-    m.mem[CAM:CAM + 0x150] = bytes(0x150)
     m.mem[WM:WM + 0x5000] = bytes(0x5000)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     for name in ("ccCharHitTop", "ccCharHitTail", "ccCharHitEntryNum"):
@@ -667,26 +628,15 @@ def run_game(game, case):
     m.mem[STAGE + 0x200:STAGE + 0x300] = bytes(0x100)
     m.mem[BOSS_STACK - 0x10000:BOSS_STACK] = bytes([int(os.environ.get("PINEY_STACK_POISON", "0"), 16)]) * 0x10000
     m.call(game.sym(f_["ct"]), (BOSS, f_["level"]), sp=BOSS_STACK)
+    bb.post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
-    left = 0
     for f in range(case["frames"]):
         game.out.clear()
-        game.frame["rot"] = case["rot"][f]
         m.store(sys_ + 0x358, 4, case["count"] + 1 + f)
         mt_now = [v for k, v in menus if k <= f]
         g.env.menu_type = mt_now[-1] if mt_now else -1
-        # The camera's mode 3 or 4 cleared after the case's delay.
-        reset = s32(m.load(CAM + 4, 4))
-        if reset in (3, 4):
-            if left == 0:
-                left = case["delay"]
-            left -= 1
-            if left == 0:
-                m.store(CAM + 4, 4, 0)
-        else:
-            left = 0
         for sf, kind, who, p0, p1 in case["script"]:
             if sf != f:
                 continue
@@ -836,9 +786,6 @@ GOMORA = ([(0x29368, "u"), (0x2936C, "i"), (0x29370, "f"), (0x293D0, "i"), (0x29
           # bodyHit: hitSW, mask, mask2, type, radius, height, pos, offset.
           + [(0x240, "i"), (0x244, "i"), (0x248, "i"), (0x24C, "i"), (0x254, "f"), (0x258, "f"), (0x260, "v"),
              (0x270, "v")])
-# The boss camera's: ResetFlg, lock, CamView, CamPos, the pitch (+0xe0),
-# ExLock and ZrotControlFlg (the stick's turn, +0x139).
-CAM_F = [(0x4, "i"), (0x0, "u"), (0x10, "v"), (0x20, "v"), (0xE0, "f"), (0x138, "u"), (0x139, "u")]
 
 
 def listed(game, ch):
@@ -895,7 +842,8 @@ def game_state(game, n):
         "core": boss_part(game, core) + fields(m, core, CORE) + [stream(game, core)],
         "gomoras": [boss_part(game, gomora_of(m, k)) + fields(m, gomora_of(m, k), GOMORA)
                     + [stream(game, gomora_of(m, k))] for k in range(5)],
-        "cam": fields(m, CAM, CAM_F),
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
         "eff": game.effects(),
         "party": party,
         "out": list(game.out),
@@ -986,7 +934,7 @@ def request(game, case, pre):
     parts = (["kyvia", FIGHT, len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
              + case["marker"][:3]
              + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["ride2"]]
-             + case["cam_pos"] + case["cam_view"] + [case["delay"]] + case["rot"] + case["moving"])
+             + case["moving"])
     for p in case["prev"]:
         parts += p
     parts.append(len(case["script"]))
@@ -1068,7 +1016,11 @@ class Against(unittest.TestCase):
         anmw at its own place, and the affects at its frame 25."""
         cases = (rnd_case(self.game.c, random.Random(7400 + seed)) for seed in range(40))
         for k, case in enumerate([c for c in cases if c["frames"] >= 700][:2]):
-            case["script"] = sorted(case["script"] + [(250, 3, 0, 13, 0)])
+            # The core alive at 250: from the second fight on the cases'
+            # hits on it (kinds 0 and 2) kill it first (its +8 1), and a
+            # dead core's act is not forced, on either side.
+            hits = [s for s in case["script"] if s[1] == 1 or s[0] > 250]
+            case["script"] = sorted(hits + [(250, 3, 0, 13, 0)])
             frames = compare(self.game, case, f"core wave {k}")
             self.assertTrue(any(fr["core"][2] == 13 for fr in frames), "the core never waved")
 

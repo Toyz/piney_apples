@@ -7,21 +7,26 @@
 //! patterns ([`crate::ee`]); angles as radians or the game's 16-bit angle, each
 //! conversion where the game makes it (docs/engine/field-game.md).
 
-#[doc(alias = "ccBossCam")]
-pub mod bosscam;
-#[doc(alias = "ccBossEffCinemaFade")]
-pub mod cinema;
 pub mod evcam;
 
-use piney_input::{Pad, pressure};
+use piney_input::pressure;
 
 use crate::camera::evcam::{UNIT, rot_x, rot_y, rot_z};
+use piney_battle::camera::button::{L1, L2, R1, R2};
+pub use piney_battle::camera::{Cam, CamId, CamList, CamPad, Scheme, Shake, ShockForce, kind, shake_range};
 
 use crate::ee::{
     self, F, ONE, V4, add, atan2f, cosf, deg2rad, div, dot, fmodf, from_int, le, lt, mul, normalize, rad2deg, sinf,
     sqrtf_on, sub, tanf, to_int, vadd, vscale, vsub,
 };
 use piney_data::volume::Volume;
+
+/// The field drawers' turn of the camera (the lens flare, rain, haze,
+/// fireflies): `cameraGetRot2(1)` with the eye view (`checkCameraType()`
+/// 1), else `cameraGetRot(1)`; `tcam`'s +0x40 or +0x20, all four lanes.
+pub fn field_turn(cams: &CamList) -> V4 {
+    if cams.kind() == kind::EYE { cams.get_rot2(CamId::Field, [0; 4]) } else { cams.get_rot(CamId::Field, [0; 4]) }
+}
 
 /// `-1.0`.
 const MINUS_ONE: F = 0xbf80_0000;
@@ -39,67 +44,6 @@ pub const DIST_MAX: F = 0x44f3_c000; // 1950.0
 pub const PITCH_DEFAULT: i16 = 1512;
 /// `ccCam::Init`'s field of view (degrees).
 pub const FOV: F = 0x4234_0000; // 45.0
-
-/// `CAMERA.type`.
-pub mod kind {
-    /// Looking from the player's eyes (L2).
-    pub const EYE: i32 = 1;
-    pub const FOLLOW: i32 = 3;
-}
-
-/// Pad buttons the camera reads (`ccPad.direct` / `push` bits).
-const L2: u32 = 0x1;
-const R2: u32 = 0x2;
-const L1: u32 = 0x4;
-const R1: u32 = 0x8;
-
-/// A `CAMERA` (0x70 bytes): `tcam`, the field camera.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Cam {
-    /// +0x00 the eye, +0x10 the point looked at.
-    pub pos: V4,
-    pub view: V4,
-    /// +0x20: x the pitch, z the heading, radians.
-    pub rot: V4,
-    pub rot2: V4,
-    pub rot3: V4,
-    /// +0x54.
-    pub dist: F,
-    /// +0x58: heading and pitch as 16-bit angles.
-    pub deg: [i16; 2],
-    /// +0x5c: [`kind`].
-    pub kind: i32,
-    /// +0x60 `resetFlag`: the stick was leant when a reset started (the
-    /// player walks straight ahead while it holds), +0x64 its direction.
-    pub reset_flag: bool,
-    pub reset_dirc: F,
-}
-
-/// The control scheme (`setCameraCtrlType` 0x001611a0): A-1, A-2, B-1, B-2.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Scheme {
-    /// `camCtrlType`: 1 for A (right stick X turns, Y zooms; L1/R1 turn;
-    /// R2 resets), 0 for B (right stick turns and pitches; R1/R2 zoom; L1
-    /// resets).
-    pub ctrl_type: i32,
-    /// `camRevLR`, `camRevUD`.
-    pub rev_lr: bool,
-    pub rev_ud: bool,
-    /// `cameraControlType`: the scheme's number.
-    pub number: i32,
-}
-
-impl Scheme {
-    /// `setCameraCtrlType(n)`; anything but 1-3 is A-1.
-    pub fn new(n: i32) -> Self {
-        match n {
-            1 => Scheme { ctrl_type: 1, rev_lr: false, rev_ud: false, number: 1 },
-            2 => Scheme { ctrl_type: 0, rev_lr: true, rev_ud: false, number: 2 },
-            3 => Scheme { ctrl_type: 0, rev_lr: false, rev_ud: false, number: 3 },
-            _ => Scheme { ctrl_type: 1, rev_lr: true, rev_ud: false, number: 0 },
-        }
-    }
-}
 
 /// The collision queries the camera makes (libhit, `docs/engine/field-game.md`).
 pub trait CameraHits {
@@ -130,44 +74,6 @@ impl CameraHits for NoHits {
     }
 }
 
-/// What the camera reads of the pad, as `ccPad` holds it.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct CamPad {
-    pub direct: u32,
-    pub push: u32,
-    pub pow_l: u8,
-    pub dirc_l: F,
-    pub pow_r: u8,
-    pub dirc_r: F,
-    pub pow: [u8; 12],
-}
-
-impl CamPad {
-    pub fn from_pad(p: &Pad) -> Self {
-        CamPad {
-            direct: p.direct.bits(),
-            push: p.push.bits(),
-            pow_l: p.pow_l,
-            dirc_l: p.dirc_l.to_bits(),
-            pow_r: p.pow_r,
-            dirc_r: p.dirc_r.to_bits(),
-            pow: p.pow,
-        }
-    }
-}
-
-/// `camID` values: which of `cameraList` (0x002fb6f0: `tcam`, `tcam`,
-/// `bcam`, `ecam`) `changeCamera` (0x001617f0) makes the active camera.
-pub mod id {
-    /// The field camera (`tcam`), what ccThCamera's set-up selects.
-    pub const FIELD: i16 = 1;
-    /// `bcam` (0x00383d50).
-    pub const BATTLE: i16 = 2;
-    /// `ecam` (0x00383dc0): the event camera, `ccThCameraExecute`'s
-    /// (and `SetMerchantCamera`'s).
-    pub const EVENT: i16 = 3;
-}
-
 /// What `ccMenuCtrl::SetMerchantCamera` (gcmn 0x005269d0) reads of the
 /// character spoken to (`cmndTarget`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -196,15 +102,8 @@ pub fn breeder_view(volume: piney_data::volume::Volume, server: i32) -> Option<M
 /// camera.cpp's state: `tcam` and the globals beside it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
-    pub tcam: Cam,
-    /// `ecam` (0x00383dc0) and `bcam` (0x00383d50): copies of `tcam` as
-    /// ccThCamera's set-up left it (0x00160730-0x00160990; their `cptr`
-    /// is `tcam`'s, so every camera draws through the one `ccCam`).
-    pub ecam: Cam,
-    pub bcam: Cam,
-    /// `camID` (0x0037897c): [`id`]; `activeCamPtr` (0x0037896c) is
-    /// `cameraList[camID]` ([`Camera::active`]).
-    pub cam_id: i16,
+    /// `cameraList` and `camID`: `tcam` (this driver's), `bcam`, `ecam`.
+    pub list: CamList,
     /// `camResetFlag` (0x00378974): a reset is turning the camera.
     pub resetting: bool,
     /// `memDircZ` (0x00378970): the heading the reset turns to.
@@ -222,167 +121,6 @@ pub struct Camera {
     pub world_screen: [V4; 4],
     /// The screen shake (`cameraShake`, `cameraShockAbsorber`).
     pub shake: Shake,
-    /// The disc's volume: its code's square root ([`sqrtf_on`]).
-    pub volume: Volume,
-}
-
-/// `camShockForce` (8 bytes): `power` (4 signed bits, -1 a free slot),
-/// `cycle` and `rot` (4 bits each), `time`, `dirc` (a 16-bit angle).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ShockForce {
-    pub power: i8,
-    pub cycle: i8,
-    pub rot: i8,
-    pub time: i16,
-    pub dirc: i16,
-}
-
-/// `shakePowerTbl` (main 0x0034b390) and `shakeCycleTbl` (0x0034b3a0).
-const SHAKE_POWER: [F; 4] = [0x4120_0000, 0x41a0_0000, 0x41f0_0000, 0];
-const SHAKE_CYCLE: [i16; 4] = [8, 6, 4, 0];
-
-/// camera.cpp's shake: `sfList[8]` (0x00383e30), `vibrateForce`
-/// (0x00378998), `vibrateCycle` (0x00378994), `vibrateRotate`
-/// (0x0037899c), `vibrateMatrix` (0x00383e80), `vibrateOffset`
-/// (0x00383e70, only its z is ever set) and `oscillator` (0x003789a0).
-/// `ccThCamera`'s start frees the slots and zeroes the force and offset;
-/// the others are statics the executable starts at 0 (so `vibrateRotate`
-/// names slot 0 until a shake without `rot` sets it to -1).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Shake {
-    pub sf: [ShockForce; 8],
-    pub force: F,
-    pub cycle: i16,
-    pub rotate: i32,
-    pub matrix: [V4; 4],
-    pub offset_z: F,
-    pub oscillator: i16,
-}
-
-impl Default for Shake {
-    fn default() -> Self {
-        Shake {
-            sf: [ShockForce { power: -1, cycle: 0, rot: 0, time: 0, dirc: 0 }; 8],
-            force: 0,
-            cycle: 0,
-            rotate: 0,
-            matrix: [[0; 4]; 4],
-            offset_z: 0,
-            oscillator: 0,
-        }
-    }
-}
-
-impl Shake {
-    /// `cameraShake(power, cycle, time, dirc)` (main 0x00162cd0). A shock
-    /// weaker than a held one and shorter is dropped; one at least as
-    /// strong and as long takes that slot; else the first free slot, if
-    /// any. `dirc` 0: straight (dirc 0), 1: across (0x4000), 2: a
-    /// turning shake from `rand()` (`(rand() << 7) & 0xf800`, `rot` 1).
-    pub fn shake(&mut self, power: i32, cycle: i32, time: i32, dirc: i32, rand: &mut dyn FnMut() -> i32) {
-        let nib = |v: i32| ((v << 28) >> 28) as i8;
-        let (power, cycle) = (nib(power), (cycle & 0xf) as i8);
-        let mut slot = None;
-        for (i, s) in self.sf.iter().enumerate() {
-            if s.power == -1 {
-                continue;
-            }
-            if power < s.power && time < i32::from(s.time) {
-                return;
-            }
-            if power >= s.power && time >= i32::from(s.time) {
-                slot = Some(i);
-                break;
-            }
-        }
-        let Some(i) = slot.or_else(|| self.sf.iter().position(|s| s.power == -1)) else { return };
-        let s = &mut self.sf[i];
-        s.power = power;
-        s.cycle = cycle;
-        s.time = time as i16;
-        match dirc {
-            0 => {
-                s.dirc = 0;
-                s.rot = 0;
-            }
-            1 => {
-                s.dirc = 0x4000;
-                s.rot = 0;
-            }
-            2 => {
-                s.dirc = ((rand() << 7) & 0xf800) as i16;
-                s.rot = 1;
-            }
-            _ => {}
-        }
-    }
-
-    /// `cameraSet`'s shake for camera 1: with `a = atan2(d.x, -d.y)` (in
-    /// double) of `d = view - pos` across the ground, `o = 0.5 (Rz(a)
-    /// vibrateMatrix) vibrateOffset`; the eye moves by `o`, the target by
-    /// `o` and then again by `o` times `min(|view - pos| / 280, 1)`.
-    pub fn apply(&self, volume: Volume, pos: V4, view: V4) -> (V4, V4) {
-        let mut d = ee::vsub(view, pos);
-        d[2] = 0;
-        let ang = (f64::from(ee::f(d[0])).atan2(f64::from(ee::f(mul(MINUS_ONE, d[1]))))) as f32;
-        let m = piney_data::anim::vu_mul(&rot_z(&UNIT, ang.to_bits()), &self.matrix);
-        let o = ee::vscale(ee::apply(&m, [0, 0, self.offset_z, 0]), 0x3f00_0000);
-        let dv = ee::vsub(view, pos);
-        let len = sqrtf_on(volume, dot(dv, dv));
-        let s = if ee::lt(len, 0x438c_0000) { div(len, 0x438c_0000) } else { ONE };
-        (ee::vadd(pos, o), ee::vadd(ee::vadd(view, o), ee::vscale(o, s)))
-    }
-
-    /// `cameraShockAbsorber()` (main 0x001629b0), at the end of each `cameraMain`:
-    /// the strongest held shock raises `vibrateForce` to its table value, taking its
-    /// cycle, turn and `vibrateMatrix = Ry(dirc)`; the oscillator steps 0x10000 /
-    /// cycle, the offset's z is `force * sinf`, each crossing of 0 keeps a fifth,
-    /// under 1 it stops; each held shock counts down and frees its slot at 0.
-    pub fn absorb(&mut self) {
-        let mut best: Option<(usize, ShockForce)> = None;
-        for (i, s) in self.sf.iter().enumerate() {
-            if s.power != -1 && best.is_none_or(|(_, b)| b.power < s.power) && s.time > -1 {
-                best = Some((i, *s));
-            }
-        }
-        if let Some((i, s)) = best {
-            let p = SHAKE_POWER.get(s.power as usize).copied().unwrap_or(0);
-            if ee::lt(self.force, p) {
-                self.force = p;
-                self.cycle = SHAKE_CYCLE.get(s.cycle as usize).copied().unwrap_or(0);
-                self.rotate = if s.rot == 0 { -1 } else { i as i32 };
-                self.matrix = rot_y(&UNIT, deg2rad(s.dirc));
-            }
-        }
-        if let Ok(r) = usize::try_from(self.rotate) {
-            let d = &mut self.sf[r].dirc;
-            *d = d.wrapping_add(0x1000);
-            self.matrix = rot_y(&UNIT, deg2rad(*d));
-        }
-        let old = self.oscillator;
-        // vibrateCycle is 0 until a first shock (the game's division by 0
-        // leaves the oscillator anything, and it is reset below).
-        if self.cycle != 0 {
-            self.oscillator = old.wrapping_add((0x10000 / i32::from(self.cycle)) as i16);
-        }
-        self.offset_z = mul(self.force, sinf(deg2rad(self.oscillator)));
-        if (old >= 0) != (self.oscillator >= 0) {
-            self.force = mul(self.force, 0x3e4c_cccd);
-        }
-        if ee::lt(self.force, ONE) {
-            self.force = 0;
-            self.oscillator = 0;
-        }
-        for s in &mut self.sf {
-            if s.time > 0 {
-                s.time -= 1;
-                if s.time <= 0 {
-                    s.time = 0;
-                    s.power = -1;
-                }
-            }
-        }
-    }
 }
 
 /// `off = (dist sin rx, h sin a, -h cos a)` with h = dist cos rx and a the
@@ -490,10 +228,7 @@ impl Camera {
             reset_dirc: 0,
         };
         Camera {
-            ecam: tcam.clone(),
-            bcam: tcam.clone(),
-            tcam,
-            cam_id: id::FIELD,
+            list: CamList::new(volume, tcam),
             resetting: false,
             mem_dirc_z: 0,
             type_lock: false,
@@ -502,21 +237,14 @@ impl Camera {
             world_view: [[0; 4]; 4],
             world_screen: [[0; 4]; 4],
             shake: Shake::default(),
-            volume,
         }
-    }
-
-    /// `changeCamera(n)` (0x001617f0): `camID = n`, the active camera
-    /// `cameraList[n]`.
-    pub fn change_camera(&mut self, n: i16) {
-        self.cam_id = n;
     }
 
     /// `changeCamera(3)`, `cameraSetPos(pos, 3)`, `cameraSetView(view, 3)`:
     /// the event camera at `pos` looking at `view` (the field staff roll's).
     pub fn set_event(&mut self, pos: V4, view: V4) {
-        self.change_camera(id::EVENT);
-        let c = self.cam_mut(id::EVENT);
+        self.list.change(CamId::Event);
+        let c = self.list.cam_mut(CamId::Event);
         c.pos = pos;
         c.view = view;
     }
@@ -528,11 +256,12 @@ impl Camera {
     /// y and w are unset for a breeder in the game; 0 here. `changeCamera(1)` as the
     /// shop closes (docs/engine/field-ui.md).
     pub fn set_merchant(&mut self, target: MerchantView) {
-        self.change_camera(id::EVENT);
-        let n = self.cam_id;
+        let l = &mut self.list;
+        l.change(CamId::Event);
+        let n = l.id();
         let scratch = match target {
             MerchantView::Breeder { view, pos } => {
-                let c = self.cam_mut(n);
+                let c = l.cam_mut(n);
                 c.view = view;
                 c.pos = pos;
                 [0; 4]
@@ -549,14 +278,14 @@ impl Camera {
                     r[2] = sub(r[2], TWO_PI);
                 }
                 let m = rot_z(&rot_y(&rot_x(&UNIT, r[0]), r[1]), r[2]);
-                let c = self.cam_mut(n);
+                let c = l.cam_mut(n);
                 c.view = view;
                 c.pos = vadd(ee::apply(&m, [0x43fa_0000, 0, 0, ONE]), view);
                 r
             }
         };
-        let rot = self.get_rot(n, scratch);
-        self.cam_mut(n).rot = rot;
+        let rot = l.get_rot(n, scratch);
+        l.cam_mut(n).rot = rot;
     }
 
     /// `ccMenuCtrl::SetFountainCamera()` (gcmn 0x00526c60), each frame of the
@@ -564,8 +293,9 @@ impl Camera {
     /// to 0..800) from 240 behind Kite at 12 degrees off the line to it, then
     /// `cameraGetRot` (docs/engine/field-ui.md).
     pub fn set_fountain(&mut self, spring: V4, player: V4) {
-        self.change_camera(id::EVENT);
-        let n = self.cam_id;
+        let l = &mut self.list;
+        l.change(CamId::Event);
+        let n = l.id();
         let mut view = spring;
         view[2] = add(view[2], 0x42c8_0000);
         if lt(view[2], 0) {
@@ -580,63 +310,11 @@ impl Camera {
             a = add(a, TWO_PI);
         }
         let v = ee::apply(&rot_z(&UNIT, a), [0x4370_0000, 0, 0, ONE]);
-        let c = self.cam_mut(n);
+        let c = l.cam_mut(n);
         c.view = view;
         c.pos = vadd(pos, v);
-        let rot = self.get_rot(n, v);
-        self.cam_mut(n).rot = rot;
-    }
-
-    /// `cameraList[n]` (0x002fb6f0): 0 and 1 `tcam`, 2 `bcam`, 3 `ecam`.
-    /// The list has four entries; any other `n` is taken as `tcam`.
-    pub fn cam(&self, n: i16) -> &Cam {
-        match n {
-            id::BATTLE => &self.bcam,
-            id::EVENT => &self.ecam,
-            _ => &self.tcam,
-        }
-    }
-
-    pub fn cam_mut(&mut self, n: i16) -> &mut Cam {
-        match n {
-            id::BATTLE => &mut self.bcam,
-            id::EVENT => &mut self.ecam,
-            _ => &mut self.tcam,
-        }
-    }
-
-    /// `activeCamPtr`: the camera `camID` names, which the view matrix,
-    /// the town's draw, `ccGetCameraTransparency`, `ccCheckCameraDeg` and
-    /// `checkCameraType` read.
-    pub fn active(&self) -> &Cam {
-        self.cam(self.cam_id)
-    }
-
-    pub fn active_mut(&mut self) -> &mut Cam {
-        self.cam_mut(self.cam_id)
-    }
-
-    /// `cameraGetRot(r, camID)`: the active camera's rotation.
-    pub fn rot(&self) -> V4 {
-        self.get_rot(self.cam_id, [0; 4])
-    }
-
-    /// `cameraGetRot(out, n)` (0x00161610): for camera 1 `tcam.rot`, all
-    /// four lanes; for any other, x the pitch `atan2f(pos.z - view.z,
-    /// |view - pos| across)` and z the heading `atan2f(view.x - pos.x,
-    /// -1 (view.y - pos.y))` of `cameraList[n]`, y and w left as `out` has
-    /// them.
-    pub fn get_rot(&self, n: i16, out: V4) -> V4 {
-        if n == id::FIELD {
-            return self.tcam.rot;
-        }
-        let c = self.cam(n);
-        let mut d = vsub(c.view, c.pos);
-        d[2] = 0;
-        let h = sqrtf_on(self.volume, dot(d, d));
-        let x = atan2f(sub(c.pos[2], c.view[2]), h);
-        let z = atan2f(sub(c.view[0], c.pos[0]), mul(MINUS_ONE, sub(c.view[1], c.pos[1])));
-        [x, out[1], z, out[3]]
+        let rot = l.get_rot(n, v);
+        l.cam_mut(n).rot = rot;
     }
 
     /// `cameraMain` (0x00160cc0) on the camera task (priority 40), before the
@@ -645,18 +323,23 @@ impl Camera {
     /// the player (not with camera 2 or 3 active), and the reset turns `tcam` a
     /// step. With the party wiped out the eye view goes back to following.
     pub fn main(&mut self, pad: &CamPad, player_dirc_z: F, menu_idle: bool, annihilated: bool, camera_mode: &mut i8) {
-        let n = self.cam_id;
+        let n = self.list.id();
         if annihilated {
-            if n == id::FIELD && self.active().kind == kind::EYE {
-                self.active_mut().kind = kind::FOLLOW;
+            if n == CamId::Field && self.list.active().kind == kind::EYE {
+                self.list.active_mut().kind = kind::FOLLOW;
             } else {
                 self.reset_turn();
                 return;
             }
         }
-        if pad.push & L2 != 0 && menu_idle && n == id::FIELD && !self.puppet_show && !self.resetting && !self.type_lock
+        if pad.push & L2 != 0
+            && menu_idle
+            && n == CamId::Field
+            && !self.puppet_show
+            && !self.resetting
+            && !self.type_lock
         {
-            let c = self.active_mut();
+            let c = self.list.active_mut();
             let t = c.kind;
             if t == kind::FOLLOW {
                 c.kind = kind::EYE;
@@ -668,17 +351,23 @@ impl Camera {
             }
             c.reset_flag = false;
             if t == kind::FOLLOW {
-                self.tcam.rot2[0] = 0;
-                self.tcam.rot2[2] = 0;
+                let t = self.list.cam_mut(CamId::Field);
+                t.rot2[0] = 0;
+                t.rot2[2] = 0;
             }
         }
         let reset =
             (self.scheme.ctrl_type == 0 && pad.push & L1 != 0) || (self.scheme.ctrl_type == 1 && pad.push & R2 != 0);
-        if reset && n != id::EVENT && n != id::BATTLE && self.active().kind == kind::FOLLOW && !self.resetting {
+        if reset
+            && n != CamId::Event
+            && n != CamId::Battle
+            && self.list.active().kind == kind::FOLLOW
+            && !self.resetting
+        {
             self.mem_dirc_z = rad2deg(player_dirc_z);
             self.resetting = true;
             if pad.pow_l != 0 {
-                let a = self.active_mut();
+                let a = self.list.active_mut();
                 a.reset_flag = true;
                 a.reset_dirc = pad.dirc_l;
             }
@@ -689,8 +378,8 @@ impl Camera {
     /// `cameraMain`'s last part: while the active camera follows and a
     /// reset runs, `tcam` turns one step back behind the player.
     fn reset_turn(&mut self) {
-        if self.active().kind == kind::FOLLOW && self.resetting {
-            let c = &mut self.tcam;
+        if self.list.active().kind == kind::FOLLOW && self.resetting {
+            let c = self.list.cam_mut(CamId::Field);
             let m = self.mem_dirc_z;
             let mut s = m.wrapping_sub(c.deg[0]);
             if i32::from(s).abs() >= 20481 {
@@ -722,49 +411,15 @@ impl Camera {
         self.shake.absorb();
     }
 
-    /// `checkCameraDistModValue` (0x00162fb0): this frame's zoom.
-    pub(crate) fn dist_mod(&self, pad: &CamPad) -> F {
-        let mut f = 0;
-        if self.scheme.ctrl_type == 0 {
-            let press = |v: u8| {
-                let g = k(30.0);
-                if v >= 129 {
-                    add(g, mul(0x3f40_0000, from_int(i32::from(v) - 128)))
-                } else if v == 0 {
-                    add(g, 0x42be_8000)
-                } else {
-                    g
-                }
-            };
-            if pad.direct & R1 != 0 {
-                f = ee::neg(press(pad.pow[pressure::R1]));
-            }
-            if pad.direct & R2 != 0 {
-                f = press(pad.pow[pressure::R2]);
-            }
-        } else {
-            let mut g = mul(from_int(i32::from(pad.pow_r)), cosf(pad.dirc_r));
-            if ee::f(g).abs() > 64.0 {
-                g = if le(g, 0) { add(g, k(32.0)) } else { sub(g, k(32.0)) };
-                g = mul(g, 0x3ecc_cccd);
-                if self.scheme.rev_ud {
-                    g = ee::neg(g);
-                }
-                f = g;
-            }
-        }
-        f
-    }
-
     /// `cameraPosCalc(target, &tcam)` (0x00161870) for the following
     /// camera, as `cameraSetManual` calls it: this frame's zoom and turn from
     /// the pad, then the camera placed behind `target` (the player's head,
     /// 140 above his feet) and pulled in front of whatever lies between
     /// (`area` 0 is a town, where it is also pushed out of walls).
     pub fn pos_calc(&mut self, target: V4, pad: &CamPad, area: i32, hits: &mut dyn CameraHits) {
-        let (scheme, volume) = (self.scheme, self.volume);
-        let dist_mod = if self.resetting { 0 } else { self.dist_mod(pad) };
-        let c = &mut self.tcam;
+        let (scheme, volume) = (self.scheme, self.list.volume());
+        let dist_mod = if self.resetting { 0 } else { self.scheme.dist_mod(pad) };
+        let c = self.list.cam_mut(CamId::Field);
         if !self.resetting {
             c.dist = add(c.dist, dist_mod);
             if lt(c.dist, DIST_MIN) {
@@ -856,7 +511,7 @@ impl Camera {
     /// camera that is not the eye view: [`Camera::pos_calc`] on `tcam`, but
     /// only while camera 1 is active and follows.
     pub fn set_manual(&mut self, target: V4, pad: &CamPad, area: i32, hits: &mut dyn CameraHits) {
-        if self.cam_id == id::FIELD && self.active().kind == kind::FOLLOW {
+        if self.list.id() == CamId::Field && self.list.active().kind == kind::FOLLOW {
             self.pos_calc(target, pad, area, hits);
         }
     }
@@ -891,7 +546,7 @@ impl Camera {
                 p = to_int(min) as i16;
             }
         }
-        let c = &mut self.tcam;
+        let c = self.list.cam_mut(CamId::Field);
         c.rot[2] = deg2rad(yaw);
         c.rot[0] = deg2rad(p);
         c.deg = [yaw, p];
@@ -906,14 +561,14 @@ impl Camera {
     /// the function never wrote (what the frame's earlier calls left
     /// there), which is not modelled: it is left as it was.
     pub fn eye_level(&mut self, pos: V4, rot: &mut V4, pad: &CamPad) {
-        if self.cam_id != id::FIELD {
+        if self.list.id() != CamId::Field {
             return;
         }
         if !self.puppet_show {
             self.eye_turn(rot, pad);
         }
         let (f20, f21) = (rot[0], rot[2]);
-        let c = &mut self.tcam;
+        let c = self.list.cam_mut(CamId::Field);
         c.rot3 = [f20, 0, f21, 0];
         c.rot = [f20, 0, f21, 0];
         c.rot2[2] = f21;
@@ -965,7 +620,7 @@ impl Camera {
         rot[2] = deg2rad(dz);
         rot[0] = deg2rad(dx);
         rot[1] = 0;
-        self.tcam.deg[0] = dz;
+        self.list.cam_mut(CamId::Field).deg[0] = dz;
     }
 
     /// `cameraSet` (0x00161260): the view matrix from the active camera's
@@ -978,9 +633,12 @@ impl Camera {
         let fw2lw = |p: V4| {
             [add(sub(p[0], player_pos[0]), player_pos[0]), add(sub(p[1], player_pos[1]), player_pos[1]), p[2], ONE]
         };
-        let a = self.active();
-        let (pos, view) =
-            if self.cam_id == id::FIELD { self.shake.apply(self.volume, a.pos, a.view) } else { (a.pos, a.view) };
+        let a = self.list.active();
+        let (pos, view) = if self.list.id() == CamId::Field {
+            self.shake.apply(self.list.volume(), a.pos, a.view)
+        } else {
+            (a.pos, a.view)
+        };
         let p = fw2lw(pos);
         let v = fw2lw(view);
         self.world_view = pos_target(p, v);
@@ -1037,19 +695,19 @@ mod tests {
         let sp = [k(1500.5), k(-2500.25), k(30.0), ONE];
         let sd = [0, 0, k(0.7), 0];
         let mut c = Camera::new(piney_data::volume::Volume::Inf, sp, sd, 1, Scheme::new(0));
-        assert_eq!(c.active().kind, kind::EYE);
+        assert_eq!(c.list.active().kind, kind::EYE);
         let mut mode = 1;
         c.main(&CamPad::default(), sd[2], true, true, &mut mode);
-        assert_eq!(c.active().kind, kind::FOLLOW);
+        assert_eq!(c.list.active().kind, kind::FOLLOW);
         let l2 = CamPad { push: L2, ..CamPad::default() };
         c.main(&l2, sd[2], true, true, &mut mode);
-        assert_eq!(c.active().kind, kind::FOLLOW, "L2 is not read");
+        assert_eq!(c.list.active().kind, kind::FOLLOW, "L2 is not read");
         let reset = CamPad { push: L1, ..CamPad::default() };
         c.main(&reset, sd[2], true, true, &mut mode);
         assert!(!c.resetting, "the reset button is not read");
         // Standing again, L2 works.
         c.main(&l2, sd[2], true, false, &mut mode);
-        assert_eq!(c.active().kind, kind::EYE);
+        assert_eq!(c.list.active().kind, kind::EYE);
     }
 
     #[test]
@@ -1057,10 +715,13 @@ mod tests {
         let sp = [k(1500.5), k(-2500.25), k(30.0), ONE];
         let sd = [0, 0, k(0.7), 0];
         let mut c = Camera::new(piney_data::volume::Volume::Inf, sp, sd, 3, Scheme::new(0));
-        assert_eq!(c.tcam.view, [0x44bb_9000, 0xc51c_4400, 0x4316_0000, ONE]);
-        assert_eq!(c.tcam.pos, [0x445c_9022, 0xc4dc_c1e9, 0x4391_0f68, ONE]);
-        assert_eq!(c.tcam.rot, [0x3e14_70b4, 0, 0x3f33_3189, 0]);
-        assert_eq!((c.tcam.dist, c.tcam.deg, c.tcam.kind), (DIST_DEFAULT, [7301, 1512], kind::FOLLOW));
+        assert_eq!(c.list.cam(CamId::Field).view, [0x44bb_9000, 0xc51c_4400, 0x4316_0000, ONE]);
+        assert_eq!(c.list.cam(CamId::Field).pos, [0x445c_9022, 0xc4dc_c1e9, 0x4391_0f68, ONE]);
+        assert_eq!(c.list.cam(CamId::Field).rot, [0x3e14_70b4, 0, 0x3f33_3189, 0]);
+        assert_eq!(
+            (c.list.cam(CamId::Field).dist, c.list.cam(CamId::Field).deg, c.list.cam(CamId::Field).kind),
+            (DIST_DEFAULT, [7301, 1512], kind::FOLLOW)
+        );
         let head = [sp[0], sp[1], add(sp[2], k(140.0)), ONE];
         let frame = |c: &mut Camera, pad: CamPad| {
             let mut mode = 3;
@@ -1069,8 +730,8 @@ mod tests {
             c.set(sp);
         };
         frame(&mut c, CamPad::default());
-        assert_eq!(c.tcam.pos, [0x445c_9022, 0xc4dc_c1e9, 0x439b_0f68, ONE]);
-        assert_eq!(c.tcam.view, [0x44bb_9000, 0xc51c_4400, 0x432a_0000, ONE]);
+        assert_eq!(c.list.cam(CamId::Field).pos, [0x445c_9022, 0xc4dc_c1e9, 0x439b_0f68, ONE]);
+        assert_eq!(c.list.cam(CamId::Field).view, [0x44bb_9000, 0xc51c_4400, 0x432a_0000, ONE]);
         assert_eq!(
             c.world_view,
             [
@@ -1091,11 +752,11 @@ mod tests {
         );
         // The right stick left: the heading turns by 509.
         frame(&mut c, CamPad { pow_r: 255, dirc_r: k(std::f32::consts::FRAC_PI_2), ..CamPad::default() });
-        assert_eq!(c.tcam.deg[0], 7810);
-        assert_eq!(c.tcam.pos, [0x4453_cb22, 0xc4e0_a2f2, 0x439b_0f68, ONE]);
+        assert_eq!(c.list.cam(CamId::Field).deg[0], 7810);
+        assert_eq!(c.list.cam(CamId::Field).pos, [0x4453_cb22, 0xc4e0_a2f2, 0x439b_0f68, ONE]);
         // Down: it draws back.
         frame(&mut c, CamPad { pow_r: 255, dirc_r: 0, ..CamPad::default() });
-        assert_eq!(c.tcam.dist, 0x4484_6666);
-        assert_eq!(c.tcam.pos, [0x4444_c614, 0xc4d8_8dc7, 0x43a1_80b9, ONE]);
+        assert_eq!(c.list.cam(CamId::Field).dist, 0x4484_6666);
+        assert_eq!(c.list.cam(CamId::Field).pos, [0x4444_c614, 0xc4d8_8dc7, 0x43a1_80b9, ONE]);
     }
 }

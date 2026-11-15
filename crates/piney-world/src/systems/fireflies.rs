@@ -57,7 +57,6 @@ pub struct Fireflies2 {
 
 impl Fireflies2 {
     pub fn new(def: &'static Firefly2Def, cx: &mut BuildCx) -> Result<Fireflies2> {
-        let volume = cx.volume;
         let mut fireflies = Vec::with_capacity(def.count);
         let mut rains = false;
         match def.made {
@@ -70,7 +69,7 @@ impl Fireflies2 {
                         return Err(Error::NotFound(format!("{}: {marker}", file.stem)));
                     }
                     let (at, _) = crate::town::dummy_bits(&Position::Dummy(marker), c, sc);
-                    fireflies.push(Firefly::arena(volume, &mut cx.rng, at));
+                    fireflies.push(Firefly::arena(&mut cx.rng, at));
                 }
             }
             // WORLD::Generate's: SetDirc of three (fieldrand(2000) - 1000)
@@ -79,8 +78,7 @@ impl Fireflies2 {
                 let f = cx.field.expect("a field's fireflies");
                 let area = f.field.expect("a field");
                 rains = f.weather.rains();
-                let env = Env::at(volume, f.centre, Ground::Field(&area.field));
-                let fly = env.fly();
+                let ground = Ground::Field(&area.field);
                 let start = area.start_pos();
                 let rng = &mut cx.rng;
                 let d = |rng: &mut piney_data::dungeon::Rng| {
@@ -90,7 +88,7 @@ impl Fireflies2 {
                     let dirc = [d(rng), d(rng), d(rng), 0];
                     let mut base = start;
                     base[2] = ee::add(base[2], uint_float(rng.below(300)));
-                    fireflies.push(Firefly::roamer(rng, dirc, base, &fly));
+                    fireflies.push(Firefly::roamer(rng, dirc, base, &ground));
                 }
             }
         }

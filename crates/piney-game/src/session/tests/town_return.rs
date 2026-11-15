@@ -539,7 +539,7 @@ fn mistral_spoken_to_while_running_stands_facing_kite() {
             let kite = world.kite().pos();
             let (dx, dy) =
                 (f32::from_bits(at[0]) - f32::from_bits(kite[0]), f32::from_bits(at[1]) - f32::from_bits(kite[1]));
-            stick_toward(f32::from_bits(world.camera().rot()[2]), dx.atan2(-dy))
+            stick_toward(f32::from_bits(world.camera().list.rot()[2]), dx.atan2(-dy))
         };
         pad.read(&raw);
         s.step(&pad);
@@ -623,7 +623,7 @@ fn mistral_running_after_kite_stops_when_spoken_to() {
             if !w.in_town() {
                 unreachable!()
             }
-            let cam = f32::from_bits(w.world().camera().rot()[2]);
+            let cam = f32::from_bits(w.world().camera().list.rot()[2]);
             step(&mut s, stick_toward(cam, k as f32 * 2.1));
         }
         for f in 0..400u64 {
@@ -646,7 +646,7 @@ fn mistral_running_after_kite_stops_when_spoken_to() {
             } else if world.command_target_id() == Some(CharId::Member(MISTRAL)) {
                 Raw { buttons: if f % 2 == 0 { Buttons::CROSS } else { Buttons::NONE }, ..still }
             } else if near && f % 6 == 0 {
-                stick_toward(f32::from_bits(world.camera().rot()[2]), from_kite)
+                stick_toward(f32::from_bits(world.camera().list.rot()[2]), from_kite)
             } else {
                 still
             };

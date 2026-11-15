@@ -30,11 +30,31 @@ use crate::combat::spc::{self, SpcRec};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::{self, Hits};
 
+/// Each show with the listener its 3D sound is panned by: the active
+/// camera as the last [`Show::Ear`] (or a boss's `Out::Ear`) before it
+/// left it, `start` before any.
+pub fn heard(
+    shows: &[Show],
+    start: piney_battle::camera::Ear,
+) -> impl Iterator<Item = (&Show, piney_battle::camera::Ear)> {
+    shows.iter().scan(start, |ear, s| {
+        if let Show::Ear(e) | Show::Boss(_, piney_battle::boss::Out::Ear(e)) = s {
+            *ear = *e;
+        }
+        Some((s, *ear))
+    })
+}
+
 /// What the battle's code handed to presentation, in order: the effects
 /// (numbers, hit marks, trails, dust, the portals' particles) and the
 /// sounds read these. piney-effect's hook.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Show {
+    /// The active camera as the 3D sounds after it are panned by it
+    /// (`calcPan` reads `activeCamPtr` at `ccSeOn3D`'s call): written as
+    /// the battle's frame starts and after each camera write of its tasks
+    /// (Kite's `cameraSet`, the boss's task). [`heard`] walks them.
+    Ear(piney_battle::camera::Ear),
     /// Kite's outputs (`kite::Out`), with his scene index.
     Kite(usize, kite::Out),
     /// A party member's (`fellow::Out`).
@@ -201,6 +221,9 @@ pub struct Stage<'a> {
     /// The members' item uses (`ccUseItemRequest` from their AI), carried
     /// out by the runtime after the frame ([`super::MemberItem`]).
     pub item_uses: &'a mut Vec<super::MemberItem>,
+    /// `ccSpcConditionEffectSW()` as the frame found it (`ccChar::Draw`'s
+    /// blend reads it).
+    pub effect_sw: bool,
 }
 
 /// What a Root Town gives the party's navigation: its landmarks with their
@@ -267,7 +290,7 @@ impl Stage<'_> {
     /// either side of the line from the active camera's eye to its target,
     /// on the ground, all three through `W2PPos`.
     pub fn check_camera_deg(&self, pos: V4, deg: i16) -> bool {
-        let cam = self.camera.active();
+        let cam = self.camera.list.active();
         geom::camera_deg(self.w2p_of(pos), self.w2p_of(cam.pos), self.w2p_of(cam.view), deg)
     }
 
@@ -275,16 +298,33 @@ impl Stage<'_> {
     /// (main 0x001da8b0) with the active camera, both points through
     /// `ccTransPosW2P`.
     pub fn transparency(&self, pos: V4, width: F, height: F, far: F, len: F, hide: &mut bool) -> F {
-        let cam = self.camera.active();
+        let cam = self.camera.list.active();
         let (p, c) = (self.w2p_of(pos), self.w2p_of(cam.pos));
-        geom::camera_transparency(self.camera.volume, p, c, cam.deg[1], width, height, far, len, hide)
+        geom::camera_transparency(self.camera.list.volume(), p, c, cam.deg[1], width, height, far, len, hide)
+    }
+
+    /// What `ccChar::Draw`'s fade reads of the camera now: the active one's
+    /// eye, pitch and type (`activeCamPtr`, `checkCameraType()` at gcmn
+    /// 0x0056b448), Kite's place, the map's bounds and `game.area`.
+    fn foe_camera(&self) -> crate::chara::foe::Camera {
+        let a = self.camera.list.active();
+        let b = self.bounds;
+        crate::chara::foe::Camera {
+            player: self.player,
+            cam: a.pos,
+            deg1: a.deg[1],
+            eye: a.kind == crate::camera::kind::EYE,
+            bounds: [b.min[0], b.min[1], b.max[0], b.max[1]],
+            town: self.area == 0,
+            volume: self.camera.list.volume(),
+        }
     }
 
     /// `ccChar::Draw()`'s test for a party character at `pos` (the area's
     /// fade: 7000 over 600 outside a town): its transparency and whether it
     /// is drawn (under 0.05 not, unless the camera's nearness faded it).
     pub fn char_draw(&self, pos: V4, width: F, height: F, set_transparency: F, trans_dist: bool) -> CharFade {
-        let eye = self.camera.active().kind == crate::camera::kind::EYE;
+        let eye = self.camera.list.active().kind == crate::camera::kind::EYE;
         let mut hide = !trans_dist || eye;
         let (far, len) = if self.area == 0 { (0x457a_0000, 0x43c8_0000) } else { (0x45da_c000, 0x4416_0000) };
         let fade = self.transparency(pos, width, height, far, len, &mut hide);
@@ -533,8 +573,8 @@ impl enemy_motion::MotionWorld for Stage<'_> {
         if !self.check_camera_deg(pos, 12288) {
             return false;
         }
-        let d = ee::vsub(pos, self.camera.active().pos);
-        ee::lt(ee::sqrtf_on(self.camera.volume, ee::dot(d, d)), 0x44fa_0000)
+        let d = ee::vsub(pos, self.camera.list.active().pos);
+        ee::lt(ee::sqrtf_on(self.camera.list.volume(), ee::dot(d, d)), 0x44fa_0000)
     }
 
     fn call(&mut self, who: usize, c: enemy_motion::Call, at: &mut enemy_motion::At) {
@@ -544,12 +584,20 @@ impl enemy_motion::MotionWorld for Stage<'_> {
                 let (_, req) = self.skills.borrow_mut().request(at.t, at.scene, who, target, sid, 0, at.rand);
                 skill_shows(self.shows, who, target, sid, req.as_ref());
             }
-            C::Draw { matrix } => {
+            // dispEnemy's ccChar::Draw (gcmn 0x0056b1c0) at ccThEntryCtrl's
+            // walk (64), before the NPC list's and the boss's camera writes:
+            // the fog blend and the active camera's fade as they stand now.
+            C::Draw { matrix, set_transparency } => {
+                let fcam = self.foe_camera();
                 if let Some(a) = self.cast.get_mut(who) {
                     a.matrix = Some(matrix);
                     a.drawn = true;
-                    let pos = at.scene.chars[who].pos;
-                    a.ch.pos = pos;
+                    let ch = &mut at.scene.chars[who];
+                    a.ch.pos = ch.pos;
+                    if matches!(a.look, super::cast::Look::Enemy(_)) {
+                        let f = crate::chara::foe::char_draw(ch, set_transparency, true, self.effect_sw, 0, &fcam);
+                        a.how = Some(f);
+                    }
                 }
             }
             // dispEnemy's second model (a middle boss), drawn before the
@@ -716,20 +764,20 @@ impl KiteWorld for Stage<'_> {
         }
     }
     fn camera_type(&mut self) -> i32 {
-        self.camera.active().kind
+        self.camera.list.active().kind
     }
-    fn camera_id(&mut self) -> i32 {
-        i32::from(self.camera.cam_id)
+    fn camera_id(&mut self) -> crate::camera::CamId {
+        self.camera.list.id()
     }
     fn camera_rot(&mut self) -> V4 {
-        self.camera.rot()
+        self.camera.list.rot()
     }
     fn camera_reset(&mut self) -> Option<BF> {
-        let a = self.camera.active();
+        let a = self.camera.list.active();
         a.reset_flag.then_some(a.reset_dirc)
     }
     fn clear_camera_reset(&mut self) {
-        self.camera.active_mut().reset_flag = false;
+        self.camera.list.active_mut().reset_flag = false;
     }
     fn camera_set_eye_level(&mut self, pos_eye: V4, angle: &mut V4) {
         self.view = pos_eye;
@@ -748,6 +796,8 @@ impl KiteWorld for Stage<'_> {
             Some(b) => self.camera.set_wrapped(p, b),
             None => self.camera.set(p),
         }
+        // ccPlayer::CameraPosSet's end: Kite's notes after it hear this.
+        self.shows.push(Show::Ear(self.camera.list.ear()));
     }
     fn hit_check(
         &mut self,

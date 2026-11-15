@@ -2396,15 +2396,41 @@ pub(crate) fn take_slot(d: &mut DungeonGims, kind: i8) -> Option<GimSlot> {
     Some(*s)
 }
 
+/// `@1781`'s second word on Infection and Mutation (INF main 0x003781b0,
+/// MUT 0x0038b150: `{13, the CCS name buffer}`): INF 0x006a7b78, MUT
+/// 0x006dd8c0.
+const CCS_NAME_BUFFER: [F; 2] = [0x006a_7b78, 0x006d_d8c0];
+
+/// The `w` of a story circle's position in `DUNGEON::SetMagicCircle`, a
+/// stack word the call never writes, as the set-up before it leaves it.
+/// Infection and Mutation: `initEntryCCS`'s `sd @1781, 264(sp)` for each
+/// existing enemy row (INF gcmn 0x0042ff74, MUT 0x00445904) leaves the
+/// name buffer's address, else 0. Outbreak and Quarantine: `SetItemBox`'s
+/// last entry's `pos[3]` (`item_box_w`). docs/engine/battle.md.
+pub fn story_circle_w(volume: Volume, reg: &Register, item_box_w: F) -> F {
+    match volume {
+        Volume::Inf | Volume::Mut if reg.exist.iter().any(|&e| e != 0) => CCS_NAME_BUFFER[volume as usize],
+        Volume::Inf | Volume::Mut => 0,
+        Volume::Out | Volume::Qua => item_box_w,
+    }
+}
+
 /// `DUNGEON::SetMagicCircle()` (gcmn 0x005bf590): a magic circle (gimmick
 /// 15, `entRoot` -1, z 0) for every `gimPos` slot of kind 1; in a story
 /// dungeon one for every edit row of type 1 (its position as floats, the
-/// `w` the caller's stack leaves, taken as 1 here; `param[0]` the next
-/// event entry number); and in the lake dungeons (types 8, 9) the special
+/// `w` [`story_circle_w`] with `item_box_w`; `param[0]` the next event
+/// entry number); and in the lake dungeons (types 8, 9) the special
 /// objects (gimmick 18, `land` 0) of the slots of kinds 3 to 6, in that
 /// order. Every entry is made with `entryObject(ep)` on its own floor and
 /// room of `game.dungeon`.
-pub fn dungeon_set_magic_circle(ctrl: &mut EntryCtrl, cx: &mut Cx, seam: &mut dyn Seam, d: &mut DungeonGims) {
+pub fn dungeon_set_magic_circle(
+    ctrl: &mut EntryCtrl,
+    cx: &mut Cx,
+    seam: &mut dyn Seam,
+    d: &mut DungeonGims,
+    item_box_w: F,
+) {
+    let w = story_circle_w(cx.st.volume, cx.reg, item_box_w);
     while let Some(s) = take_slot(d, 1) {
         let mut ep = entry_param_clear();
         ep.pos = s.pos;
@@ -2426,7 +2452,7 @@ pub fn dungeon_set_magic_circle(ctrl: &mut EntryCtrl, cx: &mut Cx, seam: &mut dy
                 continue;
             }
             let mut ep = entry_param_clear();
-            ep.pos = [from_int(g.x), from_int(g.y), 0, ONE];
+            ep.pos = [from_int(g.x), from_int(g.y), 0, w];
             ep.ty = 1;
             ep.id = MAGIC_CIRCLE;
             ep.area = 2;

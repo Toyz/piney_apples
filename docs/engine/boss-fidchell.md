@@ -349,8 +349,8 @@ by piney-gen for fields 0-31 and skills under 512). The base's `Main` is ported 
 Outbreak's `ccGetDist` (`sqrt_of`: `sqrt.s` on Outbreak and Quarantine);
 the skill damage's range test takes it too. New `Out`s: `Fidchell(Pic)`
 (the text, voices, dust, a meteor's landing, rocks, a bolt's strike),
-`CinemaSkill` and `CamMaxRange`; `CamView.shake` is
-`checkCameraShakeRange` of the boss's place. Camera 3's eye and view are
+`CinemaSkill`; the boss camera's `MaxRenge` is written on it, and
+`checkCameraShakeRange` of the boss's place is asked at the call. Camera 3's eye and view are
 kept by the rules (`Fidchell::cam3`), which its own `cameraGetPos(3)` and
 `cameraGetView(3)` read back. `effSkillStart`'s controller is taken to end
 8 frames on (`SKILL_START_LIFE`).

@@ -10,11 +10,15 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::blur::{Blur, BlurFunc, Reflex, Statics};
 use piney_battle::boss::skeith::{self, Skeith};
 use piney_battle::boss::systems::wave::Wave;
-use piney_battle::boss::{Boss, BossEnv, CamView, Cx, EffKind, FxCall, Out, Tbl};
+use std::cell::RefCell;
+
+use piney_battle::boss::{Boss, BossBase, BossEnv, Cams, Cx, EffKind, FxCall, Out, Tbl};
+use piney_battle::camera::{Cam, CamId, CamList, Scheme, Shake};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
 use piney_battle::exp::Party;
+use piney_battle::geom::{ONE, V4};
 use piney_battle::rand::Rand;
 use piney_battle::scene::Scene;
 use piney_battle::tables::Tables;
@@ -102,7 +106,7 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = ProbeBlur::read(t);
-    let fade = read_fade(t);
+    let (cams, post) = read_cams(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -118,7 +122,7 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None };
+    let benv = BossEnv { t: tables, clips: &clip, env: &env0, game_over: false, cc: None, cams: &cams };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let mut none = |_| None;
@@ -136,9 +140,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
         collide: &mut none,
         field: &mut piney_battle::boss::NoField,
         game_over: false,
-        // InitBossCamera is a no-op in the harness: no bossCam, no quake.
-        boss_cam: false,
-        cam: CamView { fade, ..CamView::default() },
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
         gen_alive: &|_| true,
@@ -149,14 +150,17 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
     let mut boss = skeith::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
+    post.apply(&cams, &mut boss.base);
     blur.apply(&out);
-    lines.push(
-        frame_json(&boss, &scene, me, &out, &rand, &cc)
+    lines.push(with_cams(
+        &frame_json(&boss, &scene, me, &out, &rand, &cc)
             .replace("\"rand\":", &format!("\"menu\":[0,0,0,0,0,0],\"blur\":{},\"rand\":", blur.json())),
-    );
+        &cams,
+        &boss.base,
+    ));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None };
+        let benv = BossEnv { t: tables, clips: &clip, env: &env, game_over: false, cc: None, cams: &cams };
         let actx = AffectCtx {
             party: &party,
             menu: true,
@@ -198,8 +202,6 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
             collide: &mut none,
             field: &mut piney_battle::boss::NoField,
             game_over: false,
-            boss_cam: false,
-            cam: CamView { fade, ..CamView::default() },
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -233,7 +235,7 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
                 _ => {}
             }
         }
-        lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc).replace(
+        let line = frame_json(&boss, &scene, me, &out, &rand, &cc).replace(
             "\"rand\":",
             &format!(
                 "\"menu\":[{},{},{},{},{},{}],\"blur\":{},\"rand\":",
@@ -245,7 +247,8 @@ fn run(tables: &Tables, clips: &Clips, t: &mut Toks) -> String {
                 menu[5],
                 blur.json()
             ),
-        ));
+        );
+        lines.push(with_cams(&line, &cams, &boss.base));
     }
     format!("[{}]", lines.join(","))
 }
@@ -266,13 +269,122 @@ pub(crate) fn row_size(scene: &mut Scene, me: usize, tables: &Tables) {
     }
 }
 
-/// The active camera `ccBoss::Draw`'s fade reads (tools/test_battle_boss_rs.py
-/// `draw_case`): its eye, `deg[1]` and type (1 the eye view), in a field.
-pub(crate) fn read_fade(t: &mut Toks) -> Option<piney_battle::boss::CamFade> {
-    let eye = [t.u32(), t.u32(), t.u32(), 0x3f80_0000];
-    let deg1 = t.i16();
-    let eye_view = t.int() == 1;
-    Some(piney_battle::boss::CamFade { eye, deg1, eye_view, far: 0x45da_c000, fade: 0x4416_0000 })
+/// camera.cpp as the case lays it in the game's memory
+/// (tools/test_battle_boss_rs.py `cam_case`): `setCameraCtrlType(n)`,
+/// camID, and tcam, bcam and ecam each: pos and view (x, y, z), rot and
+/// rot3 (x, y, z, w), deg (2), type; the shake's slots free; then what the
+/// case writes after the constructor ([`Post`]).
+pub(crate) fn read_cams(t: &mut Toks) -> (RefCell<Cams>, Post) {
+    let scheme = Scheme::new(t.i32());
+    let id = CamId::from_raw(t.i32()).expect("camID 0-3");
+    let mut cam = || Cam {
+        pos: [t.u32(), t.u32(), t.u32(), ONE],
+        view: [t.u32(), t.u32(), t.u32(), ONE],
+        rot: std::array::from_fn(|_| t.u32()),
+        rot3: std::array::from_fn(|_| t.u32()),
+        deg: [t.i16(), t.i16()],
+        kind: t.i32(),
+        ..Cam::default()
+    };
+    let mut list = CamList::new(crate::probe_volume(), cam());
+    *list.cam_mut(CamId::Battle) = cam();
+    *list.cam_mut(CamId::Event) = cam();
+    list.change(id);
+    let draw = (t.int() != 0).then(|| ([t.u32(), t.u32(), t.u32(), ONE], t.i16(), t.i32()));
+    let cam_sw = t.int() != 0;
+    (RefCell::new(Cams { list, shake: Shake::default(), scheme }), Post { draw, cam_sw })
+}
+
+/// What the case writes after the constructor (`post_cams`): the draw
+/// camera (eye, `deg[1]`, type) into the active one, and `bossCamSW` with
+/// a boss camera.
+pub(crate) struct Post {
+    draw: Option<(V4, i16, i32)>,
+    cam_sw: bool,
+}
+
+impl Post {
+    pub(crate) fn apply(&self, cams: &RefCell<Cams>, b: &mut BossBase) {
+        if let Some((pos, deg1, kind)) = self.draw {
+            let mut c = cams.borrow_mut();
+            let a = c.list.active_mut();
+            a.pos = pos;
+            a.deg[1] = deg1;
+            a.kind = kind;
+        }
+        if b.cam.is_some() {
+            b.cam_sw = self.cam_sw;
+        }
+    }
+}
+
+/// camera.cpp after a frame, as the harness reads it (`cams_state`):
+/// camID, each camera's pos, view, rot's x and z, deg and type, and the
+/// shake's slots.
+pub(crate) fn cams_json(c: &Cams) -> String {
+    let cam = |n: CamId| {
+        let a = c.list.cam(n);
+        format!(
+            "[[{}],[{}],{},{},{},{},{}]",
+            crate::corbenik::v3(&a.pos),
+            crate::corbenik::v3(&a.view),
+            a.rot[0],
+            a.rot[2],
+            a.deg[0],
+            a.deg[1],
+            a.kind
+        )
+    };
+    let sf: Vec<String> =
+        c.shake.sf.iter().map(|s| format!("[{},{},{},{},{}]", s.power, s.cycle, s.rot, s.time, s.dirc)).collect();
+    format!(
+        "[{},{},{},{},[{}]]",
+        c.list.id().raw(),
+        cam(CamId::Field),
+        cam(CamId::Battle),
+        cam(CamId::Event),
+        sf.join(",")
+    )
+}
+
+/// The boss camera (`ccBoss` +0x14c, +0x150 `bossCamSW`) as the harness
+/// reads it (`bosscam_state`): null without one.
+pub(crate) fn bcam_json(b: &BossBase) -> String {
+    let Some(c) = b.cam.as_ref() else { return "null".into() };
+    let v = crate::corbenik::v3;
+    format!(
+        "[{},{},{},{},{},[{}],[{}],[{}],[{}],[{}],[{}],[{}],{},{},{},{},{},{},{},{},{},{},{},{}]",
+        u8::from(b.cam_sw),
+        u8::from(c.lock),
+        u8::from(c.init_lock),
+        u8::from(c.quake_flg),
+        c.reset,
+        v(&c.view),
+        v(&c.pos),
+        v(&c.rot),
+        v(&c.temp_view),
+        v(&c.temp_pos),
+        v(&c.move_transfer),
+        v(&c.quake),
+        c.max_range,
+        c.xrot,
+        c.deg,
+        c.mem_dirc_z,
+        c.remit_rot_max,
+        c.count,
+        c.zrot_cont,
+        c.camera_type,
+        c.ex_lock,
+        u8::from(c.zrot_control),
+        c.basis_rot,
+        c.limit_rot
+    )
+}
+
+/// `line` (a frame's JSON) with camera.cpp's and the boss camera's state.
+pub(crate) fn with_cams(line: &str, cams: &RefCell<Cams>, b: &BossBase) -> String {
+    let at = line.rfind("\"rand\":").expect("a frame's rand");
+    format!("{}\"cams\":{},\"bcam\":{},{}", &line[..at], cams_json(&cams.borrow()), bcam_json(b), &line[at..])
 }
 
 pub(crate) struct ProbeBlur {
@@ -437,19 +549,15 @@ pub(crate) fn out_json(o: &Out) -> Option<String> {
             Gen::Tornado => "[\"particles\",\"Tornado\",0]".into(),
             Gen::Burst(r) => format!("[\"particles\",\"Burst\",{r}]"),
         },
-        // The camera's quake and the reverse layer's draw: the runtime's
-        // (the harness has no boss camera); the menu's writes are compared
-        // as the menu's state; the rest by their effects.
-        Out::Quake(_)
-        | Out::DrawWave
+        // The reverse layer's draw: the runtime's; the menu's writes are
+        // compared as the menu's state, the cameras as theirs; the rest by
+        // their effects.
+        Out::DrawWave
         | Out::Reverse
         | Out::CursorOff(_)
         | Out::MenuForbid { .. }
         | Out::StreamMenu { .. }
-        | Out::DeadCamera { .. }
-        | Out::CamMode { .. }
-        | Out::FreeCam { .. }
-        | Out::CamPitch { .. }
+        | Out::MusicFade { .. }
         | Out::Blur { .. }
         | Out::DeleteCmnd => return None,
         _ => return None,

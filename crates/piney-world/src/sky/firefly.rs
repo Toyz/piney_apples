@@ -39,23 +39,25 @@ pub struct Fly<'a> {
     pub volume: piney_data::volume::Volume,
     pub player: V4,
     pub bounds: [F; 4],
-    /// `cameraGetPos(camID)`, and the camera's turn (`cameraGetRot2(1)`
-    /// in the eye view, else `cameraGetRot(1)`).
+    /// What a field's type 1 roams by ([`Roam`]); the arena's type 0
+    /// reads none of it.
+    pub roam: Option<Roam<'a>>,
+}
+
+/// What a type 1 (field type 9's) reads as it moves: `cameraGetPos(camID)`,
+/// the camera's turn (`cameraGetRot2(1)` in the eye view, else
+/// `cameraGetRot(1)`) and `WORLD_MAN::GetHeight`.
+#[derive(Clone, Copy)]
+pub struct Roam<'a> {
     pub eye: V4,
     pub rot: V4,
-    /// `WORLD_MAN::GetHeight`.
     pub ground: Ground<'a>,
 }
 
 impl Fly<'_> {
-    /// The arena's: its bounds, and no camera or ground (type 0 reads
-    /// neither).
+    /// The arena's: its bounds.
     fn arena(volume: piney_data::volume::Volume, player: V4) -> Fly<'static> {
-        Fly { volume, player, bounds: crate::story_map::BOUNDS, eye: [0; 4], rot: [0; 4], ground: Ground::Flat }
-    }
-
-    fn height(&self, x: F, y: F) -> F {
-        self.ground.height(x, y)
+        Fly { volume, player, bounds: crate::story_map::BOUNDS, roam: None }
     }
 }
 
@@ -137,25 +139,29 @@ impl Firefly {
 
     /// `new FIREFLY2`, `Init(stream, name)` and `SetBasePosition(at)`, as
     /// the arena makes each.
-    pub fn arena(volume: piney_data::volume::Volume, rng: &mut Rng, at: V4) -> Firefly {
+    pub fn arena(rng: &mut Rng, at: V4) -> Firefly {
         let mut f = Firefly::new(rng);
         f.life = rng.below(200) as i32 + 220;
         f.scale = SCALE;
-        f.set_base(rng, at, &Fly::arena(volume, at));
+        f.set_base(rng, at);
         f
     }
 
     /// Field type 9's (`WORLD::Generate`): `new FIREFLY2`,
     /// `Init(field_eff, "EFF_sfzfir1")`, `SetDirc(dirc)` and
     /// `SetBasePosition(base)`.
-    pub fn roamer(rng: &mut Rng, dirc: V4, base: V4, fly: &Fly) -> Firefly {
+    /// `ground` the field's (`WORLD_MAN::GetHeight`), which a type 1's
+    /// `SetBasePosition` reads.
+    pub fn roamer(rng: &mut Rng, dirc: V4, base: V4, ground: &Ground) -> Firefly {
         let mut f = Firefly::new(rng);
         f.life = rng.below(200) as i32 + 220;
         f.scale = SCALE;
         f.kind = 1;
         f.speed = TWO;
         f.vel = dirc;
-        f.set_base(rng, base, fly);
+        f.set_base(rng, base);
+        let h = ground.height(f.pos[0], f.pos[1]);
+        f.pos[2] = ee::add(h, from_rand(rng.below(300)));
         f
     }
 
@@ -179,29 +185,26 @@ impl Firefly {
         s
     }
 
-    /// `SetBasePosition(p)` (0x005b49f0).
-    fn set_base(&mut self, rng: &mut Rng, p: V4, fly: &Fly) {
+    /// `SetBasePosition(p)` (0x005b49f0) but a type 1's height, which
+    /// [`Firefly::roamer`] then takes from the ground (and `fieldrand(300)`).
+    fn set_base(&mut self, rng: &mut Rng, p: V4) {
         self.base = p;
         let (n, off) = if self.kind == 0 { (500, 250) } else { (3000, 1500) };
         self.pos[0] = ee::from_int(rng.below(n) as i32 - off);
         self.pos[1] = ee::from_int(rng.below(n) as i32 - off);
         self.pos = ee::vadd(self.pos, self.base);
         self.pos[2] = from_rand(rng.below(100));
-        if self.kind == 1 {
-            let h = fly.height(self.pos[0], self.pos[1]);
-            self.pos[2] = ee::add(h, from_rand(rng.below(300)));
-        }
         self.pos[3] = ONE;
     }
 
     /// `SetBasePosition2(p)` (0x005b4ba0).
-    fn set_base2(&mut self, rng: &mut Rng, p: V4, fly: &Fly) {
+    fn set_base2(&mut self, rng: &mut Rng, p: V4, roam: &Roam) {
         self.base = p;
         if self.kind == 0 {
             self.pos[0] = ee::from_int(rng.below(500) as i32 - 250);
             self.pos[1] = ee::from_int(rng.below(500) as i32 - 250);
         } else {
-            let mut rot = fly.rot;
+            let mut rot = roam.rot;
             self.pos[0] = ee::from_int(rng.below(3000) as i32 - 1500);
             self.pos[1] = ee::from_int(rng.below(3000) as i32 - 1500);
             self.pos[2] = ee::from_int(rng.below(300) as i32);
@@ -209,7 +212,7 @@ impl Firefly {
             rot[1] = 0;
             let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
             self.pos = ee::apply(&m, self.pos);
-            self.pos[2] = fly.height(self.pos[0], self.pos[1]);
+            self.pos[2] = roam.ground.height(self.pos[0], self.pos[1]);
         }
         self.pos = ee::vadd(self.pos, self.base);
         self.pos[3] = ONE;
@@ -262,15 +265,17 @@ impl Firefly {
     pub fn step_in(&mut self, fly: &Fly, rng: &mut Rng) {
         let rel = w2p(self.pos, fly.player, fly.bounds);
         // Where SetBasePosition2 takes a type 1 back to at life's end.
-        let mut back = fly.eye;
+        let mut back = fly.roam.map(|r| r.eye);
         if self.kind == 0 {
             if !ee::le(ground_dist(fly.volume, rel), REACH) {
                 return;
             }
-        } else if !ee::le(piney_battle::enemy_ai::get_dist_on(fly.volume, fly.eye, self.pos), ROAM) {
+        } else if let Some(r) = fly.roam
+            && !ee::le(piney_battle::enemy_ai::get_dist_on(fly.volume, r.eye, self.pos), ROAM)
+        {
             self.transparency = 0;
-            back = fly.player;
-            self.set_base2(rng, back, fly);
+            back = Some(fly.player);
+            self.set_base2(rng, fly.player, &r);
             self.vel[0] = wander(rng);
             self.vel[1] = wander(rng);
             self.vel[2] = wander(rng);
@@ -329,9 +334,9 @@ impl Firefly {
         }
         if self.life == 0 {
             if self.kind == 0 {
-                self.set_base(rng, rel, fly);
-            } else {
-                self.set_base2(rng, back, fly);
+                self.set_base(rng, rel);
+            } else if let (Some(r), Some(b)) = (fly.roam, back) {
+                self.set_base2(rng, b, &r);
             }
             self.life = rng.below(200) as i32 + 220;
         }
@@ -385,14 +390,14 @@ mod tests {
     fn reach_and_sparks() {
         let mut rng = Rng::new(7);
         let far = [ee::from_int(5000), 0, 0, ONE];
-        let mut f = Firefly::arena(Volume::Inf, &mut rng, far);
+        let mut f = Firefly::arena(&mut rng, far);
         let before = f.clone();
         let mut out = Vec::new();
         f.draw(Volume::Inf, [0, 0, 0, ONE], &mut out);
         f.step(Volume::Inf, [0, 0, 0, ONE], &mut rng);
         assert!(out.is_empty());
         assert_eq!(f, before);
-        let mut f = Firefly::arena(Volume::Inf, &mut rng, [0, 0, 0, ONE]);
+        let mut f = Firefly::arena(&mut rng, [0, 0, 0, ONE]);
         for _ in 0..40 {
             f.step(Volume::Inf, [0, 0, 0, ONE], &mut rng);
         }

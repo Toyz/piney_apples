@@ -414,7 +414,7 @@ pub(crate) fn ball_damage(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mu
         2 => {
             b.act_proccess += 1;
             core_state(t, cx, 7);
-            cx.out(Out::CamMode { mode: 4 });
+            b.cam_mode(cx, 4);
         }
         3 => x.quake_vector[..3].copy_from_slice(&[0x41f0_0000; 3]),
         _ => {}
@@ -446,13 +446,13 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
         1 => {
             if core_state_is(t, 6) {
                 b.act_proccess += 1;
-                cx.out(Out::CamModeRange { mode: 3, range: 0x45ab_e000 });
+                b.cam_mode_range(cx, 3, 0x45ab_e000);
                 cx.out(Out::Blur(Set::Abgr(0x6080_8080)));
                 cx.out(Out::SeNote { se: 191, note: 60 });
             }
         }
         2 => {
-            if cx.cam.reset == 0 {
+            if b.cam_reset() == 0 {
                 b.act_proccess += 1;
                 create(b, t.disc.pos, cx);
                 x.quake_vector = VF0;
@@ -460,10 +460,10 @@ pub(super) fn magic_ball_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: 
         }
         3 => {
             let q = x.quake_vector;
-            cx.quake_vec([q[0], q[1], q[2]]);
+            b.quake_vec(cx, [q[0], q[1], q[2]]);
         }
         4 => {
-            if cx.cam.reset == 0 {
+            if b.cam_reset() == 0 {
                 b.act_proccess += 1;
                 cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }

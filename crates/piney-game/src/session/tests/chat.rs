@@ -226,7 +226,7 @@ fn chat_member_heal(mut each: impl FnMut(&Session, &Frame)) -> Option<HealRun> {
                     let k = c.kite.unwrap();
                     let p = c.scene.chars[k].pos.map(f32::from_bits);
                     let (dx, dy) = (goal[0] - p[0], goal[1] - p[1]);
-                    let cam_z = f32::from_bits(w.camera().rot()[2]);
+                    let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                     if dx * dx + dy * dy < 1500.0 * 1500.0 { still } else { stick_toward(cam_z, dx.atan2(-dy)) }
                 }
                 // CHAT: over to the Members page, the first member.

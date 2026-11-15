@@ -115,9 +115,10 @@ fn skeith_fights_in_its_arena() {
         }
         let (cam, c) = (a.world().camera(), a.world().combat());
         let (Some(k), Some(me)) = (c.kite, c.boss_char()) else { return };
-        assert_eq!(cam.cam_id, piney_world::camera::id::BATTLE);
+        assert_eq!(cam.list.id(), piney_world::camera::CamId::Battle);
         let f = f32::from_bits;
-        let (kp, bp, b) = (c.scene.chars[k].pos, c.scene.chars[me].pos, &cam.bcam);
+        let (kp, bp, b) =
+            (c.scene.chars[k].pos, c.scene.chars[me].pos, &cam.list.cam(piney_world::camera::CamId::Battle));
         let look = (f(b.view[1]) - f(b.pos[1])).atan2(f(b.view[0]) - f(b.pos[0]));
         let to_boss = (f(bp[1]) - f(kp[1])).atan2(f(bp[0]) - f(kp[0]));
         let d = (look - to_boss + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
@@ -467,7 +468,7 @@ fn event_30_ends_with_skeith() {
             cleared = Some((k.cond[piney_battle::param::cond::POISON], p.temp, k.no_death));
         }
         calls = a.calls().iter().map(|(_, c)| c.clone()).collect();
-        let cam_id = a.world().camera().cam_id;
+        let cam_id = a.world().camera().list.id();
         let c = a.world_mut().combat_mut();
         if let Some(k) = c.kite {
             let ch = &mut c.scene.chars[k];
@@ -506,9 +507,9 @@ fn event_30_ends_with_skeith() {
     assert!(exited, "never exited");
     let (poison, temp, no_death) = cleared.expect("the boss's HP never reached 0");
     assert_eq!((poison, temp, no_death), (0, [0; 16], true), "the party's conditions after the death");
-    use piney_world::camera::id;
-    assert!(cams.contains(&(false, id::BATTLE)) && cams.contains(&(true, id::EVENT)), "cameras {cams:?}");
-    assert!(!cams.contains(&(false, id::FIELD)), "the field camera in the fight: {cams:?}");
+    use piney_world::camera::CamId;
+    assert!(cams.contains(&(false, CamId::Battle)) && cams.contains(&(true, CamId::Event)), "cameras {cams:?}");
+    assert!(!cams.contains(&(false, CamId::Field)), "the field camera in the fight: {cams:?}");
     // Block 22: area_ban and gate_unmark on the save, then mode 3 (the
     // desktop) takes the session out of the area.
     assert!(left, "the event did not end the area");
@@ -632,7 +633,7 @@ fn skeith_drained_through_the_menus() {
                     if dx * dx + dy * dy < 600.0 * 600.0 {
                         press(Buttons::TRIANGLE)
                     } else {
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, dx.atan2(-dy))
                     }
                 }
@@ -681,7 +682,7 @@ fn kite_bumps_into_skeith() {
             nearest = nearest.min((dx * dx + dy * dy).sqrt());
             radii = f32::from_bits(c.scene.chars[me].base().width) + f32::from_bits(c.scene.chars[k].base().width);
             let w = a.world();
-            stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+            stick_toward(f32::from_bits(w.camera().list.rot()[2]), dx.atan2(-dy))
         };
         pad.read(&raw);
         s.step(&pad);
@@ -917,7 +918,7 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
                     if dx * dx + dy * dy < 600.0 * 600.0 {
                         press(Buttons::TRIANGLE)
                     } else {
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, dx.atan2(-dy))
                     }
                 }
@@ -1265,7 +1266,7 @@ fn innis_drained_through_the_menus() {
                     if dx * dx + dy * dy < 600.0 * 600.0 && b.base.erase_target == 0 {
                         press(Buttons::TRIANGLE)
                     } else {
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, dx.atan2(-dy))
                     }
                 }
@@ -1706,7 +1707,7 @@ fn magus_drained_through_the_menus() {
                     if dx * dx + dy * dy < 600.0 * 600.0 && b.base.erase_target == 0 {
                         press(Buttons::TRIANGLE)
                     } else {
-                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        let cam_z = f32::from_bits(w.camera().list.rot()[2]);
                         stick_toward(cam_z, dx.atan2(-dy))
                     }
                 }

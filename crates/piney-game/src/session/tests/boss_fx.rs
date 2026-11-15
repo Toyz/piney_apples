@@ -803,7 +803,7 @@ fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
         if a.in_town() {
             continue;
         }
-        let boss_cam = a.world().camera().cam_id == 2;
+        let boss_cam = a.world().camera().list.id() == piney_world::camera::CamId::Battle;
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
             c.scene.chars[k].max_hp = 9999;

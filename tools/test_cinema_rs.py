@@ -13,7 +13,8 @@ place and size), ccScFade::EntryFlash (each bar's frames, colour, place
 and size); the sends do nothing.
 
 Runs: cinema on and off at random frames with numbers 2 (Skeith's magic,
-a name), -1 (the Data Drain, none), 0, 5 and 70 (no name in the table),
+a name on Infection), -1 (the Data Drain, none), 0, 5, 64 and 70 (names
+from Mutation on: Innis's, Fidchell's past Infection's range of 61),
 on again while it slides in or out, Draw every frame. Compared each frame:
 the name drawn (transparency bits, wv) or not, the bars' y (bits) or none,
 and whether an on set the name up.
@@ -124,7 +125,9 @@ class Game:
 
 class Probe:
     def __init__(self):
-        self.p = subprocess.Popen([EXAMPLE], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, cwd=ROOT)
+        number = list(volume.EXECUTABLES).index(volume.NAME) + 1
+        self.p = subprocess.Popen([EXAMPLE, str(number)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                                  cwd=ROOT)
 
     def ask(self, line):
         self.p.stdin.write(line + "\n")
@@ -155,12 +158,12 @@ class CinemaAgainstGame(unittest.TestCase):
             for f in range(rng.randrange(300, 600)):
                 r = rng.random()
                 if r < 0.03:
-                    n = rng.choice([2, 2, -1, 0, 5, 70])
+                    n = rng.choice([2, 2, -1, 0, 5, 64, 70])
                     settex = g.on(n)
                     got = p.ask("on %d" % n)
                     self.assertEqual(bool(settex), got["settex"], "case %d frame %d on %d" % (case, f, n))
                     for s in settex:
-                        self.assertEqual(s[1:], ("x11", "TEX_ske_skl"))
+                        self.assertEqual(list(s[1:]), got["tex"], "case %d frame %d on %d" % (case, f, n))
                         named += 1
                 elif r < 0.06:
                     g.off()

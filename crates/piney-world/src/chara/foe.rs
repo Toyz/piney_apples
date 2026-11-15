@@ -56,10 +56,7 @@ pub const CIRCLE_EFF: &str = "EFF_xmagpat1";
 /// and fade): a town (`game.area` 0) 4000 and 400, a field or dungeon 7000
 /// and 600; the magic portal and a middle boss's second model use the
 /// field's.
-pub const TOWN_FAR: F = 0x457a_0000;
-pub const TOWN_FADE: F = 0x43c8_0000;
-pub const AREA_FAR: F = 0x45da_c000;
-pub const AREA_FADE: F = 0x4416_0000;
+pub use piney_battle::geom::{AREA_FADE, AREA_FAR, TOWN_FADE, TOWN_FAR};
 /// `hitAttribute` bit: shaded ground (`WORLD_MAN::SleepDistantLight`
 /// around the draw).
 pub const SHADED: u32 = 0x4_0000;

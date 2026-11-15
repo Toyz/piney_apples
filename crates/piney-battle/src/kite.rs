@@ -313,8 +313,8 @@ pub trait KiteWorld: World + Runtime {
     /// `checkCameraType()` (main 0x00160cb0), `activeCamPtr->type`: 1 the
     /// eye view, 3 following him.
     fn camera_type(&mut self) -> i32;
-    /// `checkCameraID()` (main 0x00160ca0): the active camera, 1 the field's.
-    fn camera_id(&mut self) -> i32;
+    /// `checkCameraID()` (main 0x00160ca0): the active camera.
+    fn camera_id(&mut self) -> crate::camera::CamId;
     /// `cameraGetRot(&v, camID)` (main 0x00161610): the camera's rotation
     /// (z its heading).
     fn camera_rot(&mut self) -> V4;
@@ -726,7 +726,7 @@ impl<W: KiteWorld + NaviWorld + ?Sized> KiteWorld for Host<'_, '_, '_, W> {
     fn camera_type(&mut self) -> i32 {
         self.world.borrow_mut().camera_type()
     }
-    fn camera_id(&mut self) -> i32 {
+    fn camera_id(&mut self) -> crate::camera::CamId {
         self.world.borrow_mut().camera_id()
     }
     fn camera_rot(&mut self) -> V4 {
@@ -1578,7 +1578,7 @@ fn camera_pos_set(cx: &mut Cx, me: usize) {
         if cx.w.camera_type() == 1 {
             let eye = cx.p.pos_eye;
             cx.w.camera_set_eye_level(eye, &mut cx.p.angle);
-            if cx.w.camera_id() == 1 {
+            if cx.w.camera_id() == crate::camera::CamId::Field {
                 cx.set(me, flag::LOST_HEAD);
                 let z = cx.p.angle[2];
                 cx.spc(me).dirc[2] = z;

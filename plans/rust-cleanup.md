@@ -243,11 +243,21 @@ Where the code does by hand, per kind, what a system should do once:
       by `entParam.id`; a field's NPC one object, made in
       `ccEntryEventMng`'s `entry[]` walk, where the boss's task starts too;
       the battle's entry control down to its three lists, `GetNpc` once.)
-- [ ] **A camera system.** The game keeps `cameraList[camID]` with one
+- [x] **A camera system.** The game keeps `cameraList[camID]` with one
       active camera; the port has `camera/mod.rs`, `evcam`, `bosscam`,
       `cinema`, the merchant camera, and `CamView.active` threaded by hand
       (worklog 512). One camera list with the active id, each camera kind a
       member, every reader asking the list.
+      (worklogs 598-602, branch `camera-system`: `piney_battle::camera::
+      CamList` with `CamId` 0-3; the event camera, the maps (`MapView`
+      lends the list), the boss camera on the boss (`boss::cam::BossCam`)
+      and the bosses' rules (`boss::Cams`), the NPC list (`NpcCtx.cams`)
+      and the enemies' fade read and write it at the game's call; the 3D
+      sounds pan by the camera at their call (`Show::Ear`); `CamView`,
+      `CamFade`, `CamDef`, the camera `Out`s, `FlareCamera`, `View` gone;
+      the cinema is `combat::cinema`; Tarvos's phantom's first view its
+      target's heap address (`Env::party_va`). Full checks on the tip, the
+      battle pins recorded anew, 291 calls.)
 - [x] **A sprite and effect-request system.** Four sprite types do one job
       (`TownSprite`, `StorySprite`, `breath::Flame`, `field::ambient::Sprite`)
       with two Eff caches (`town_fx.rs`, `fx.rs`, one of them keyed without

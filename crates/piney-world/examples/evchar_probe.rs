@@ -6,6 +6,7 @@
 //! `act`, `mode`, `turn`, `face`, `ban`, `add`, `remove`, `talk`, `pad`;
 //! numbers hex, floats their bits, the fields the harness's.
 
+use piney_world::camera::CamId;
 use std::io::BufRead;
 use std::sync::Arc;
 
@@ -78,7 +79,7 @@ fn ai_json(ai: Option<&piney_world::chara::ai::Ai>) -> String {
 fn kite_json(r: &Run) -> String {
     let c = &r.combat;
     let k = c.kite.expect("built at start");
-    let t = &r.camera.tcam;
+    let t = r.camera.list.cam(CamId::Field);
     let kite = fellow_json(c, 0, k);
     let cam = obj(&[
         ("cam_pos", list(&t.pos)),

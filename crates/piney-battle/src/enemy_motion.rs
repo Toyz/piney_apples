@@ -148,9 +148,9 @@ pub enum Call {
     /// `ccAnm::Draw()` (main), `SetActiveLayer(0)`.
     DrawSecond { matrix: M4, alpha: F },
     /// The model's matrix set (`ccAnm` +0x40, from `sceVu0TransMatrix`)
-    /// and `ccChar::Draw()` (gcmn 0x0056b1c0): the fog, flashes and the
-    /// camera's transparency, then `ccAnm::Draw()`.
-    Draw { matrix: M4 },
+    /// and `ccChar::Draw()` (gcmn 0x0056b1c0) at its `setTransparency`:
+    /// the fog, flashes and the camera's transparency, then `ccAnm::Draw()`.
+    Draw { matrix: M4, set_transparency: F },
     /// `ccSeOn3D(id, pos)` (main 0x00179d90): a gold goblin's clink.
     Sound3d { id: i32, pos: V4 },
     /// `ccTransPosFW2LW(p, pos)` (gcmn 0x0059b9c0) then `ccEnemyEffDust(p,
@@ -1186,7 +1186,8 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
             let alpha = mul(t, self.en(me).set_transparency);
             self.call(me, Call::DrawSecond { matrix, alpha });
         }
-        self.call(me, Call::Draw { matrix });
+        let set_transparency = self.en(me).set_transparency;
+        self.call(me, Call::Draw { matrix, set_transparency });
         self.e(me).anm_lw = matrix;
     }
 

@@ -16,9 +16,9 @@ menu's type changing. Compared each frame: Magus's acts, movement, place,
 target, HP and gauge, flags, clips and own members (Mutation's layout);
 its laser shocks; each leaf's acts, place, HP, lists, clip and own
 members, its countdown, blink and burst; the effects' slots; the party's HP
-and hold; the calls (sounds, flashes, cinema, stage, cameras 1 and 3,
-shakes, particles, skills, fly fonts, hit marks); the menu's words;
-newlib's rand() and ccRand's index.
+and hold; the calls (sounds, flashes, cinema, stage, particles, skills, fly
+fonts, hit marks); the menu's words; camID, the three cameras and the
+shake's slots; newlib's rand() and ccRand's index.
 
 What is not the game's here:
 - The party's affects are off (affectFunc 0): Magus's hits are compared by
@@ -34,9 +34,8 @@ What is not the game's here:
   port's lives (test_effect_lives checks those against the game's); the
   needles (ccBossEffNeedle) run natively, drawing nothing.
 - The particle generators, dust, bursts and fonts only note their start;
-  checkCameraShakeRange answers yes and cameraShake only notes itself (the
-  port's runtime draws its rand()); W2P/P2W are identity and
-  CollisionDetection finds nothing. A skill's request sets the caster's
+  camera.cpp runs natively over the case's cameras (test_battle_boss_rs.py
+  `put_cams`); W2P/P2W are identity and CollisionDetection finds nothing. A skill's request sets the caster's
   skillID and status 9 when cast through it (flag set), as the port's
   request does.
 - Some cases force a while of m_bDropping 0 with the laser reserved, a
@@ -297,22 +296,7 @@ class Game:
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
         hook("ccEnemyEffDust__FPfif", lambda mm, *a: out.append(["dust"]) or 0)
         hook("effSmokeRock__FPfPffiii", lambda mm, p, r, *a: out.append(["shock_burst", mm.load(r + 8, 4)]) or 0)
-        hook("checkCameraShakeRange__FPf", lambda mm, *a: 1)
-        hook("cameraShake__Fiiii", lambda mm, *a: out.append(["shake"]) or 0)
 
-        def change_camera(mm, n, *_):
-            out.append(["cam", s32(n)])
-            mm.store(sym("camID"), 2, n & 0xFFFF)
-            return 0
-        hook("changeCamera__Fi", change_camera)
-
-        def cam_set(key):
-            def put(mm, p, n, *_):
-                out.append([key, s32(n)] + [mm.load(p + 4 * k, 4) for k in range(3)])
-                return 0
-            return put
-        hook("cameraSetPos__FPfi", cam_set("campos"))
-        hook("cameraSetView__FPfi", cam_set("camview"))
         hook("ccTransPosW2P__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
         hook("ccTransPosP2W__FPfPf", lambda mm, o, i, *_: mm.mem.__setitem__(slice(o, o + 16), mm.mem[i:i + 16]) or 0)
 
@@ -583,6 +567,7 @@ def run_game(game, case):
     m.store(sys_ + 0x358, 4, case["count"])
     game.out.clear()
     m.call(game.sym("__ct__8ccBoss03Fv"), (BOSS,))
+    bb.post_cams(game, BOSS, case["cam"])
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
@@ -739,6 +724,8 @@ def game_state(game, n):
         "blur": bb.blur_state(game, MGR),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
+        "cams": bb.cams_state(game),
+        "bcam": bb.bosscam_state(game, BOSS),
     }
 
 

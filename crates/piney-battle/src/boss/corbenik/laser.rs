@@ -246,7 +246,7 @@ impl Tera {
                     v[1] = ee::add(v[1], 0x452f_0000);
                     v[2] = ee::add(v[2], 0x448f_c000);
                     let (e, v) = (p2w(cx, e), p2w(cx, v));
-                    cx.out(Out::FreeCam { pos: e, view: v });
+                    b.cam_pos_view(e, v);
                 } else if c >= 31 {
                     if c == 31 {
                         self.rot[0] = NEG_HALF_PI;
@@ -269,7 +269,7 @@ impl Tera {
             }
             2 => {
                 if c < 41 {
-                    cx.quake_vec([0x4248_0000, 0x4248_0000, 0x4270_0000]);
+                    b.quake_vec(cx, [0x4248_0000, 0x4248_0000, 0x4270_0000]);
                 }
                 let t = self.target;
                 if c == 5 {
@@ -450,8 +450,8 @@ impl Refrect {
         }
         if self.shake > 0 {
             self.shake -= 1;
-            if cx.boss_cam {
-                cx.quake_vec([0x42a0_0000, 0x42a0_0000, 0x42c8_0000]);
+            if b.cam.is_some() {
+                b.quake_vec(cx, [0x42a0_0000, 0x42a0_0000, 0x42c8_0000]);
             }
         }
         self.enabled

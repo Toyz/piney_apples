@@ -144,7 +144,7 @@ fn answer(d: &Disc, files: &mut Files, looks: &mut HashMap<i32, EnemyLook>, circ
                 eye: n(25) != 0,
                 bounds: area::BOUNDS,
                 town: n(26) != 0,
-                volume: piney_data::volume::Volume::Inf,
+                volume: d.volume,
             };
             let c: CharDraw = foe::char_draw_parts(
                 n(1) as i16,
@@ -268,15 +268,7 @@ fn shot(d: &Disc, s: &Shot) -> Result<(), Box<dyn std::error::Error>> {
     area.core.hits.center = [player[0], player[1]];
     area.draw(&mut layers, to_screen, player, eye, true);
     let lights = area.core.lights.clone();
-    let cam = Camera {
-        player,
-        cam: eye,
-        deg1: 1512,
-        eye: false,
-        bounds: area::BOUNDS,
-        town: false,
-        volume: piney_data::volume::Volume::Inf,
-    };
+    let cam = Camera { player, cam: eye, deg1: 1512, eye: false, bounds: area::BOUNDS, town: false, volume: d.volume };
     // The portal.
     let circle = Circle::load(&mut files, d.volume)?;
     if let Some(p) = play_at(&circle.model, &s.circle.0, s.circle.1 << 8) {

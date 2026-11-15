@@ -6,6 +6,7 @@
 //! fight (`KyviaExFlg`) each rises beside the body instead.
 //! docs/engine/boss-kyvia.md, boss-kyvia-fourth.md.
 
+use crate::boss::cam::BossCam;
 use piney_data::field::ee;
 use piney_data::tables::combat::{self, Combat};
 
@@ -257,7 +258,9 @@ pub(crate) fn set_gomora_state(g: &mut Part<Gomora>, cx: &mut Cx, n: i32) {
 
 /// `kyviaGomora::Main` (MUT gcmn 0x005004d0). `acts` are the gomoras' acts
 /// now (`CheckGomoraSkillAct`).
-pub(crate) fn main(g: &mut Part<Gomora>, core: usize, acts: &[i16], cx: &mut Cx) {
+/// `cam` is its `DammyBossCam` (+0x29400): the fight's camera, which
+/// kyviaCore::CoreInit copies to each gomora (MUT gcmn 0x004f8614).
+pub(crate) fn main(g: &mut Part<Gomora>, core: usize, acts: &[i16], cam: &mut Option<BossCam>, cx: &mut Cx) {
     let _ = core;
     let me = g.me;
     as_me(cx, me, |cx| {
@@ -267,7 +270,7 @@ pub(crate) fn main(g: &mut Part<Gomora>, core: usize, acts: &[i16], cx: &mut Cx)
         super::head(&mut g.b.base, cx);
         fade_gomora(g, cx);
         think(g, acts, cx);
-        action(g, cx);
+        action(g, cam, cx);
         move_(g, cx);
         if g.b.base.draw_sw != 0 {
             g.b.base.anm_status = i8::from(g.b.base.anm.forward());
@@ -824,7 +827,7 @@ fn check_count_atk_time(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
 // --- Action ------------------------------------------------------------------------------
 
 /// `kyviaGomora::Action` (MUT gcmn 0x004ff800).
-fn action(g: &mut Part<Gomora>, cx: &mut Cx) {
+fn action(g: &mut Part<Gomora>, cam: &mut Option<BossCam>, cx: &mut Cx) {
     let me = g.me;
     match g.b.base.act_num {
         0 | 12 | 13 => {}
@@ -841,7 +844,7 @@ fn action(g: &mut Part<Gomora>, cx: &mut Cx) {
             }
             g.b.base.spd_down(0, 0x40a0_0000);
         }
-        act::DASH => dash(g, cx),
+        act::DASH => dash(g, cam, cx),
         act::SKILL => {
             g.b.base.spd_down(0, 0x40a0_0000);
             g.b.base.dirc[1] = wrap(ee::sub(g.b.base.dirc[1], 0x3e23_d70a));
@@ -862,7 +865,7 @@ fn action(g: &mut Part<Gomora>, cx: &mut Cx) {
 /// Act 3, the dash (MUT gcmn 0x004ff970): a new target in turn (the fifth
 /// frame times its slave number), held while it flies out along a spline
 /// to it, strikes at 0.72 of the third part and flies back.
-fn dash(g: &mut Part<Gomora>, cx: &mut Cx) {
+fn dash(g: &mut Part<Gomora>, cam: &mut Option<BossCam>, cx: &mut Cx) {
     let me = g.me;
     let mut d = g.b.base.dirc[1];
     if g.b.base.act_proccess != 0 {
@@ -899,13 +902,13 @@ fn dash(g: &mut Part<Gomora>, cx: &mut Cx) {
                 }
             }
         }
-        2 => dash_flight(g, cx),
+        2 => dash_flight(g, cam, cx),
         _ => {}
     }
 }
 
 /// The dash's flight (act 3's third step).
-fn dash_flight(g: &mut Part<Gomora>, cx: &mut Cx) {
+fn dash_flight(g: &mut Part<Gomora>, cam: &mut Option<BossCam>, cx: &mut Cx) {
     let me = g.me;
     if !ee::le(g.x.time, ONE) {
         g.x.time = 0;
@@ -957,7 +960,7 @@ fn dash_flight(g: &mut Part<Gomora>, cx: &mut Cx) {
             g.b.base.act_count += 1;
             if c < 21 {
                 let q = g.x.quake_vector;
-                cx.quake_vec([q[0], q[1], q[2]]);
+                crate::boss::quake_on(cam, cx, [q[0], q[1], q[2]]);
             }
             move_spline(g, cx, [a[4], a[4], a[5], a[6]]);
         }

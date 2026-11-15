@@ -242,7 +242,8 @@ mod tests {
                 assert!(m.core.hits.models.iter().all(|h| own.contains(&h.parent)), "{:?}", def.class);
                 assert_eq!(m.rows().len(), 1, "{:?}", def.class);
                 let mut layers = piney_desktop::layers::Layers::default();
-                let v = MapView { player: m.core.start, ..MapView::default() };
+                let cams = crate::camera::CamList::default();
+                let v = MapView { player: m.core.start, ..MapView::new(&cams, &crate::systems::NO_SCREEN) };
                 let mut cc = piney_battle::rand::Genrand::default();
                 // A draw while the tasks sleep, before any step, puts the
                 // clouds back as they were (none yet).

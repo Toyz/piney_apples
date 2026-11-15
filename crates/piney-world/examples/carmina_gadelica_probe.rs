@@ -12,13 +12,14 @@ use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
 use piney_data::iso::Iso;
 use piney_data::statics::DrawPass;
+use piney_world::camera::{Cam, CamList};
 use piney_world::ee;
 use piney_world::systems::scrolls::Scrolls;
 use piney_world::systems::sky::Sky;
 use piney_world::systems::statics::StaticModels;
 use piney_world::systems::water::Water;
 use piney_world::systems::{Drawn, Kind, Piece};
-use piney_world::systems::{MapEvent, MapView};
+use piney_world::systems::{MapEvent, MapView, NO_SCREEN};
 use piney_world::town::Town;
 use piney_world::town::carmina_gadelica::Airship;
 
@@ -104,7 +105,8 @@ fn main() {
             }
             Some("draw") => {
                 let t = town.as_mut().unwrap();
-                t.step(&MapView { eye: [n(1), n(2), n(3), ee::ONE], ..MapView::default() });
+                let cams = CamList::new(volume, Cam { pos: [n(1), n(2), n(3), ee::ONE], ..Cam::default() });
+                t.step(&MapView::new(&cams, &NO_SCREEN));
                 let events = t.take_events();
                 let s = t.systems();
                 let (sky, water, d) = (s.get::<Sky>().unwrap(), s.get::<Water>().unwrap(), s.get::<Airship>().unwrap());

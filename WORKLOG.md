@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-597 entries: audio 46, battle 161, build 34, content 3, decomp 38, disc 6, engine 38, format 18, iop 3, render 133, save 16, script 64, test 254, tooling 60, ui 107, video 18, volumes 102, world 190. 159 entries still have open questions - [listed below](#still-open).
+602 entries: audio 48, battle 165, build 34, content 3, decomp 38, disc 6, engine 43, format 18, iop 3, render 133, save 16, script 64, test 259, tooling 61, ui 107, video 18, volumes 103, world 193. 163 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -609,9 +609,18 @@ The [reference](docs/README.md) says what is true now.
 | 595 | [An NPC system, leg 3: the boss starts in the entry walk and is made after it, the battle's NPC list gone with GetNpc written once, tests for the list's order and a dungeon PC's steps](worklog/0595-an-npc-system-leg-3-the-boss-starts-in-the-entry-walk-and.md) | 2026-11-14 | world, battle, decomp, test |
 | 596 | [ccThEntryCtrl on Outbreak and Quarantine: thread ends as function starts in the symbol carry, deleteAllObject by its callees, the later passes' calls, and the battle spawn harness on all four volumes](worklog/0596-ccthentryctrl-on-outbreak-and-quarantine-thread-ends-as.md) | 2026-11-14 | tooling, volumes, battle, test |
 | 597 | [Outbreak's and Quarantine's ignored playthroughs on the unsigned food draw: no new failure; GOB3-1's extra Speed Charm is the game's own](worklog/0597-outbreak-s-and-quarantine-s-ignored-playthroughs-on-the.md) | 2026-11-14 | test, volumes, battle |
+| 598 | [A camera system, leg 1: the game's cameraList mapped, one list with CamId (0-3) for every reader, the event camera without the clone](worklog/0598-a-camera-system-leg-1-the-game-s-cameralist-mapped-one-list.md) | 2026-11-14 | engine, volumes, test |
+| 599 | [A camera system, leg 2: the maps and the boss camera on the list, the haze's camID turn, the listener settled](worklog/0599-a-camera-system-leg-2-the-maps-and-the-boss-camera-on-the.md) | 2026-11-14 | engine, world, battle, audio, test |
+| 600 | [A camera system, leg 3: the bosses ask the list, the listener per sound, the ambient's unread camera values](worklog/0600-a-camera-system-leg-3-the-bosses-ask-the-list-the-listener.md) | 2026-11-15 | engine, battle, world, audio, test |
+| 601 | [A camera system, leg 4: the NPC list on the list, the enemies' fade at dispEnemy, the cinema per volume, the Kyvia wave, a story circle's stack w](worklog/0601-a-camera-system-leg-4-the-npc-list-on-the-list-the-enemies.md) | 2026-11-15 | engine, world, battle, test |
+| 602 | [A camera system, leg 5: Tarvos's phantom's first view is its target's heap address, the full checks, the battle pins recorded anew](worklog/0602-a-camera-system-leg-5-tarvos-s-phantom-s-first-view-is-its.md) | 2026-11-15 | battle, engine, test, tooling |
 
 ## Still open
 
+- [602. A camera system, leg 5: Tarvos's phantom's first view is its target's heap address, the full checks, the battle pins recorded anew](worklog/0602-a-camera-system-leg-5-tarvos-s-phantom-s-first-view-is-its.md) - $s1's upper half in the boss thread when the phantom is made (the view's z and w): what the kernel's StartThread put in...
+- [600. A camera system, leg 3: the bosses ask the list, the listener per sound, the ambient's unread camera values](worklog/0600-a-camera-system-leg-3-the-bosses-ask-the-list-the-listener.md) - what OnThinkPhantom's $s1 holds as the phantom's unwritten view (both sides take zeros); and the NPC list's sounds...
+- [599. A camera system, leg 2: the maps and the boss camera on the list, the haze's camID turn, the listener settled](worklog/0599-a-camera-system-leg-2-the-maps-and-the-boss-camera-on-the.md) - how often the listener's one-frame lag in a boss fight changes a pan's value as sent to the driver; the step-5 harness...
+- [598. A camera system, leg 1: the game's cameraList mapped, one list with CamId (0-3) for every reader, the event camera without the clone](worklog/0598-a-camera-system-leg-1-the-game-s-cameralist-mapped-one-list.md) - whether the sound's listener, built from the active camera after the frame, ever differs from calcPan's read at the...
 - [597. Outbreak's and Quarantine's ignored playthroughs on the unsigned food draw: no new failure; GOB3-1's extra Speed Charm is the game's own](worklog/0597-outbreak-s-and-quarantine-s-ignored-playthroughs-on-the.md) - nothing new; the party falling in Corbenik's, Macha's and Tarvos's no-aid fights and event 312's fourth Kyvia fight...
 - [596. ccThEntryCtrl on Outbreak and Quarantine: thread ends as function starts in the symbol carry, deleteAllObject by its callees, the later passes' calls, and the battle spawn harness on all four volumes](worklog/0596-ccthentryctrl-on-outbreak-and-quarantine-thread-ends-as.md) - nothing new; the words a story circle's w holds in play stay as docs/engine/battle.md's Unknown has them (the slot is...
 - [594. An NPC system, leg 2: the walking PC and the Grunty on Core, one NPC list and one event channel in every area, a field's NPC one object](worklog/0594-an-npc-system-leg-2-the-walking-pc-and-the-grunty-on-core.md) - nothing about the NPCs.

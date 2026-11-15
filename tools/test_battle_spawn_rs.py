@@ -55,7 +55,8 @@ Checks (SPAWN maps a name to fn(checks, rnd) -> (request, game, label)):
   frame          ccThEntryCtrl's per-frame loop (0x00431b08), 20-90 frames,
                  Kite walking up to magic circles and away
   world_mc       WORLD::SetMagicCircle (0x005ab610) on random fields
-  dungeon_mc     DUNGEON::SetMagicCircle (0x005bf590)
+  dungeon_mc     DUNGEON::SetMagicCircle (0x005bf590), its story circles' w
+                 as initEntryCCS and SetItemBox leave it (story_circle_chain)
   event_mc       ccEntryEventMng's entry_mc (main 0x001b62e0) and an event
                  enemy's entry
   entry_gimmick  WORLD_MAN::EntryGimmick (main 0x001a1f20)
@@ -2008,6 +2009,61 @@ def story_circle_w():
     raise KeyError("no story circle vector in SetMagicCircle")
 
 
+def frame_of(name):
+    """A function's frame size, from its `addiu $sp, $sp, -n`."""
+    p = volume.program(volume.ELF, "gcmn")
+    start, _ = volume.span(name)
+    return 0x10000 - (struct.unpack("<I", p.read(start, 4))[0] & 0xFFFF)
+
+
+def strchr(mm, s, c, *_):
+    c &= 0xFF
+    while mm.load(s, 1) not in (c, 0):
+        s += 1
+    return s if mm.load(s, 1) == c else 0
+
+
+def story_circle_chain(h, lay):
+    """The word SetMagicCircle's story circle takes as its w, as the code
+    before it leaves it on a fresh task stack (its first write there is
+    _ccMalloc's save of a register's upper word, 0): initEntryCCS at
+    ccThEntryCtrl's depth, then SetItemBox at EntryGimmick's (which calls
+    nothing before it in a dungeon), and the word SetMagicCircle would read
+    there."""
+    m, sym = h.m, h.sym
+    top = eemu.STACK_TOP
+    m.mem[top - 0x2000:top] = bytes(0x2000)
+    gim = volume.program(volume.ELF, "gcmn").symbol_named("gimmickTbl")
+    gims = bytes(m.mem[gim.value:gim.value + gim.size])
+    lay()
+    got = []
+    hooks = {"GetCCSAdrs__8ccStreamFPCc": lambda mm, *_: 0, "strchr": strchr,
+             "ccAddFileListOne__FP10ccFileList": lambda mm, *_: 0, "ccAddRtpcWeapon__Fi": lambda mm, *_: 0,
+             "SetRoom__7DUNGEONFii": lambda mm, *_: 0, "DeleteRoom__7DUNGEONFii": lambda mm, *_: 0,
+             "GetFood__9WORLD_MANFv": lambda mm, *_: 0, "GetFieldAttrb__9WORLD_MANFv": lambda mm, *_: 0}
+    saved = {}
+    for n, f in hooks.items():
+        a = sym(n)
+        saved[a] = m.hooks.get(a)
+        m.hooks[a] = f
+    try:
+        sp = top - frame_of("ccThEntryCtrl__FPv")
+        m.call(sym("initEntryCCS__11ccEntryCtrlFv"), (CTRL,), sp=sp)
+        sp -= frame_of("EntryGimmick__9WORLD_MANFv")
+        # Up to 750 boxes: the padding slots are kind 0.
+        m.call(sym("SetItemBox__7DUNGEONFv"), (DUNG,), sp=sp, limit=400_000_000)
+        got.append(m.load(sp - story_circle_w(), 4))
+    finally:
+        for a, x in saved.items():
+            if x is None:
+                del m.hooks[a]
+            else:
+                m.hooks[a] = x
+        m.mem[gim.value:gim.value + gim.size] = gims
+        h.restore()
+    return got[0]
+
+
 def check_dungeon_mc(checks, rnd):
     h = harness(checks)
     sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=2)
@@ -2026,28 +2082,33 @@ def check_dungeon_mc(checks, rnd):
     if story and rnd.random() < 0.9:
         edit = [[rnd.randrange(0, 3), rnd.randrange(0, 8), rnd.randrange(0, 60000), rnd.randrange(0, 60000),
                  rnd.choice((0, 1, 1, 2, 3))] for _ in range(rnd.randrange(0, 12))]
-    h.put_scene(sc)
     m = h.m
-    m.mem[DUNG:DUNG + 0x33520] = bytes(0x33520)
-    m.store(DUNG + 0x10, 4, dtype)
-    m.store(DUNG + 0x14, 4, story)
-    m.store(DUNG + 0x3C, 4, counter)
-    m.store(DUNG + 0x424, 4, GIMPOS)
-    later = volume.NAME != "infection"
-    if later:       # ten floors (put_dungeon)
-        m.store(DUNG + 0x430, 4, 10)
-    for k, s in enumerate(slots):
-        a = GIMPOS + 0x30 * k
-        h.put(a, "<4I", *s[:4])
-        h.put(a + 0x20, "<bbb", *s[4:7])
-    if edit is not None:
-        m.store(DUNG + (0x934 if later else 0x3351C), 4, EDIT)
-        m.store(EDIT + 0x10, 4, EDIT_ROWS)
-        m.store(EDIT + 0x14, 4, len(edit))
-        for k, r in enumerate(edit):
-            h.put(EDIT_ROWS + 0x20 * k, "<8i", r[0], r[1], r[2], r[3], r[4], 0, 0, 0)
-    # the w a story circle's position takes from the stack (see entry.rs)
-    m.store(eemu.STACK_TOP - story_circle_w(), 4, F_ONE)
+
+    def lay():
+        h.put_scene(sc)
+        m.mem[DUNG:DUNG + 0x33520] = bytes(0x33520)
+        m.store(DUNG + 0x10, 4, dtype)
+        m.store(DUNG + 0x14, 4, story)
+        m.store(DUNG + 0x3C, 4, counter)
+        m.store(DUNG + 0x424, 4, GIMPOS)
+        if volume.NAME != "infection":       # ten floors (put_dungeon)
+            m.store(DUNG + 0x430, 4, 10)
+        for k, s in enumerate(slots):
+            a = GIMPOS + 0x30 * k
+            h.put(a, "<4I", *s[:4])
+            h.put(a + 0x20, "<bbb", *s[4:7])
+        if edit is not None:
+            m.store(DUNG + (0x3351C if volume.NAME == "infection" else 0x934), 4, EDIT)
+            m.store(EDIT + 0x10, 4, EDIT_ROWS)
+            m.store(EDIT + 0x14, 4, len(edit))
+            for k, r in enumerate(edit):
+                h.put(EDIT_ROWS + 0x20 * k, "<8i", r[0], r[1], r[2], r[3], r[4], 0, 0, 0)
+
+    # The w a story circle's position takes from the stack, as the game's
+    # own set-up before it leaves it (entry::story_circle_w).
+    w = story_circle_chain(h, lay)
+    lay()
+    m.store(eemu.STACK_TOP - story_circle_w(), 4, w)
     h.call("SetMagicCircle__7DUNGEONFv", (DUNG,))
     out = h.read_scene()
     out["counter"] = s32(m.load(DUNG + 0x3C, 4))

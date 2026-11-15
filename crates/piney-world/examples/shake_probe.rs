@@ -2,7 +2,8 @@
 //! (`piney_world::camera::Shake`: `cameraShake`, `cameraShockAbsorber`). One
 //! request a line, one JSON line back with the state after it: `seed S`
 //! (newlib's `rand()` state, decimal), `shake POWER CYCLE TIME DIRC`, `absorb`,
-//! and `set P0 P1 P2 V0 V1 V2` (`cameraSet`'s eye and target for camera 1).
+//! and `set P0 P1 P2 V0 V1 V2` (`cameraSet`'s eye and target for camera 1),
+//! on the volume its argument numbers (1-4: its code's square root).
 
 use std::io::BufRead;
 
@@ -10,6 +11,10 @@ use piney_battle::rand::Rand;
 use piney_world::camera::Shake;
 
 fn main() {
+    let volume = std::env::args()
+        .nth(1)
+        .and_then(|n| piney_data::volume::Volume::from_number(n.parse().ok()?))
+        .expect("the volume's number, 1-4");
     let mut shake = Shake::default();
     let mut rand = Rand::default();
     for line in std::io::stdin().lock().lines() {
@@ -22,7 +27,7 @@ fn main() {
             Some("absorb") => shake.absorb(),
             Some("set") => {
                 let v = |i: usize| -> [u32; 4] { [n(i) as u32, n(i + 1) as u32, n(i + 2) as u32, 0x3f80_0000] };
-                let (e, t) = shake.apply(piney_data::volume::Volume::Inf, v(1), v(4));
+                let (e, t) = shake.apply(volume, v(1), v(4));
                 let l = |a: [u32; 4]| a.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
                 println!("[[{}],[{}]]", l(e), l(t));
                 continue;

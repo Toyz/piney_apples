@@ -2235,7 +2235,10 @@ Then come `createPart` (gcmn 0x00455710): 3 particles of kind 1 while waiting, `
   - A circle is gimmick 15 with `x`, `y` its chip. Anything else is an enemy of row -1.
   - Event area 14, the tutorial field, draws the positions but makes no entries (measured).
 - **A dungeon:** `DUNGEON::SetMagicCircle` (gcmn 0x005bf590) makes a circle (z 0, `entRoot` -1) for every magic-circle slot in the generator's `gimPos` list.
-  - A story dungeon also makes one for every `GIMMICKDATA` row of type 1. `param[0]` is the next event-entry number, and `w` is a stack word the call never writes, taken as 1: 4 bytes below the caller's sp on Infection and Mutation (the vector at sp+160 of a 176-byte frame), 100 below on Outbreak and Quarantine (built at sp+64, OUT gcmn 0x005e9288).
+  - A story dungeon also makes one for every `GIMMICKDATA` row of type 1. `param[0]` is the next event-entry number, and `w` is a stack word the call never writes: 4 bytes below the caller's sp on Infection and Mutation (the vector at sp+160 of a 176-byte frame), 100 below on Outbreak and Quarantine (built at sp+64, OUT gcmn 0x005e9288). What the set-up before it leaves there (`entry::story_circle_w`):
+    - Infection and Mutation: the word is `initEntryCCS`'s sp+268, called from `ccThEntryCtrl` (frame 112) at the same depth as `EntryGimmick` (frame 32), whose `SetItemBox` (frame 480) leaves it alone (its `BLOCKOBJECT_INFO` at sp+464 is 12 bytes). For each `enemyTbl` row with `entry.exist`, `initEntryCCS` does `sd @1781, 264(sp)` (INF gcmn 0x0042ff74, MUT 0x00445904), and @1781 (INF main 0x003781b0, MUT 0x0038b150) is `{13, the CCS name buffer}`: so `w` is the buffer's address as float bits (INF 0x006a7b78, MUT 0x006dd8c0, a float under 1e-37). With no row existing it is the upper word of a register `_ccMalloc` saved there, 0: no code of the game writes a register's upper half but saving and restoring it (a scan of main and gcmn on all four volumes; Infection's only others are the exception unwinder and the TLB handler).
+    - Outbreak and Quarantine (`ccThEntryCtrl`'s frame 48): `SetItemBox`'s (frame 496) entry at sp+384, so `w` is the `pos[3]` its last entry left (`gimmick::item_box_w`): the last box slot's `w`, then each edit row's copy of (x, y, 0, sp+380), sp+380 zeroed after the first row's (OUT 0x005e89f0, QUA 0x004db450), a warning's door position over it. Every volume's edit tables with circles (event area 14's, and Infection's 83) have 15 rows, the last a circle: `w` 0.
+    - `tools/test_battle_spawn_rs.py` (`dungeon_mc`) runs `initEntryCCS` and `SetItemBox` natively at those depths on a fresh stack and puts the word they leave under `SetMagicCircle`'s frame.
   - Dungeon types 8 and 9 add special objects (gimmick 18, `land` 0) for slots of kinds 3 to 6 (measured).
 - **A field's other setters:**
   - `WORLD::SetFood` (gcmn 0x005aa990) first puts the Spring of Myst (gimmick 20) at the lake's `wp`, z 0, when the field has one: `WORLD.water` (+0x30) is the lake's index among the `FOBJECT2`s (`fobj2`), and the dungeon entrance is always index 0, so 0 means no lake.
@@ -3668,10 +3671,11 @@ ccThPlayer (49)         kite::main
 ccThFellowNN (50)       fellow::Frame::main for each member, its runtime a
                         party_motion::Movement over the field
 ccThEntryCtrl (64)      EntryCtrl::frame with entry::EnemySeam (the enemies'
-                        ccEnemy::main); then ccChar::Draw of each enemy
-                        dispEnemy placed (foe::char_draw); the kills'
-                        ccExpDistributor; then Cast::entry_slot (a town's
-                        Flag Race, 63, and its NPC list)
+                        ccEnemy::main, dispEnemy's ccChar::Draw at its
+                        Call::Draw: foe::char_draw on the active camera then);
+                        the kills' ccExpDistributor; then Cast::entry_slot
+                        (a town's Flag Race, 63, and its NPC list on
+                        camera.cpp's list, NpcCtx.cams)
 ccThEffect (80)         the effects (FxTasks::effect, piney-effect)
 ccThSkill (82)          Skills::frame, its events applied
 ccThParticle (98)       FxTasks::particle
@@ -3884,8 +3888,7 @@ piney-world, piney-effect, piney-audio and piney-fieldui take theirs through
   `DUNGEON::MakeMiniMap` (the loop resets them every cell); the meaning of
   `saveData` +0x220d (`MessageIndex` 18 for character 1) and of the ground
   attributes 0x20000 and 0x80000 in the 2D map.
-- A story dungeon's circles take `w` from a word on the caller's stack,
-  taken as 1.0. A middle boss's constructor reads `anmTbl` at EE 0xb4
+- A middle boss's constructor reads `anmTbl` at EE 0xb4
   (empty). With no enemy row registered, a circle's random row divides by
   zero in the game.
 - `ccEnemy1::action` with an `eneType` outside 0-5 reads an uninitialised

@@ -129,7 +129,7 @@ pub fn merchant_menu(m: &mut MenuCtrl, x: &mut Ctx, store: bool) -> Flow {
         1 => {
             m.select(0, 0, false, x);
             if x.target.is_none() {
-                talk::req(x, TalkReq::Camera(1));
+                talk::req(x, TalkReq::Camera(piney_battle::camera::CamId::Field));
                 m.map_status = 1;
                 return talk::close(m, x, Then::Merchant(Tail::Keys { store }));
             }
@@ -147,7 +147,7 @@ fn merchant_keys(m: &mut MenuCtrl, x: &mut Ctx, store: bool) -> Flow {
         if x.target.is_some() {
             affect(x, 0);
         }
-        talk::req(x, TalkReq::Camera(1));
+        talk::req(x, TalkReq::Camera(piney_battle::camera::CamId::Field));
         m.map_status = 1;
         return talk::close(m, x, Then::MsgClose);
     }

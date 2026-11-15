@@ -10,6 +10,7 @@ pub mod eff;
 #[cfg(test)]
 mod tests;
 
+use crate::camera::CamId;
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::tables::combat;
@@ -218,8 +219,8 @@ fn behind(r: F) -> geom::M4 {
 }
 
 fn set_cam3(x: &mut Fidchell, cx: &mut Cx, pos: V4, view: V4) {
-    cx.out(Out::CameraPos { cam: 3, pos });
-    cx.out(Out::CameraView { cam: 3, view });
+    cx.cams().cam_mut(CamId::Event).pos = pos;
+    cx.cams().cam_mut(CamId::Event).view = view;
     x.cam3 = (pos, view);
 }
 
@@ -269,7 +270,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = super::w2p(cx, b.center_pos);
     b.use_stage_eff = true;
-    cx.out(Out::CamMaxRange(CAM_MAX_RANGE));
+    b.init_boss_camera(cx, 0x437a_0000, 0x44bb_8000);
+    b.with_cam(|c| c.max_range = CAM_MAX_RANGE);
     cx.out(Out::Blur(Set::Enable));
     cx.out(Out::Blur(Set::Func(BlurFunc::Boss03)));
     // SetPatternTbl(boss04NormalActTbl), m_patMode 0, the first pattern.
@@ -524,8 +526,8 @@ fn on_wave(b: &mut BossBase, x: &mut Fidchell, w: &mut Wave, cx: &mut Cx, draine
                 let pos = cx.pos();
                 b.skill_damage(cx, None, Some(pos), 13);
             }
-            if cx.cam.shake && cx.boss_cam {
-                cx.quake_vec([0x4170_0000; 3]);
+            if cx.in_shake_range(cx.pos()) && b.cam.is_some() {
+                b.quake_vec(cx, [0x4170_0000; 3]);
             }
             let done = w.anm.forward();
             cx.out(Out::DrawWave);
@@ -574,7 +576,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let pos = cx.pos();
             let view = [pos[0], pos[1], 0x4396_0000, pos[3]];
             let eye = off_from(cx, pos, &behind(b.target_dirc), [0x44bb_8000, 0, 0x4248_0000, ONE]);
-            cx.out(Out::CameraChange(3));
+            cx.cams().change(CamId::Event);
             set_cam3(x, cx, eye, view);
             x.pred_id = (cx.env.count & 3) as i32;
             cx.out(Out::Cinema(Some(PRED_CINEMA[x.pred_id as usize])));
@@ -598,7 +600,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             // W2P; the text 1000 ahead of the eye toward the turn.
             let mut p = x.cam3.0;
             p[3] = ONE;
-            let mut r = cx.cam.rot;
+            let mut r = cx.cams_ref().rot();
             r[3] = ONE;
             let (p, r) = (super::w2p(cx, p), super::w2p(cx, r));
             let d = get_dirc(p, r);
@@ -610,7 +612,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             b.act_proccess += 1;
         }
         3 => {
-            x.pred_dirc = cx.cam.rot;
+            x.pred_dirc = cx.cams_ref().rot();
             let done = x.pred_txt.forward();
             let clip = x.pred_txt.clip.clone().unwrap_or_default();
             cx.out(Out::AnmText { clip, layer: PRED_TEXT_LAYER });
@@ -625,7 +627,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 vp[2] = ee::add(vp[2], 0x4348_0000);
                 let d = [0, 0, b.target_dirc, ONE];
                 let off = [0x44bb_8000, 0, 0x42c8_0000, ONE];
-                on_magic_camera_at(b, x, cx, vp, d, off, 3);
+                on_magic_camera_at(b, x, cx, vp, d, off, CamId::Event);
             }
             b.act_count = 0;
             b.act_proccess += 1;
@@ -659,7 +661,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 b.unlock_player();
                 b.entry_cmnd_target(cx);
                 cx.cursor(false);
-                cx.out(Out::CameraChange(2));
+                cx.cams().change(CamId::Battle);
                 off_magic_camera(b, cx, 0);
                 cx.cinema_off();
                 x.change_next_pattern(b, cx);
@@ -739,7 +741,7 @@ fn on_exec_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let mut view = pos;
             view[2] = ee::add(view[2], 0x4396_0000);
             let eye = off_from(cx, pos, &behind(b.center_dirc), [0x44e1_0000, 0, 0x4248_0000, ONE]);
-            spell_camera(x, cx, eye, view);
+            spell_camera(b, x, cx, eye, view);
             b.dirc[2] = b.center_dirc;
         }
         0 if c == 30 => {
@@ -762,7 +764,7 @@ fn on_exec_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let mut view = cx.scene.chars[t].pos;
             view[2] = ee::add(view[2], 0x4348_0000);
             let eye = off_from(cx, b.target_pos, &behind(b.target_dirc), [0x44fa_0000, 0, 0x4248_0000, ONE]);
-            spell_camera(x, cx, eye, view);
+            spell_camera(b, x, cx, eye, view);
         }
         1 => {
             let s = x.act_sub_count;
@@ -795,9 +797,9 @@ fn on_exec_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             if !ee::lt(f, ONE) {
                 f = ONE;
                 if x.pred_id == 3 {
-                    cx.out(Out::CamMode { mode: 6 });
+                    b.cam_mode(cx, 6);
                 } else {
-                    cx.out(Out::CameraChange(2));
+                    cx.cams().change(CamId::Battle);
                 }
                 if x.pred_id != 1 {
                     cx.out(Out::SwitchLayer);
@@ -818,13 +820,13 @@ fn on_exec_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
 
 /// The spell's camera: camera 3 at `eye` looking at `view`, or for the
 /// quake (`m_predId` 3) the boss camera's free mode there.
-fn spell_camera(x: &mut Fidchell, cx: &mut Cx, eye: V4, view: V4) {
+fn spell_camera(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, eye: V4, view: V4) {
     if x.pred_id != 3 {
-        cx.out(Out::CameraChange(3));
+        cx.cams().change(CamId::Event);
         set_cam3(x, cx, eye, view);
     } else {
-        cx.out(Out::CamMode { mode: 5 });
-        cx.out(Out::FreeCam { pos: eye, view });
+        b.cam_mode(cx, 5);
+        b.cam_pos_view(eye, view);
     }
 }
 
@@ -832,25 +834,25 @@ fn spell_camera(x: &mut Fidchell, cx: &mut Cx, eye: V4, view: V4) {
 /// from `vp` turned by `d`; camera `camID` there, or for camera 2 the boss
 /// camera's free mode.
 #[allow(clippy::too_many_arguments)]
-fn on_magic_camera_at(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, vp: V4, d: V4, off: V4, cam: i32) {
+fn on_magic_camera_at(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, vp: V4, d: V4, off: V4, cam: CamId) {
     let _ = b;
     let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
     let m = geom::rot_matrix_x(&m, d[0]);
     let m = geom::rot_matrix_y(&m, d[1]);
     let m = geom::rot_matrix_z(&m, d[2]);
     let eye = off_from(cx, vp, &m, off);
-    if cam == 2 {
-        if cx.boss_cam {
-            cx.out(Out::CamMode { mode: 5 });
-            cx.out(Out::FreeCam { pos: eye, view: vp });
-            cx.out(Out::CameraPos { cam: 3, pos: eye });
+    if cam == CamId::Battle {
+        if b.cam.is_some() {
+            b.cam_mode(cx, 5);
+            b.cam_pos_view(eye, vp);
+            cx.cams().cam_mut(CamId::Event).pos = eye;
             x.cam3.0 = eye;
         }
     } else {
-        cx.out(Out::CameraChange(cam));
-        cx.out(Out::CameraPos { cam, pos: eye });
-        cx.out(Out::CameraView { cam, view: vp });
-        if cam == 3 {
+        cx.cams().change(cam);
+        cx.cams().cam_mut(cam).pos = eye;
+        cx.cams().cam_mut(cam).view = vp;
+        if cam == CamId::Event {
             x.cam3 = (eye, vp);
         }
     }
@@ -860,7 +862,7 @@ fn on_magic_camera_at(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, vp: V4, d
 /// the target toward the centre (`CalcEffectCameraPos`), looking 200 over
 /// it; `m_predInfo` anew with that eye and the target's place.
 fn on_magic_camera(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
-    cx.out(Out::CameraChange(3));
+    cx.cams().change(CamId::Event);
     let view = b.target_pos;
     let mut v2 = view;
     v2[2] = ee::add(v2[2], 0x4348_0000);
@@ -874,11 +876,11 @@ fn on_magic_camera(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
 fn off_magic_camera(b: &mut BossBase, cx: &mut Cx, mode: i32) {
     let _ = b;
     if mode != 0 {
-        if cx.boss_cam {
-            cx.out(Out::CamMode { mode: 6 });
+        if b.cam.is_some() {
+            b.cam_mode(cx, 6);
         }
     } else {
-        cx.out(Out::CameraChange(2));
+        cx.cams().change(CamId::Battle);
     }
 }
 
@@ -888,7 +890,7 @@ fn off_magic_camera(b: &mut BossBase, cx: &mut Cx, mode: i32) {
 fn on_meteo_sworm(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
     if x.act_sub_proccess != 0 {
         let v = x.pred.cam_view;
-        cx.out(Out::CameraView { cam: 3, view: v });
+        cx.cams().cam_mut(CamId::Event).view = v;
         x.cam3.1 = v;
     }
     match x.act_sub_proccess {
@@ -1093,13 +1095,13 @@ fn on_ground_quake(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
             let mut view = b.target_pos;
             view[2] = 0;
             let eye = off_from(cx, b.target_pos, &behind(b.center_dirc), [0x447a_0000, 0, 0x43fa_0000, ONE]);
-            cx.out(Out::FreeCam { pos: eye, view });
+            b.cam_pos_view(eye, view);
             x.act_sub_proccess += 1;
             x.act_sub_count = 0;
             false
         }
         1 => {
-            cx.quake_vec([0x420c_0000, 0x420c_0000, 0]);
+            b.quake_vec(cx, [0x420c_0000, 0x420c_0000, 0]);
             if b.effects.enabled(x.eff_magic) {
                 return false;
             }
@@ -1126,7 +1128,7 @@ fn on_back_dash(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         if valid_area(b, cx, pp) {
             return;
         }
-        b.move_dirc = wrap_lo(ee::add(PI, cx.cam.rot[2]));
+        b.move_dirc = wrap_lo(ee::add(PI, cx.cams_ref().rot()[2]));
         return;
     }
     let pp = cx.scene.chars[me].pos_p;
@@ -1134,7 +1136,7 @@ fn on_back_dash(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         b.move_dirc = b.center_dirc;
     }
     if b.act_count % 10 == 0 {
-        let r = cx.cam.rot[2];
+        let r = cx.cams_ref().rot()[2];
         b.move_dirc = if b.act_proccess != 0 { ee::add(0x3f86_0a92, r) } else { ee::sub(r, 0x3f86_0a92) };
         b.act_proccess ^= 1;
         b.move_dirc = wrap_lo(b.move_dirc);
@@ -1322,7 +1324,7 @@ fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             vp[2] = 0x4348_0000;
             let d = [0, 0, b.target_dirc, ONE];
             let off = [0x447a_0000, 0, 0, ONE];
-            on_magic_camera_at(b, x, cx, vp, d, off, 3);
+            on_magic_camera_at(b, x, cx, vp, d, off, CamId::Event);
             let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
             x.skill_id = pick(combat::of(cx.volume()).fidchell_skills, k);
             cx.out(Out::SkillStart { who: me, sid: x.skill_id });
@@ -1370,7 +1372,7 @@ fn on_skill(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 b.unlock_player();
                 b.entry_cmnd_target(cx);
                 cx.cursor(false);
-                cx.out(Out::CameraChange(2));
+                cx.cams().change(CamId::Battle);
                 cx.cinema_off();
                 x.change_next_pattern(b, cx);
             }
@@ -1403,7 +1405,7 @@ fn on_magic(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             vp[2] = 0x4348_0000;
             let d = [0, 0, b.target_dirc, ONE];
             let off = [0x447a_0000, 0, 0, ONE];
-            on_magic_camera_at(b, x, cx, vp, d, off, 3);
+            on_magic_camera_at(b, x, cx, vp, d, off, CamId::Event);
             x.skill_id = pick(combat::of(cx.volume()).fidchell_magic_skills, (cx.env.count & 3) as usize);
             cx.out(Out::CinemaSkill(x.skill_id));
             b.act_proccess += 1;
@@ -1436,7 +1438,7 @@ fn on_magic(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             b.entry_cmnd_target(cx);
             cx.cursor(false);
             b.unlock_player();
-            cx.out(Out::CameraChange(2));
+            cx.cams().change(CamId::Battle);
             cx.out(Out::SwitchLayer);
             cx.cinema_off();
             x.change_next_pattern(b, cx);

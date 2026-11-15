@@ -26,7 +26,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::map::{Entries, MapState};
 use crate::sprite::EffSprite;
 use crate::story_map::{Kept, StoryRequest};
-use crate::systems::{MapEvent, MapView, Report, Signal};
+use crate::systems::{MapEvent, Report, Signal};
 
 /// `ChangeScene` or `ChangeArea` as an area's own way out asks it
 /// (`WORLD_MAN::Enter`, `GoField`).
@@ -43,7 +43,11 @@ pub enum Exit {
 pub struct Disp<'a> {
     pub layers: &'a mut Layers,
     pub to_screen: Mat4,
-    pub view: &'a MapView,
+    /// The player's place and the frame counter's low bit, for the
+    /// [`crate::systems::MapView`] each `Draw` reads the camera through, made as it
+    /// draws (a story map's scene may have moved the camera first).
+    pub player: V4,
+    pub odd: bool,
     /// The tasks run (asleep the area is drawn as its class draws it then).
     pub awake: bool,
     /// The game's `ccRand`, for a `Draw` that draws from it.

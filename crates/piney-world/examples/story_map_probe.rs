@@ -12,20 +12,20 @@ use std::sync::Arc;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::statics::DrawPass;
+use piney_world::camera::{Cam, CamList};
 use piney_world::draw::Fogging;
 use piney_world::ee::{self, V4};
 use piney_world::hit;
-use piney_world::sky::lensflare::FlareCamera;
 use piney_world::story_map::boss_arena::FIREFLIES;
 use piney_world::story_map::holy_ground::{self, HOLY_GROUND};
 use piney_world::story_map::{Enter, MapEnv, StoryArea, StoryMapDef};
-use piney_world::systems::MapView;
 use piney_world::systems::anim::Anim;
 use piney_world::systems::fireflies::Fireflies2;
 use piney_world::systems::scrolls::Scrolls;
 use piney_world::systems::sky::Sky;
 use piney_world::systems::statics::{StaticModels, StaticObjects};
 use piney_world::systems::{Drawn, Kind, Piece, Request};
+use piney_world::systems::{MapView, NO_SCREEN};
 
 #[path = "common/kite_run.rs"]
 mod kite_run;
@@ -225,7 +225,8 @@ fn main() {
             }
             Some("arenadraw") => {
                 let a = arena.as_mut().unwrap();
-                let v = MapView { player: [n(1), n(2), n(3), ee::ONE], ..MapView::default() };
+                let cams = CamList::default();
+                let v = MapView { player: [n(1), n(2), n(3), ee::ONE], ..MapView::new(&cams, &NO_SCREEN) };
                 a.step(&v, true, None);
                 let mut last = false;
                 let mut out = Vec::new();
@@ -274,8 +275,8 @@ fn main() {
                 let a = area.as_mut().unwrap();
                 let eye = v4(1);
                 let player = [n(5), n(6), n(7), ee::ONE];
-                let flare = FlareCamera { eye, view: v4(9), rot: v4(13) };
-                let v = MapView { eye, player, flare, puppet_show: n(8) != 0, ..MapView::default() };
+                let cams = CamList::new(volume, Cam { pos: eye, view: v4(9), rot: v4(13), ..Cam::default() });
+                let v = MapView { player, puppet_show: n(8) != 0, ..MapView::new(&cams, &NO_SCREEN) };
                 a.step(&v, true, None);
                 let sky = a.systems().get::<Sky>();
                 let objects = a.systems().get::<StaticObjects>();

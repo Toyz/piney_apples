@@ -9,7 +9,7 @@ use piney_battle::boss::kyvia::SlaveCore;
 use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::gomora::Gomora;
 use piney_input::{Buttons, Raw};
-use piney_world::camera::id::BATTLE;
+use piney_world::camera::CamId;
 use piney_world::combat::Combat;
 
 use super::*;
@@ -78,7 +78,7 @@ pub(super) struct Seen {
     anchored: usize,
     on_core: usize,
     /// `camID` (the boss camera's 2 throughout every Kyvia fight).
-    pub(super) cam_id: i16,
+    pub(super) cam_id: piney_world::camera::CamId,
 }
 
 /// The core's character.
@@ -138,7 +138,7 @@ pub(super) fn fight_leaning(
             continue;
         }
         let census = a.world().fx().census();
-        let cam_id = a.world().camera().cam_id;
+        let cam_id = a.world().camera().list.id();
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
             c.scene.chars[k].max_hp = 9999;
@@ -193,7 +193,7 @@ fn kyvia_shows_its_meteors_beams_and_auras() {
     assert!(drawn.get("ANM_x300").is_some_and(|&n| n > 10), "the meteors not drawn: {drawn:?}");
     assert!(anchored > 100, "no generator followed the fight's places ({anchored} frames)");
     assert!(on_core > 100, "no aura followed the core ({on_core} frames)");
-    assert!(seen.iter().all(|n| n.cam_id == BATTLE), "camID left the boss camera");
+    assert!(seen.iter().all(|n| n.cam_id == CamId::Battle), "camID left the boss camera");
 }
 
 /// Outbreak's second fight: its thunder's bolts are drawn (`CMP_x012`),
@@ -208,7 +208,7 @@ fn kyvia_s_second_fight_shows_its_thunderbolts() {
     assert!(acts.contains(&6), "no thunder: {acts:?}");
     assert!(drawn.get("CMP_x012").is_some_and(|&n| n > 30), "the bolts not drawn: {drawn:?}");
     assert!(on_core > 100, "no aura followed the core ({on_core} frames)");
-    assert!(seen.iter().all(|n| n.cam_id == BATTLE), "camID left the boss camera");
+    assert!(seen.iter().all(|n| n.cam_id == CamId::Battle), "camID left the boss camera");
 }
 
 /// Kyvia's arm in Legion's Reach (act 3, #72): `HandAtk` draws `anmw`
@@ -353,7 +353,7 @@ fn the_stick_turns_kyvias_camera() {
             if a.in_town() {
                 return;
             }
-            let Some(cam) = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()) else { return };
+            let Some(cam) = boss_cam(a.world().combat()) else { return };
             let z = f32::from_bits(cam.zrot_cont);
             (most, least) = (most.max(z), least.min(z));
             if cam.ex_lock & 0x10 != 0 && last == Some(cam.zrot_cont) {
@@ -390,7 +390,7 @@ fn kyvia_push_and_turn_shots() {
             if a.in_town() {
                 return;
             }
-            let z = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()).map_or(0, |c| c.zrot_cont);
+            let z = boss_cam(a.world().combat()).map_or(0, |c| c.zrot_cont);
             let tag = if pushed && pushes.is_multiple_of(25) {
                 Some("push")
             } else if i.is_multiple_of(40) {
@@ -460,4 +460,10 @@ fn kyvia_shots() {
 /// dungeon (block 10 makes Kyvia 04).
 pub(super) fn event_312_disc() -> Option<Session> {
     on_the_disc_in("quarantine", 312, 10, (0, 108), 12, 0)
+}
+
+/// The fight's boss camera (`ccBoss` +0x14c), on the boss.
+fn boss_cam(c: &piney_world::combat::Combat) -> Option<&piney_battle::boss::cam::BossCam> {
+    let me = c.boss.as_ref()?.me;
+    c.scene.chars[me].foe_state()?.boss.as_ref()?.base.cam.as_ref()
 }

@@ -86,7 +86,7 @@ struct Script {
     leg: VecDeque<V4>,
     draw: VecDeque<u32>,
     cam_type: i32,
-    cam_id: i32,
+    cam_id: piney_battle::camera::CamId,
     cam_rot: V4,
     cam_reset: bool,
     cam_reset_dirc: u32,
@@ -135,7 +135,7 @@ impl RideWorld for Script {
     fn camera_type(&mut self) -> i32 {
         self.cam_type
     }
-    fn camera_id(&mut self) -> i32 {
+    fn camera_id(&mut self) -> piney_battle::camera::CamId {
         self.cam_id
     }
     fn camera_rot(&mut self) -> V4 {
@@ -383,7 +383,7 @@ fn read_seek(t: &mut Toks, s: &mut Script) {
 
 fn read_camera(t: &mut Toks, s: &mut Script) {
     s.cam_type = t.i32();
-    s.cam_id = t.i32();
+    s.cam_id = piney_battle::camera::CamId::from_raw(t.i32()).expect("camID 0-3");
     s.cam_rot = t.v4();
     s.cam_reset = t.int() != 0;
     s.cam_reset_dirc = t.u32();

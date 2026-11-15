@@ -437,7 +437,7 @@ impl Rocks {
         r.pos[2] = ee::add(r.pos[2], r.speed);
         r.life -= 1;
         let v = cx.view;
-        if crate::chara::char::check_camera_deg(r.pos, cloud::VIEW_DEG, &v.cam, v.player) {
+        if crate::chara::char::check_camera_deg(r.pos, cloud::VIEW_DEG, v.cams.active(), v.player) {
             self.drawn.push((k, tr.unwrap_or(ONE)));
             cx.put(Kind::Rocks, Piece::Item(self.drawn.len() - 1));
         }
@@ -749,7 +749,8 @@ mod tests {
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
         let mut cc = Genrand::default();
         let mut a = made(&archive, Volume::Mut, &DISC_9, 0, 0);
-        let v = MapView::default();
+        let cams = crate::camera::CamList::default();
+        let v = MapView::new(&cams, &crate::systems::NO_SCREEN);
         let first = a.trans_center().unwrap();
         let mut prev = disc(&a).disc_prev;
         let mut frames = 0;
@@ -784,7 +785,8 @@ mod tests {
         use crate::systems::Carried;
         use crate::systems::scrolls::Scrolls;
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
-        let v = MapView::default();
+        let cams = crate::camera::CamList::default();
+        let v = MapView::new(&cams, &crate::systems::NO_SCREEN);
         let mut s = [0; piney_desktop::SCROLL_STATICS];
         let mut a = made(&archive, Volume::Mut, &DISC_9, 0, 0);
         a.take(&Carried { statics: &s, move_tex: None, field: None });
@@ -805,7 +807,8 @@ mod tests {
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
         let mut cc = Genrand::default();
         let mut a = made(&archive, Volume::Mut, &DISC_10, 0, 0);
-        let v = MapView::default();
+        let cams = crate::camera::CamList::default();
+        let v = MapView::new(&cams, &crate::systems::NO_SCREEN);
         let mut n = 0;
         while disc(&a).moving && n < 2000 {
             a.step(&v, true, Some(&mut cc));
