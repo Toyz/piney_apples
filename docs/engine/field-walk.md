@@ -3,7 +3,7 @@ title: Leaving the town - Kite in a field and its dungeon
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00168960 ccSetupGameCtrl (areas 1 and 2), 0x00165530 loadCheck, 0x0019ad70 ccLoadDispInit, 0x0019c290 ccLoadDispTh, 0x0019ba50 ccLoadDisp::allDisp, 0x0019f8e0 WORLD_MAN::GO, 0x001a1190 WORLD_MAN::SetCharPosition, 0x0019eea0 WORLD_MAN::SetGenerateCode, 0x0019dda0 WORLD_MAN::Enter, 0x0019e410 WORLD_MAN::GoField, 0x001a0ef0 WORLD_MAN::SetCenter, 0x001a0fd0 WORLD_MAN::AddCenter, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a4430 ccThFieldDisp, 0x0013b5c0 ccObj::Init, 0x0013a440 ccModel::Init, 0x00153760 ccModelHit::HitEnable, 0x001537e0 ccModelHit::HitDisable, 0x0013cf50 ccClump::HitEnable, 0x0013d0b0 ccClump::HitDisable, 0x0013d150 ccClump::SetHitMatrix, 0x00151e60 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153930 _ccHitCheckLM, 0x00153a30 prepareHitLine, 0x00153be0 prepareHitSphere, 0x00153e80 checkHitResultAttlibute, 0x00167380 ccGame::ChangeScene, 0x001674a0 ccGame::ChangeArea, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x0015a010 ccDeleteAllThread, 0x001b5230 ccStartThEvent, 0x001ab9b4 teach_camera1-3 (ccEvent::Execute), 0x001676a0 ccGame::SetInBattle, 0x0019c430 ccLoadDispCheck, 0x001b77c0 ccClearGtHack, 0x001b7840 ccSetGtHack, 0x001b7850 ccCheckGtHack, 0x00378a98 gtHackFlag, 0x00378cc0 ghoFlag, 0x00162870 cameraParamChange; INF gcmn.prg:0x005a97b0 WORLD::Draw, 0x005a8320 WORLD::DrawObject, 0x005a8570 WORLD::DrawMesh, 0x005a7ef0 WORLD::DrawBG, 0x005aa2b0 WORLD::SetCenter, 0x005aa3d0 WORLD::AddCenter, 0x005aa520 WORLD::GetHeight, 0x005b0e90 FOBJECT::Draw, 0x005b13f0 FOBJECT2::Draw, 0x005b1700 FOBJECT2::HitEnable, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x00571e00 ccLandHitCheck, 0x00597910 ccPlayer::ccPlayer, 0x00598310 ccPlayer::Main, 0x0059b3c0 ccPlayer::MapLoopAdjustPos, 0x0059b470 ccPlayer::W2MPos, 0x0059b5a0 ccPlayer::W2PPos, 0x0059b710 ccPlayer::P2WPos, 0x0059b940 ccTransPosW2P, 0x0059b980 ccTransPosP2W, 0x0059b9c0 ccTransPosFW2LW, 0x0059ff50 ccGetStartPositions, 0x0056b1c0 ccChar::Draw, 0x0053c8e0 ccMenuCtrl::GateoutMenu, 0x0051a000 ccCheckInAreaCmnd, 0x0059cd60 ccCheckGtHackAnm, 0x0051a750 ccInitRecoveryReq, 0x0051a790 ccEntryRecoveryReq, 0x0051a7f0 ccCtrlRecoveryReq, 0x0072eb10 recoveryReq, 0x00572700 ccSkillRequest, 0x00516a80 ccThGameOver, 0x00516a20 ccAddRequestFileListGameOver, 0x00516d30 ccGameOverNoise::Main, 0x00516d90 ccGameOverNoise::NOISE, 0x005170c0 ccGameOverNoise::TV, 0x00517150 ccGameOverNoise::Noise, 0x005171d0 ccGameOverNoise::Noise2, 0x00517240 ccGameOverNoise::Noise3, 0x005172c0 ccGameOverNoise::Noise4, 0x00517330 ccGameOverNoise::StretchTV_Y, 0x005174d0 ccGameOverNoise::StretchTV_X, 0x005175b0 ccGameOverNoise::StretchTV_Init, 0x005175d0 ccGameOverNoise::InitData, 0x0056a7c0 ccOpenGameOverMenu, SLUS_202.67:0x00180580 ccSndGameOver, 0x0059a0c8 ccPlayer::AnimCtrl, 0x0059ce80 ccParty::AddMember, 0x0059cf60 ccParty::DelMember, 0x0059cfe0 ccParty::CheckMemberID, 0x005a08e0 inviteSpc, 0x005a0f50 disbandSpc, 0x005a1070 expulsionSpc, 0x0059bc00 ccPlayer::GateHackingOut, 0x005a10e0 ccAddRequestFileListSpc, 0x005a1490 ccGateHackOutCcsName, 0x006540c0 GateHackOutCcsName, 0x0041ae80 ccFellow::Initialize (the hacked arrival), 0x0057c5f0 ccAI::ccAI (arrivalChatCnt)
-worklog: 72, 74, 75, 80, 87, 98, 103, 106, 108, 110, 130, 138, 158, 164, 177, 180, 186, 191, 218, 250, 260, 366, 376, 483, 495, 497, 559, 585, 589
+worklog: 72, 74, 75, 80, 87, 98, 103, 106, 108, 110, 130, 138, 158, 164, 177, 180, 186, 191, 218, 250, 260, 366, 376, 483, 495, 497, 559, 585, 589, 605
 ---
 
 # Leaving the town - Kite in a field and its dungeon
@@ -657,10 +657,16 @@ Kite is walked like the rest.
   1.2 rad cone and range 2 inside 2.0 rad: the wider ring, which only modes
   1 and 2 go through. The eye view has no range 2.
 - **The stack arrays.** The candidates in range 1 go into `near[8]` and
-  those in range 2 into `wide[8]`: two arrays on the stack (sp+0x50,
-  sp+0x70), one after the other, with no bound. A ninth candidate in range
-  1 is written over `wide[0]` and read back from there. A ninth in range 2
-  is written past the function's frame.
+  those in range 2 into `wide[8]`: two arrays on the stack, one after the
+  other, with no bound. Infection and Mutation put `near` at sp+0x50 and
+  `wide` at sp+0x70 (INF gcmn 0x00518edc, 0x00518f04; MUT 0x00536fbc,
+  0x00536fe4): a ninth candidate in range 1 is written over `wide[0]` and
+  read back from there, and a ninth in range 2 is written past the
+  function's frame. Outbreak and Quarantine swap them, `near` at sp+0x70
+  and `wide` at sp+0x50 (OUT gcmn 0x0053224c, 0x00532274; QUA 0x00424b5c,
+  0x00424b84): a ninth in range 2 is written over `near[0]`, and a ninth in
+  range 1 past the frame, where `near` reads it back. Each volume reads
+  `near` first, then `wide`, from where it wrote them.
 
 ### The buttons in a fight
 
@@ -842,7 +848,9 @@ button with the base flags it had when it was chosen.
 
 `tools/test_gamectrl_rs.py` runs the `gamectrl_probe` example beside the
 game's own code in the interpreter, over command lists laid out as
-`ccEntryCmnd` links them. No case or frame differs:
+`ccEntryCmnd` links them. The probe takes the disc's `volumeNum`, as the
+port's distances are the volume's root. No case or frame differs, on any
+of the four volumes:
 
 | check | what | cases |
 | --- | --- | ---: |
@@ -883,9 +891,12 @@ Unknown or left out:
 - A stale target is read through the flags it had when chosen. The game
   reads the character's memory as it is then: the same while the character
   exists, unknown once it has been freed.
-- `wide[]` past its eighth entry writes into the caller's frame, which
-  `ccThGameCtrl` never reads back. The port models only what
-  `ccSelectTarget` reads back of its own writes.
+- The array past the frame (`wide` on Infection and Mutation, `near` on
+  Outbreak and Quarantine) writes from its ninth entry into the caller's
+  frame. `ccThGameCtrl`'s frame is 144 bytes of saved registers (INF gcmn
+  0x00517800, OUT 0x00530b00, QUA 0x00423410), and the task never returns,
+  so it never reloads them. The port models only what `ccSelectTarget`
+  reads back of its own writes.
 
 ## The port
 

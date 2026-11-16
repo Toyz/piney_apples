@@ -103,8 +103,8 @@ def build():
 
 
 def ask(lines):
-    p = subprocess.run([EXAMPLE], input="\n".join(lines) + "\n", capture_output=True, text=True, check=True,
-                       cwd=ROOT)
+    p = subprocess.run([EXAMPLE, str(volume.number())], input="\n".join(lines) + "\n", capture_output=True,
+                       text=True, check=True, cwd=ROOT)
     return [json.loads(line) for line in p.stdout.splitlines()]
 
 

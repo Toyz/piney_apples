@@ -4,11 +4,14 @@
 //! (`ccCheckInAreaCmnd`, `ccCheckTargetTypeId`), `select` (`ccSortCmnd`,
 //! `ccCheckTargetRange`, `ccSelectTarget`), `ctrl_start` (a new task) and
 //! `ctrl_frame` (`Targeting::frame`; see `ctrl_frame` below). Numbers hex,
-//! floats their bits, signed values 32-bit two's complement.
+//! floats their bits, signed values 32-bit two's complement. The one
+//! argument is the disc's `volumeNum` (1-4): the distances are its code's
+//! root (`sqrtf` on Infection and Mutation, `sqrt.s` from Outbreak on).
 
 use std::collections::HashMap;
 use std::io::BufRead;
 
+use piney_data::volume::Volume;
 use piney_world::ee::{self, V4};
 use piney_world::event::talk::{
     self, Battle, Cmnd, Cond, Ctrl, Host, InBattle, Input, Leader, LeaderState, Member, Party, RecoveryReqs, Scope,
@@ -107,6 +110,8 @@ fn new_task() -> Task {
 }
 
 fn main() {
+    let volume =
+        std::env::args().nth(1).and_then(|n| Volume::from_number(n.parse().ok()?)).expect("the disc's volumeNum, 1-4");
     let mut task = new_task();
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
@@ -120,7 +125,7 @@ fn main() {
                 println!("[{}, {}]", g.in_battle, g.cnt);
             }
             Some("inarea") => {
-                let leader = Leader { volume: piney_data::volume::Volume::Inf, pos_p: a.v3(), dirc: [0; 4], width: 0 };
+                let leader = Leader { volume, pos_p: a.v3(), dirc: [0; 4], width: 0 };
                 let (flags, listed, at, id, dead) = (a.u(), a.b(), a.u() as usize, a.s(), a.s());
                 let cond = Cond { dead, ..Cond::default() };
                 let kite = LeaderState { flags, listed, at, id, cond, ..LeaderState::default() };
@@ -147,7 +152,7 @@ fn main() {
             }
             Some("select") => {
                 let (pos_p, dircz, width) = (a.v3(), a.u(), a.u());
-                let leader = Leader { volume: piney_data::volume::Volume::Inf, pos_p, dirc: [0, 0, dircz, 0], width };
+                let leader = Leader { volume, pos_p, dirc: [0, 0, dircz, 0], width };
                 let kite = LeaderState { listed: a.b(), cond: a.cond(), ..LeaderState::default() };
                 let (eye, mode, mut pri, in_battle, field) = (a.b(), a.i(), a.i(), a.b(), a.i());
                 let n = a.u() as usize;
@@ -187,13 +192,13 @@ fn main() {
             // frame `N (IDX AMOUNT)*N`, the candidates in list order `N (IDX
             // FLAGS ID WIDTH X Y Z (DEAD SLEEP CONF CHARM PARA) ACT)*N`.
             // PUSH: 1 action, 2 personal, 4 chat, 8 option.
-            Some("ctrl_frame") => ctrl_frame(&mut task, &mut a),
+            Some("ctrl_frame") => ctrl_frame(volume, &mut task, &mut a),
             _ => println!("null"),
         }
     }
 }
 
-fn ctrl_frame(task: &mut Task, a: &mut Args) {
+fn ctrl_frame(volume: Volume, task: &mut Task, a: &mut Args) {
     let (pow_l, eye, push, menu_idle) = (a.u() as u8, a.b(), a.u(), a.b());
     let (forbid, fce, pl_attack, menu, menu_closed) = (a.b(), a.b(), a.b(), a.s(), a.b());
     let (load_disp, gt_hack, compul, menu_clear) = (a.b(), a.b(), a.b(), a.b());
@@ -209,7 +214,7 @@ fn ctrl_frame(task: &mut Task, a: &mut Args) {
         control: a.b(),
     };
     let (pos_p, dircz, width) = (a.v3(), a.u(), a.u());
-    let leader = Leader { volume: piney_data::volume::Volume::Inf, pos_p, dirc: [0, 0, dircz, 0], width };
+    let leader = Leader { volume, pos_p, dirc: [0, 0, dircz, 0], width };
     let num = a.i();
     let slots: Vec<Option<(i32, V4, i16)>> = (0..3)
         .map(|_| {

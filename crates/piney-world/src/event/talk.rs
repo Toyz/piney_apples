@@ -7,6 +7,8 @@
 //! The menus are not this crate's: the port raises a [`TalkRequest`] and
 //! waits for [`crate::World::close_menu`] (docs/engine/field-game.md).
 
+use piney_data::volume::Volume;
+
 use crate::ee::{self, F, V4};
 use crate::world::CharId;
 
@@ -121,7 +123,7 @@ impl Cmnd {
 pub struct Leader {
     /// The disc's volume: its code's square root (`sqrt.s` from Outbreak
     /// on, [`ee::sqrtf_on`]).
-    pub volume: piney_data::volume::Volume,
+    pub volume: Volume,
     pub pos_p: V4,
     /// +0x60 `dirc` (z the heading).
     pub dirc: V4,
@@ -332,12 +334,33 @@ pub struct Scope {
     pub field: i32,
 }
 
+/// Where `ccSelectTarget`'s arrays start, as slots from sp+80: Infection
+/// and Mutation put `near` at sp+80 and `wide` at sp+112 (INF gcmn
+/// 0x00518edc, 0x00518f04); Outbreak and Quarantine swap them (OUT gcmn
+/// 0x0053224c, 0x00532274; QUA 0x00424b5c, 0x00424b84). Each volume reads
+/// them back from where it wrote them, `near` first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Arrays {
+    near: usize,
+    wide: usize,
+}
+
+impl Arrays {
+    fn on(volume: Volume) -> Self {
+        match volume {
+            Volume::Inf | Volume::Mut => Arrays { near: 0, wide: 8 },
+            Volume::Out | Volume::Qua => Arrays { near: 8, wide: 0 },
+        }
+    }
+}
+
 /// `ccSelectTarget(mode)` (gcmn 0x00518cc0): the target among the sorted
 /// candidates, `pri` the running `cmndTargetPriNum` (mode 2 steps it). None
 /// while the leader is off the lists, down or held. Anyone down is passed
 /// over, and the party and walking PCs in a fight, on fields 1-12, while held
 /// and at a gate. The rest go into two stack arrays of 8 that lie one after
-/// the other, so a ninth in reach overwrites the wider ring's first (kept).
+/// the other (see [`Arrays`]), so a ninth in the first array runs into the
+/// second's first.
 pub fn select_target(
     leader: &Leader,
     kite: &LeaderState,
@@ -350,7 +373,8 @@ pub fn select_target(
     if !kite.listed || kite.cond.dead != 0 || kite.cond.held() {
         return None;
     }
-    // near[k] is slot k, wide[k] slot 8 + k; slots 0-15 start null.
+    // Slot k is the word at sp+80 + 4k; slots 0-15 start null.
+    let Arrays { near: near_at, wide: wide_at } = Arrays::on(leader.volume);
     let mut slots: Vec<Option<usize>> = vec![None; 16];
     let put = |slots: &mut Vec<Option<usize>>, at: usize, i: usize| {
         if slots.len() <= at {
@@ -377,10 +401,10 @@ pub fn select_target(
             continue;
         }
         if r == 1 {
-            put(&mut slots, near, i);
+            put(&mut slots, near_at + near, i);
             near += 1;
         } else if r == 2 {
-            put(&mut slots, 8 + wide, i);
+            put(&mut slots, wide_at + wide, i);
             wide += 1;
         }
     }
@@ -394,7 +418,7 @@ pub fn select_target(
     let passes: [fn(u32) -> bool; 3] = [|f| f & flags::ENEMY != 0, |f| f & 0x0700_00ef == 0, |f| f & 0x0700_000f != 0];
     let mut n = 0;
     for test in passes {
-        for (base, count, wider) in [(0, near, false), (8, wide, true)] {
+        for (base, count, wider) in [(near_at, near, false), (wide_at, wide, true)] {
             if wider && mode == 0 {
                 continue;
             }
@@ -1162,6 +1186,31 @@ mod tests {
         };
         assert_eq!(dist(Volume::Inf), 0x400f_1bbd);
         assert_eq!(dist(Volume::Out), 0x400f_1bbc);
+    }
+
+    /// Nine enemies ahead and one to the side in a fight: on Infection the
+    /// ninth ahead lands on the side one's slot and is lost; on Outbreak
+    /// the arrays are swapped and the ninth ahead runs past both.
+    #[test]
+    fn the_select_s_arrays_lie_by_the_disc() {
+        use piney_data::volume::Volume;
+        let v = |x: f32, y: f32| [x.to_bits(), y.to_bits(), 0, ee::ONE];
+        let w = 45f32.to_bits();
+        let pick = |volume| {
+            let leader = Leader { volume, pos_p: v(0.0, 0.0), dirc: [0; 4], width: w };
+            let mut cands: Vec<Cmnd> =
+                (1..10).map(|k| Cmnd::new(CharId::Npc(k), 0x20, w, v(0.0, -20.0 * k as f32))).collect();
+            cands.push(Cmnd::new(CharId::Npc(10), 0x20, w, v(200.0, -14.0)));
+            let sorted = sort(&leader, &mut cands);
+            let ranges: Vec<u8> = cands.iter().map(|c| check_range(&leader, c, false, true)).collect();
+            assert_eq!(ranges, [1, 1, 1, 1, 1, 1, 1, 1, 1, 2]);
+            let mut pri = 8;
+            let scope = Scope { eye: false, in_battle: true, field: 0 };
+            let kite = LeaderState { listed: true, ..LeaderState::default() };
+            select_target(&leader, &kite, &cands, &sorted, 1, &mut pri, scope)
+        };
+        assert_eq!(pick(Volume::Inf), Some(9));
+        assert_eq!(pick(Volume::Out), Some(8));
     }
 
     #[test]
