@@ -288,6 +288,40 @@ fn array_stride(inner: Layout, n: usize, stride: u32) -> Layout {
     }
 }
 
+/// A `ccEnemyListInfo` list's place in memory (`EnemyListEnd`).
+fn enemy_list_end() -> Layout {
+    strukt(
+        "EnemyListEnd",
+        8,
+        vec![("va", 0, U32), ("fill", 4, array(I32, 0))],
+        "A list's address, and the words from its end to the next list's start (the linker's 16-byte \
+         alignment).",
+    )
+}
+
+/// `ccEnemyListInfo` (Infection gcmn 0x005da200, 5 x 7 `{int *list; int
+/// num}`) read as addresses: each list's `va`, and the words between its
+/// end and the list that follows it in memory, or `ccEnemyListInfo`
+/// itself after the last.
+fn enemy_list_ends() -> CustomFn {
+    Rc::new(|c| {
+        let info = find(c, 0x005D_A200, GCMN)?;
+        let lists = (0..35u32)
+            .map(|k| Ok((c.p.u32(info + 8 * k)?, c.p.u32(info + 8 * k + 4)?)))
+            .collect::<Result<Vec<(u32, u32)>, String>>()?;
+        let mut starts: Vec<u32> = lists.iter().map(|&(va, _)| va).chain([info]).collect();
+        starts.sort_unstable();
+        let row = |&(va, num): &(u32, u32)| -> Read {
+            let end = va + 4 * num;
+            let next = *starts.iter().find(|&&s| s >= end).ok_or("a list past ccEnemyListInfo")?;
+            let fill = (end..next).step_by(4).map(|a| Ok(Value::Int(i128::from(c.p.u32(a)? as i32))));
+            Ok(Value::List(vec![Value::Int(i128::from(va)), Value::List(fill.collect::<Result<_, String>>()?)]))
+        };
+        let servers = lists.chunks(7).map(|s| Ok(Value::List(s.iter().map(row).collect::<Result<_, String>>()?)));
+        Ok(Value::List(servers.collect::<Result<_, String>>()?))
+    })
+}
+
 /// A struct of the manifest's own.
 fn strukt(name: &str, size: u32, fields: Vec<(&str, u32, Layout)>, doc: &str) -> Layout {
     Layout::Struct(Rc::new(StructDef {
@@ -1837,6 +1871,13 @@ fn battle() -> Group {
                 array(fixed(ty("ccEnemyList", vec![("list", counted_ptr(I32, 4)), ("num", omit())]), 7), 5),
                 GCMN,
                 "`ccEnemyListInfo`: by server and type, the `enemyTbl` rows an area spawns.",
+            ),
+            derived(
+                "enemy_list_ends",
+                custom(enemy_list_ends(), array(fixed(enemy_list_end(), 7), 5)),
+                GCMN,
+                "Where each `ccEnemyListInfo` list is, and the words after it up to the next list (the last's: up \
+                 to `ccEnemyListInfo`), which Infection's `ccRegisterEnemyList` reads on into past a list's end.",
             ),
             e("bosses", 0x0061_30B0, array(ty("ccBossParamData", vec![]), 49), GCMN, "`bossTbl`"),
             e("item_r", 0x0062_3720, array(item(), 24), GCMN, "`itemTblR`: category 10."),

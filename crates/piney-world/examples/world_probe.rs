@@ -727,7 +727,8 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
     use piney_world::chara::navi::{Navi, NaviMap};
     use piney_world::town::pc;
     let n = |i: usize| hex(w[i]);
-    let ours = ["pcsel", "pcreserve", "pcroute", "pcstart", "pcpad", "pchit", "pcinfl", "pcadd", "pcev", "pcpos"];
+    let ours =
+        ["pcsel", "pcreload", "pcreserve", "pcroute", "pcstart", "pcpad", "pchit", "pcinfl", "pcadd", "pcev", "pcpos"];
     if !ours.contains(&cmd) && !matches!(cmd, "pcsearch" | "pcrace" | "pcstatus" | "pcsearchat") {
         return false;
     }
@@ -747,6 +748,40 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let rows = pc::register_random_npc(&mut mt, n(2) as i32, &pool);
             let next = piney_battle::rand::Rng::rand(&mut mt);
             println!("{{\"rows\": {}, \"next\": {}}}", list(&rows.map(|r| i32::from(r) as u32)), next as u32);
+        }
+        // `pcreload COUNT REGIST SERVER DONE NUM ID0..ID4 BOOT0..BOOT4 (TYPE
+        // CODE PARAM)x16`: a Root Town's stream reload from ccInitRand(COUNT)
+        // (`World::reload_file_list`'s NPC part): registNpcNum, the registry,
+        // the walking PCs drawn and the next ccRand.
+        "pcreload" => {
+            let mut mt = piney_battle::rand::init_rand(n(1), &mut 0);
+            let mut regist = n(2) as i32;
+            let pool = pc_pool(volume, n(3), n(4));
+            let mut spcs = piney_world::chara::party::Spcs::new_game();
+            for k in 0..5 {
+                let r = &mut spcs.registry[k];
+                (r.id, r.boot_param) = (n(6 + k) as i32, n(11 + k) as i32);
+            }
+            spcs.registry_num = n(5) as i32;
+            let mut entries = [[-1i16, -1, -1, 0]; 16];
+            for (k, e) in entries.iter_mut().enumerate() {
+                *e = [n(16 + 3 * k) as i16, n(17 + 3 * k) as i16, 0, n(18 + 3 * k) as i16];
+            }
+            regist += piney_world::world::town_npc_entries(&entries);
+            let rows =
+                piney_world::world::register_event_npcs(&mut spcs, &mut regist, &entries, &mut mt, Some(pool)).unwrap();
+            let next = piney_battle::rand::Rng::rand(&mut mt);
+            let ids: Vec<u32> = spcs.registry.iter().map(|r| r.id as u32).collect();
+            let boots: Vec<u32> = spcs.registry.iter().map(|r| r.boot_param as u32).collect();
+            println!(
+                "{{\"regist\": {}, \"num\": {}, \"ids\": {}, \"boots\": {}, \"rows\": {}, \"next\": {}}}",
+                regist as u32,
+                spcs.registry_num as u32,
+                list(&ids),
+                list(&boots),
+                list(&rows.map(|r| i32::from(r) as u32)),
+                next as u32
+            );
         }
         // `pcreserve REGIST REGISTRY T0..T15`: what `ccRegisterEventMng`
         // hands `ccRegisterRandomNpc`, the entries' types (-1 free).

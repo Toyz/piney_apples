@@ -372,6 +372,13 @@ impl Vm {
                 if host.busy(Wait::Stream) {
                     return Step::Yield;
                 }
+                // In The World with the area unchanged, the area's file list
+                // dropped before the stream and made again after it (INF main
+                // 0x001aa0c8, 0x001aa170): ccRegisterEventMng(0) anew.
+                let g = host.game();
+                if g.status == 5 && g.area == g.area_prev && (0..=2).contains(&g.area) {
+                    host.reload_file_list(&mut self.mng);
+                }
             }
             Op::Overlay { num } => {
                 let which = match num {
@@ -1214,6 +1221,54 @@ fn gate_add<H: Host + ?Sized>(host: &mut H, area: i16) {
 #[cfg(test)]
 mod tests {
     use super::deg2rad;
+    use super::{OpRun, Vm};
+    use crate::host::{Game, Host};
+    use crate::ir::Op;
+    use piney_data::save::SaveData;
+
+    /// A host that keeps the entries each file list reload was handed.
+    struct Reloads {
+        save: SaveData,
+        game: Game,
+        got: Vec<[[i16; 4]; 16]>,
+    }
+
+    impl Host for Reloads {
+        fn save(&mut self) -> &mut SaveData {
+            &mut self.save
+        }
+        fn game(&self) -> Game {
+            self.game
+        }
+        fn stream(&mut self, _num: i16) {}
+        fn busy(&mut self, _w: crate::host::Wait) -> bool {
+            false
+        }
+        fn reload_file_list(&mut self, mng: &mut crate::vm::EventMng) {
+            self.got.push(mng.entries);
+        }
+    }
+
+    /// The stream instruction (case 10, INF main 0x001aa0ac) makes the
+    /// area's file list again after its stream only in The World
+    /// (`game.status` 5) with the area unchanged (`area == areaPrev`) and in
+    /// a town, field or dungeon, with the entries as they are then.
+    #[test]
+    fn a_stream_in_play_reloads_the_area_s_file_list() {
+        let lib = std::sync::Arc::new(crate::vm::Library::new(piney_data::volume::Volume::Inf, []));
+        for (status, area, area_prev, reloads) in
+            [(5, 0, 0, true), (5, 1, 1, true), (5, 2, 2, true), (5, 1, 0, false), (5, 3, 3, false), (2, 1, 1, false)]
+        {
+            let mut vm = Vm::new(lib.clone());
+            vm.mng.entries[0] = [5, 140, 0, 0];
+            let game = Game { status, area, area_prev, ..Game::default() };
+            let mut h = Reloads { save: SaveData::new(), game, got: Vec::new() };
+            let (mut run, mut set_bit) = (OpRun::default(), false);
+            vm.op(&mut h, 1, 0, 2, Op::Stream { num: 3 }, &mut run, &mut set_bit);
+            let want: Vec<[[i16; 4]; 16]> = if reloads { vec![vm.mng.entries] } else { Vec::new() };
+            assert_eq!(h.got, want, "status {status}, area {area}, areaPrev {area_prev}");
+        }
+    }
 
     /// Values of the game's `DEG2RAD` (run in `tools/eemu.py`) where the
     /// host's IEEE arithmetic comes out one bit higher.

@@ -78,8 +78,10 @@ pub struct Words {
     pub words: Vec<Word>,
     pub events: Vec<EventArea>,
     pub dungeon: Vec<(i32, i32)>,
-    /// `ccEnemyListInfo[server][type]`: the enemies' levels, in list order.
-    pub enemy_levels: Vec<Vec<Vec<i32>>>,
+    /// `ccEnemyListInfo`'s lists where the game keeps them.
+    pub enemy_lists: piney_battle::entry::EnemyLists,
+    /// `enemyTbl`'s levels, by row.
+    pub enemy_levels: Vec<i32>,
 }
 
 impl Words {
@@ -134,15 +136,9 @@ impl Words {
             })
             .collect();
         let dungeon = area.dungeon_data.iter().map(|d| (d.level_max, d.room_max)).collect();
-        let level = |id: &i32| {
-            usize::try_from(*id).ok().and_then(|i| battle.enemies.get(i)).map_or(0, |r| i32::from(r.param.base.level))
-        };
-        let enemy_levels = piney_data::tables::battle::of(volume)
-            .enemy_lists
-            .iter()
-            .map(|server| server.iter().map(|l| l.list.unwrap_or_default().iter().map(level).collect()).collect())
-            .collect();
-        Words { volume: volume.number(), words, events, dungeon, enemy_levels }
+        let enemy_levels = battle.enemies.iter().map(|r| i32::from(r.param.base.level)).collect();
+        let enemy_lists = piney_battle::entry::EnemyLists::of(volume);
+        Words { volume: volume.number(), words, events, dungeon, enemy_lists, enemy_levels }
     }
 
     /// `GetWordParamPtr(id)`: the word with this ID.
@@ -343,31 +339,20 @@ pub fn field_attr(field_type: i32, weather: i32) -> i32 {
 }
 
 impl Words {
-    /// `ccAnalyzeEnemyList(server, type, rank)` (gcmn 0x0042f290): the
-    /// highest level of the three enemies registered from `rank` (staying
-    /// on the list's last). From Mutation on (0x00444c20) a start too near
-    /// the end moves back so that all three fit (`ccRegisterEnemyRange`,
-    /// which `ccInitRegisterEnemy` sets to 3 and nothing changes), as
-    /// `piney_battle::entry::analyze_enemy_list` has it.
+    /// `ccAnalyzeEnemyList(server, type, rank)` (INF gcmn 0x0042f290;
+    /// `piney_battle::entry::analyze_levels`).
     pub fn analyze_enemies(&self, server: i32, kind: i32, rank: i32) -> i32 {
-        let Some(list) =
-            self.enemy_levels.get(server.clamp(0, 4) as usize).and_then(|r| r.get(kind.clamp(0, 6) as usize))
-        else {
-            return 0;
-        };
-        let num = list.len() as i32;
-        let later = self.volume > 1;
-        let mut at = if later && num < rank + 3 { num - 3 } else { rank };
-        let mut best = 0;
-        for _ in 0..3 {
-            let lv = usize::try_from(at).ok().and_then(|i| list.get(i)).copied().unwrap_or(0);
-            best = best.max(lv);
-            at += 1;
-            if !later && at == num {
-                at -= 1;
-            }
-        }
-        best
+        let volume = piney_data::volume::Volume::from_number(self.volume).unwrap_or_default();
+        let level = |id: i32| usize::try_from(id).ok().and_then(|i| self.enemy_levels.get(i)).copied();
+        piney_battle::entry::analyze_levels(
+            volume,
+            &self.enemy_lists,
+            server,
+            kind,
+            rank,
+            piney_battle::entry::REGISTER_RANGE,
+            level,
+        )
     }
 
     /// `ccEvent::CheckAreaCode(a, b, c)` (main 0x001b3100): 1 if the events

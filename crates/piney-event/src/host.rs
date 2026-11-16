@@ -593,6 +593,12 @@ pub trait Host {
     fn stream(&mut self, num: i16) {
         unported("stream");
     }
+    /// The stream's file list reload in play (`ccSetFileList*Del` before
+    /// it, `ccSetFileList*` after): `ccRegisterEventMng(0)` over the
+    /// event's `entry[]` and `entryMc[]` as they are, and its count of
+    /// NPCs into `registNpcNum`. Only an area's host keeps a file list;
+    /// elsewhere nothing.
+    fn reload_file_list(&mut self, mng: &mut crate::vm::EventMng) {}
     /// `ccScFade::EntryFade` (`more`: `ContinueFade`). `reset`, from
     /// Mutation on: the fader emptied first (`ccScFade::Init`), and `more`
     /// without a fade of its own starts one.

@@ -9,6 +9,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use piney_battle::entry::DifficultyIn;
 use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
 use piney_data::save::{SaveData, offset};
@@ -559,26 +560,24 @@ impl WorldMan {
         }
     }
 
-    /// `ccRegisterDifficultyEnemy()` (main 0x001b7020) in a field or
-    /// dungeon: the list type (6 in a story area, else
-    /// `WORLD_MAN::GetFieldAttrb()`, `field_attr`) and the rank (the story
-    /// area's `enemy` unless 255, else `25 (areaLevel - 1) + 10 +
-    /// enemyOfs`, at least 0; plus `floor + 1` in a dungeon) that
-    /// `ccRegisterEnemyList(server, type, rank)` registers.
-    pub fn enemy_rank(&self, area: i32, field: i32, floor: i32, field_attr: i32) -> (i32, i32) {
-        let by_level = 25 * (self.area_level - 1) + 10 + self.enemy_ofs;
-        let (ty, mut rank) = if field > 0 {
-            (6, if self.ev_enemy != 255 { self.ev_enemy } else { by_level })
-        } else {
-            (field_attr, by_level)
-        };
-        if rank < 0 {
-            rank = 0;
+    /// What `ccRegisterDifficultyEnemy()` (main 0x001b7020) reads in the
+    /// scene (`game.area`, `server`, `field`, `dungeon`, `floor`) of
+    /// `WORLD_MAN`: `dungeonType[game.dungeon]`, the merged words' level
+    /// and offset, the story area's `enemy` and `GetFieldAttrb()`
+    /// ([`piney_battle::entry::difficulty`]).
+    pub fn difficulty_in(&self, area: i32, server: i32, field: i32, dungeon: i32, floor: i32) -> DifficultyIn {
+        let dungeon_type = usize::try_from(dungeon).ok().and_then(|d| self.dungeon_type.get(d));
+        DifficultyIn {
+            area,
+            server,
+            field,
+            floor,
+            dungeon_type: dungeon_type.map_or(0, |&t| i32::from(t)),
+            area_level: self.area_level,
+            enemy_ofs: self.enemy_ofs,
+            ev_enemy: self.ev_enemy,
+            field_attr: self.field_attr(),
         }
-        if area == 2 {
-            rank += (floor + 1).max(0);
-        }
-        (ty, rank)
     }
 
     /// `WORLD_MAN::SetGenerateCode(a, b, c)` (main 0x0019eea0) on `server`

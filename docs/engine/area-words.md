@@ -3,7 +3,7 @@ title: Area keywords and the area generator
 status: partial
 volumes: all
 covers: INF SLUS_202.67:0x0019e5c0 WORLD_MAN::SimGenerateCode, 0x0019e500 CopyWordParam, 0x001a2340 GetWordParamPtr, 0x001a25d0 GetWordParamPtr(int), 0x001a3370 GetWordParamID, 0x001a29a0 GetWordParamFromEvCode, 0x001a4290 ccCheckEventAreaNum, 0x001a4220 ccGetEventAreaInfo, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0019ceb0 WORLD_MAN::IsProtectArea, 0x001b04b8 ccEvAreaCodeAdd (event instruction 118), 0x001b7020 ccRegisterDifficultyEnemy; INF gcmn.prg:0x0042ed70 ccRegisterEnemyList; word_a1..word_c4, eventAreaInfo, dungeonData, ccEnemyListInfo; MUT SLUS_205.62:0x001b9330 ccGetEventAreaInfo, 0x001b1f10 WORLD_MAN::GetEventAreaInfo; OUT SLUS_205.63:0x001af500 ccGetEventAreaInfo
-worklog: 11, 13, 21, 68, 78, 181, 220, 259, 493
+worklog: 11, 13, 21, 68, 78, 181, 220, 259, 493, 604
 ---
 
 # Area keywords and the area generator
@@ -123,15 +123,22 @@ writes `dungeonType[1]` only for field type 4. The RNG is the globals
 `ccRegisterEnemyList` (`gcmn.prg:0x0042ed70`):
 
 ```
+nothing                                   unless ccGame.area is 1 or 2
 type = 6                                  if ccGame.field > 0 (a story area)
      = FIELD_ATTRIB[fieldType][weather]   otherwise, WORLD_MAN::GetFieldAttrb
-rank = 25 * (areaLevel - 1) + 10 + enemyOfs, at least 0
+rank = 25 * (areaLevel - 1) + 10 + enemyOfs
      = the story area's `enemy`           in a story area that sets it
-rank += ccGame.floor + 1                  in a dungeon
+rank = max(rank, 0)                       in a story area only
+rank += max(ccGame.floor + 1, 0)          in a dungeon (from MUT on, not dungeon types 8, 9)
 list = ccEnemyListInfo[server][type]      gcmn 0x005da200, 5 x 7 {int *list; int num}
 register list[rank], list[rank+1], list[rank+2]   (ccRegisterEnemyRange = 3),
-         staying on the last entry past the end
+         INF: back one when the rank steps onto num; MUT on: rank = num - 3 if num < rank + 3
 ```
+
+`ccRegisterEventMng` decides whether this runs at all (not in story fields
+1-13, nor in field 126 from Mutation on) and what the event's entries add;
+a start at or past a list's end on Infection reads on into the next list.
+Both are in [battle rules](battle.md) under the entry control's registration.
 
 `FIELD_ATTRIB`, from running `GetFieldAttrb` over every input:
 

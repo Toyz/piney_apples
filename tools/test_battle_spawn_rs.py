@@ -64,7 +64,10 @@ Checks (SPAWN maps a name to fn(checks, rnd) -> (request, game, label)):
   leave          ccThEntryCtrlDelete (0x00431d10): what survives leaving
                  an area
   register       ccInitRegisterEnemy, ccRegisterEnemyList,
-                 ccRegisterEnemyOne, ccAnalyzeEnemyList
+                 ccRegisterEnemyOne, ccAnalyzeEnemyList; ranks past a
+                 list's end and before its start too
+  event_register ccRegisterEventMng(0) (main 0x001b6d70) and its
+                 ccRegisterDifficultyEnemy (0x001b7020): the enemy rows
   save           ccSaveData::CheckEventEntry, CheckFountain,
                  ClearEventEntry, deleteEventEntry (0x00430200);
                  ccCheckDustColor (0x0043a250); ccRandS (main 0x001d9c10)
@@ -2273,6 +2276,20 @@ def check_leave(checks, rnd):
     return request(h, sc, "leave", str(keep)), out, "leave"
 
 
+def list_rank(rnd, s, t, n):
+    """A rank for ccEnemyListInfo[s][t] (n rows): mostly within the list;
+    else past its end (on Infection read on through the fill and the next
+    list) or before its start (the list before's rows and fill). The
+    first list's start and the last's end border no list (wpRadInfo,
+    ccEnemyListInfo), which no input of the game's reaches."""
+    r = rnd.random()
+    if r < 0.4 and (s, t) != (4, 6):
+        return rnd.randrange(n, n + 135)
+    if r < 0.55 and (s, t) != (0, 0):
+        return rnd.randrange(-130, 0)
+    return rnd.randrange(0, max(n, 1))
+
+
 def check_register(checks, rnd):
     h = harness(checks)
     m = h.m
@@ -2281,7 +2298,7 @@ def check_register(checks, rnd):
         r = rnd.random()
         s, t = rnd.randrange(0, 5), rnd.randrange(0, 7)
         n = m.load(inf_va(0x005DA200) + 56 * s + 8 * t + 4, 4)
-        rank = rnd.randrange(0, max(n, 1))
+        rank = list_rank(rnd, s, t, n)
         if r < 0.4:
             ops.append([1, s, t, rank])
         elif r < 0.7:
@@ -2308,6 +2325,87 @@ def check_register(checks, rnd):
     h.restore()
     req = f"sreg {len(ops)} " + " ".join(" ".join(map(str, op)) for op in ops)
     return req, out, "register"
+
+
+EV_INFO = 0x013C3800                # the story area's EVENTAREA_INFO GetEventAreaInfo answers
+
+
+def rnd_entry(rnd, mc):
+    """An eventMng entry[] (mc: entryMc[]) slot: (type, code), -1 free."""
+    if rnd.random() < 0.6:
+        return (-1, 0)
+    if mc:
+        return (rnd.choice((0, 0, 1, 2)), rnd.randrange(0, 303))
+    ty = rnd.choice((0, 1, 2, 3, 4, 5, 5, 6, 6, 7, 0x40 | rnd.randrange(0, 8), 32 + rnd.randrange(0, 8)))
+    return (ty, rnd.randrange(0, 303))
+
+
+def check_event_register(checks, rnd):
+    """ccRegisterEventMng(0) (INF main 0x001b6d70) and the
+    ccRegisterDifficultyEnemy (0x001b7020) it calls, on a random place:
+    game's area, server, field, dungeon and floor, WORLD_MAN's
+    dungeonType[], the merged words' areaLevel and enemyOfs, the story
+    area's enemy (GetEventAreaInfo answers a record), GetFieldAttrb, and
+    the event's entry[16] and entryMc[16]. Its other registrations
+    (EntrySpc, ccRegisterNpc, ccRegisterGimmick, the regular gimmicks and
+    NPCs, ccSetFileListBoss) are stubbed; the enemy rows are compared."""
+    h = harness(checks)
+    m, a = h.m, h.addr
+    area = rnd.choice((0, 1, 1, 2, 2, 3))
+    field = rnd.choice((-1, 0, 0, rnd.randrange(1, 14), 14, 126, rnd.randrange(14, 161)))
+    server = rnd.randrange(0, 5)
+    if field > 0 and server == 4:
+        server = rnd.randrange(0, 4)    # list46's end borders ccEnemyListInfo (see list_rank)
+    dungeon, floor = rnd.randrange(0, 3), rnd.randrange(-2, 7)
+    dtypes = [rnd.randrange(0, 10) for _ in range(3)]
+    level, ofs = rnd.randrange(1, 6), rnd.randrange(-10, 41)
+    ev_enemy = rnd.choice((255, rnd.randrange(0, 171)))
+    attr = rnd.randrange(0, 6)
+    entries = [rnd_entry(rnd, False) for _ in range(16)]
+    mcs = [rnd_entry(rnd, True) for _ in range(16)]
+    m.store(a["game"], 4, TB.GAME)
+    h.put(TB.GAME + 0x14, "<i", area)
+    h.put(TB.GAME + 0x1C, "<i", server)
+    h.put(TB.GAME + 0x24, "<iii", field, dungeon, floor)
+    m.store(a["worldman"], 4, WMAN)
+    m.store(WMAN + 0x158, 4, WP)
+    h.put(WMAN + 0x34, "<3i", *dtypes)
+    h.put(WP + 0x20, "<ii", level, ofs)
+    m.mem[EV_INFO:EV_INFO + 0x54] = bytes(0x54)
+    h.put(EV_INFO + 0x18, "<i", ev_enemy)
+    m.store(a["eventMng"], 4, EVT)
+    for k, (ty, code) in enumerate(entries):
+        h.put(EVT + 0x80 + 8 * k, "<hhhh", ty, code, 0, 0)
+    for k, (ty, code) in enumerate(mcs):
+        h.put(EVT + 0x100 + 8 * k, "<hhhh", ty, code, 0, 0)
+    stubs = {"GetEventAreaInfo__9WORLD_MANFv": lambda mm, *_: EV_INFO,
+             "GetFieldAttrb__9WORLD_MANFv": lambda mm, *_: attr,
+             "EntrySpc__5ccSPCFi": lambda mm, *_: 0xFFFFFFFF,
+             "ccSetFileListBoss__Fi": lambda mm, *_: 0, "ccRegisterNpc__Fi": lambda mm, *_: 0,
+             "ccRegisterGimmick__Fi": lambda mm, *_: 0, "ccRegisterRegularGimmick__Fv": lambda mm, *_: 0,
+             "ccRegisterRegularNpc__Fv": lambda mm, *_: 0, "ccRegisterRandomNpc__Fi": lambda mm, *_: 0}
+    saved = {}
+    for n_, f in stubs.items():
+        va = h.sym(n_)
+        saved[va] = m.hooks.get(va)
+        m.hooks[va] = f
+    try:
+        h.call("ccRegisterEventMng__Fi", (0,))
+    finally:
+        for va, x in saved.items():
+            if x is None:
+                del m.hooks[va]
+            else:
+                m.hooks[va] = x
+    out = {"cells": h.get(a["ccRegisterEnemyTbl"], "<24i"),
+           "nums": [s32(m.load(a["ccRegisterEnemyNum"], 4)), s32(m.load(a["ccRegisterDrainNum"], 4)),
+                    s32(m.load(a["ccRegisterEnemyRange"], 4))],
+           "exist": [i for i in range(303) if m.load(ENEMY_TBL + ROW * i + 0x68, 4)], "an": []}
+    h.restore()
+    dtype = dtypes[dungeon]
+    op = [4, area, server, field, floor, dtype, level, ofs, ev_enemy, attr]
+    op += [x for e in entries for x in e] + [x for e in mcs for x in e]
+    return f"sreg 1 {' '.join(map(str, op))}", out, "register"
 
 
 def check_save(checks, rnd):
@@ -3441,6 +3539,7 @@ SPAWN = {
     "leave": check_leave,
     "restore": check_restore,
     "register": check_register,
+    "event_register": check_event_register,
     "save": check_save,
     "init_rand": check_init_rand,
     "frame_enemies": check_frame_enemies,
@@ -3483,6 +3582,7 @@ class SpawnAgainstGame(rs.Against):
 
     def test_tables(self):
         self.check("register", 20016)
+        self.check("event_register", 20027)
         self.check("save", 20017)
         self.check("init_rand", 20026)
 

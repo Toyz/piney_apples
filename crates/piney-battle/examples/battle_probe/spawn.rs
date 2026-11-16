@@ -1731,7 +1731,9 @@ fn enemies_request(t_: &Tables, st: &SpawnTables, s: &mut Setup, t: &mut Toks) -
 
 /// `sreg N (OP ARGS)...`: `0` ccInitRegisterEnemy, `1 S T R`
 /// ccRegisterEnemyList, `2 ID` ccRegisterEnemyOne, `3 S T R`
-/// ccAnalyzeEnemyList (its result collected).
+/// ccAnalyzeEnemyList (its result collected), `4 AREA SERVER FIELD FLOOR
+/// DTYPE LEVEL OFS EVENEMY ATTR (TYPE CODE)x16 (TYPE CODE)x16`
+/// ccRegisterEventMng(0) with the event's entry[] and entryMc[].
 fn register_request(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> String {
     let mut r = Register::default();
     let mut an = Vec::new();
@@ -1743,6 +1745,29 @@ fn register_request(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> String {
                 r.register_list(t_, st, a, b, c);
             }
             2 => r.register_one(t_, t.i32()),
+            4 => {
+                let d = entry::DifficultyIn {
+                    area: t.i32(),
+                    server: t.i32(),
+                    field: t.i32(),
+                    floor: t.i32(),
+                    dungeon_type: t.i32(),
+                    area_level: t.i32(),
+                    enemy_ofs: t.i32(),
+                    ev_enemy: t.i32(),
+                    field_attr: t.i32(),
+                };
+                let mut slots =
+                    || -> Vec<[i16; 4]> { (0..16).map(|_| [t.i32() as i16, t.i32() as i16, 0, 0]).collect() };
+                let (entries, entries_mc) = (slots(), slots());
+                let ev = entry::EventRegistry {
+                    field: d.field,
+                    difficulty: entry::difficulty(t_.volume, &d),
+                    entries,
+                    entries_mc,
+                };
+                r.register_event_mng(t_, st, &ev);
+            }
             _ => {
                 let (a, b, c) = (t.i32(), t.i32(), t.i32());
                 an.push(entry::analyze_enemy_list(t_, st, a, b, c, r.range));

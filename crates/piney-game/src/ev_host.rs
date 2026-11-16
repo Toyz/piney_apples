@@ -53,6 +53,8 @@ pub trait HostWorld {
     fn stream_game(&self, st: &FieldState) -> (piney_audio::stream::StreamGame, FileList);
     /// The game's `rand()` handed back by a stream.
     fn set_rand(&mut self, rand: u64);
+    /// The stream's file list reload (`piney_world::world::World::reload_file_list`).
+    fn reload_file_list(&mut self, entries: piney_world::world::EventEntries);
     /// `game.server`.
     fn server(&self) -> i32;
     /// `WORLD_MAN.hackFlag` 3 at the first play pass: `ccMenu.interNoiz`.
@@ -533,6 +535,13 @@ impl<W: HostWorld> Host for EvHost<'_, W> {
             Ok(p) => self.stream.player = Some(p),
             Err(e) => tracing::warn!("events: {e}; counted as played"),
         }
+    }
+
+    /// The stream's file list reload ([`World::reload_file_list`]).
+    fn reload_file_list(&mut self, mng: &mut piney_event::vm::EventMng) {
+        self.st.log("reload_file_list".into());
+        mng.register_npcs();
+        self.world.reload_file_list((mng.entries, mng.entries_mc));
     }
 
     /// `remove_trap` (case 123): its sound (228) is the interpreter's; the

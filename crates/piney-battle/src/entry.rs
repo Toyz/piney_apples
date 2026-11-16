@@ -75,14 +75,12 @@ pub struct SpawnRow {
 }
 
 /// The tables the entry control reads besides [`Tables`]: `gimmickTbl`
-/// and `ccEnemyListInfo` (5 servers x 7 types of `{int *list; int
-/// num}`), the volume's (`battle`).
+/// and `ccEnemyListInfo`'s lists, the volume's (`battle`).
 #[derive(Clone)]
 pub struct SpawnTables {
     pub volume: Volume,
     pub gimmicks: Vec<SpawnRow>,
-    /// `ccEnemyListInfo[server][type]`: the `enemyTbl` rows by rank.
-    pub enemy_lists: Vec<Vec<Vec<i32>>>,
+    pub enemy_lists: EnemyLists,
 }
 
 impl SpawnTables {
@@ -97,14 +95,76 @@ impl SpawnTables {
         SpawnTables {
             volume,
             gimmicks: t.gimmicks.iter().map(|g| row(&g.param.base, &g.entry)).collect(),
-            enemy_lists: t
-                .enemy_lists
-                .iter()
-                .map(|server| server.iter().map(|l| l.list.map_or_else(Vec::new, <[i32]>::to_vec)).collect())
-                .collect(),
+            enemy_lists: EnemyLists::of(volume),
         }
     }
 }
+
+/// One of `ccEnemyListInfo`'s lists where the game keeps it: its rows
+/// (`num` of them) at `va`, then the words up to the next list.
+#[derive(Clone, Copy, Debug)]
+struct ListMem {
+    va: u32,
+    rows: &'static [i32],
+    fill: &'static [i32],
+}
+
+/// `ccEnemyListInfo[server][type]` (INF gcmn 0x005da200, 5 x 7 `{int
+/// *list; int num}`) and its lists as the game's memory holds them
+/// (`battle`'s `enemy_lists` and `enemy_list_ends`): each list's rows at
+/// its address, then its fill (the linker's 16-byte alignment, zeros on
+/// every disc) up to the next list, the last's up to `ccEnemyListInfo`.
+#[derive(Clone, Debug, Default)]
+pub struct EnemyLists {
+    lists: Vec<[ListMem; 7]>,
+}
+
+impl EnemyLists {
+    /// The volume's.
+    pub fn of(volume: Volume) -> EnemyLists {
+        let t = piney_data::tables::battle::of(volume);
+        let lists = t
+            .enemy_lists
+            .iter()
+            .zip(t.enemy_list_ends)
+            .map(|(rows, ends)| {
+                std::array::from_fn(|k| ListMem {
+                    va: ends[k].va,
+                    rows: rows[k].list.unwrap_or_default(),
+                    fill: ends[k].fill,
+                })
+            })
+            .collect();
+        EnemyLists { lists }
+    }
+
+    fn list(&self, server: i32, ty: i32) -> Option<&ListMem> {
+        let s = self.lists.get(usize::try_from(server).ok()?)?;
+        s.get(usize::try_from(ty).ok()?)
+    }
+
+    /// `ccEnemyListInfo[server][ty]`'s rows.
+    pub fn rows(&self, server: i32, ty: i32) -> Option<&'static [i32]> {
+        self.list(server, ty).map(|l| l.rows)
+    }
+
+    /// The word `list[rank]` loads (`lw` at `list + 4 * rank`): a row of
+    /// this list or, past its end, its fill and the lists after it. None
+    /// outside the lists' memory: before the first, or from
+    /// `ccEnemyListInfo` on (list addresses and counts, then `e1x1AnmTbl`'s
+    /// names: no `enemyTbl` rows).
+    pub fn word(&self, server: i32, ty: i32, rank: i32) -> Option<i32> {
+        let at = self.list(server, ty)?.va.wrapping_add((rank as u32).wrapping_mul(4));
+        self.lists.iter().flatten().find_map(|l| {
+            let off = usize::try_from(at.checked_sub(l.va)? / 4).ok()?;
+            l.rows.iter().chain(l.fill).nth(off).copied()
+        })
+    }
+}
+
+/// `ccRegisterEnemyRange` (INF main 0x00378190) as `ccInitRegisterEnemy`
+/// (gcmn 0x0042e750) sets it; nothing else writes it.
+pub const REGISTER_RANGE: i32 = 3;
 
 // the registered rows ---------------------------------------------------------------
 
@@ -127,7 +187,7 @@ pub struct Register {
 impl Default for Register {
     /// As `ccInitRegisterEnemy` leaves it.
     fn default() -> Self {
-        Register { cells: [-1; 24], enemy_num: 0, drain_num: 0, range: 3, exist: vec![0; ENEMY_ROWS] }
+        Register { cells: [-1; 24], enemy_num: 0, drain_num: 0, range: REGISTER_RANGE, exist: vec![0; ENEMY_ROWS] }
     }
 }
 
@@ -198,33 +258,127 @@ impl Register {
         self.register(t, id);
     }
 
-    /// `ccRegisterEnemyList(server, type, rank)` (gcmn 0x0042ed70):
-    /// `range` rows of `ccEnemyListInfo[server][type]` from `rank`, staying
-    /// on the last past the end. From Mutation on (0x004446f0) a start too
-    /// near the end moves back so that all `range` rows fit.
+    /// `ccRegisterEnemyList(server, type, rank)` (INF gcmn 0x0042ed70, MUT
+    /// 0x004446f0, OUT 0x0043f9a0, QUA 0x003322b0): `range` rows of
+    /// `ccEnemyListInfo[server][type]` from `rank` ([`list_rows`]).
     pub fn register_list(&mut self, t: &Tables, st: &SpawnTables, server: i32, ty: i32, rank: i32) {
-        let list = &st.enemy_lists[server as usize][ty as usize];
-        let rows = list_rows(t, list, rank, self.range);
-        for id in rows {
+        for id in list_rows(t.volume, &st.enemy_lists, server, ty, rank, self.range) {
             self.register(t, id);
         }
     }
+
+    /// The enemy rows `ccRegisterEventMng(0)` (INF main 0x001b6d70, MUT
+    /// 0x001cc480, OUT 0x001c2b30, QUA 0x001ca1b0) registers as an area's
+    /// file list is made: [`Register::init`] (`ccInitRegisterAll`); from
+    /// Mutation on nothing more in story field 126; then the difficulty's
+    /// rows, but not in story fields 1-13 nor while an `entry` has a type
+    /// with bit 0x40; then each `entry` of type 5 or 6 (`1 << type & 0x60`)
+    /// and each `entryMc` of type 0, by `ccRegisterEnemyOne`.
+    pub fn register_event_mng(&mut self, t: &Tables, st: &SpawnTables, ev: &EventRegistry) {
+        self.init();
+        if registers_nothing(t.volume, ev.field) {
+            return;
+        }
+        let barred = ev.entries.iter().any(|e| e[0] != -1 && e[0] & 0x40 != 0);
+        let difficulty = !(1..=13).contains(&ev.field) && !barred;
+        if let Some((server, ty, rank)) = ev.difficulty.filter(|_| difficulty) {
+            self.register_list(t, st, server, ty, rank);
+        }
+        let enemies = ev.entries.iter().filter(|e| e[0] != -1 && 1u32.wrapping_shl(e[0] as u32) & 0x60 != 0);
+        let portals = ev.entries_mc.iter().filter(|e| e[0] == 0);
+        for e in enemies.chain(portals) {
+            self.register_one(t, i32::from(e[1]));
+        }
+    }
+
+    /// The rows marked existing (`enemyTbl[i].entry.exist`).
+    pub fn existing(&self) -> impl Iterator<Item = i32> + '_ {
+        self.exist.iter().enumerate().filter(|&(_, &e)| e != 0).map(|(i, _)| i as i32)
+    }
 }
 
-/// The rows `ccRegisterEnemyList` takes from `list` at `rank`: `range` of
-/// them, staying on the last past the end; from Mutation on starting back
-/// far enough for all to fit.
-fn list_rows(t: &Tables, list: &[i32], rank: i32, range: i32) -> Vec<i32> {
-    let num = list.len() as i32;
-    let mut rank = rank;
-    let later = t.volume != Volume::Inf;
-    if later && num < rank + range {
-        rank = num - range;
+/// Story field 126 (Quarantine's ending's empty map, the record with no
+/// address the later tables add), where from Mutation on
+/// `ccRegisterEventMng` registers nothing after `ccInitRegisterAll` (MUT
+/// main 0x001cc4a4).
+const UNREGISTERED_FIELD: i32 = 126;
+
+/// Whether `ccRegisterEventMng` stops after `ccInitRegisterAll` in story
+/// field `field` ([`UNREGISTERED_FIELD`], from Mutation on).
+pub fn registers_nothing(volume: Volume, field: i32) -> bool {
+    volume != Volume::Inf && field == UNREGISTERED_FIELD
+}
+
+/// What `ccRegisterEventMng(0)` reads for its enemies: `game.field`
+/// (+0x24), `ccRegisterDifficultyEnemy`'s list and rank ([`difficulty`])
+/// and the event's `entry[16]` (`eventMng` +0x80) and `entryMc[16]`
+/// (+0x100), type -1 free.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EventRegistry {
+    pub field: i32,
+    pub difficulty: Option<(i32, i32, i32)>,
+    pub entries: Vec<[i16; 4]>,
+    pub entries_mc: Vec<[i16; 4]>,
+}
+
+/// What `ccRegisterDifficultyEnemy` reads of the place: `ccGame`'s `area`
+/// (+0x14), `server` (+0x1c), `field` (+0x24) and `floor` (+0x2c);
+/// `WORLD_MAN::GetDungeonType()` (`dungeonType[game.dungeon]`); the merged
+/// `WORDPARAM`'s `areaLevel` (+0x20) and `enemyOfs` (+0x24); the story
+/// area's `EVENTAREA_INFO.enemy` (+0x18); `WORLD_MAN::GetFieldAttrb()`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DifficultyIn {
+    pub area: i32,
+    pub server: i32,
+    pub field: i32,
+    pub floor: i32,
+    pub dungeon_type: i32,
+    pub area_level: i32,
+    pub enemy_ofs: i32,
+    pub ev_enemy: i32,
+    pub field_attr: i32,
+}
+
+/// `ccRegisterDifficultyEnemy()` (INF main 0x001b7020, MUT 0x001cc740, OUT
+/// 0x001c2df0, QUA 0x001ca470): the server, list type and rank it calls
+/// `ccRegisterEnemyList` with, None outside a field or dungeon. A story
+/// area (`field` > 0) takes type 6 and its `enemy` (255: by the level) held
+/// at 0 or more; elsewhere `25 (areaLevel - 1) + 10 + enemyOfs`, unheld. A
+/// dungeon adds `floor + 1` (at least 0), from Mutation on not in dungeon
+/// types 8 and 9 (the one-floor ones).
+pub fn difficulty(volume: Volume, d: &DifficultyIn) -> Option<(i32, i32, i32)> {
+    if !matches!(d.area, 1 | 2) {
+        return None;
     }
+    let by_level = 25 * (d.area_level - 1) + 10 + d.enemy_ofs;
+    let (ty, mut rank) = if d.field > 0 {
+        (6, (if d.ev_enemy != 255 { d.ev_enemy } else { by_level }).max(0))
+    } else {
+        (d.field_attr, by_level)
+    };
+    let one_floor = volume != Volume::Inf && matches!(d.dungeon_type, 8 | 9);
+    if d.area == 2 && !one_floor {
+        rank += (d.floor + 1).max(0);
+    }
+    Some((d.server, ty, rank))
+}
+
+/// The rows `ccRegisterEnemyList` takes from `ccEnemyListInfo[server][ty]`
+/// at `rank`: `range` words from `list + 4 * rank`. Infection steps back
+/// only as the rank steps onto `num`, so a start past the end reads on
+/// through the fill and the next list ([`EnemyLists::word`]); from Mutation
+/// on a start with fewer than `range` rows left moves back to `num -
+/// range`. A read outside the lists' memory ends the rows (no `enemyTbl`
+/// row is there; no input of the game's reaches it).
+pub fn list_rows(volume: Volume, lists: &EnemyLists, server: i32, ty: i32, rank: i32, range: i32) -> Vec<i32> {
+    let Some(num) = lists.rows(server, ty).map(|r| r.len() as i32) else { return Vec::new() };
+    let later = volume != Volume::Inf;
+    let mut rank = if later && num < rank.wrapping_add(range) { num - range } else { rank };
     let mut out = Vec::new();
     for _ in 0..range {
-        out.push(list[rank as usize]);
-        rank += 1;
+        let Some(id) = lists.word(server, ty, rank) else { break };
+        out.push(id);
+        rank = rank.wrapping_add(1);
         if !later && rank == num {
             rank -= 1;
         }
@@ -232,18 +386,29 @@ fn list_rows(t: &Tables, list: &[i32], rank: i32, range: i32) -> Vec<i32> {
     out
 }
 
-/// `ccAnalyzeEnemyList(server, type, rank)` (gcmn 0x0042f290): the highest
-/// level among the three rows `ccRegisterEnemyList` would register (at
-/// least 0). From Mutation on (0x00444c20) the rows are the `range` it
-/// would register (`ccRegisterEnemyRange`), the first three compared.
+/// `ccAnalyzeEnemyList(server, type, rank)` (INF gcmn 0x0042f290, MUT
+/// 0x00444c20, OUT 0x0043fa50, QUA 0x00332360): the highest
+/// `enemyTbl.level` (at least 0) among the first three rows
+/// `ccRegisterEnemyList` would take; Infection reads three, the later
+/// volumes `range` (`ccRegisterEnemyRange`).
 pub fn analyze_enemy_list(t: &Tables, st: &SpawnTables, server: i32, ty: i32, rank: i32, range: i32) -> i32 {
-    let list = &st.enemy_lists[server as usize][ty as usize];
-    let later = t.volume != Volume::Inf;
-    let rows = list_rows(t, list, rank, if later { range } else { 3 });
-    rows.iter()
-        .take(3)
-        .map(|&id| i32::from(t.enemies[id as usize].param.base.level))
-        .fold(0, |m, x| if m < x { x } else { m })
+    analyze_levels(t.volume, &st.enemy_lists, server, ty, rank, range, |id| {
+        usize::try_from(id).ok().and_then(|i| t.enemies.get(i)).map(|r| i32::from(r.param.base.level))
+    })
+}
+
+/// [`analyze_enemy_list`] with `level` the row's `enemyTbl.level`.
+pub fn analyze_levels(
+    volume: Volume,
+    lists: &EnemyLists,
+    server: i32,
+    ty: i32,
+    rank: i32,
+    range: i32,
+    level: impl Fn(i32) -> Option<i32>,
+) -> i32 {
+    let n = if volume == Volume::Inf { 3 } else { range };
+    list_rows(volume, lists, server, ty, rank, n).into_iter().take(3).filter_map(level).fold(0, i32::max)
 }
 
 // the save --------------------------------------------------------------------------

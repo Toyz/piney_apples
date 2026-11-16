@@ -36,6 +36,7 @@ use crate::sprite::{EffSprite, EffState};
 use crate::story_map::Kept;
 use crate::systems::{MapEvent, Signal};
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
+use piney_battle::entry::EventRegistry;
 use piney_data::store::Table;
 
 pub mod cast;
@@ -45,6 +46,70 @@ mod ride;
 
 pub use char_id::CharId;
 pub use lights::CastLights;
+
+/// The event's `entry[16]` and `entryMc[16]` (`eventMng` +0x80, +0x100).
+pub type EventEntries = ([[i16; 4]; 16], [[i16; 4]; 16]);
+
+/// What `ccRegisterEventMng(0)` reads for its enemy rows in `scene`
+/// (`piney_battle::entry::EventRegistry`): `game.field`,
+/// `ccRegisterDifficultyEnemy`'s list and rank, the event's entries.
+fn event_registry(
+    volume: piney_data::volume::Volume,
+    wm: &WorldMan,
+    scene: &Scene,
+    entries: Option<&EventEntries>,
+) -> EventRegistry {
+    let d = wm.difficulty_in(scene.area, scene.server, scene.field, scene.dungeon, scene.floor);
+    let (en, mc) = entries.map_or_else(Default::default, |(en, mc)| (en.to_vec(), mc.to_vec()));
+    EventRegistry {
+        field: scene.field,
+        difficulty: piney_battle::entry::difficulty(volume, &d),
+        entries: en,
+        entries_mc: mc,
+    }
+}
+
+/// `ccRegisterEventMng(0)`'s party and NPC part (INF main 0x001b6d70):
+/// each party entry's registry slot and boot param (`ccSPC::EntrySpc`),
+/// `regist` (`registNpcNum`) with `ccSpcManager.registryNum` added (INF
+/// main 0x001b6fd4), and with a Root Town's `pool` the walking PCs
+/// `ccRegisterRandomNpc(registNpcNum)` draws from `cc` (`eventMng` +0x20).
+pub fn register_event_npcs(
+    spcs: &mut crate::chara::party::Spcs,
+    regist: &mut i32,
+    entries: &[[i16; 4]; 16],
+    cc: &mut piney_battle::rand::Genrand,
+    pool: Option<crate::town::pc::Pool>,
+) -> Option<[i16; 16]> {
+    for e in entries.iter().filter(|e| entry_bit(e) & 7 != 0) {
+        let i = spcs.entry_spc(i32::from(e[1]));
+        if i >= 0 {
+            spcs.registry[i as usize].boot_param = i32::from(e[3]);
+        }
+    }
+    *regist += spcs.registry_num;
+    pool.map(|pool| crate::town::pc::register_random_npc(cc, *regist, &pool))
+}
+
+/// The town NPC entries (`1 << type & 0x18`: types 3 and 4) that
+/// `ccRegisterEventMng` adds to `registNpcNum`.
+pub fn town_npc_entries(entries: &[[i16; 4]; 16]) -> i32 {
+    entries.iter().filter(|e| entry_bit(e) & 0x18 != 0).count() as i32
+}
+
+/// An entry's `1 << type` (`sllv`), 0 for a free slot.
+fn entry_bit(e: &[i16; 4]) -> u32 {
+    if e[0] == -1 { 0 } else { 1u32.wrapping_shl(e[0] as u32) }
+}
+
+/// The rows `registry` registers and marks existing (`enemyTbl`'s
+/// `entry.exist`, their drained forms too), whose files
+/// `ccEntryCtrl::initEntryCCS` loads.
+fn registered(data: &BattleData, registry: &EventRegistry) -> Vec<i32> {
+    let mut reg = piney_battle::entry::Register::default();
+    reg.register_event_mng(&data.t, &data.st, registry);
+    reg.existing().collect()
+}
 
 /// What a frame asks of the rest of the game.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -166,6 +231,13 @@ pub struct World {
     /// area's file list calls it (`ccSetFileListTown`, `Field`, `Dungeon`,
     /// INF main 0x00169690 ..); a town's walking PCs reserve it.
     pub(crate) regist_npc_num: i32,
+    /// The event's `entry[16]` and `entryMc[16]` as `ccRegisterEventMng(0)`
+    /// read them (the set-up's first pass), None with no event.
+    pub(crate) registry_entries: Option<Box<EventEntries>>,
+    /// `ccRegisterRandomNpc`'s walking PCs by slot as the last
+    /// `ccRegisterEventMng(0)` in a Root Town drew them (`eventMng` +0x20),
+    /// for `ccEntryEventMng` to place.
+    pub(crate) random_npcs: Option<[i16; 16]>,
     /// The event camera (`eventMng.cam`, `ccThCameraExecute`).
     pub(crate) evcam: crate::camera::evcam::EventCam,
     /// From Mutation on, `ccSnd` +0x139: the skill words silent while a
@@ -322,6 +394,8 @@ impl World {
             rebooted: false,
             spc_entries: Vec::new(),
             regist_npc_num: 0,
+            registry_entries: None,
+            random_npcs: None,
             evcam: crate::camera::evcam::EventCam::new(),
             voices_off: false,
             path_map: false,
@@ -494,8 +568,8 @@ impl World {
         // The looks the entry control's enemies and portals may take: the
         // rows ccRegisterDifficultyEnemy registers (with their drained
         // forms) and the magic portal.
-        let (ty, rank) = world_man.enemy_rank(scene.area, scene.field, scene.floor, world_man.field_attr());
-        combat.cast.looks = load_looks(&archive, &data, scene.server, ty, rank, &[]);
+        let registry = event_registry(volume, &world_man, &scene, None);
+        combat.cast.looks = load_looks(&archive, &data, &registered(&data, &registry));
         // EFF_xmagpat1's patNum, which the portal's sparks wrap at.
         combat.part_pats = combat.cast.looks.circle.as_ref().map_or(0, |c| c.pat_num);
         let dirc = [0, 0, rot, 0];
@@ -560,6 +634,8 @@ impl World {
             rebooted: false,
             spc_entries: Vec::new(),
             regist_npc_num: 0,
+            registry_entries: None,
+            random_npcs: None,
             evcam: crate::camera::evcam::EventCam::new(),
             voices_off: false,
             path_map: true,
@@ -914,19 +990,13 @@ impl World {
         entries: Vec<[i16; 4]>,
         positions: Vec<piney_battle::entry::EvPos>,
     ) {
-        let rows: Vec<i32> = entries_mc
-            .iter()
-            .filter(|e| e[0] == 0)
-            .chain(entries.iter().filter(|e| matches!(e[0], 5 | 6)))
-            .map(|e| i32::from(e[1]))
-            .collect();
         // The enemies' and portals' files are a field's or a dungeon's
         // list's (ccSetFileListField, ccSetFileListDungeon); a town's
         // (ccSetFileListTown, INF main 0x00169690, for game.area 0) has none.
         let s = self.scene;
         if s.area != kind::TOWN {
-            let (ty, rank) = self.world_man.enemy_rank(s.area, s.field, s.floor, self.world_man.field_attr());
-            self.combat.cast.looks = load_looks(&self.archive, &self.combat.data, s.server, ty, rank, &rows);
+            let rows = registered(&self.combat.data, &self.event_registry());
+            self.combat.cast.looks = load_looks(&self.archive, &self.combat.data, &rows);
             self.combat.part_pats = self.combat.cast.looks.circle.as_ref().map_or(0, |c| c.pat_num);
         }
         self.event_entries = (entries_mc, entries, positions);
@@ -2690,10 +2760,7 @@ impl World {
     /// then to shut them on camera a frame later.
     fn entry_setup(&mut self, cpad: &CamPad, cast: &mut dyn cast::Cast) {
         if !self.combat.started {
-            let (ty, rank) = {
-                let s = self.scene;
-                self.world_man.enemy_rank(s.area, s.field, s.floor, self.world_man.field_attr())
-            };
+            let registry = self.event_registry();
             let (mc, en, pos) = self.event_entries.clone();
             // restoreEntry and WORLD_MAN::EntryGimmick (a dungeon's kept list
             // and gimmicks, a field's foods and objects).
@@ -2722,7 +2789,7 @@ impl World {
             };
             let mut x = tasks(&mut *self.area, &mut self.camera, &mut self.save.save, *cpad, &info);
             let entered =
-                self.combat.start_entries(&mut x, rank, ty, &mc, &en, &pos, entries.dungeon, entries.field, &mut npc);
+                self.combat.start_entries(&mut x, &registry, &mc, &en, &pos, entries.dungeon, entries.field, &mut npc);
             drop(x);
             if let Some(rng) = entered.field_rng {
                 self.area.core_mut().field_rand = Some(rng);
@@ -2838,6 +2905,64 @@ impl World {
     /// `ccRegisterEventMng(0)`'s `registNpcNum` (the set-up's first pass).
     pub fn set_regist_npc_num(&mut self, n: i32) {
         self.regist_npc_num = n;
+    }
+
+    /// The set-up's `ccRegisterEventMng(0)` (between passes 0 and 2, after
+    /// [`World::set_regist_npc_num`]) over the event's `entry[16]` and
+    /// `entryMc[16]` as pass 0 left them: kept for the enemy rows the
+    /// entry control registers as its tasks start, and
+    /// [`World::register_event_entries`].
+    pub fn set_registry_entries(&mut self, entries: EventEntries) {
+        self.registry_entries = Some(Box::new(entries));
+        self.register_event_entries(&entries.0);
+    }
+
+    /// [`register_event_npcs`] in this scene (from Mutation on not in
+    /// story field 126), the walking PCs kept for `ccEntryEventMng`.
+    fn register_event_entries(&mut self, entries: &[[i16; 4]; 16]) {
+        if piney_battle::entry::registers_nothing(self.volume, self.scene.field) {
+            return;
+        }
+        let pool = (self.scene.area == kind::TOWN).then(|| self.town_pool());
+        let rows = register_event_npcs(&mut self.spcs, &mut self.regist_npc_num, entries, &mut self.combat.cc, pool);
+        if rows.is_some() {
+            self.random_npcs = rows;
+        }
+    }
+
+    /// `ccRegisterRandomNpc`'s pool in this Root Town.
+    fn town_pool(&self) -> crate::town::pc::Pool {
+        let server = crate::area::SERVER_OF_TOWN.get(self.scene.town as usize).copied().unwrap_or(0);
+        crate::town::pc::Pool::of(&crate::town::pc::Tables::of(self.volume), server, &self.save.save)
+    }
+
+    /// The stream instruction's file list reload in play (case 10, INF main
+    /// 0x001aa0c8, MUT 0x001bf310, OUT 0x001b5600, QUA 0x001bce68: with
+    /// `game.status` 5 and `area == areaPrev`): `ccRegisterEventMng(1)`
+    /// before the stream, `ccRegisterEventMng(0)` after it, over the event's
+    /// entries as they are then: the enemy rows anew, their looks loaded,
+    /// `registNpcNum` grown by the town NPC entries (`1 << type & 0x18`), and
+    /// [`World::register_event_entries`] again.
+    pub fn reload_file_list(&mut self, entries: EventEntries) {
+        self.registry_entries = Some(Box::new(entries));
+        let registry = self.event_registry();
+        let data = self.combat.data.clone();
+        self.combat.reg.register_event_mng(&data.t, &data.st, &registry);
+        if self.scene.area != kind::TOWN {
+            let rows = registered(&data, &registry);
+            self.combat.cast.looks = load_looks(&self.archive, &data, &rows);
+            self.combat.part_pats = self.combat.cast.looks.circle.as_ref().map_or(0, |c| c.pat_num);
+        }
+        if piney_battle::entry::registers_nothing(self.volume, self.scene.field) {
+            return;
+        }
+        self.regist_npc_num += town_npc_entries(&entries.0);
+        self.register_event_entries(&entries.0);
+    }
+
+    /// What `ccRegisterEventMng(0)` reads for its enemy rows in this scene.
+    fn event_registry(&self) -> EventRegistry {
+        event_registry(self.volume, &self.world_man, &self.scene, self.registry_entries.as_deref())
     }
 
     /// `ccEntryEventMng`'s step for an entry the cast places itself.

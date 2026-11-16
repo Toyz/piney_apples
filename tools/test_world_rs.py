@@ -2297,6 +2297,56 @@ class TownPcsRun(Field):
         rows = [m.load(EV + 0x20 + 2 * k, 2) for k in range(16)]
         return rows, self.call("ccRand__Fv") if peek else None
 
+    # The stream instruction's reload (case 10, INF main 0x001aa0c8, 0x001aa170): the town's file
+    # list dropped and made again. Its file requests and registrations outside the party, the
+    # NPC count and the walking PCs answer nothing; EntrySpc and ccRegisterRandomNpc run.
+    RELOAD_STUBS = ("ccInitFileList__Fv", "ccAddFileList__FP10ccFileList", "ccAddFileListOne__FP10ccFileList",
+                    "ccAddRequestFileListEntry__Fv", "ccAddRequestFileListSpc__Fv", "ccAddRequestFileListInu__Fv",
+                    "RequestCCS__9WORLD_MANFi", "ccInitRegisterAll__Fv", "ccRegisterDifficultyEnemy__Fv",
+                    "ccRegisterRegularGimmick__Fv", "ccRegisterRegularNpc__Fv", "ccRegisterEnemyOne__Fi",
+                    "ccSetFileListBoss__Fi", "ccRegisterNpc__Fi", "ccRegisterGimmick__Fi")
+
+    def reload(self, count, regist, num, ids, boots, entries, server=0, done=0):
+        """From ccInitRand at count, a Root Town's ccSetFileListTownDel then ccSetFileListTown with
+        registNpcNum, the registry (ids, boot params, its count) and entry[] (type, code, param):
+        what world_probe's pcreload prints."""
+        m, sym = self.m, self.sym
+        m.mem[EV:EV + 0x1000] = bytes(0x1000)
+        self.set_pool(server, done)
+        m.store(SYS + 0x358, 4, count)
+        self.call("ccInitRand__Fv")
+        spc = sym("ccSpcManager")
+        for k in range(5):
+            m.store(spc + 44 * k, 4, ids[k] & 0xFFFFFFFF)
+            m.store(spc + 44 * k + 8, 4, boots[k] & 0xFFFFFFFF)
+        m.store(spc + 0xDC, 4, num)
+        m.store(EV + 0x1C, 4, regist)
+        for k, (t, c, prm) in enumerate(entries):
+            for j, v in enumerate((t, c, -1 if t == -1 else 0, prm)):
+                m.store(EV + 0x80 + 8 * k + 2 * j, 2, v & 0xFFFF)
+            m.store(EV + 0x100 + 8 * k, 2, 0xFFFF)
+        for off, v in ((0, 5), (0x14, 0), (0x18, 0), (0x20, 0), (0x24, -1)):
+            m.store(GAME + off, 4, v & 0xFFFFFFFF)
+        saved = {}
+        for name in self.RELOAD_STUBS:
+            a = sym(name)
+            saved[a] = m.hooks.get(a)
+            m.hooks[a] = lambda mm, *a: 0
+        try:
+            self.call("ccSetFileListTownDel__Fv")
+            self.call("ccSetFileListTown__Fv")
+        finally:
+            for a, x in saved.items():
+                if x is None:
+                    del m.hooks[a]
+                else:
+                    m.hooks[a] = x
+        return {"regist": m.load(EV + 0x1C, 4), "num": m.load(spc + 0xDC, 4),
+                "ids": [m.load(spc + 44 * k, 4) for k in range(5)],
+                "boots": [m.load(spc + 44 * k + 8, 4) for k in range(5)],
+                "rows": [m.load(EV + 0x20 + 2 * k, 2, True) & 0xFFFFFFFF for k in range(16)],
+                "next": self.call("ccRand__Fv")}
+
     def navi_map(self):
         """The player task's ccSetNaviMap over town01's dummies."""
         m = self.m
@@ -2585,6 +2635,36 @@ class TownPcsAgainstGame(unittest.TestCase):
             self.assertEqual({"reserved": seen[0]}, port, (regist, num, types))
             # The game keeps the whole count, the registry's added (MUT 0x001cc6f4).
             self.assertEqual(m.load(EV + 0x1C, 4), seen[0])
+
+    def test_stream_reload(self):
+        """The stream instruction's reload in a Root Town (case 10 with game.status 5 and area ==
+        areaPrev 0: ccSetFileListTownDel, then ccSetFileListTown's ccRegisterEventMng(0)) beside
+        World::reload_file_list's NPC part (world_probe's pcreload): registNpcNum after, the
+        registry's slots, boot params and count (EntrySpc), the walking PCs ccRegisterRandomNpc
+        draws and the next ccRand. First the shots' Mac Anu state (Kite alone, no entries,
+        registNpcNum 1 as pass 0 leaves it), then random registries, entries and ccRand counts."""
+        g = TownPcsRun()
+        rng = random.Random(604)
+        free = [-1, -1, -1, -1]
+        cases = [(c, 1, 1, [0] + free, [0] * 5, [(-1, -1, 0)] * 16, 0, 0) for c in (0, 1, 2, 5000, 40000)]
+        for _ in range(80):
+            num = rng.randrange(1, 4)
+            ids = [0] + rng.sample(range(1, 20), num - 1)
+            ids += [-1] * (5 - num)
+            boots = [rng.randrange(0, 8) if i != -1 else 0 for i in ids]
+            ents = []
+            for _ in range(16):
+                t = rng.choice([-1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 35])
+                code = rng.choice(ids[:num] + [rng.randrange(1, 20)]) if t in (0, 1, 2) else rng.randrange(0, 300)
+                ents.append((t, code, rng.randrange(0, 8)))
+            cases.append((rng.randrange(0, 200000), rng.choice([0, 1, 2, 3, 16, 17]), num, ids, boots, ents,
+                          rng.randrange(5) if LATER else 0, rng.randrange(8) if LATER else 0))
+        u = lambda v: v & 0xFFFFFFFF                               # noqa: E731
+        got = ask(["pcreload " + hexs(c, r, sv, d, n, *map(u, ids), *boots, *[u(x) for e in ents for x in e])
+                   for c, r, n, ids, boots, ents, sv, d in cases])
+        for case, port in zip(cases, got):
+            c, r, n, ids, boots, ents, sv, d = case
+            self.assertEqual(g.reload(c, r, n, ids, boots, ents, sv, d), port, case)
 
     def test_select(self):
         """ccInitRand then ccRegisterRandomNpc beside rtownpc::register_random_npc: the rows, slot by

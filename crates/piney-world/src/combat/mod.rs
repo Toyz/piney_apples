@@ -1113,8 +1113,8 @@ impl Combat {
         }
     }
 
-    /// `ccThEntryCtrl`'s set-up in a field or dungeon: the control for the
-    /// place, `ccRegisterDifficultyEnemy`'s rows (main 0x001b7020), then
+    /// `ccThEntryCtrl`'s set-up: the control for the place, the enemy rows
+    /// `ccRegisterEventMng(0)` registers (`registry`), then
     /// the event's entries (`ccEntryEventMng`, main 0x001b62e0): each
     /// `entry` of type 5 or 6 its enemies, of 3 or 4 its NPC through `npc`
     /// (made on the character list with `ccRand` at hand, at its place),
@@ -1124,8 +1124,7 @@ impl Combat {
     pub fn start_entries(
         &mut self,
         x: &mut Tasks,
-        rank: i32,
-        ty: i32,
+        registry: &entry::EventRegistry,
         entries_mc: &[[i16; 4]],
         entries: &[[i16; 4]],
         positions: &[entry::EvPos],
@@ -1140,9 +1139,7 @@ impl Combat {
         let d = self.data.clone();
         let game = self.entry_game(&x.scene, &x.wm);
         self.ctrl = EntryCtrl::new(&game);
-        self.reg.init();
-        let server = x.scene.server.clamp(0, 4);
-        self.reg.register_list(&d.t, &d.st, server, ty.clamp(0, 6), rank.max(0));
+        self.reg.register_event_mng(&d.t, &d.st, registry);
         self.spc.start(x.save, self.battle.in_battle);
         let kite_pos = self.kite.map_or(ee::VF0, |k| self.scene.chars[k].pos);
         let bounds = Self::bounds(x.scene.area, x.hits);

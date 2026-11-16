@@ -591,14 +591,15 @@ impl StoryPilot {
 
     /// The level the gate shows story area `n` at on `server`, as a player
     /// reads it, for its deepest part: `ccAnalyzeEnemyList` of the field's
-    /// rank and of its dungeon's first three floors' (`enemy_rank`).
+    /// rank and of its dungeon's first three floors' ([`story_rank`]).
     fn need(&mut self, iso: &std::path::Path, words: &piney_fieldui::words::Words, server: i32, n: i32) -> i16 {
         if let Some(&lv) = self.needs.get(&(server, n)) {
             return lv;
         }
         let lv =
             Iso::open(iso).ok().and_then(|mut d| crate::area::story_world_man(&mut d, n, false).ok()).map_or(0, |wm| {
-                let (k, r) = wm.enemy_rank(1, n, 0, 0);
+                let volume = piney_data::volume::Volume::from_number(words.volume).unwrap_or_default();
+                let (k, r) = story_rank(&wm, volume, server, n);
                 (0..4).map(|fl| words.analyze_enemies(server, k, r + fl)).max().unwrap_or(0) as i16
             });
         self.needs.insert((server, n), lv);
@@ -3603,15 +3604,22 @@ fn cores_short(w: &crate::area::AreaMode) -> (Cores, Cores) {
     (short, need)
 }
 
+/// `ccRegisterDifficultyEnemy`'s list type and rank in story field `n`'s
+/// field (`piney_battle::entry::difficulty`).
+fn story_rank(wm: &piney_world::area::WorldMan, volume: piney_data::volume::Volume, server: i32, n: i32) -> (i32, i32) {
+    let d = wm.difficulty_in(1, server, n, 0, 0);
+    piney_battle::entry::difficulty(volume, &d).map_or((6, 0), |(_, k, r)| (k, r))
+}
+
 /// The Virus Cores (their ids, A-H as 0-7) the foes of story area `n`'s
 /// field and dungeon may give to Data Drain: the rows `ccRegisterEnemyList`
-/// registers from its rank (`enemy_rank`, the next three, and each floor's
+/// registers from its rank ([`story_rank`], the next three, and each floor's
 /// one on) and their `enemyTbl.item` codes of category 15.
 fn area_cores(iso: &std::path::Path, volume: piney_data::volume::Volume, server: i32, n: i32) -> Vec<i32> {
     let Some(wm) = Iso::open(iso).ok().and_then(|mut d| crate::area::story_world_man(&mut d, n, false).ok()) else {
         return Vec::new();
     };
-    let (k, r) = wm.enemy_rank(1, n, 0, 0);
+    let (k, r) = story_rank(&wm, volume, server, n);
     let t = piney_battle::Tables::of(volume);
     let lists = piney_data::tables::battle::of(volume).enemy_lists;
     let Some(list) =

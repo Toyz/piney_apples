@@ -10,6 +10,19 @@ pub use super::types::{
 };
 use crate::volume::Volume;
 
+/// A list's address, and the words from its end to the next list's start (the linker's 16-byte alignment).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnemyListEnd {
+    pub va: u32,
+    pub fill: &'static [i32],
+}
+
+impl crate::store::Load for EnemyListEnd {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        EnemyListEnd { va: crate::store::Load::load(r), fill: crate::store::Load::load(r) }
+    }
+}
+
 /// What an equipment row's numbers read as where there is no row (id -1, the bytes before a table).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EquipBefore {
@@ -47,6 +60,8 @@ pub struct Battle {
     pub npcs: &'static [NpcTable],
     /// `ccEnemyListInfo`: by server and type, the `enemyTbl` rows an area spawns.
     pub enemy_lists: &'static [[EnemyList; 7]],
+    /// Where each `ccEnemyListInfo` list is, and the words after it up to the next list (the last's: up to `ccEnemyListInfo`), which Infection's `ccRegisterEnemyList` reads on into past a list's end.
+    pub enemy_list_ends: &'static [[EnemyListEnd; 7]],
     /// `bossTbl`
     pub bosses: &'static [BossParamData],
     /// `itemTblR`: category 10. Alike on every volume.
@@ -150,6 +165,7 @@ impl crate::store::Load for Battle {
             gimmicks: crate::store::Load::load(r),
             npcs: crate::store::Load::load(r),
             enemy_lists: crate::store::Load::load(r),
+            enemy_list_ends: crate::store::Load::load(r),
             bosses: crate::store::Load::load(r),
             item_r: crate::store::Load::load(r),
             item_d: crate::store::Load::load(r),

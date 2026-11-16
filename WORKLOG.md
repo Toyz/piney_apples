@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-603 entries: audio 48, battle 166, build 34, content 3, decomp 38, disc 6, engine 43, format 18, iop 3, render 133, save 16, script 64, test 260, tooling 61, ui 107, video 18, volumes 104, world 193. 163 entries still have open questions - [listed below](#still-open).
+604 entries: audio 48, battle 167, build 34, content 3, decomp 39, disc 6, engine 43, format 18, iop 3, render 133, save 16, script 64, test 261, tooling 61, ui 107, video 18, volumes 105, world 193. 163 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -615,6 +615,7 @@ The [reference](docs/README.md) says what is true now.
 | 601 | [A camera system, leg 4: the NPC list on the list, the enemies' fade at dispEnemy, the cinema per volume, the Kyvia wave, a story circle's stack w](worklog/0601-a-camera-system-leg-4-the-npc-list-on-the-list-the-enemies.md) | 2026-11-15 | engine, world, battle, test |
 | 602 | [A camera system, leg 5: Tarvos's phantom's first view is its target's heap address, the full checks, the battle pins recorded anew](worklog/0602-a-camera-system-leg-5-tarvos-s-phantom-s-first-view-is-its.md) | 2026-11-15 | battle, engine, test, tooling |
 | 603 | [An enemy's area attack aimed at a downed target hits those around it from Mutation on](worklog/0603-an-enemy-s-area-attack-aimed-at-a-downed-target-hits-those.md) | 2026-11-15 | battle, volumes, test |
+| 604 | [The enemy-list overrun: the port registered enemies in a Root Town; ccRegisterEventMng's enemy rows and the lists' memory ported](worklog/0604-the-enemy-list-overrun-the-port-registered-enemies-in-a.md) | 2026-11-15 | battle, decomp, volumes, test |
 
 ## Still open
 

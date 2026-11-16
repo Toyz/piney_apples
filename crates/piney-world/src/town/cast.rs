@@ -190,8 +190,9 @@ impl TownCast {
     /// `ccEntryEventMng` (main 0x001b62e0) for a Root Town, when the town's tasks
     /// start: the events' town NPCs (`ccSetRtownPC`), `ccSetMerchant(0)`'s
     /// merchants (the Chaos Gate is already up), then `ccEntryRandomNpc`
-    /// (0x001b6cf0): the walking PCs `ccRegisterRandomNpc(n)` drew
-    /// ([`World::init_rand`]), 15 for Kite alone, 14 with Orca. Each goes
+    /// (0x001b6cf0): the walking PCs the set-up's `ccRegisterRandomNpc(n)`
+    /// drew (`World::set_registry_entries`, or a stream's reload since),
+    /// 15 for Kite alone, 14 with Orca. Each goes
     /// onto the entry list and its body onto the character list in that order.
     /// The first frame of play does it if it has not been called.
     pub fn place_entries(&mut self, world: &mut crate::world::World) -> piney_data::Result<()> {
@@ -199,11 +200,18 @@ impl TownCast {
             return Ok(());
         }
         self.placed = true;
-        let reserved = world.spcs.registry_num + world.regist_npc_num;
         let no = world.scene.town;
-        let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
-        let pool = crate::town::pc::Pool::of(&crate::town::pc::Tables::of(world.volume), server, &world.save.save);
-        let rows = crate::town::pc::register_random_npc(&mut world.combat.cc, reserved, &pool);
+        let rows = match world.random_npcs {
+            Some(rows) => rows,
+            None => {
+                // No set-up pass drew them (no event manager): the draw here.
+                let reserved = world.spcs.registry_num + world.regist_npc_num;
+                let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
+                let pool =
+                    crate::town::pc::Pool::of(&crate::town::pc::Tables::of(world.volume), server, &world.save.save);
+                crate::town::pc::register_random_npc(&mut world.combat.cc, reserved, &pool)
+            }
+        };
         let file = &world.area.core().file;
         self.npcs.pcs_or(|| crate::town::pc::TownPcs::new(world.volume, no, file))?;
         let mut files = crate::town::pc::Files::new();

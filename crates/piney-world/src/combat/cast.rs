@@ -328,34 +328,19 @@ impl Cast {
     }
 }
 
-/// The looks of an area: the rows `ccRegisterEnemyList(server, ty, rank)`
-/// registers (three from `rank`, the last kept past the end), their
-/// drained forms, the `extra` rows (an event's), each as
-/// `ccEntryCtrl::initEntryCCS` and the race's constructor make it
-/// ([`crate::chara::foe::EnemyLook`]); and the magic portal
-/// ([`crate::chara::foe::Circle`], `xmagcir`'s `CMP_xmagcir0`).
+/// The looks of an area: the `rows` registered
+/// ([`piney_battle::entry::Register::register_event_mng`]) and their
+/// drained forms, each as `ccEntryCtrl::initEntryCCS` and the race's
+/// constructor make it ([`crate::chara::foe::EnemyLook`]); and the magic
+/// portal ([`crate::chara::foe::Circle`], `xmagcir`'s `CMP_xmagcir0`).
 pub fn load_looks(
     archive: &std::sync::Arc<piney_data::archive::Archive>,
     data: &super::BattleData,
-    server: i32,
-    ty: i32,
-    rank: i32,
-    extra: &[i32],
+    rows: &[i32],
 ) -> Looks {
-    let mut rows: Vec<i32> = Vec::new();
-    if let Some(list) =
-        data.st.enemy_lists.get(server.clamp(0, 4) as usize).and_then(|l| l.get(ty.clamp(0, 6) as usize))
-        && !list.is_empty()
-    {
-        for k in 0..3 {
-            let i = (rank.max(0) as usize + k).min(list.len() - 1);
-            rows.push(list[i]);
-        }
-    }
-    rows.extend_from_slice(extra);
     let mut looks = Looks::default();
     let mut files = crate::chara::foe::Files::new(archive.clone());
-    looks.add_enemies(&mut files, data, &rows);
+    looks.add_enemies(&mut files, data, rows);
     if let Ok(c) = crate::chara::foe::Circle::load(&mut files, data.volume) {
         let body = Rc::new(c.model.body.clone());
         looks.bodies.push((body, Look::Circle, 0x4348_0000, 0x4348_0000));

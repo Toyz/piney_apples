@@ -706,6 +706,7 @@ impl AreaMode {
                     // (INF main 0x00169690, 0x001697a0, 0x001698b0), between
                     // the passes: the count the walking PCs' draw reserves.
                     self.world.set_regist_npc_num(vm.mng.register_npcs());
+                    self.world.set_registry_entries((vm.mng.entries, vm.mng.entries_mc));
                     vm.enable(2);
                     self.setup = Setup::Pass(2);
                 } else {
@@ -2264,6 +2265,10 @@ impl HostWorld for World {
 
     fn set_rand(&mut self, rand: u64) {
         World::set_rand(self, rand);
+    }
+
+    fn reload_file_list(&mut self, entries: piney_world::world::EventEntries) {
+        World::reload_file_list(self, entries);
     }
 
     fn server(&self) -> i32 {
