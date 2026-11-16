@@ -33,8 +33,9 @@ QUA main 0x001c52e8 ([events.md](events.md), [the Quarantine
 disc](../disc/quarantine.md#kfedbin-and-kfaedbin)):
 
 1. It sets `game.pauseFlag` (+0x7c) to 1, which keeps `ccThMother`'s
-   pause for a pulled controller off ([overview.md](overview.md)). The
-   port has no such pause, so the flag does nothing there. It puts the
+   pause for a pulled controller off until `ccGame::Init` (it is never
+   cleared before), as in the port ([overview.md](overview.md), "The
+   pause"). It puts the
    player (`plw+0x20`) at (0, 0, 0, 1).
 2. It reads `KFED.BIN` and `KFAED.BIN`, which nothing reads, and frees them at the end.
 3. It adds `ending.ccs` (`ccLoadFLAdd(0x00219340)`).

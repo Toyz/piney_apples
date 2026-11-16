@@ -215,7 +215,7 @@ class Looks:
         race = next(r for r in range(22) if h.race_first[r] <= row < h.race_first[r] + h.race_num[r])
         sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0)
         ent = h.rnd_ent(rnd, sc, 0, row)
-        sc["attr"] = sc["attr"] or [inf_va(0x00304050)]
+        sc["attr"] = sc["attr"] or [0x00304050]
         saved = self.install()
         try:
             h.put_scene(sc)

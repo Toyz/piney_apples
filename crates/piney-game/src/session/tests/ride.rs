@@ -165,8 +165,9 @@ fn dist(a: [f32; 3], b: [f32; 3]) -> f32 {
 }
 
 /// From the field's start to the flute blown: PERSONAL (Triangle), its
-/// third row (Key Items), the flute, OK. The frame the ride's start takes
-/// the menu, and the session's events so far.
+/// third row (Key Items), the flute, OK (from Mutation the first Grunty
+/// listed, OK). The frame the ride's start takes the menu, and the
+/// session's events so far.
 fn blow_flute(s: &mut Session, pad: &mut Pad, events: &mut Vec<Event>) -> u32 {
     let mut f = 0u32;
     loop {
@@ -186,6 +187,8 @@ fn blow_flute(s: &mut Session, pad: &mut Pad, events: &mut Vec<Event>) -> u32 {
                 (1, 1) if c.list().select < 2 => Buttons::DOWN,
                 (1, 1) => Buttons::CROSS,
                 (6, 1) => Buttons::CROSS,
+                // From Mutation the flute lists the Grunties: the first.
+                (6, 30) => Buttons::CROSS,
                 _ => Buttons::NONE,
             }
         };

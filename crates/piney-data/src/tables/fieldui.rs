@@ -204,7 +204,7 @@ pub struct FieldUi {
     pub skill_tags: &'static [&'static str],
     /// `itemMenuTag` Alike on every volume.
     pub item_tags: &'static [&'static str],
-    /// `skillMenuHelp` Alike on every volume.
+    /// `skillMenuHelp`: from Outbreak a fourth, Quarantine's word for a barred Data Drain.
     pub skill_help: &'static [&'static [&'static str]],
     /// `itemMenuHelp` Alike on every volume.
     pub item_help: &'static [&'static [&'static str]],
@@ -334,6 +334,8 @@ pub struct FieldUi {
     pub imp_tags: &'static [&'static str],
     /// `puccigusoCallWarnStr` Alike on every volume.
     pub grunty_warn: &'static [&'static str],
+    /// From Mutation, the help over the Grunty Flute's list of Grunties.
+    pub grunty_select: Option<&'static [&'static str]>,
     /// `shopStr`'s first line: the count window's labels. Alike on every volume.
     pub shop_str: &'static str,
     /// `inBattleMenuWarn` Alike on every volume.
@@ -567,6 +569,7 @@ impl crate::store::Load for FieldUi {
             record_str: crate::store::Load::load(r),
             imp_tags: crate::store::Load::load(r),
             grunty_warn: crate::store::Load::load(r),
+            grunty_select: crate::store::Load::load(r),
             shop_str: crate::store::Load::load(r),
             in_battle_warn: crate::store::Load::load(r),
             gateout_info: crate::store::Load::load(r),

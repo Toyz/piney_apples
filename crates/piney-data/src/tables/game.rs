@@ -10,11 +10,13 @@ use crate::volume::Volume;
 pub struct Game {
     /// `ccGame::ChangeScene`'s server of each town: Infection's `@1489`; the later volumes' ChangeScene sets the server to the town itself.
     pub town_server: &'static [i32],
+    /// `ccThMother`'s pause with no controller: "P A U S E" and the START line.
+    pub pause_texts: &'static [&'static str],
 }
 
 impl crate::store::Load for Game {
     fn load(r: &mut crate::store::Reader) -> Self {
-        Game { town_server: crate::store::Load::load(r) }
+        Game { town_server: crate::store::Load::load(r), pause_texts: crate::store::Load::load(r) }
     }
 }
 

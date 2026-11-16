@@ -16,6 +16,7 @@ use crate::menus::system::str_cat;
 use crate::spr::{font_type, make_signed_num, set_clm};
 use crate::window::{disp_button, disp_line_h, disp_line_v, disp_square, disp_target, set_type};
 use crate::world::CharInfo;
+use piney_data::volume::Volume;
 
 /// `saveData.spcParam[id]` (+0x7488, 0xdc bytes).
 pub const SPC_PARAM: usize = 0x7488;
@@ -472,6 +473,18 @@ pub fn param_colour(a: i16, b: i16) -> usize {
     }
 }
 
+/// A parameter as `ParameterDisp` shows it, a tenth: cut toward 0 on
+/// Infection (INF gcmn 0x00524188); from Mutation on a value below 0 is
+/// taken 9 lower first (MUT 0x005424fc), so -25 shows as -3, not -2.
+fn tenth(v: Volume, p: i16) -> i32 {
+    let p = i32::from(p);
+    match v {
+        Volume::Inf => p / 10,
+        _ if p < 0 => (p - 9) / 10,
+        _ => p / 10,
+    }
+}
+
 /// `ParameterDisp(x, y, btr, bto, atr, ato, tor, too)`: the physical and
 /// magical abilities, the elements and the tolerances of `now` (a
 /// `ccCharParamElement`, shown a tenth), each coloured against `was`.
@@ -515,7 +528,7 @@ pub fn param_disp(m: &mut MenuCtrl, x: &Ctx, px: f32, py: f32, now: &[i16; 16], 
         f.set_colour(param_colour(v, c));
         f.dx = x0;
         f.dy = rows(r);
-        make_signed_num(f, 3, i64::from(i32::from(v) / 10));
+        make_signed_num(f, 3, i64::from(tenth(x.texts.volume, v)));
     };
     labels(m, f24);
     f24 = add(f24, 48.0);

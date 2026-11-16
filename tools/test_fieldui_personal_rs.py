@@ -224,6 +224,20 @@ class PersonalAgainstGame(unittest.TestCase):
         f = self.personal(sc, 1, 2)
         sc.pads[f + 12] = (OK, 0)
         self.compare(sc, "grunty flute")
+        # Two Grunties: from Mutation the list, the second chosen; then the
+        # list cancelled and the key items again (Infection calls at once).
+        for what, pads in (("choice", {40: (0, DOWN), 48: (OK, 0)}),
+                           ("cancel", {40: (0, DOWN), 48: (CANCEL, 0), 70: (0, UP), 90: (CANCEL, 0)})):
+            sc = Scenario(130)
+            self.party(sc, 1)
+            sc.game = (1, 0, 0, 0)
+            sc.grunty = {0: 3, 2: 5}
+            sc.rand = 7
+            self.key_items(sc, {49: 1, 50: 1})
+            f = self.personal(sc, 1, 2)
+            sc.pads[f + 12] = (OK, 0)
+            sc.pads.update({f + k: p for k, p in pads.items()})
+            self.compare(sc, f"grunty flute {what}")
         # The flute refused: field 13, a battle, a dungeon, the special floors.
         for what, game, field in (("field 13", (1, 0, 0, 0), 13), ("battle", (1, 1, 0, 0), 5),
                                   ("dungeon", (2, 0, 0, 0), 0), ("floor 8", (2, 0, 0, 8), 0),

@@ -1048,7 +1048,21 @@ fn panels(m: &mut MenuCtrl, x: &mut Ctx) {
         let px = from_int(170 * i as i32);
         let py = from_int(shake + 352);
         crate::panel::face_panel(m, x, px, py, pa, i, &c, fcol, flash);
-        crate::panel::condition_icons(m, &c, from_int(170 * i as i32 + 12), from_int(shake + 320), pa);
+        let iy = party_icons_y(x.texts.volume) + shake;
+        crate::panel::condition_icons(m, &c, from_int(170 * i as i32 + 12), from_int(iy), pa);
+    }
+}
+
+/// Where a party panel's condition icons start: 320, just over the face, on
+/// Infection and Mutation (INF gcmn 0x00520a9c, a literal). From Outbreak on
+/// `Disp` reads it from a static the disc holds as 0 (OUT gcmn 0x00539ad8
+/// reads 0x00720c90, QUA 0x0042c3e8 reads 0x00619690), which nothing on the
+/// disc writes (`tools/refscan.py`; docs/engine/field-ui.md, "The condition
+/// icons' static"): the icons stand at the screen's top.
+fn party_icons_y(v: Volume) -> i32 {
+    match v {
+        Volume::Inf | Volume::Mut => 320,
+        Volume::Out | Volume::Qua => 0,
     }
 }
 

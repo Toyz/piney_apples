@@ -145,6 +145,17 @@ pub struct Session {
     settings_path: Option<PathBuf>,
     settings: Option<crate::settings::Settings>,
     settings_stage: u8,
+    /// `game.pauseFlag` (`ccGame +0x7c`): the modes' last write, kept
+    /// across them; `ccGame::Init` clears it at power-on and a soft reset.
+    pause_flag: bool,
+    /// `ccThMother`'s pause for an unplugged controller, while it runs
+    /// ([`piney_demo::pause`]), `ccGame.fade` between pauses, and the
+    /// frame the screen last showed in a playing mode, which it holds.
+    pause: Option<piney_demo::pause::Pause>,
+    game_fade: piney_demo::fade::ScFade,
+    last_shown: Option<Frame>,
+    /// `fontSys` and the volume's two pause texts, made at the first pause.
+    pause_font: Option<(piney_desktop::sprite::Sprite, [Vec<u8>; 2])>,
 }
 
 /// Log in's `ccSetupNewGame` (main 0x001687a0), its part in the state:
@@ -257,6 +268,11 @@ impl Session {
             settings_path: None,
             settings: None,
             settings_stage: u8::MAX,
+            pause_flag: false,
+            pause: None,
+            game_fade: Default::default(),
+            last_shown: None,
+            pause_font: None,
         }
     }
 
@@ -893,6 +909,95 @@ impl Session {
         Ok(Stage::Desktop(Box::new(d)))
     }
 
+    /// The stage as a mode, but the title's (its demo is not one).
+    fn stage_mode_mut(&mut self) -> Option<&mut dyn Mode> {
+        match &mut self.stage {
+            Stage::Desktop(d) => Some(d.as_mut()),
+            Stage::TopPage(t) => Some(t.as_mut()),
+            Stage::Area(a) => Some(a.as_mut()),
+            Stage::Title(_) | Stage::Gone => None,
+        }
+    }
+
+    /// The mother's playing test: the mode's set-up returned with
+    /// `eventMng.enablePhase` 4 ([`Mode::in_play`]); never the title (no
+    /// `ccEnableThEvent`), nor from a `ChangeRequest` (`ccDisableThEvent`).
+    fn stage_playing(&self) -> bool {
+        let playing = match &self.stage {
+            Stage::Desktop(d) => d.in_play(),
+            Stage::TopPage(t) => t.in_play(),
+            Stage::Area(a) => a.in_play(),
+            Stage::Title(_) | Stage::Gone => false,
+        };
+        playing && self.leaving.is_none() && self.loading.is_none()
+    }
+
+    /// `ccThMother`'s pause (main INF 0x00167d28; [`piney_demo::pause`]):
+    /// on a frame it holds, the screen as last shown, `ccGame.fade` and the
+    /// texts over it; None when the mode runs this frame.
+    fn mother_pause(&mut self, pad: &Pad) -> Option<Frame> {
+        use piney_demo::pause::{self, Pause};
+        let plugged = !pad.unplugged;
+        let push = pad.push.bits();
+        let starts = pause::starts(self.stage_playing(), self.pause_flag, plugged);
+        let f = match self.pause.as_mut() {
+            Some(p) => p.frame(plugged, push),
+            None if starts => {
+                let texts = self.pause_font()?.1.clone();
+                let (p, f) = Pause::begin(texts, std::mem::take(&mut self.game_fade), plugged, push);
+                self.pause = Some(p);
+                f
+            }
+            None => return None,
+        };
+        if self.pause.as_ref().is_some_and(Pause::over) {
+            self.game_fade = self.pause.take().map(|p| p.fade).unwrap_or_default();
+        }
+        if f.tasks {
+            return None;
+        }
+        // Set by every frame of a playing mode, so there before a pause.
+        let mut frame = match &self.last_shown {
+            Some(f) => f.clone(),
+            None => Frame::new(),
+        };
+        let mut ctx = piney_desktop::anm::Ctx::new(piney_desktop::view::View::default());
+        for (c0, c1, cnt, tcnt) in f.fades {
+            let (cnt, tcnt) = (cnt.max(0) as u32, tcnt.max(0) as u32);
+            piney_desktop::fade::draw_older(&mut ctx, piney_world::draw::FADE_LAYER, c0, c1, cnt, tcnt);
+        }
+        frame.cmds.extend(ctx.finish().cmds);
+        if let Some((font, _)) = self.pause_font.as_mut() {
+            let mut ctx = piney_desktop::anm::Ctx::new(piney_desktop::view::View::default());
+            pause::draw_texts(&mut ctx, font, &f.texts);
+            frame.cmds.extend(ctx.finish().cmds);
+        }
+        Some(frame)
+    }
+
+    /// `fontSys` and the pause's texts, read once.
+    fn pause_font(&mut self) -> Option<&(piney_desktop::sprite::Sprite, [Vec<u8>; 2])> {
+        if self.pause_font.is_none() {
+            let volume = match crate::open_disc(&self.iso).and_then(|mut d| d.volume()) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("the pause: {e}");
+                    return None;
+                }
+            };
+            let font = match piney_demo::pause::font(&self.archive) {
+                Ok(f) => f,
+                Err(e) => {
+                    tracing::warn!("the pause's font: {e}");
+                    return None;
+                }
+            };
+            let t = piney_data::tables::game::of(volume).pause_texts;
+            self.pause_font = Some((font, [t[0].as_bytes().to_vec(), t[1].as_bytes().to_vec()]));
+        }
+        self.pause_font.as_ref()
+    }
+
     /// Go where `ChangeRequest(num)` asks.
     fn change(&mut self, num: i32) -> Result<(), String> {
         // `ccSystem`'s frame rate, which the next setup starts with.
@@ -922,6 +1027,8 @@ impl Session {
                 Stage::Desktop(Box::new(d))
             }
             (request::RESET | request::TITLE, old) => {
+                // ccGame::Init (main 0x00167180) clears pauseFlag.
+                self.pause_flag = false;
                 // The soft reset is the mother task's (no new boot): the
                 // C library's rand() runs on, and what else memory holds.
                 let held = match old {
@@ -1066,6 +1173,11 @@ impl Mode for Session {
                 tracing::warn!("{e}");
             }
         }
+        // ccThMother (priority 2) first: its pause holds the screen.
+        if let Some(frame) = self.mother_pause(pad) {
+            self.add_play_time();
+            return frame;
+        }
         let mut change = None;
         let frame = match &mut self.stage {
             Stage::Title(t) => 'title: {
@@ -1191,6 +1303,9 @@ impl Mode for Session {
             }
             Stage::Gone => Frame::new(),
         };
+        if let Some(on) = self.stage_mode_mut().and_then(|m| m.take_pause_write()) {
+            self.pause_flag = on;
+        }
         self.add_play_time();
         if let Some(num) = change {
             // `ChangeRequest` interrupts the sound (`gameInterrupt`).
@@ -1248,6 +1363,7 @@ impl Mode for Session {
             }
         }
         self.keep_settings();
+        self.last_shown = self.stage_playing().then(|| frame.clone());
         frame
     }
 
@@ -1511,6 +1627,47 @@ mod tests {
         let order: Vec<i16> =
             (0..piney_data::save::MAIL_SLOTS).map(|i| save.mail_order(i)).take_while(|&m| m >= 0).collect();
         assert_eq!(order, [4, helba, 5, 320]);
+    }
+
+    /// `ccThMother`'s pause on the desktop: no controller, and the screen
+    /// holds under `ccGame.fade` and "P A U S E" (five cells); the
+    /// controller back, the START line too; START, a last held frame, then
+    /// the desktop runs again. With `pauseFlag` set nothing pauses.
+    #[test]
+    fn the_unplugged_pause() {
+        let Some(mut s) = session(true) else { return };
+        let mut pad = Pad::default();
+        new_game(&mut s, &mut pad);
+        settle(&mut s, &mut pad);
+        run(&mut s, &mut pad, 0..10, &[]);
+        assert!(s.stage_playing() && s.pause.is_none());
+        let shown = s.last_shown.clone().expect("the desktop's last frame");
+        let held = |f: &Frame, extra: usize| {
+            f.cmds.len() == shown.cmds.len() + extra && f.cmds[..shown.cmds.len()] == shown.cmds[..]
+        };
+        let line = piney_data::tables::game::of(piney_data::volume::Volume::Inf).pause_texts[1];
+        let start_cells = line.bytes().filter(|&b| (0x21..0x80).contains(&b)).count();
+        pad.unplugged = true;
+        for n in 0..30 {
+            pad.read(&Raw::default());
+            let f = s.step(&pad);
+            assert!(s.pause.is_some() && held(&f, 1 + 5), "frame {n} not held");
+        }
+        pad.unplugged = false;
+        pad.read(&Raw::default());
+        let f = s.step(&pad);
+        assert!(held(&f, 1 + 5 + start_cells), "the START line");
+        pad.read(&Raw { buttons: Buttons::START, ..Raw::default() });
+        let f = s.step(&pad);
+        assert!(held(&f, 1 + 5 + start_cells), "START's frame still held");
+        pad.read(&Raw::default());
+        let f = s.step(&pad);
+        assert!(s.pause.is_none() && !held(&f, 0), "the desktop again");
+        assert!(s.game_fade.elm.iter().all(|e| e.status == 0), "the pause's fade deleted");
+        s.pause_flag = true;
+        pad.unplugged = true;
+        run(&mut s, &mut pad, 0..5, &[]);
+        assert!(s.pause.is_none(), "pauseFlag holds the pause off");
     }
 
     /// Mutation from power-on to its desktop: the title, New Game, the
@@ -2037,9 +2194,11 @@ mod tests {
         tap(&mut s, &mut pad, Buttons::CROSS);
         run(&mut s, &mut pad, 0..40, &[]);
         assert_eq!(s.area, Some((0, town)));
-        // The World: Mac Anu, at 30 frames a second, the town drawn.
+        // The World: Mac Anu, at 30 frames a second, the town drawn; the
+        // set-up (and its fade in) not over, the mother's pause test waits.
         let Stage::Area(w) = &s.stage else { panic!("not in The World: {}", Mode::title(&s)) };
         assert_eq!(w.frame_rate(), 2);
+        assert!(!s.stage_playing());
         let mut n = 0;
         while !Mode::title(&s).contains("play 100") {
             press(&mut s, &mut pad, Buttons::NONE);
@@ -2058,6 +2217,18 @@ mod tests {
         let after = Mode::title(&s);
         let at = |t: &str| t.split("Kite at ").nth(1).map(str::to_string);
         assert_ne!(at(&before), at(&after), "{before} / {after}");
+        // No controller: the town holds, Up or not, until START.
+        pad.unplugged = true;
+        for _ in 0..20 {
+            pad.read(&Raw { buttons: Buttons::UP, ..Raw::default() });
+            s.step(&pad);
+        }
+        assert!(s.pause.is_some());
+        assert_eq!(at(&Mode::title(&s)), at(&after), "Kite moved in the pause");
+        pad.unplugged = false;
+        tap(&mut s, &mut pad, Buttons::START);
+        press(&mut s, &mut pad, Buttons::NONE);
+        assert!(s.pause.is_none(), "START ends the pause");
     }
 
     /// The desktop's Controller page reaches The World: START, Controller,

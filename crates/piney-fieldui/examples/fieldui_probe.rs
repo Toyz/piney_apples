@@ -39,8 +39,9 @@ fn jstr(b: &[u8]) -> String {
     s
 }
 
+/// A float as its bits, as the harness logs the game's.
 fn f(v: f32) -> String {
-    format!("{v:?}")
+    v.to_bits().to_string()
 }
 
 fn packet(p: &Packet) -> String {
@@ -152,6 +153,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut infos: HashMap<usize, [Option<Vec<u8>>; 3]> = HashMap::new();
     let mut checks: Vec<usize> = Vec::new();
     let mut target_fix = 0;
+    // `game.pauseFlag` as the frame's writes leave it.
+    let mut pause_flag = 0;
     let mut gamefs: HashMap<usize, (i32, i32, i32)> = HashMap::new();
     let mut skills: Vec<(usize, i32)> = Vec::new();
     let mut firsts: Vec<usize> = Vec::new();
@@ -830,6 +833,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for r in &reqs {
                         match r {
                             Request::TargetFix(on) => target_fix = i32::from(*on),
+                            Request::PauseFlag(on) => pause_flag = i32::from(*on),
                             Request::PlayerSp(v) => {
                                 if let Some(p) = world.party[0].as_mut() {
                                     p.sp = *v;
@@ -939,6 +943,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         !matches!(
                             r,
                             Request::TargetFix(_)
+                                | Request::PauseFlag(_)
                                 | Request::PlayerSp(_)
                                 | Request::KeepLayers
                                 | Request::AreaCodeSet(_)
@@ -1057,6 +1062,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Request::GateHacked => "[\"set_gt_hack\"]".into(),
                             // The noise is the trace's, the screen the runtime's.
                             Request::WorldHidden(_) => String::new(),
+                            // The state's `pauseFlag` (above).
+                            Request::PauseFlag(_) => String::new(),
                         });
                     }
                     // The OPTION pages' and the gate hack's task, file and
@@ -1089,6 +1096,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     st.push(world.game.area_level.to_string());
                     st.push(ui.ctrl.trap_num.to_string());
                     st.push(save.save.i16(0x7440).to_string());
+                    if let Some(on) = ui.ctrl.talk.record.save_sys.take_pause_write() {
+                        pause_flag = i32::from(on);
+                    }
+                    st.push(pause_flag.to_string());
                     if tk {
                         let c = &ui.ctrl;
                         let t = &c.talk;

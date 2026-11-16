@@ -358,6 +358,14 @@ fn kyvia_rows() -> CountFn {
     Rc::new(|c| Ok(((find(c, 0x005F_13D0, GCMN)? - find(c, 0x005F_0DB0, GCMN)?) / 0x38) as usize))
 }
 
+/// `skillMenuHelp`'s rows: town, SP, Kite's promise, and from Outbreak on
+/// "Cannot use Data Drain." (OUT gcmn 0x0034a7fc, QUA 0x0023eb2c), which
+/// `SkillMenu` shows for a barred drain from `volumeNum` 4 on (QUA gcmn
+/// 0x0043906c). Infection's and Mutation's word there is 0.
+fn skill_help_rows() -> CountFn {
+    Rc::new(|c| Ok(if c.volume >= Vol::Out { 4 } else { 3 }))
+}
+
 fn later(inf: usize, later: usize) -> CountFn {
     Rc::new(move |c| Ok(if c.volume == Vol::Inf { inf } else { later }))
 }
@@ -1380,6 +1388,12 @@ fn game() -> Group {
         // Mutation on dropped the table: their ChangeScene sets the server
         // to the town number itself.
         e("town_server", 0x0030_6DC0, array(I32, 8), MAIN, "`ccGame::ChangeScene`'s server of each town: Infection's `@1489`; the later volumes' ChangeScene sets the server to the town itself.").absent(Vol::Mut, identity(8)).absent(Vol::Out, identity(8)).absent(Vol::Qua, identity(8)),
+        derived(
+            "pause_texts",
+            custom(Rc::new(pause_texts), array(cstr(), 2)),
+            MAIN,
+            "`ccThMother`'s pause with no controller: \"P A U S E\" and the START line.",
+        ),
     ])
 }
 
@@ -1447,7 +1461,13 @@ fn fieldui() -> Group {
             ),
             e("skill_tags", 0x0037_7DC4, text_lines(6), GCMN, "`skillMenuTag`: the pages' tabs."),
             e("item_tags", 0x0037_7DC8, text_lines(6), GCMN, "`itemMenuTag`"),
-            e("skill_help", 0x0033_E8D0, array(text_lines(2), 3), GCMN, "`skillMenuHelp`"),
+            e(
+                "skill_help",
+                0x0033_E8D0,
+                array_by(text_lines(2), skill_help_rows()),
+                GCMN,
+                "`skillMenuHelp`: from Outbreak a fourth, Quarantine's word for a barred Data Drain.",
+            ),
             e("item_help", 0x0033_E8E0, array(text_lines(2), 10), GCMN, "`itemMenuHelp`"),
             e("target_info", 0x0037_7DD0, text_lines(2), GCMN, "`targetMenuInfo`"),
             e("target_warn", 0x0037_7DD4, ptr(cstr()), GCMN, "`targetMenuWarn`"),
@@ -1570,6 +1590,12 @@ fn fieldui() -> Group {
             // PERSONAL's pages.
             e("imp_tags", 0x0037_7DCC, text_lines(4), GCMN, "`impItemMenuTag`: Key Items' four tabs."),
             e("grunty_warn", 0x0037_7E7C, text_lines(2), GCMN, "`puccigusoCallWarnStr`"),
+            derived(
+                "grunty_select",
+                custom(Rc::new(grunty_select), opt(lines(2))),
+                GCMN,
+                "From Mutation, the help over the Grunty Flute's list of Grunties.",
+            ),
             e("shop_str", 0x0037_7E3C, ptr(cstr()), GCMN, "`shopStr`'s first line: the count window's labels."),
             e("in_battle_warn", 0x0037_7E08, ptr(cstr()), GCMN, "`inBattleMenuWarn`"),
             e("gateout_info", 0x0037_7E00, ptr(cstr()), GCMN, "`gateoutMenuInfo`"),
@@ -4333,6 +4359,45 @@ fn gate_refusal(c: &Ctx) -> Read {
     }
     let record = record.ok_or("the refusal's record is not built into $a1")?;
     Ok(Value::List(vec![Value::Int(status), Value::List(areas), ev_msg().read(c, record)?]))
+}
+
+/// The Grunty Flute's list help ("Please select the Grunty you would like
+/// to call.", MUT gcmn 0x0038ae10): the `$gp` word after
+/// `puccigusoCallWarnStr` that `ImportantItemMenu` reads (MUT 0x0054eac4).
+/// None where it reads none: Infection calls a Grunty at random.
+fn grunty_select(c: &Ctx) -> Read {
+    let at = find(c, 0x0037_7E7C, GCMN)? + 4;
+    let gp = c.p.gp.ok_or("no $gp")?;
+    let reads = body(c, find(c, 0x0052_F980, GCMN)?)?
+        .iter()
+        .any(|&w| w >> 26 == 0x23 && (w >> 21) & 31 == 28 && gp.wrapping_add(sext16(w) as u32) == at);
+    if !reads {
+        return Ok(Value::None);
+    }
+    lines(2).read(c, c.p.u32(at)?)
+}
+
+/// The two texts `ccThMother`'s pause draws (INF 0x00167ed0, 0x00167f40):
+/// what its `MakePacketStr` calls take in `$a1`, built by the `lui`/`addiu`
+/// before each ("START button: Retun to game" on Infection, "Return" from
+/// Mutation).
+fn pause_texts(c: &Ctx) -> Read {
+    let w = body(c, find(c, 0x0016_7940, MAIN)?)?;
+    let put = c.p.symbol_named("MakePacketStr__8ccSpriteFPci").ok_or("no MakePacketStr")?.value;
+    let mut out = Vec::new();
+    let call = 0x0c00_0000 | ((put >> 2) & 0x03ff_ffff);
+    for k in (0..w.len()).filter(|&k| w[k] == call) {
+        let back = &w[k.saturating_sub(8)..k];
+        let hi = back.iter().rev().find(|&&x| x >> 26 == 0x0f && (x >> 16) & 31 == 5).map(|&x| (x & 0xffff) << 16);
+        let lo = back.iter().rev().find(|&&x| x >> 26 == 0x09 && (x >> 16) & 31 == 5 && (x >> 21) & 31 == 5);
+        if let (Some(h), Some(&l)) = (hi, lo) {
+            out.push(cstr().read(c, h.wrapping_add(sext16(l) as u32))?);
+        }
+    }
+    if out.len() != 2 {
+        return Err(format!("ccThMother: {} texts for its pause", out.len()));
+    }
+    Ok(Value::List(out))
 }
 
 /// A function's words, from its symbol's size.

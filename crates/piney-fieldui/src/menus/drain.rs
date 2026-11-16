@@ -140,6 +140,11 @@ fn roll(m: &mut MenuCtrl, x: &mut Ctx) {
 pub fn data_drain_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     match m.proccess {
         0 => {
+            // From Outbreak `pauseFlag` is set until the rules (OUT gcmn
+            // 0x0054c574, 0x0054cecc; QUA 0x0043ee84, 0x0043f7dc).
+            if x.texts.volume >= piney_data::volume::Volume::Out {
+                x.req.push(Request::PauseFlag(true));
+            }
             m.data_drain = DrainState { fade: m.menu_fade.entry_fade(25, 0, 0x8000_0000), ..DrainState::default() };
             m.wait_count = 0;
             fade_body(m, x)
@@ -337,6 +342,9 @@ fn rules(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     x.target = None;
     x.target_prev = None;
     x.req.push(Request::TargetsCleared);
+    if x.texts.volume >= piney_data::volume::Volume::Out {
+        x.req.push(Request::PauseFlag(false));
+    }
     x.req.push(Request::WorldHidden(false));
     m.menu_fade.entry_flash(20, 0x70c0_a020);
     x.req.push(Request::WakeAll);
@@ -441,6 +449,10 @@ fn change_info(m: &mut MenuCtrl, x: &Ctx, k: usize) {
 /// Step 20: the drain count and the bracelet's growth, its pages, then the
 /// drops through 67.
 fn evolve(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
+    // `pauseFlag` cleared again (OUT gcmn 0x0054e854, QUA 0x00441164).
+    if x.texts.volume >= piney_data::volume::Volume::Out {
+        x.req.push(Request::PauseFlag(false));
+    }
     let (stage, item) = piney_battle::drain::evolution(&mut x.save.save, x.texts.volume.number());
     if let Some(code) = item {
         x.save.save.add_item(0, (code >> 16) as i16, (code & 0xffff) as i16, 1);

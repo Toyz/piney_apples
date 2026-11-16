@@ -781,8 +781,8 @@ class ParticlesAgainstGame(unittest.TestCase):
         """ccEffPawSmoke: a runner's feet (either lower), its heading and
         speed, on every kind of ground: none from water and grass, texture 4
         from the grey and dark, else 133. A step a frame for a while."""
-        grounds = [0, 0x20000F0F, 0x00B0C000, 0x00C0D000, inf_va(0x0060B0D0), inf_va(0x0070C0E0), 0x008080F0, inf_va(0x00304050),
-                   0x00E0E0E0, inf_va(0x00606060), inf_va(0x00405060) | 0x01000101, inf_va(0x00123456)]
+        grounds = [0, 0x20000F0F, 0x00B0C000, 0x00C0D000, 0x0060B0D0, 0x0070C0E0, 0x008080F0, 0x00304050,
+                   0x00E0E0E0, 0x00606060, 0x00405060 | 0x01000101, 0x00123456]
         rng = random.Random(13)
         for case in range(8):
             seed = rng.randrange(1, 1 << 32)

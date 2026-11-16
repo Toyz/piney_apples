@@ -187,13 +187,71 @@ The callers are `ccPlayer::DamageActuate` (Kite hit: the small motor and
 
 `Read` first stores `scePadGetState` in `ccPad.status` (+0x04, so
 `ccSys+0x26c` for port 1): 0 with no controller, 2 or 6 once one is found.
-`ccThMother` (0x00167d28 to its loop) pauses the game while it reads 0 in a
-playing mode (`eventMng+0x0c` at least 4) and `game.pauseFlag` (+0x7c) is
-0: the layers and font stop flipping, the tasks sleep, the screen fades and
-"P A U S E" is drawn. With a controller back, "START button: Retun to game"
-(Mutation on: "Return") waits for START. Every volume has it. The port's
-keyboard is always a controller, so this pause is not ported; from Mutation
-on the save menus read `status` too ([desktop](desktop.md)).
+From Mutation on the save menus read `status` too ([desktop](desktop.md)).
+
+### The pause
+
+`ccThMother` (main, INF 0x00167d28 to 0x00168018; MUT 0x00167ea8, OUT
+0x00167130, QUA 0x00166fc0, the same code) runs first in every frame
+(priority 2). It pauses the game while `ccSys+0x26c` (`pad[0].status`)
+reads 0 in a playing mode (`eventMng+0x0c`, `enablePhase`, at least 4: the
+desktop, the top page and The World once their set-up has made
+`ccEnableThEvent(4)`; never the title, and not from a `ChangeRequest`,
+which disables the events) with `game.pauseFlag` (+0x7c) 0. The set-ups run
+inside the mother (`ccSetupDesktop` 0x00167cc0, `ccSetupToppage`,
+`ccSetupGameCtrl`), so the test comes once a set-up has returned: on the
+desktop and the top page the frame of their `ccEnableThEvent(4)`, in The
+World after `ccSetupGameCtrl`'s fade in on `game.fade` (0x00169538 to
+0x0016957c, ten frames, then its `ccSndBgmCtrl`):
+
+```
+begin        fontOffFlip, game.layer->OffFlipExcept (the layers keep their
+             last lists); stillLayer.flipFlag one down (not below 0);
+             ccSleepNoSleepThread(1, 1); the event task's bit 2 cleared and
+             it slept; EntryFade(game.fade, 1, 0, 0x58000000, 0, 0, 512, 384)
+each frame   game.fade->SendPacket; fontSys SetType(1), colour
+             ccSpriteColorTable[20] alpha 128, "P A U S E" at (16 sx, 10 sy)
+             = (192, 160); SetType(0); with a controller the START line at
+             (18 sx, 16 sy) = (144, 192): "START button: Retun to game"
+             (Infection), "Return" (Mutation on); START (push & 0x800):
+             DeleteFade, ccWakeAllThread (the event task's one sleep too)
+next frame   fontOnFlip, OnFlipExcept, ccWakeThread(event), its bit 2 set:
+             every task runs this frame
+```
+
+`game.pauseFlag` holds it off. `ccGame::Init` (0x00167180, power-on and
+the soft reset) clears it; the writers:
+
+```
+staff_roll (case 147)   1 at its start, 0 after the roll and
+                        ccBreathThread(30) (INF 0x001b1cbc, 0x001b1d34;
+                        MUT 0x001c7084, 0x001c70fc; OUT 0x001bd444,
+                        0x001bd4c0); QUA 0x001c4a9c, 0x001c4ab4, one frame
+ending_kanji (QUA 169)  1 (0x001c52fc), never cleared before Init
+ccThGameCtrl            1 at the game over (INF gcmn 0x0051792c, MUT
+                        0x0053598c, OUT 0x00530c2c, QUA 0x0042353c)
+ccSaveSys (OUT, QUA)    LoadInfoReq 1, SlotSelectReq and EndReq 0 (OUT main
+                        0x00171090, 0x00171054, 0x0017102c; QUA 0x00170f20,
+                        0x00170ee4, 0x00170ebc); MainProccess 1 and 0 around
+                        BootCheckProccess (0x0017150c, 0x0017151c)
+MainProccess (MUT)      1 and 0 around its card calls (0x00171f7c-0x0017528c)
+DataDrainMenu (OUT,     1 at its start, 0 after the rules and again at step
+QUA)                    20 (OUT gcmn 0x0054c574, 0x0054cecc, 0x0054e854;
+                        QUA 0x0043ee84, 0x0043f7dc, 0x00441164)
+```
+
+The port: `crates/piney-demo/src/pause.rs` (tools/test_mother_pause_rs.py
+runs each volume's `ccThMother` loop in eemu against it), and the session
+(`piney-game` `Session::mother_pause`): each mode reports `enablePhase`
+and its writes to `pauseFlag`, which the session keeps across the modes; on
+a held frame no mode steps and the last frame shown is drawn again under the
+fade and the texts. A controller in the port is `Pad::unplugged` (the
+keyboard is always one). The port tests at the start of a frame on the
+state the last one left, so where the game's pause can begin in the very
+frame a set-up returns (its last calls, then the tasks asleep), the port's
+begins a frame later, that frame's tasks run. Not modelled: `stillLayer`
+(the port keeps no still layers, [field UI](field-ui.md)), and Mutation's
+card calls, which take no frames in the port.
 
 ## The screen
 

@@ -306,6 +306,14 @@ impl Desktop {
         self.slept = on;
     }
 
+    /// What the Data screen's and the save menu's `ccSaveSys` last wrote
+    /// to `game.pauseFlag` ([`SaveSys::take_pause_write`]).
+    ///
+    /// [`SaveSys::take_pause_write`]: crate::savesys::SaveSys::take_pause_write
+    pub fn take_pause_write(&mut self) -> Option<bool> {
+        self.data.save_sys.take_pause_write()
+    }
+
     /// Whether the desktop's tasks sleep (see [`Desktop::set_slept`]).
     pub fn slept(&self) -> bool {
         self.slept

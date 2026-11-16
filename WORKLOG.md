@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-606 entries: audio 49, battle 168, build 34, content 3, decomp 39, disc 6, engine 43, format 18, iop 3, render 133, save 16, script 64, test 263, tooling 61, ui 107, video 18, volumes 107, world 193. 163 entries still have open questions - [listed below](#still-open).
+608 entries: audio 49, battle 168, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 133, save 16, script 64, test 265, tooling 63, ui 109, video 18, volumes 109, world 193. 165 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -618,9 +618,13 @@ The [reference](docs/README.md) says what is true now.
 | 604 | [The enemy-list overrun: the port registered enemies in a Root Town; ccRegisterEventMng's enemy rows and the lists' memory ported](worklog/0604-the-enemy-list-overrun-the-port-registered-enemies-in-a.md) | 2026-11-15 | battle, decomp, volumes, test |
 | 605 | [ccSelectTarget on Outbreak and Quarantine: the swapped stack arrays, and test_select's probe pinned to Infection's root](worklog/0605-ccselecttarget-on-outbreak-and-quarantine-the-swapped-stack.md) | 2026-11-16 | battle, volumes, test |
 | 606 | [The later volumes' positioned sounds: a program below 0 and a step on a ground with no row are silent from Mutation on, and test_sound3d's probe pinned to Infection's tables](worklog/0606-the-later-volumes-positioned-sounds-a-program-below-0-and-a.md) | 2026-11-16 | audio, volumes, test |
+| 607 | [The field UI on the later discs: the carried names put Outbreak's menu handlers four over, and ten behaviours of Mutation, Outbreak and Quarantine](worklog/0607-the-field-ui-on-the-later-discs-the-carried-names-put.md) | 2026-11-16 | ui, volumes, tooling, test |
+| 608 | [ccThMother's unplugged pause on every volume, the Outbreak icon static proven unwritten over the whole disc, exact floats in the field UI harnesses](worklog/0608-ccthmother-s-unplugged-pause-on-every-volume-the-outbreak.md) | 2026-11-16 | ui, engine, volumes, tooling, test |
 
 ## Still open
 
+- [608. ccThMother's unplugged pause on every volume, the Outbreak icon static proven unwritten over the whole disc, exact floats in the field UI harnesses](worklog/0608-ccthmother-s-unplugged-pause-on-every-volume-the-outbreak.md) (3 questions) - Why Quarantine's Data screen differs in test_desktop_data_rs's random pads 2-4.
+- [607. The field UI on the later discs: the carried names put Outbreak's menu handlers four over, and ten behaviours of Mutation, Outbreak and Quarantine](worklog/0607-the-field-ui-on-the-later-discs-the-carried-names-put.md) (2 questions) - why test_desktop_savemenu_rs still fails twice on Quarantine (the overwrite's menu does not close; no scenario reaches...
 - [602. A camera system, leg 5: Tarvos's phantom's first view is its target's heap address, the full checks, the battle pins recorded anew](worklog/0602-a-camera-system-leg-5-tarvos-s-phantom-s-first-view-is-its.md) - $s1's upper half in the boss thread when the phantom is made (the view's z and w): what the kernel's StartThread put in...
 - [600. A camera system, leg 3: the bosses ask the list, the listener per sound, the ambient's unread camera values](worklog/0600-a-camera-system-leg-3-the-bosses-ask-the-list-the-listener.md) - what OnThinkPhantom's $s1 holds as the phantom's unwritten view (both sides take zeros); and the NPC list's sounds...
 - [599. A camera system, leg 2: the maps and the boss camera on the list, the haze's camID turn, the listener settled](worklog/0599-a-camera-system-leg-2-the-maps-and-the-boss-camera-on-the.md) - how often the listener's one-frame lag in a boss fight changes a pan's value as sent to the driver; the step-5 harness...

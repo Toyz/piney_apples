@@ -17,6 +17,7 @@ use crate::menus::system::{extract_menu, push_msg_requests, str_cat};
 use crate::spr::{font_type, make_num, set_clm};
 use crate::talk;
 use crate::window::{disp_scroll_bar, disp_square_tag, disp_square_w2, set_type};
+use piney_data::volume::Volume;
 
 pub const STOCK: usize = 24;
 pub const SERVERS: usize = 5;
@@ -143,6 +144,17 @@ pub fn stock(m: &MenuCtrl, x: &Ctx) -> Vec<i32> {
     lists.get(x.world.game.server.clamp(0, SERVERS as i32 - 1) as usize).cloned().unwrap_or_default()
 }
 
+/// Where `BuyMenu`'s count of the stock stops: at a code of 0 or below on
+/// Infection (`blez`, INF gcmn 0x005565a8); from Mutation on only below 0
+/// (`bltz`, MUT 0x00575728, OUT 0x0057141c, QUA 0x00463d5c), so item 0 of
+/// category 0 (Quarantine's weapon shop opens with it) is sold.
+fn stock_end(v: Volume) -> fn(i32) -> bool {
+    match v {
+        Volume::Inf => |c| c <= 0,
+        _ => |c| c < 0,
+    }
+}
+
 /// An item code's category and id (`code >> 16`, `code & 0xffff`).
 fn split(code: i32) -> (i32, i32) {
     (code >> 16, code & 0xffff)
@@ -230,13 +242,8 @@ pub fn buy_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         m.bg_status = 1;
         let l = &mut m.lists[i];
         l.x = 18;
-        l.my = 0;
-        for &c in stock.iter().take(STOCK) {
-            if c <= 0 {
-                break;
-            }
-            l.my += 1;
-        }
+        let last = stock_end(x.texts.volume);
+        l.my = stock.iter().take(STOCK).take_while(|&&c| !last(c)).count() as i16;
         l.y = 8;
         if l.my >= 9 {
             if l.my - 8 < l.dy {

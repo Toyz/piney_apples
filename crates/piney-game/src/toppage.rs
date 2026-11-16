@@ -134,6 +134,16 @@ impl TopPageMode {
 }
 
 impl Mode for TopPageMode {
+    /// `ccSetupToppage` returned to the mother task, its
+    /// `ccEnableThEvent(4)` made.
+    fn in_play(&self) -> bool {
+        self.page.is_some() && self.vm.as_ref().is_none_or(|vm| vm.phase() >= 4)
+    }
+
+    fn take_pause_write(&mut self) -> Option<bool> {
+        self.st.pause_write.take()
+    }
+
     fn step(&mut self, pad: &Pad) -> Frame {
         self.frames += 1;
         self.st.pad = *pad;

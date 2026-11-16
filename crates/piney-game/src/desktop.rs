@@ -91,6 +91,8 @@ pub(crate) struct HostState {
     /// that follows it (event 314's way into field 126 from here).
     pub(crate) area: Option<(i16, [Option<i32>; 3])>,
     pub(crate) change: Option<crate::field_host::SceneChange>,
+    /// The scripts' last write to `game.pauseFlag` (`staff_roll`).
+    pub(crate) pause_write: Option<bool>,
 }
 
 impl HostState {
@@ -312,8 +314,12 @@ impl Host for Bridge<'_> {
         }
     }
 
-    /// `staff_roll` (case 147): game.pauseFlag 1, dtMenu's forbid,
-    /// ccSleepAllThread(): what follows runs over nothing.
+    fn set_pause_flag(&mut self, on: bool) {
+        self.st.pause_write = Some(on);
+    }
+
+    /// `staff_roll` (case 147): dtMenu's forbid, ccSleepAllThread(): what
+    /// follows runs over nothing.
     fn staff_roll_sleep(&mut self) {
         if let Some(d) = self.desktop() {
             d.set_menu_forbid(true);
@@ -835,6 +841,23 @@ impl Mode for DesktopMode {
     /// The cursor blink and the staff roll's `srand` read it.
     fn set_sys_frames(&mut self, n: u32) {
         self.sys_frames = Some(n);
+    }
+
+    /// `ccSetupDesktop` returned to the mother task, its
+    /// `ccEnableThEvent(4)` made.
+    fn in_play(&self) -> bool {
+        matches!(self.stage, Stage::Play(_)) && self.vm.as_ref().is_none_or(|vm| vm.phase() >= 4)
+    }
+
+    /// The event task runs before the desktop's: a save request's write
+    /// comes last.
+    fn take_pause_write(&mut self) -> Option<bool> {
+        let scripts = self.st.pause_write.take();
+        let sys = match &mut self.stage {
+            Stage::Play(d) => d.take_pause_write(),
+            _ => None,
+        };
+        sys.or(scripts)
     }
 
     fn step(&mut self, pad: &Pad) -> Frame {

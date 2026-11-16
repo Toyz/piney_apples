@@ -1426,6 +1426,7 @@ impl AreaMode {
                 self.asleep = false;
                 self.world.set_asleep(false);
             }
+            R::PauseFlag(on) => self.st.pause_write = Some(on),
             R::VoiceStop => self.events.push(Event::VoiceStop),
             R::VoiceRequest { grp, msg } => {
                 // The save as it stands (talkNum changes as members talk).
@@ -1722,6 +1723,22 @@ impl Mode for AreaMode {
         self.world.set_count(frames);
     }
 
+    /// `ccSetupGameCtrl` returned to the mother task: `ccEnableThEvent(4)`
+    /// made and its fade in over (INF main 0x00169538-0x0016957c, the
+    /// frame of its `ccSndBgmCtrl`).
+    fn in_play(&self) -> bool {
+        let set_up = matches!(self.world.phase(), Phase::Play(f) if f > piney_world::FADE_FRAMES);
+        set_up && self.vm.as_ref().is_none_or(|vm| vm.phase() >= 4) && self.setup != Setup::Left
+    }
+
+    /// The Recorder's `ccSaveSys` runs in the menu task, after the event
+    /// task and `ccThGameCtrl`: its write comes last.
+    fn take_pause_write(&mut self) -> Option<bool> {
+        let sys = self.ui.ctrl.talk.record.save_sys.take_pause_write();
+        let own = self.st.pause_write.take();
+        sys.or(own)
+    }
+
     fn step(&mut self, pad: &Pad) -> Frame {
         self.frames += 1;
         self.st.pad = *pad;
@@ -1775,6 +1792,9 @@ impl Mode for AreaMode {
         // ccMessage::Close, ccMenu.forbid (the party's AI and the enemies'
         // conditions are not ported).
         if self.world.take_game_over() {
+            // pauseFlag 1 (INF gcmn 0x0051792c, MUT 0x0053598c, OUT
+            // 0x00530c2c, QUA 0x0042353c), until ccGame::Init.
+            self.st.pause_write = Some(true);
             self.ui.message_close();
             self.ui.ctrl.forbid = 1;
             self.game_over = Some(crate::gameover::GameOverTask::new(self.stream.data.clone()));

@@ -553,16 +553,92 @@ pub fn exact(src: &Side, dst: &Side) -> Vec<(Symbol, u32)> {
     pairs
 }
 
+/// The cases of a body's jump tables: for each `jr` through a table (built
+/// by `lui`/`addiu` just before, its length the `sltiu` bound), the word
+/// index each entry jumps to, by entry. Entries outside the body end it.
+fn switches(p: &Program, va: u32, words: &[u32]) -> Vec<Vec<Option<usize>>> {
+    let mut out = Vec::new();
+    for (k, &w) in words.iter().enumerate() {
+        // jr rs, not $ra
+        if w >> 26 != 0 || w & 0x3F != 8 || (w >> 21) & 31 == 31 {
+            continue;
+        }
+        let back = &words[k.saturating_sub(12)..k];
+        let at = addresses(back, None);
+        let Some(&table) = at.iter().filter(|&(&i, _)| back[i] >> 26 == 0x09).max_by_key(|&(&i, _)| i).map(|(_, a)| a)
+        else {
+            continue;
+        };
+        let bound = back.iter().rev().find(|&&x| x >> 26 == 0x0B).map(|&x| x & 0xFFFF);
+        let mut cases = Vec::new();
+        for e in 0..bound.unwrap_or(1024) {
+            let Ok(t) = p.u32(table.wrapping_add(4 * e)) else { break };
+            let i = t.wrapping_sub(va) / 4;
+            if t < va || i as usize >= words.len() || t & 3 != 0 {
+                if bound.is_some() {
+                    cases.push(None);
+                    continue;
+                }
+                break;
+            }
+            cases.push(Some(i as usize));
+        }
+        out.push(cases);
+    }
+    out
+}
+
+/// The first call of the case starting at word `i`, before its first branch.
+fn case_call(words: &[u32], i: usize) -> Option<usize> {
+    for (k, &w) in words.iter().enumerate().skip(i).take(8) {
+        if w >> 26 == 3 {
+            return Some(k);
+        }
+        if branch_target(0, w).is_some() || matches!(w >> 26, 2) || (w >> 26 == 0 && w & 0x3F == 8) {
+            return None;
+        }
+    }
+    None
+}
+
+/// The calls two paired bodies' switches make case for case: (Infection's
+/// word, the volume's), the cases paired by their entry. A switch's cases
+/// alike in shape (`ccThMenu`'s, one handler call each) give the alignment
+/// nothing to tell them by, and it had put Outbreak's handlers four menus
+/// over (its `GtHackMenu` filed as `GtNewMenu`).
+fn switch_calls(src: &Side, f: u32, sw: &[u32], dst: &Side, dva: u32, dw: &[u32]) -> Vec<(usize, usize)> {
+    let (ss, ds) = (switches(&src.p, f, sw), switches(&dst.p, dva, dw));
+    if ss.len() != ds.len() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (a, b) in ss.iter().zip(&ds) {
+        for (x, y) in a.iter().zip(b) {
+            if let (Some(i), Some(j)) = (x.and_then(|i| case_call(sw, i)), y.and_then(|j| case_call(dw, j))) {
+                out.push((i, j));
+            }
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
 /// Callee and global names voted for by the paired bodies, at aligned
-/// instructions. `pairs` are (Infection's function, the volume's address,
-/// the volume's words).
+/// instructions; a switch's case calls by its entries. `pairs` are
+/// (Infection's function, the volume's address, the volume's words).
 pub fn propagate(src: &Side, dst: &Side, pairs: &[(Symbol, u32, u32)]) -> (Votes<SymKey, u32>, Votes<SymKey, u32>) {
     let (mut calls, mut data): (Votes<SymKey, u32>, Votes<SymKey, u32>) = Default::default();
     for (f, dva, n_dst) in pairs {
         let (Some(sw), Some(dw)) = (src.run(f.value, f.size / 4), dst.run(*dva, *n_dst)) else { continue };
         let sa = addresses(sw, src.p.gp);
         let da = addresses(dw, dst.p.gp);
-        for (i, j) in aligned(sw, dw) {
+        let cases = switch_calls(src, f.value, sw, dst, *dva, dw);
+        let (case_s, case_d): (HashSet<usize>, HashSet<usize>) = cases.iter().copied().unzip();
+        let mut lined = aligned(sw, dw);
+        lined.retain(|&(i, j)| !case_s.contains(&i) && !case_d.contains(&j));
+        lined.extend(cases);
+        for (i, j) in lined {
             if sw[i] >> 26 == 3 && dw[j] >> 26 == 3 {
                 let st = ((f.value + 4 * i as u32 + 4) & 0xF000_0000) | ((sw[i] & 0x03FF_FFFF) << 2);
                 let dt = ((dva + 4 * j as u32 + 4) & 0xF000_0000) | ((dw[j] & 0x03FF_FFFF) << 2);

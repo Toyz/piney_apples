@@ -14,6 +14,7 @@ pub use disp::{controller_menu_disp, disp_slide_bar, on_off_menu_disp, screen_me
 use crate::Request;
 use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_MOVE, SE_OK};
 use crate::menus::system::extract_menu;
+use piney_data::volume::Volume;
 
 /// The save's fields the pages set (`ccSaveData`).
 pub const SCREEN_X: usize = 0x841a;
@@ -317,17 +318,22 @@ struct OnOff {
     /// Voiceover: row 0 is the value 1 (English); the others: any value
     /// but 0.
     on_is_one: bool,
-    /// The information texts show both lines (Data Drain) or the first.
-    two_lines: bool,
 }
 
 fn on_off(menu: i16) -> OnOff {
     match menu {
-        14 => OnOff { field: VIBRATION, voice_rows: false, on_is_one: false, two_lines: false },
-        18 => OnOff { field: DRAIN_DEMO, voice_rows: false, on_is_one: false, two_lines: true },
-        19 => OnOff { field: VOICE, voice_rows: true, on_is_one: true, two_lines: false },
-        _ => OnOff { field: STR_WIN_MODE, voice_rows: false, on_is_one: false, two_lines: false },
+        14 => OnOff { field: VIBRATION, voice_rows: false, on_is_one: false },
+        18 => OnOff { field: DRAIN_DEMO, voice_rows: false, on_is_one: false },
+        19 => OnOff { field: VOICE, voice_rows: true, on_is_one: true },
+        _ => OnOff { field: STR_WIN_MODE, voice_rows: false, on_is_one: false },
     }
+}
+
+/// Whether a page's information shows both lines: Infection's Data Drain
+/// page (INF gcmn 0x0054080c); the rest show the first, and so does Data
+/// Drain's from Mutation (MUT 0x0055f390, OUT 0x0055aad0).
+fn two_lines(menu: i16, v: Volume) -> bool {
+    menu == 18 && v == Volume::Inf
 }
 
 /// Whether the save's value stands for row 0 ("on") and for row 1 ("off").
@@ -363,7 +369,7 @@ fn on_off_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         l.y = 2;
         let info = on_off_info(m.menu, x.texts)[if on { 0 } else { 1 }].clone();
         let names = x.save.names();
-        let second = if o.two_lines { Some(&info[1][..]) } else { None };
+        let second = if two_lines(m.menu, x.texts.volume) { Some(&info[1][..]) } else { None };
         m.msg.open_info([Some(&info[0]), second, None, None], &names);
         m.note(|| "[\"open_info\"]".into());
         m.exception_disp = 1;
@@ -387,7 +393,7 @@ fn on_off_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             }
             let info = on_off_info(m.menu, x.texts)[row].clone();
             let names = x.save.names();
-            let second = if o.two_lines { Some(&info[1][..]) } else { None };
+            let second = if two_lines(m.menu, x.texts.volume) { Some(&info[1][..]) } else { None };
             m.msg.change_info([Some(&info[0]), second, None, None], &names);
             m.cursor.init(true);
             m.cursor_pr.init(true);

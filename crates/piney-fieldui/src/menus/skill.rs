@@ -14,9 +14,14 @@ use crate::menus::system::{push_msg_requests, str_cat};
 use crate::spr::{font_type, make_num, set_clm};
 use crate::window::{disp_button, disp_scroll_bar, disp_square_tag, set_type};
 use crate::world::CharInfo;
+use piney_data::volume::Volume;
 
-/// `volumeNum` is 1 on Infection: a blocked Data Drain says help 2.
-const DRAIN_BLOCKED_HELP: i16 = 2;
+/// The help a blocked Data Drain says: Kite's promise (2), or from
+/// `volumeNum` 4 on "Cannot use Data Drain." (3; the test is on every disc,
+/// QUA gcmn 0x00439070, OUT 0x00546760).
+fn drain_blocked_help(v: Volume) -> i16 {
+    if v >= Volume::Qua { 3 } else { 2 }
+}
 
 /// The menu's list: `menuList[menu]`.
 fn idx(m: &MenuCtrl) -> usize {
@@ -103,7 +108,7 @@ pub fn skill_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 }
                 if (2..=5).contains(&sel) && (!check_operate(x, 17, 0) || x.save.save.u8(items::EVENT_STATUS + 40) != 0)
                 {
-                    refuse(m, DRAIN_BLOCKED_HELP);
+                    refuse(m, drain_blocked_help(x.texts.volume));
                     return Flow::Done;
                 }
                 m.change_menu_to(65);
@@ -125,7 +130,7 @@ pub fn skill_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         }
         2 => {
             if m.menu_status == 0 {
-                let wc = m.wait_count.clamp(0, 2) as usize;
+                let wc = m.wait_count.max(0) as usize;
                 let h = x.texts.skill_help[wc].clone();
                 let names = x.save.names();
                 let second = if m.wait_count == 2 { Some(&h[1][..]) } else { None };

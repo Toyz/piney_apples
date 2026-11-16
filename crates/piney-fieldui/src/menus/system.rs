@@ -5,8 +5,9 @@
 //! "Cannot be used while dead.". The steps are in docs/engine/field-ui.md.
 
 use crate::Request;
-use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};
+use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_BUZZ, SE_OK};
 use crate::menus::check_operate;
+use piney_data::volume::Volume;
 
 /// `ccKanjiStrcat(buf, s, n)` (main 0x0015eed0): `s` as `n` glyphs,
 /// padded with spaces. `#0` / `#1` (the names) are left out here; `#x`
@@ -73,6 +74,13 @@ pub fn extract_menu(m: &mut MenuCtrl, s: Vec<u8>) {
     m.kanji_text = s;
 }
 
+/// From Mutation, on fields 8 and 13 a menu's row 6 (PERSONAL's Key Items)
+/// is greyed and OK on it only buzzes (sound 20) (`SystemMenu`, MUT gcmn
+/// 0x00546ec4, 0x00546f50; OUT and QUA alike). Not the OPTION list (12).
+fn no_row_6(m: &MenuCtrl, x: &Ctx) -> bool {
+    x.texts.volume >= Volume::Mut && m.menu != 12 && matches!(x.world.game.field, 8 | 13)
+}
+
 pub fn system_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     match m.proccess {
         0 => {
@@ -96,6 +104,9 @@ pub fn system_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             if m.menu != 12 && x.world.player_dead {
                 m.reverse_head |= 7;
             }
+            if no_row_6(m, x) {
+                m.reverse_head |= 0x40;
+            }
             let l = m.list_mut();
             if l.select >= l.y {
                 l.select = l.y - 1;
@@ -107,6 +118,10 @@ pub fn system_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         }
         1 => {
             m.select(0, 0, true, x);
+            if no_row_6(m, x) && m.list().select == 6 && x.pushed_ok() {
+                x.se(SE_BUZZ);
+                return Flow::Done;
+            }
             let key = if x.pushed_cancel() {
                 x.se(SE_BACK);
                 Some(false)

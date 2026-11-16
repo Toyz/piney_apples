@@ -1072,7 +1072,9 @@ forbidden until `staff_roll_done`. After the roll come the
 Each volume compiles the case its own way (INF main 0x001b1ca4, MUT
 0x001c7070, OUT 0x001bd430, QUA 0x001c4a88). All of them first set
 `game.pauseFlag`, forbid the menus (`dtMenu +0x16`) and call
-`ccSleepAllThread`. Then:
+`ccSleepAllThread`; the flag is cleared again after the roll and its 30
+frames, on Quarantine at once ([overview](overview.md), "The pause").
+Then:
 
 | volume | roll, 30 frames | then, outside Parody Mode | `ccSndBgmCtrl` |
 | --- | --- | --- | --- |

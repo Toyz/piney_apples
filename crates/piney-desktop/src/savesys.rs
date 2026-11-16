@@ -166,6 +166,14 @@ pub struct SaveSys {
     /// The disc's volume (`volumeNum`): which messages name the game, and
     /// which clear data is this volume's or later.
     pub volume: Volume,
+    /// `game.pauseFlag` as the requests leave it: from Outbreak on
+    /// `LoadInfoReq` sets it (OUT main 0x00171090, QUA 0x00170f20) and
+    /// `SlotSelectReq` and `EndReq` clear it (OUT 0x00171054, 0x0017102c;
+    /// QUA 0x00170ee4, 0x00170ebc). Before, `MainProccess` sets it only
+    /// around a card call and clears it in the same frame.
+    pub pause: bool,
+    /// A request wrote `pause` since [`SaveSys::take_pause_write`].
+    pause_written: bool,
 }
 
 impl SaveSys {
@@ -181,6 +189,8 @@ impl SaveSys {
             operate: 0,
             running: false,
             volume,
+            pause: false,
+            pause_written: false,
         }
     }
 
@@ -217,16 +227,32 @@ impl SaveSys {
     /// `EndReq` (0x00171870): deletes the task.
     pub fn end_req(&mut self) {
         self.running = false;
+        self.write_pause(false);
+    }
+
+    /// `game.pauseFlag` as a request from Outbreak on writes it.
+    fn write_pause(&mut self, on: bool) {
+        if self.volume >= Volume::Out {
+            self.pause = on;
+            self.pause_written = true;
+        }
+    }
+
+    /// The value the requests last wrote to `game.pauseFlag`, once.
+    pub fn take_pause_write(&mut self) -> Option<bool> {
+        std::mem::take(&mut self.pause_written).then_some(self.pause)
     }
 
     /// `SlotSelectReq` (0x001718b0).
     pub fn slot_select_req(&mut self) {
+        self.write_pause(false);
         self.proccess = 2;
         self.result = code::SLOT_SELECT;
     }
 
     /// `LoadInfoReq(pn)` (0x001718d0): read port `pn`'s index.
     pub fn load_info_req(&mut self, pn: i32) {
+        self.write_pause(true);
         self.init_info();
         self.proccess = 3;
         self.result = code::WORKING;
@@ -618,11 +644,11 @@ pub fn load_done(volume: Volume) -> u32 {
 /// The input hold after a save's result sound, in `SaveMenu` and the
 /// Recorder's `RecordMenu`: 10 frames, but from Mutation on 0 unless
 /// `game.pauseFlag` is set or a controller is in port 1 (MUT main 0x0016fb1c,
-/// gcmn 0x00577a8c). `pauseFlag` is 0 while either menu runs: a game over
-/// sets it and closes the menus, the event VM sleeps every task under it,
-/// and `MainProccess` clears it in the call that sets it.
-pub fn saved_hold(volume: Volume, pad: &piney_input::Pad) -> i16 {
-    if volume == Volume::Inf || !pad.unplugged { 10 } else { 0 }
+/// gcmn 0x00577a8c). On Mutation `pauseFlag` is 0 while either menu runs
+/// (a game over sets it and closes the menus, and `MainProccess` clears it
+/// in the call that sets it); from Outbreak the index's read leaves it set.
+pub fn saved_hold(sys: &SaveSys, pad: &piney_input::Pad) -> i16 {
+    if sys.volume == Volume::Inf || sys.pause || !pad.unplugged { 10 } else { 0 }
 }
 
 /// The volume CONVERT reads: `volumeNum - 1`, Infection when that is not

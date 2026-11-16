@@ -67,6 +67,8 @@ pub enum Request {
     SleepAll,
     /// `ccWakeAllThread()`.
     WakeAll,
+    /// `game.pauseFlag` written (Data Drain from Outbreak on).
+    PauseFlag(bool),
     /// `fontOffFlip(); ccLayer::OffFlipExcept(menuLayer)` (true) or the
     /// reverse (false): the other layers keep their last picture.
     Still(bool),

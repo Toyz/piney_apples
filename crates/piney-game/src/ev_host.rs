@@ -420,6 +420,10 @@ impl<W: HostWorld> Host for EvHost<'_, W> {
         self.st.events.push(Event::Se(se));
     }
 
+    fn set_pause_flag(&mut self, on: bool) {
+        self.st.pause_write = Some(on);
+    }
+
     /// `compulsionGameOver` (0x00378c74).
     fn game_over(&self) -> bool {
         self.world.game_over()

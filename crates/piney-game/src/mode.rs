@@ -283,6 +283,19 @@ pub trait Mode {
     /// every mode, handed down by the session.
     fn set_sys_frames(&mut self, _frames: u32) {}
 
+    /// The mode's set-up has returned to the mother task with
+    /// `eventMng.enablePhase` at 4: it plays, and the mother pauses it for
+    /// an unplugged controller ([`piney_demo::pause`]).
+    fn in_play(&self) -> bool {
+        false
+    }
+
+    /// What the frames since the last call last wrote to `game.pauseFlag`
+    /// (`ccGame +0x7c`), which the session keeps across the modes.
+    fn take_pause_write(&mut self) -> Option<bool> {
+        None
+    }
+
     /// A test hook by name (`--press F:NAME` for the ones that are not
     /// buttons: `gateout`, `gofield`): true when the mode took it.
     fn hook(&mut self, _name: &str) -> bool {

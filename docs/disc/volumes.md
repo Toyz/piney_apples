@@ -156,15 +156,28 @@ rule finds 22 starts the others miss, every one a function's start.
 | | MUT | OUT | QUA |
 | --- | ---: | ---: | ---: |
 | `exact` | 3,535 | 1,034 | 1,031 |
-| `call` | 596 | 506 | 505 |
-| `order` | 1,214 | 3,344 | 3,323 |
-| `data` | 4,338 | 3,270 | 3,253 |
-| `pointer` | 1,093 | 1,343 | 1,333 |
-| `content` | 1,661 | 1,533 | 1,505 |
-| `layout` | 167 | 124 | 118 |
-| `ref` | 1 | 69 | 68 |
+| `call` | 596 | 514 | 513 |
+| `order` | 1,214 | 3,353 | 3,332 |
+| `data` | 4,338 | 3,348 | 3,331 |
+| `pointer` | 1,093 | 1,365 | 1,356 |
+| `content` | 1,661 | 1,527 | 1,499 |
+| `layout` | 167 | 152 | 146 |
+| `ref` | 1 | 66 | 65 |
 | `callees` | 0 | 1 | 1 |
-| total (all passes) | 12,627 | 11,248 | 11,162 |
+| total (all passes) | 12,627 | 11,384 | 11,299 |
+
+A switch's cases are paired by their table entry, not by the alignment
+(worklog 607). `ccThMenu`'s cases are all alike, one handler call each, so
+the alignment had nothing to tell them by: on Outbreak and Quarantine it
+put some sixty menu handlers four menus over (`GtHackMenu`, OUT gcmn
+0x00581bb0, was filed as `GtNewMenu`, `RecordMenu` as `TradeSubMenu`),
+and the data pass then named their globals from the wrong bodies
+(`dialogVoice` on `cmndTarget`). The generator found the gate's refusal
+through `GtNewMenu`, so Outbreak's and Quarantine's build had none.
+Where two paired bodies have as many `jr` tables, each case's first call
+(before its first branch) is paired with the other's by entry, and those
+calls are taken out of the alignment's pairs. Mutation's names are
+unchanged.
 
 Before the thread ends were entry points (worklog 596), Outbreak's and
 Quarantine's `ccThEntryCtrl` (gcmn 0x00442580, QUA 0x00334e90) had no name:

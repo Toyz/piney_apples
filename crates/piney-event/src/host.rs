@@ -681,8 +681,8 @@ pub trait Host {
     fn remove_trap_done(&mut self) {
         unported("remove_trap_done");
     }
-    /// `staff_roll`'s start: `game.pauseFlag` 1, `dtMenu +0x16 = 1` (the
-    /// menus forbidden), `ccSleepAllThread()`, then `pauseFlag` 0 again.
+    /// `staff_roll`'s start: `dtMenu +0x16 = 1` (the menus forbidden),
+    /// `ccSleepAllThread()` (`game.pauseFlag` is [`Host::set_pause_flag`]).
     fn staff_roll_sleep(&mut self) {
         unported("staff_roll_sleep");
     }
@@ -818,6 +818,9 @@ pub trait Host {
     /// Quarantine's `ending_kanji`, once its staff roll is over (the
     /// roll itself is [`Wait::EndingKanji`]).
     fn ending_kanji(&mut self) {}
+    /// `game.pauseFlag` (`ccGame +0x7c`) written: while it is set the
+    /// mother task does not pause for an unplugged controller.
+    fn set_pause_flag(&mut self, _on: bool) {}
 }
 
 /// A host that records every call and otherwise behaves like the defaults.

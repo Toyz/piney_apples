@@ -138,6 +138,10 @@ pub struct PersTexts {
     pub imp_tags: Vec<Vec<u8>>,
     /// `puccigusoCallWarnStr`: "There are no Grunties you can call ...".
     pub grunty_warn: [Vec<u8>; 2],
+    /// From Mutation, the help over the Grunty Flute's list ("Please select
+    /// the Grunty you would like to call."); None on Infection, whose flute
+    /// calls one at random.
+    pub grunty_select: Option<[Vec<u8>; 2]>,
     /// `shopStr`'s first line: the count window's labels ("Discard" is
     /// cell 6).
     pub shop_str: Vec<u8>,
@@ -179,6 +183,7 @@ impl PersTexts {
         PersTexts {
             imp_tags: f.imp_tags.iter().map(|l| encode(l)).collect(),
             grunty_warn: [piece(f.grunty_warn, 0), piece(f.grunty_warn, 1)],
+            grunty_select: f.grunty_select.map(|l| [piece(l, 0), piece(l, 1)]),
             shop_str: encode(f.shop_str),
             in_battle_warn: encode(f.in_battle_warn),
             gateout_info: encode(f.gateout_info),

@@ -266,7 +266,12 @@ alpha (`WORLD_MAN::SetMapAlpha(mapAlpha / 128)`); the bracelet's gauge;
 face's name, "You have new mail."); the target cursor and window (name, HP
 and SP bars, numbers, element and condition icons); the party panels (face,
 name, HP and SP bars coloured by `ccGetNowMaxColor`: under 20 % colour 2,
-under 40 % 23, under 60 % 6, else 22); the enemies' life bars and
+under 40 % 23, under 60 % 6, else 22; a panel's condition icons from
+(170 i + 12, 320) on Infection and Mutation, from a static the disc holds
+as 0 and no code writes on Outbreak and Quarantine, OUT gcmn 0x00539ad8
+reading 0x00720c90, QUA 0x00619690 (see "The condition icons' static"):
+there they stand at the screen's top, the panel's shake added either way);
+the enemies' life bars and
 off-screen arrows; the protect marks; the battle banner (not while a menu
 forbids, an event runs (`eventMng` +0x04) or a boss is entered
 (`eventMng.bossEntry`, +0x08, 0 or more: no banner at all through a boss's
@@ -498,6 +503,11 @@ proccess 3  until Check, then 12 frames, then the list again
 then        while proccess < 2: the item's help (personalMenuHelp / optionMenuHelp)
 ```
 
+From Mutation PERSONAL's row 6 is also greyed on fields 8 and 13 (`game`
++0x24), and OK on it there only buzzes, sound 20, before the cancel and OK
+tests (MUT gcmn 0x00546ec4, 0x00546f50; Outbreak and Quarantine alike;
+not OPTION, menu 12).
+
 ## The battle menus
 
 ### Skills (`SkillMenu`, menu 4)
@@ -520,8 +530,11 @@ useful while a member is there (180 while one has fallen, `dead` not 0 or
 whose protect is broken (`personality +98` not 0).
 
 OK on a skill: in town `skillMenuHelp[0]`; short of SP `[1]`; Data Drain
-while operation 17 is held or `eventStatus[40]` is set `[2]` (the refusal
-waits for the window to go, `OpenInfo`, `Check`, 8 frames); else TARGET
+while operation 17 is held or `eventStatus[40]` is set `[2]` (Kite's
+promise, two lines), or from `volumeNum` 4 `[3]`, "Cannot use Data
+Drain." (the test is on every disc, QUA gcmn 0x00439070; the fourth entry
+is there from Outbreak, Infection's and Mutation's word is 0). The refusal
+waits for the window to go, `OpenInfo`, `Check`, 8 frames; else TARGET
 (65). Otherwise the skill's name and help line.
 
 ### Items (`ItemMenu`, menu 5)
@@ -852,7 +865,12 @@ the cores in.
 TargetMenu opens 66 once Kite's Data Drain has a target. The skill is in
 `itemNum` (+0x238: 2 Data Drain, 3 Drain Arc, 4 2128 Drain, 5 Drain Heart)
 and the target is `cmndTarget`. The rules are `piney_battle::drain`'s; the
-menu is `crates/piney-fieldui/src/menus/drain.rs`.
+menu is `crates/piney-fieldui/src/menus/drain.rs`. From Outbreak on step 0
+sets `game.pauseFlag` (+0x7c) first and clears it once `cmndTarget` is
+cleared, and step 20 clears it again (OUT gcmn 0x0054c574, 0x0054cecc,
+0x0054e854; QUA 0x0043ee84, 0x0043f7dc, 0x00441164), so no unplugged
+controller pauses the drain's fade and movie ([overview](overview.md),
+"The pause"); Infection and Mutation leave it alone.
 
 - **0, the drain.**
   - The screen breaks up and fades to black: `EntryFade(25)`, noise every
@@ -1373,6 +1391,19 @@ proccess 20  the Grunty Flute: from slot rand() % 3 round the three, the
              (two lines)
 ```
 
+From Mutation the flute asks which Grunty (MUT gcmn 0x0054e7ac on; Outbreak
+and Quarantine alike). Proccess 20 lists the callable ones' names
+(`ccGetNpcParam(145 + n)`) in the key items' window: `exceptionDisp` 0,
+the list's disp 7, its `x` / `y` kept in `sx` / `sy`, its `select` and
+`my` in `temp[0]` and `temp[1]`, `x` 9 and `y` = `my` = the count, the
+names extracted, proccess 30 (none: the same warning as Infection's). 30:
+`Select(0, 0, 0)`; cancel (19) proccess 31, OK (18) 35, both shutting the
+window; else `DispMsg(0x100)` of "Please select the Grunty you would like
+to call." (the `$gp` word after `puccigusoCallWarnStr`). 31: the list
+back (disp 4, `x`, `y`, `select`, `my`), proccess 0. 35: the list back,
+then `ccUseItemRequest(plw, plw, 0xf0031, n)` for the chosen row's Grunty
+and the menu shut as Infection's call does.
+
 `ImportantItemMenuDisp` (0x005305d0): the tabbed window (`DispSquareTag`,
 the page's tag from `impItemMenuTag`) at (39, 96), the scroll bar, L1 / R1
 at (55, 64) and past the window, the rows at (67, 112 + 20 r) with their
@@ -1391,7 +1422,9 @@ proccess 2   up / down one, left / right ten (1 to the count held);
              cancel back; OK: the window out
 proccess 3   "Discard N #Gitem#W." with OK / Cancel (list disp 11)
 proccess 4   Select; OK on OK: ccSaveData::DelItem(0, cat, id, N)
-proccess 5   the list again
+proccess 5   the list again; from Mutation fitted to the bag at once
+             (SetItemList with the count, MUT 0x00550054), so that frame
+             draws it without what was thrown
 ```
 
 `ThrowItemMenuDisp` (0x00531820): `ItemMenuDisp`, then with
@@ -1432,7 +1465,9 @@ boxes.
 The boxes all three pages share: `ParameterDisp(x, y, now, was)`
 (0x00523e50): the physical and magical abilities, the elements and the
 tolerances of `now` (a `ccCharParamElement`, a tenth shown by
-`MakeSignedNum(3, v / 10)`), each in colour 20 when it rose over `was`, 23
+`MakeSignedNum(3, v / 10)`, cut toward 0 on Infection; from Mutation a
+value below 0 is taken 9 lower first, MUT 0x005424fc, so -25 shows -3),
+each in colour 20 when it rose over `was`, 23
 when it fell (`ccGetParamColor`, both at most 990); `SkillDisp(x, y,
 list)` (0x00524e20): "Skills:" and up to sixteen skills, eight a column,
 each in its colour (the list is pairs of skill and colour);
@@ -1808,7 +1843,7 @@ another save byte and texts:
 | menu | byte | rows | row 0 is | texts |
 | ---: | --- | --- | --- | --- |
 | 14 | `vibration` +0x8428 | `dialogOnOff` | not 0 | `vibrationMenuInfo` (one line) |
-| 18 | `drainDemo` +0x8427 | `dialogOnOff` | not 0 | `datadrainDemoMenuInfo` (two lines) |
+| 18 | `drainDemo` +0x8427 | `dialogOnOff` | not 0 | `datadrainDemoMenuInfo` (two lines on Infection, the first from Mutation: MUT 0x0055f390) |
 | 19 | `voice` +0x842c | `dialogVoice` (English, Japanese) | 1 | `voiceMenuInfo` (one line) |
 | 20 | `strWinMode` +0x8430 | `dialogOnOff` | not 0 | `strwinMenuInfo` (one line) |
 
@@ -2188,7 +2223,10 @@ target, cat, item }`), and `TargetFix(false)`.
 The stock is `equipShopItemList`, `magicShopItemList` or `itemShopItemList`
 (gcmn 0x00648430, 0x00648650, 0x00648230; a pointer per server to 24 item
 codes, -1 past the stock) by the 0x100 and 0x800 bits of the list's
-`index` (the merchant's type Vender kept), at `game.server`.
+`index` (the merchant's type Vender kept), at `game.server`. Its count
+stops at a code of 0 or below on Infection (`blez`, 0x005565a8) and only
+below 0 from Mutation (`bltz`, MUT 0x00575728, QUA 0x00463d5c), so code 0
+(category 0, item 0), which opens Quarantine's weapon stock, is sold there.
 
 ```
 proccess 0   the page (disp 4, 18 cells, 8 rows, my = the stock's
@@ -2342,8 +2380,12 @@ gcmn 0x00577a8c, 0x00577af0, 0x00577b54; OUT 0x0057376c, QUA 0x004660ac).
 controller there. `pauseFlag` stops `ccThMother` pausing the game when the
 controller is pulled. It is set on a game over, which closes the menus,
 while the event VM sleeps every task, and within one `MainProccess` call
-around a card access (MUT main 0x00171f7c-0x0017528c), so it is 0 here.
-With a controller in, the wait is Infection's. The desktop's `SaveMenu`
+around a card access (MUT main 0x00171f7c-0x0017528c), so on Mutation it
+is 0 here. From Outbreak `LoadInfoReq` sets it (OUT main 0x00171090, QUA
+0x00170f20) and only `SlotSelectReq` and `EndReq` clear it (0x00171054,
+0x0017102c), so after the card's index is read it stays set and the wait
+is 10 with no controller as well. With a controller in, the wait is
+Infection's. The desktop's `SaveMenu`
 does the same ([the save menus](desktop.md#the-save-menus-after-the-staff-roll)).
 
 `RecordMenuDisp`: `recordMenuStr` (main .sdata 0x00377e48: "slot 1",
@@ -3204,6 +3246,45 @@ slide, scale and rows over the 90 frames),
 `the_last_portal_puts_up_its_banner` (the area's start of it, 90 frames
 up), and the shots of `last_portal_banner_shots`. Not compared with the
 game's pictures.
+
+## The condition icons' static
+
+On Outbreak and Quarantine `Disp` reads a party panel's condition icons' y
+with `lui $at, 0x72; lw $v0, 0x0c90($at)` (OUT gcmn 0x00539ad4) from GCMN's
+data, which the PRG holds as 0; Infection and Mutation add a literal
+(`addiu $v0, $s2, 320`, INF gcmn 0x00520a9c, MUT 0x0053ec3c), so no static
+of theirs matches it. The word is one of a run of 4-byte statics each in
+its own 8 bytes (OUT 0x00720c38 to 0x00720c97: 512.0, 5400, 450, 300, 300,
+5400, 450, 900, 900, 32, 32, 0), between the jump tables `@1486` and
+`@2983` with strings before and string literals after; each is read by
+direct address only (`DataDrainMenu`, `ConditionIconDisp`, `Disp`).
+
+`tools/refscan.py outbreak 0x00720c90 0x00720c98 --near 0x58` (and
+`quarantine 0x00619690 0x00619698`) proves nothing writes it:
+
+```
+code     main and the four overlays' text, every word as an instruction;
+         from each lui the address registers followed 128 instructions
+         (addiu/ori/daddiu, moves; any other write or a call ends them):
+         every load, store or address built near the word, an address
+         passed in $a0-$a3 to a call (memset, memcpy, a file read), and
+         an indexed access (lui; addu index; lw %lo) from a base up to
+         8 KB below; $gp-relative accesses ($gp 0x0038ddf0 OUT, 0x00280770
+         QUA, out of reach of 0x0072xxxx)
+data     every aligned word of every file on the image, DATA.BIN's and the
+         STREAM archives' members inflated (1440 files and members on
+         Outbreak, 1519 on Quarantine), equal to an address near it
+```
+
+Within 0x58 of the word the code holds only loads (`Disp`'s at
+0x00539ad8 the one of 0x00720c90; QUA 0x0042c3e8), two indexed loads that
+are the jump tables (`sltiu` bounds 6 from 0x00720ba0, 21 from 0x00720be0,
+ending at 0x00720c34), no store, no address taken, no argument; no word of
+the executable or any overlay points there, only words of audio, movie and
+compressed data do by chance. The range is GCMN's `.data` (OUT data
+0x005fd580 to 0x0073d800, QUA 0x004f4900 to 0x0063a380), filled from the
+PRG by `mwLoadOverlay`, not `.bss`; the heap starts past the overlay's end.
+So the y is 0 from boot to power-off and the icons stand at the top.
 
 ## Not yet known or not ported
 

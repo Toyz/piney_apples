@@ -1203,7 +1203,7 @@ class Harness:
                                                     for _ in range(3)]
         sc["land"] = [rf(rnd, -200, 800) if rnd.random() < 0.9 else fb(rnd.choice((0.0, -1.0)))
                       for _ in range(rnd.randrange(0, 40))]
-        dusts = (0x00B0C000, inf_va(0x00304050), inf_va(0x00606060), 0x00E0E0E0, 0x008080F0, inf_va(0x0070C0E0))
+        dusts = (0x00B0C000, 0x00304050, 0x00606060, 0x00E0E0E0, 0x008080F0, 0x0070C0E0)
         sc["attr"] = [rnd.choice(dusts) | rnd.getrandbits(32) & 0xFF0F0F0F if rnd.random() < 0.5
                       else rnd.getrandbits(32) for _ in range(rnd.randrange(0, 12))]
         sc["camdeg"] = [int(rnd.random() < 0.7) for _ in range(rnd.randrange(0, 12))]
@@ -1759,7 +1759,7 @@ def check_race(checks, rnd):
     race = next(r for r in BUILT if h.race_first[r] <= row < h.race_first[r] + h.race_num[r])
     ent = h.rnd_ent(rnd, sc, 0, row)
     ent[21] = rnd.choice((0, 1, 2, 3, -1, rnd.randrange(-40000, 40000)))
-    sc["attr"] = sc["attr"] or [inf_va(0x00304050)]
+    sc["attr"] = sc["attr"] or [0x00304050]
     h.put_scene(sc)
     h.put_ent(EP, ent)
     entry = ENEMY_TBL + ROW * row + 0x68
@@ -1922,7 +1922,7 @@ def check_frame(checks, rnd):
         path.append([fb(x + (tx - x) * t * 1.05), fb(y + (ty - y) * t * 1.05)])
     sc["k"] = path[0]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(200)]
-    sc["attr"] = [inf_va(0x00304050), 0x00B0C000] * 20
+    sc["attr"] = [0x00304050, 0x00B0C000] * 20
     sc["camdeg"] = [int(rnd.random() < 0.8) for _ in range(400)]
     sc["camtr"] = [rnd.choice((F_ONE, rf(rnd, 0, 1))) for _ in range(400)]
     sc["fwd"] = [int(rnd.random() < 0.05) for _ in range(400)]
@@ -1954,7 +1954,7 @@ def check_world_mc(checks, rnd):
     sc["game"][2] = rnd.choice((0, 0, 14, rnd.randrange(1, 60)))
     sc["ctrl"] = [1, sc["game"][2], sc["game"][4], sc["game"][5]]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
-    sc["attr"] = [inf_va(0x00304050)] * 40
+    sc["attr"] = [0x00304050] * 40
     dens = rnd.choice((0.0, 0.2, 0.4, 0.6))
     check = [int(rnd.random() < dens) for _ in range(1600)]
     sx, sy = rnd.uniform(0, 48000), rnd.uniform(0, 48000)
@@ -2139,7 +2139,7 @@ def check_event_mc(checks, rnd):
     sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, area=rnd.choice((1, 2)))
     sc["game"][9] = 0
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
-    sc["attr"] = [inf_va(0x00304050)] * 40
+    sc["attr"] = [0x00304050] * 40
     kite = sc["objs"][0]["char"][1:5]
     evp = rnd_evpos(rnd)
     enemy = rnd.random() < 0.35
@@ -2413,7 +2413,7 @@ def check_save(checks, rnd):
     m = h.m
     kind = rnd.choice(("ev", "ev", "dust", "rands"))
     if kind == "dust":
-        attr = rnd.choice((0x00B0C000, inf_va(0x00304050), inf_va(0x00606060), 0x00E0E0E0, 0x008080F0, inf_va(0x0070C0E0),
+        attr = rnd.choice((0x00B0C000, 0x00304050, 0x00606060, 0x00E0E0E0, 0x008080F0, 0x0070C0E0,
                            0x00D0D0D0, rnd.getrandbits(32))) | (rnd.getrandbits(32) & 0xFF0F0F0F if rnd.random() < 0.5 else 0)
         pos = [rf(rnd, -1000, 1000) for _ in range(3)] + [F_ONE]
         h.reset_state()
@@ -2511,7 +2511,7 @@ def m_answer(h, kind, circle=False):
     if kind == "land":
         v = rnd.choice((0, fb(rnd.uniform(-30, 30)), fb(rnd.uniform(-300, 300))))
     elif kind == "attr":
-        v = rnd.choice((0x00B0C000, inf_va(0x00304050), inf_va(0x00606060), rnd.getrandbits(32)))
+        v = rnd.choice((0x00B0C000, 0x00304050, 0x00606060, rnd.getrandbits(32)))
     elif kind == "camdeg":
         v = int(rnd.random() < 0.8)
     elif kind == "camtr":
@@ -3406,7 +3406,7 @@ def check_field_gims(checks, rnd):
     sc["game"][2] = rnd.choice((0, 0, 28, 41, 57, 80, 111, rnd.randrange(1, 120)))
     sc["ctrl"] = [1, sc["game"][2], sc["game"][4], sc["game"][5]]
     sc["land"] = [rf(rnd, -100, 600) for _ in range(40)]
-    sc["attr"] = [inf_va(0x00304050)] * 40
+    sc["attr"] = [0x00304050] * 40
     seed = rnd.getrandbits(32) % 0xFFFFFFFE
     ftype = rnd.randrange(0, 12)
 

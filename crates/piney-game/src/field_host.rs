@@ -335,6 +335,9 @@ pub struct FieldState {
     pub announcements: Option<Arc<crate::story::Announcements>>,
     /// `ccSystem::SetFrameRate` from the scripts, over the town's own.
     pub frame_rate: Option<u32>,
+    /// The frame's last write to `game.pauseFlag`: the scripts', the game
+    /// over's, Data Drain's.
+    pub pause_write: Option<bool>,
 }
 
 impl FieldState {
@@ -380,6 +383,7 @@ impl FieldState {
             shown: Vec::new(),
             announcements: None,
             frame_rate: None,
+            pause_write: None,
         }
     }
 

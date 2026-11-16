@@ -16,6 +16,7 @@ use crate::menus::personal::{self, Tail, check, check_fade, delete_fade, key, op
 use crate::menus::system::{extract_menu, str_cat};
 use crate::spr::{font_type, make_num, set_clm};
 use crate::window::{disp_button, disp_scroll_bar, disp_square_tag, set_type};
+use piney_data::volume::Volume;
 
 /// `saveData.impItemList` (+0xcfc): how many of each key item.
 pub const IMP_ITEMS: usize = 291;
@@ -189,6 +190,18 @@ pub fn important_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             // proccess 12.
             crate::menus::useitem::call(m, x, me, it.code(), crate::menus::useitem::Resume::KeyItem);
         }
+        20 if x.texts.pers.grunty_select.is_some() => return grunty_list(m, x, i),
+        30 => return grunty_select(m, x),
+        31 if m.menu_status == 0 => {
+            // Cancel: the key items' list back as it was.
+            m.menu_status = 1;
+            restore_list(m, i);
+            m.lists[i].select = m.temp[0] as i16;
+            m.cursor.init(true);
+            m.cursor_pr.init(true);
+            m.proccess = 0;
+        }
+        35 if m.menu_status == 0 => return grunty_call(m, x, i),
         20 => {
             if m.menu_status != 0 {
                 return Flow::Done;
@@ -248,6 +261,89 @@ pub fn important_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         }
         _ => {}
     }
+    Flow::Done
+}
+
+/// From Mutation the Grunty Flute lists the Grunties callable here
+/// (proccess 20, MUT gcmn 0x0054e7ac): their names (`ccGetNpcParam(145 +
+/// n)`) in the key items' window (disp 7), its select and rows kept in
+/// `temp[0]` and `temp[1]`; with none, Infection's warning.
+fn grunty_list(m: &mut MenuCtrl, x: &mut Ctx, i: usize) -> Flow {
+    if m.menu_status != 0 {
+        return Flow::Done;
+    }
+    let mut buf = Vec::new();
+    let mut n = 0;
+    for g in x.world.pg_adult.iter().flatten() {
+        let name = x.texts.npc_names.get((145 + g) as usize).cloned().unwrap_or_default();
+        str_cat(&mut buf, &name, 16);
+        n += 1;
+    }
+    if n == 0 {
+        let w = x.texts.pers.grunty_warn.clone();
+        open_info2(m, x, &w);
+        m.wait_count = 0;
+        m.proccess += 1;
+        return Flow::Done;
+    }
+    m.exception_disp = 0;
+    m.menu_status = 1;
+    let l = &mut m.lists[i];
+    l.disp = 7;
+    (l.sx, l.sy) = (l.x, l.y);
+    m.temp[0] = i32::from(l.select);
+    m.temp[1] = i32::from(l.my);
+    l.select = 0;
+    l.x = 9;
+    l.y = n;
+    l.my = n;
+    extract_menu(m, buf);
+    m.cursor.init(true);
+    m.cursor_pr.init(true);
+    m.proccess = 30;
+    Flow::Done
+}
+
+/// The list's page as it was before the Grunties: disp 4, its size and
+/// rows back (MUT gcmn 0x0054eb20, 0x0054eb80).
+fn restore_list(m: &mut MenuCtrl, i: usize) {
+    let l = &mut m.lists[i];
+    l.disp = 4;
+    l.x = l.sx;
+    l.y = l.sy;
+    l.my = m.temp[1] as i16;
+}
+
+/// Proccess 30 (MUT gcmn 0x0054e97c): a Grunty chosen (35) or the choice
+/// cancelled (31); else the help line.
+fn grunty_select(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
+    m.select(0, 0, false, x);
+    match key(x) {
+        Some(ok) => {
+            m.menu_status = 3;
+            m.cursor.init(true);
+            m.cursor_pr.init(true);
+            m.proccess = if ok { 35 } else { 31 };
+        }
+        None => {
+            let h = x.texts.pers.grunty_select.clone().unwrap_or_default();
+            let names = x.save.names();
+            m.msg.disp_msg(0x100, None, [Some(&h[0]), Some(&h[1]), None], &names);
+        }
+    }
+    Flow::Done
+}
+
+/// Proccess 35 (MUT gcmn 0x0054eb70): the list back, then the chosen
+/// Grunty called (`ccUseItemRequest(plw, plw, 0xf0031, n)`) and the menu
+/// shut as Infection's random call does.
+fn grunty_call(m: &mut MenuCtrl, x: &mut Ctx, i: usize) -> Flow {
+    restore_list(m, i);
+    let at = m.lists[i].select.max(0) as usize;
+    let found = x.world.pg_adult.iter().flatten().nth(at).copied().unwrap_or(-1);
+    m.lists[i].select = m.temp[0] as i16;
+    let me = x.world.player().map_or(0, |p| p.handle);
+    crate::menus::useitem::call_arg(m, x, me, 0xf_0031, found, crate::menus::useitem::Resume::Flute);
     Flow::Done
 }
 
@@ -585,6 +681,11 @@ pub fn throw_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             m.exception_disp = 1;
             m.menu_status = 1;
             init_cursors(m);
+            // From Mutation the list is fitted again at once (MUT gcmn
+            // 0x00550054), so the frame draws it without what was thrown.
+            if x.texts.volume >= Volume::Mut {
+                throw_list(m, x, true);
+            }
             m.proccess = 1;
         }
         _ => {}

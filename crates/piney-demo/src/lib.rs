@@ -18,6 +18,7 @@ pub mod fade;
 pub mod names;
 pub mod newgame;
 pub mod opening;
+pub mod pause;
 pub mod seam;
 
 use std::rc::Rc;

@@ -80,35 +80,28 @@ UP, RIGHT, DOWN, LEFT = 0x1000, 0x2000, 0x4000, 0x8000
 R1_, L1_ = 0x8, 0x4
 # The handlers of the menus the port does not have (it closes them at once).
 UNPORTED = ()
-# GtHackMenu's and DataDrainMenu's code (gcmn 0x005661e0..0x00566ca8,
-# 0x00532ae0..0x00535204): the calls they make themselves. Outbreak's and
-# Quarantine's GtHackMenu carries no name (none of their scenarios here
-# reach it): an empty span.
-try:
-    GT_HACK = volume.span("GtHackMenu__10ccMenuCtrlFv")
-except KeyError:
-    GT_HACK = (0, 0)
+# GtHackMenu's and DataDrainMenu's code (INF gcmn 0x005661e0..0x00566ca8,
+# 0x00532ae0..0x00535204): the calls they make themselves.
+GT_HACK = volume.span("GtHackMenu__10ccMenuCtrlFv")
 DRAIN = volume.span("DataDrainMenu__10ccMenuCtrlFv")
 
 
 def disp_noiz():
-    """Disp's interNoiz (INF 0x00522220 up to its ccNoiz::Draw call): the
-    SetNoiz calls the events' noise makes. Mutation's block is longer
-    (levels 3 to 5 anew), so its end is Disp's own call of Draw."""
-    start = inf_va(0x00522220)
-    draw = volume.program(ELF).symbol_named("Draw__6ccNoizFv").value
+    """Disp's interNoiz (INF 0x00522220, OUT 0x0053b028, QUA 0x0042dc38): the
+    SetNoiz calls the events' noise makes, from the code after Disp's last
+    ccSprite::Trans call (the menu window's) up to its ccNoiz::Draw call.
+    Mutation's block is longer (levels 3 to 5 anew)."""
+    prog = volume.program(ELF)
     lo, hi = volume.span("Disp__10ccMenuCtrlFv")
-    jal = 0x0C000000 | (draw >> 2)
-    end = next(a for a in range(start, hi, 4) if volume.program(ELF).u32(a) == jal)
-    return (start, end + 8)
+
+    def jal(name):
+        return 0x0C000000 | (prog.symbol_named(name).value >> 2)
+    end = next(a for a in range(lo, hi, 4) if prog.u32(a) == jal("Draw__6ccNoizFv"))
+    trans = max(a for a in range(lo, end, 4) if prog.u32(a) == jal("Trans__8ccSpriteFv"))
+    return (trans + 8, end + 8)
 
 
-# Outbreak's and Quarantine's Disp calls no named ccNoiz::Draw (none of
-# their scenarios here make noise): an empty span.
-try:
-    DISP_NOIZ = disp_noiz()
-except (StopIteration, KeyError):
-    DISP_NOIZ = (0, 0)
+DISP_NOIZ = disp_noiz()
 # The Ryu Books' code (BOOK, ccThBook): its EntryFlash calls on menuFade.
 BOOK_CODE = (volume.span("CheckBookLimit__4BOOKFii")[0], volume.span("ccThBook__FPv")[1])
 OWN_CALLS = (GT_HACK, DRAIN, DISP_NOIZ, BOOK_CODE)
@@ -947,7 +940,7 @@ class Game:
             c = next((x for x in self.chars.values() if x.handle == h), None)
             return 1 if c is not None and c.view else 0
         hook("ccCheckCameraDeg__FPfs", camera_deg)
-        hook("SetMapAlpha__9WORLD_MANFf", lambda mm, *a: self.ev("map_alpha", f_to_py(mm.f[12])) or 0)
+        hook("SetMapAlpha__9WORLD_MANFf", lambda mm, *a: self.ev("map_alpha", mm.f[12] & 0xFFFFFFFF) or 0)
         hook("GetDungeonType__9WORLD_MANFv", lambda mm, *a: self.dungeon_type)
         if self.sc.area_item:
             # The area's element as the scenario gives it (the gate's pages
@@ -1036,7 +1029,7 @@ class Game:
             m.store(this + 0x40, 4, dx)
 
         def rec(this, code, text):
-            f = lambda o: round(f_to_py(m.load(this + o, 4)), 4)  # noqa: E731
+            f = lambda o: m.load(this + o, 4)  # noqa: E731  # a float's bits
             i = lambda o: m.load(this + o, 4, True)  # noqa: E731
             rgba = [m.load(this + 0x68 + 4 * k, 4) & 0xFF for k in range(4)]
             ctrl = m.load(this + 4, 4)
@@ -1084,8 +1077,7 @@ class Game:
             b = bytes(mm.mem[s:s + 200]).split(b"\0")[0]
             rgba = [mm.load(obj + 0x68 + 4 * k, 4) & 0xFF for k in range(4)]
             c = c - (1 << 32) if c & 0x80000000 else c
-            self.ev("mt", obj, b, c, round(f_to_py(mm.load(obj + 0x40, 4)), 4),
-                    round(f_to_py(mm.load(obj + 0x44, 4)), 4), rgba)
+            self.ev("mt", obj, b, c, mm.load(obj + 0x40, 4), mm.load(obj + 0x44, 4), rgba)
             return 0
         hook("Disp__7ccKanjiFPciff", kdisp)
 
@@ -1214,7 +1206,8 @@ class Game:
               w(0x3C), w(0x4C), g(0x20), g(0x18), g(0x14), g(0x1C), g(0x12A), m.load(lst + 0xA, 2, True),
               w(0xEC), m.load(CMNDTARGETFIX, 4, True), w(volume.menu_at(0x238)), m.mem[SAVE + 0x30:SAVE + 0xD0].hex(),
               m.load(EV + 0x77A, 2, True), m.load(EV + 0x77C, 2, True), m.load(EV + 0x77E, 2, True),
-              m.load(GAME + 0x78, 4, True), w(volume.menu_at(0x23C)), m.load(SAVE + 0x7440, 2, True)]
+              m.load(GAME + 0x78, 4, True), w(volume.menu_at(0x23C)), m.load(SAVE + 0x7440, 2, True),
+              m.load(GAME + 0x7C, 4, True)]
         st += [m.mem[SAVE + off:SAVE + off + n].hex() for off, n in self.sc.watch]
         if self.sc.ctor_fields:
             st += self.ctor_members(c)
@@ -1492,10 +1485,7 @@ def norm_port(frames):
 
 
 def close(a, b):
-    if isinstance(a, float) or isinstance(b, float):
-        return abs(a - b) < 1e-3
-    if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(close(x, y) for x, y in zip(a, b))
+    """Exact: both sides give every float as its bits."""
     return a == b
 
 

@@ -790,11 +790,12 @@ impl Vm {
     }
 
     /// Quarantine's `ending_kanji` (code 169, QUA main 0x001c52e8), playing
-    /// only: `game.pauseFlag` 1, the player at the origin, `KFED.BIN` and
+    /// only: `game.pauseFlag` 1 (0x001c52fc, never cleared), the player at the origin, `KFED.BIN` and
     /// `KFAED.BIN` read (and freed unread), `ending.ccs` loaded, then
     /// `STFROLL_VOL4` started (gcmn 0x004f0a30) and waited for.
     fn ending_kanji<H: Host + ?Sized>(&mut self, host: &mut H, run: &mut OpRun) -> Step {
         if run.step == 0 {
+            host.set_pause_flag(true);
             host.begin(Wait::EndingKanji);
             run.step = 1;
         }
@@ -807,8 +808,10 @@ impl Vm {
     }
 
     /// `staff_roll` (code 147) as the volume compiles it ([`RollCase`]):
-    /// the tasks put to sleep, the desktop's staff roll and 30 frames (not
-    /// on Quarantine), 30 frames a second, then unless in Parody Mode the
+    /// `pauseFlag` set and the tasks put to sleep, the desktop's staff roll
+    /// and 30 frames (not on Quarantine), `pauseFlag` clear (INF
+    /// 0x001b1cbc, 0x001b1d34; QUA 0x001c4a9c, 0x001c4ab4, the same frame),
+    /// 30 frames a second, then unless in Parody Mode the
     /// wallpapers' boxes (Outbreak, Quarantine), 30 frames after them and
     /// menu 8 until it closes; `ccSndBgmCtrl` (not on Quarantine), a frame,
     /// the tasks woken.
@@ -817,6 +820,7 @@ impl Vm {
         loop {
             match run.step {
                 0 => {
+                    host.set_pause_flag(true);
                     host.staff_roll_sleep();
                     if case.roll {
                         host.begin(Wait::StaffRoll);
@@ -840,6 +844,7 @@ impl Vm {
                     run.step = 3;
                 }
                 3 => {
+                    host.set_pause_flag(false);
                     host.set_frame_rate(2);
                     (run.step, run.n, run.v) = match case.wallpapers {
                         _ if host.save().parody_on() => (8, 0, 0),
@@ -1268,6 +1273,67 @@ mod tests {
             let want: Vec<[[i16; 4]; 16]> = if reloads { vec![vm.mng.entries] } else { Vec::new() };
             assert_eq!(h.got, want, "status {status}, area {area}, areaPrev {area_prev}");
         }
+    }
+
+    /// A host that keeps `game.pauseFlag`'s writes with their frame; the
+    /// staff roll's task ends on its third check.
+    struct PauseWrites {
+        save: SaveData,
+        frame: u32,
+        checks: u32,
+        writes: Vec<(u32, bool)>,
+    }
+
+    impl Host for PauseWrites {
+        fn save(&mut self) -> &mut SaveData {
+            &mut self.save
+        }
+        fn game(&self) -> Game {
+            Game { status: 2, ..Game::default() }
+        }
+        fn set_pause_flag(&mut self, on: bool) {
+            self.writes.push((self.frame, on));
+        }
+        fn busy(&mut self, w: crate::host::Wait) -> bool {
+            self.checks += u32::from(w == crate::host::Wait::StaffRoll);
+            w == crate::host::Wait::StaffRoll && self.checks < 3
+        }
+        fn staff_roll_sleep(&mut self) {}
+        fn begin(&mut self, _w: crate::host::Wait) {}
+        fn end(&mut self, _w: crate::host::Wait) {}
+        fn set_frame_rate(&mut self, _rate: i16) {}
+    }
+
+    /// `staff_roll` (case 147) sets `pauseFlag` at its start and clears it
+    /// after the roll and `ccBreathThread(30)` (INF 0x001b1cbc, 0x001b1d34;
+    /// MUT 0x001c7084, 0x001c70fc; OUT 0x001bd444, 0x001bd4c0); Quarantine,
+    /// with no roll, clears it in the same frame (0x001c4a9c, 0x001c4ab4).
+    #[test]
+    fn the_staff_roll_holds_the_pause_off() {
+        use piney_data::volume::Volume;
+        for (volume, cleared) in [(Volume::Inf, 32), (Volume::Mut, 32), (Volume::Out, 32), (Volume::Qua, 0)] {
+            let lib = std::sync::Arc::new(crate::vm::Library::new(volume, []));
+            let mut vm = Vm::new(lib);
+            let mut h = PauseWrites { save: SaveData::new(), frame: 0, checks: 0, writes: Vec::new() };
+            let (mut run, mut set_bit) = (OpRun::default(), false);
+            while h.writes.len() < 2 && h.frame < 100 {
+                vm.op(&mut h, 1, 0, 2, Op::StaffRoll {}, &mut run, &mut set_bit);
+                h.frame += 1;
+            }
+            assert_eq!(h.writes, [(0, true), (cleared, false)], "{volume:?}");
+        }
+    }
+
+    /// Quarantine's `ending_kanji` sets `pauseFlag` and leaves it (QUA main
+    /// 0x001c52fc): only `ccGame::Init` clears it.
+    #[test]
+    fn the_ending_kanji_sets_the_pause_flag() {
+        let lib = std::sync::Arc::new(crate::vm::Library::new(piney_data::volume::Volume::Qua, []));
+        let mut vm = Vm::new(lib);
+        let mut h = PauseWrites { save: SaveData::new(), frame: 0, checks: 0, writes: Vec::new() };
+        let (mut run, mut set_bit) = (OpRun::default(), false);
+        vm.op(&mut h, 1, 0, 2, Op::EndingKanji {}, &mut run, &mut set_bit);
+        assert_eq!(h.writes, [(0, true)]);
     }
 
     /// Values of the game's `DEG2RAD` (run in `tools/eemu.py`) where the

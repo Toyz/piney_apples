@@ -104,7 +104,7 @@ GATE_FIXTURE = os.path.join(ROOT, "crates", "piney-stream", "tests", "gate_hack_
 
 M32 = 0xFFFFFFFF
 SYS, SCRATCH, PAD_SYS = 0x00F00000, 0x00F10000, 0x00F80000
-DATA = inf_va(0x00400000)
+DATA = 0x00400000              # run_scene: where the stream files are loaded
 HEAP0, HEAP_END = 0x01000000, 0x01F00000
 PACKET_ARENA = 0x01D00000      # effects(): a pass's packet work, reused each pass
 GAME, SAVE = 0x00F90000, 0x00FA0000
