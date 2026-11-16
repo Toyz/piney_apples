@@ -1295,7 +1295,7 @@ impl AreaMode {
                 self.events.push(Event::Se(60));
             }
             NpcEvent::Pc(PcEvent::Step { param, ccs_type, pos, attribute, .. }) => {
-                if let Some(se) = piney_audio::se3d::pc_note(param, ccs_type, attribute) {
+                if let Some(se) = piney_audio::se3d::pc_note(self.world.volume(), param, ccs_type, attribute) {
                     self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
                 }
             }

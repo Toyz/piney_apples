@@ -582,10 +582,10 @@ impl Driver {
     }
 
     /// `ccSeOnNote(n, note)` (0x00179cb0): the same with the note replaced,
-    /// clamped to 0..127. From Mutation on (MUT main 0x0017c310,
-    /// 0x0017c3f4) a row whose program is below 0 sends nothing.
+    /// clamped to 0..127. Nothing for a row that does not
+    /// [`se3d::sounds`] (MUT main 0x0017c310, 0x0017c3f4).
     pub fn se_note(&self, se: &SeTbl, note: i8) -> Vec<u8> {
-        if self.volume != Volume::Inf && se.prog < 0 {
+        if !se3d::sounds(self.volume, se) {
             return Vec::new();
         }
         let note = note.clamp(0, 127) as u8;
@@ -611,9 +611,9 @@ impl Driver {
     }
 
     /// `ccSeOffLoop(n, id)` (0x0017a620): loop `id`'s note off; its slot
-    /// freed.
+    /// freed ([`se3d::se_off_loop`]).
     pub fn se_off_loop(&mut self, se: &SeTbl, id: i32) -> Vec<u8> {
-        se3d::se_off_loop(&mut self.loop_id, se, id)
+        se3d::se_off_loop(self.volume, &mut self.loop_id, se, id)
     }
 
     /// `tobjSeLoopStart(pos)` (0x0017bf20): TOBJ's hum started in a free

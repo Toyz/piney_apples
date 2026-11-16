@@ -10,8 +10,9 @@ game's; activeCamPtr points at a CAMERA written for the case (or is NULL),
 ccSnd at a ccSound its constructor made. What leaves the EE is caught at
 sceMSIn_PutMsg (2 bytes of a program change) and sceMSIn_PutHsMsg (5 bytes
 of an F9 message, 7 of an FD one), and every message is checked to go to
-port 0. The same cases go to the se3d_probe example, and everything is
-compared exactly:
+port 0. The same cases go to the se3d_probe example, given the disc's
+volumeNum (PINEY_VOLUME's disc, Infection's by default; addresses below
+are Infection's), and everything is compared exactly:
 
   vel      calcVel (0x0017a370): the return value
   pan      calcPan (0x0017a4c0): the return value (pan << 16 | cdeg)
@@ -43,6 +44,7 @@ Skipped when the disc is not extracted or cargo is missing. CARGO_TARGET_DIR
 is honoured when locating the probe.
 """
 
+import functools
 import math
 import os
 import random
@@ -58,7 +60,7 @@ from volume import va as inf_va  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELF = volume.ELF
-GCMN = os.path.join(ROOT, "work", "infection", "disc", "DATA", "GCMN.PRG")
+GCMN = os.path.join(os.path.dirname(ELF), "DATA", "GCMN.PRG")
 TARGET = os.environ.get("CARGO_TARGET_DIR") or os.path.join(ROOT, "target")
 EXAMPLE = os.path.join(TARGET, "release", "examples", "se3d_probe")
 
@@ -71,13 +73,21 @@ POS = 0x01820000            # the point
 CH = 0x01830000             # a ccChar: base +0, pos +0x40, hitAttribute +0x80
 BP = 0x01831000             # its ccCharBaseParam: id +0xc
 LOOP_ID = SND + 0x65
-N_SE = 237
+PORT_VOLUME = volume.NAME[:3].upper()   # the build's name of the disc (tools/portdata.py)
 DEFAULT_N = 1500
 
+
+@functools.lru_cache(maxsize=None)
+def n_se():
+    """seData's rows on this disc: 237 on Infection, 259 from Mutation on
+    (piney-gen measures the table's extent in the disc's data)."""
+    import portdata
+    return len(portdata.sound(PORT_VOLUME)["se"])
+
 # The grounds seHitAttr (0x0017a7f0) gives a row, as hitAttribute & 0x00f0f0f0.
-GROUNDS = (0x008080F0, 0x00B06010, 0x00C0D000, inf_va(0x00304050), inf_va(0x00405060), 0x20F0, 0x0090B0C0, 0x2040, 0x3060,
-           0x5030, 0x6040, 0x4080, inf_va(0x0060B0D0), inf_va(0x0070C0E0), 0x00C0C0C0, 0x00D0D0D0, 0x00E0E0E0, inf_va(0x00404040),
-           inf_va(0x00505050), inf_va(0x00606060), 0xC000)
+GROUNDS = (0x008080F0, 0x00B06010, 0x00C0D000, 0x00304050, 0x00405060, 0x20F0, 0x0090B0C0, 0x2040, 0x3060,
+           0x5030, 0x6040, 0x4080, 0x0060B0D0, 0x0070C0E0, 0x00C0C0C0, 0x00D0D0D0, 0x00E0E0E0, 0x00404040,
+           0x00505050, 0x00606060, 0xC000)
 MASK = 0x00F0F0F0
 
 
@@ -96,7 +106,7 @@ def build():
 
 
 def ask(lines):
-    p = subprocess.run([EXAMPLE], input="\n".join(lines) + "\n", capture_output=True, text=True, cwd=ROOT)
+    p = subprocess.run([EXAMPLE, str(volume.number())], input="\n".join(lines) + "\n", capture_output=True, text=True, cwd=ROOT)
     out = p.stdout.splitlines()
     if p.returncode:
         raise RuntimeError(f"se3d_probe failed on request {len(out)}: {lines[len(out)]}\n{p.stderr[-2000:]}")
@@ -230,7 +240,8 @@ class Setbl:
 
     def __init__(self):
         import portdata
-        _, self.rows, self.spc, self.enemy, self.inu = portdata.setbl("INF")
+        _, self.rows, self.spc, self.enemy, self.inu = portdata.setbl(PORT_VOLUME)
+        self.n_se = n_se()
 
     def params(self, start, rng):
         """A param whose row is in setbl.cpp's data and names a sound effect
@@ -238,7 +249,7 @@ class Setbl:
         while True:
             span = len(self.rows) - start
             p = rng.randrange(min(span, 30)) if rng.random() < 0.8 else rng.randrange(span)
-            if self.rows[start + p][0] < N_SE:
+            if self.rows[start + p][0] < self.n_se:
                 return p
 
 
@@ -246,11 +257,12 @@ def cases(check, n, seed=1):
     """(probe request, game call) pairs for one check."""
     rng = random.Random(f"{check}-{seed}")
     tb = Setbl() if check in ("spc", "enemy", "inu") else None
+    n_s = n_se()
     out = []
     for i in range(n):
         cam = rnd_cam(rng)
         pos = rnd_pos(rng, cam)
-        se = i % N_SE if i < 2 * N_SE else rng.randrange(N_SE)
+        se = i % n_s if i < 2 * n_s else rng.randrange(n_s)
         c, p = cam_str(cam), pos_str(pos)
         if check == "vel":
             out.append((f"vel {se} {c} {p}", ("vel", cam, pos, se)))
@@ -262,7 +274,7 @@ def cases(check, n, seed=1):
             k = rng.randrange(128) if rng.random() < 0.75 else rng.randrange(-128, 0)
             out.append((f"note {se} {k} {c} {p}", ("note", cam, pos, se, k)))
         elif check == "spc":
-            cid = rng.randrange(19)
+            cid = rng.randrange(len(tb.spc))
             start = tb.spc[cid]
             param = 0 if start is None or rng.random() < 0.3 else tb.params(start, rng)
             hit = rnd_hit(rng)
@@ -273,8 +285,9 @@ def cases(check, n, seed=1):
             hit = rnd_hit(rng)
             out.append((f"pc {param} {ccstype} {hit} {c} {p}", ("pc", cam, pos, param, ccstype, hit)))
         elif check == "enemy":
-            cat = rng.randrange(19)
-            param = tb.params(tb.enemy[cat], rng)
+            cat = rng.randrange(len(tb.enemy))
+            start = tb.enemy[cat]
+            param = 0 if start is None else tb.params(start, rng)
             out.append((f"enemy {param} {cat} {c} {p}", ("enemy", cam, pos, param, cat)))
         elif check == "inu":
             param = rng.randrange(len(tb.rows) - tb.inu)
@@ -377,12 +390,12 @@ def run_loops(g, n, seed=1):
                     taken.remove((se, lid))
                 call, req = ("off", se, lid), f"off {se} {lid}"
             elif rng.random() < 0.1:
-                se, lid = rng.randrange(N_SE), rng.randrange(8)
+                se, lid = rng.randrange(n_se()), rng.randrange(8)
                 call, req = ("off", se, lid), f"off {se} {lid}"
             else:
                 cam = rnd_cam(rng)
                 pos = rnd_pos(rng, cam)
-                se = rng.randrange(N_SE)
+                se = rng.randrange(n_se())
                 call, req = ("loop", cam, pos, se), f"loop {se} {cam_str(cam)} {pos_str(pos)}"
             want = game_answer(g, call)
             if call[0] == "loop" and int(want.split()[0]) >= 0:
@@ -408,7 +421,7 @@ def run_tobj(g, n, seed=1):
             cam = rnd_cam(rng) or (0, 0, 0, fbits(1.0), 0, 0, 0)
             pos = rnd_pos(rng, cam)
             if r < 0.2:
-                se = rng.randrange(N_SE)
+                se = rng.randrange(n_se())
                 call, req = ("loop", cam, pos, se), f"loop {se} {cam_str(cam)} {pos_str(pos)}"
             elif r < 0.35:
                 call, req = ("tstart",), "tstart"

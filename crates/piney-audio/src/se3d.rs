@@ -123,6 +123,17 @@ pub fn behind(cdeg: u16) -> bool {
     (16385..0xc000).contains(&cdeg)
 }
 
+/// Whether row `se` sounds on `volume`'s disc. From Mutation on every
+/// sender returns first for a row whose program is below 0: `ccSeOn`,
+/// `ccSeOnNote`, the 3D forms (before `calcVel`, so `testVelocity` is
+/// not written) and `ccSeOffLoop` (whose slot stays taken). MUT main
+/// 0x0017c4cc, 0x0017c6a4, 0x0017c890, 0x0017cd64; OUT 0x0017c15c,
+/// 0x0017c344, 0x0017c540, 0x0017ca34; QUA 0x0017c0bc, 0x0017c2a4,
+/// 0x0017c4a0, 0x0017c994. Infection sends it as program `prog & 0x7f`.
+pub fn sounds(volume: Volume, se: &SeTbl) -> bool {
+    volume == Volume::Inf || se.prog >= 0
+}
+
 /// What the 3D forms send to port 0, in order: the program change
 /// (`sceMSIn_PutMsg`); `F9 01 ch pan 00`, the pan of the next note on
 /// (`sceMSIn_PutHsMsg`); behind the camera `F9 02 ch 120 63`, its bend
@@ -140,11 +151,12 @@ fn messages(se: &SeTbl, pan: i32, cdeg: u16, note: u8, id: u8, vel: i32) -> Vec<
 
 /// `ccSeOn3D(n, pos)` (0x00179d90), or with `note` `ccSeOn3DNote(n, pos,
 /// note)` (0x00179f50): the velocity [`calc_vel`] at most the row's, the
-/// pan [`calc_pan`], the note on with id 0. Nothing when the point is out
-/// of reach (velocity -1), or for a note below 0. The velocity is also
-/// `ccSound.testVelocity` (+0x148) in `ccSeOn3D`, which nothing reads.
+/// pan [`calc_pan`], the note on with id 0. Nothing for a row that does
+/// not [`sounds`], when the point is out of reach (velocity -1), or for a
+/// note below 0. The velocity is also `ccSound.testVelocity` (+0x148) in
+/// `ccSeOn3D`, which nothing reads.
 pub fn se_on_3d(volume: Volume, se: &SeTbl, cam: Option<&Listener>, pos: &V4, note: Option<i8>) -> Vec<u8> {
-    if note.is_some_and(|k| k < 0) {
+    if !sounds(volume, se) || note.is_some_and(|k| k < 0) {
         return Vec::new();
     }
     let vel = calc_vel(volume, se, cam, pos).min(i32::from(se.velocity));
@@ -155,11 +167,12 @@ pub fn se_on_3d(volume: Volume, se: &SeTbl, cam: Option<&Listener>, pos: &V4, no
     messages(se, pan, cdeg, note.unwrap_or(se.note) as u8, 0, vel)
 }
 
-/// `ccSeOn3DLoop(n, pos)` (0x0017a140): a looping effect. Out of reach
-/// (-1 from [`calc_vel`], whose velocity is not capped by the row's here)
-/// or with the eight slots of `ccSound.loopID` (+0x65) all taken, nothing
-/// and -1; else the first free slot (-1) takes its own index, which is the
-/// note on's id and what is returned.
+/// `ccSeOn3DLoop(n, pos)` (0x0017a140): a looping effect. For a row that
+/// does not [`sounds`], out of reach (-1 from [`calc_vel`], whose velocity
+/// is not capped by the row's here) or with the eight slots of
+/// `ccSound.loopID` (+0x65) all taken, nothing and -1; else the first free
+/// slot (-1) takes its own index, which is the note on's id and what is
+/// returned.
 pub fn se_on_3d_loop(
     volume: Volume,
     loop_id: &mut [i8; 8],
@@ -167,6 +180,9 @@ pub fn se_on_3d_loop(
     cam: Option<&Listener>,
     pos: &V4,
 ) -> (i32, Vec<u8>) {
+    if !sounds(volume, se) {
+        return (-1, Vec::new());
+    }
     let vel = calc_vel(volume, se, cam, pos);
     if vel == -1 {
         return (-1, Vec::new());
@@ -178,9 +194,13 @@ pub fn se_on_3d_loop(
 }
 
 /// `ccSeOffLoop(n, id)` (0x0017a620): `FD 10 ch note id 00 00`, the note
-/// off of loop `id`, and the slot freed. The game frees any `id` without a
-/// check (writing outside `loopID` past 7); here only 0-7 are freed.
-pub fn se_off_loop(loop_id: &mut [i8; 8], se: &SeTbl, id: i32) -> Vec<u8> {
+/// off of loop `id`, and the slot freed; nothing for a row that does not
+/// [`sounds`]. The game frees any `id` without a check (writing outside
+/// `loopID` past 7); here only 0-7 are freed.
+pub fn se_off_loop(volume: Volume, loop_id: &mut [i8; 8], se: &SeTbl, id: i32) -> Vec<u8> {
+    if !sounds(volume, se) {
+        return Vec::new();
+    }
     if let Some(s) = usize::try_from(id).ok().and_then(|i| loop_id.get_mut(i)) {
         *s = -1;
     }
@@ -257,11 +277,20 @@ pub fn se_hit_attr(attr: u32) -> usize {
     }
 }
 
-/// A footstep: the ground's row ([`se_hit_attr`]), at note 67 on a ground
-/// with no row of its own (202), else at `note`.
-fn step(hit_attribute: u32, note: i8) -> NoteSe {
-    let code = se_hit_attr(hit_attribute);
-    NoteSe { code, note: Some(if code == 202 { 67 } else { note }) }
+/// The row [`se_hit_attr`] gives a ground with no row of its own.
+const NO_GROUND: usize = 202;
+
+/// A footstep: the ground's row ([`se_hit_attr`]) at `note`. On a ground
+/// with no row Infection plays row 202 at note 67; from Mutation on the
+/// steppers return there, silent (`ccSeOnPCStep` MUT main 0x0017ce14, OUT
+/// 0x0017caf4, QUA 0x0017ca54; `ccSeSetParamPC` 0x0017d234, 0x0017cf84,
+/// 0x0017cee4; `ccSeSetParamInu` 0x0017d3c8, 0x0017d138, 0x0017d098).
+fn step(v: Volume, hit_attribute: u32, note: i8) -> Option<NoteSe> {
+    match se_hit_attr(hit_attribute) {
+        NO_GROUND if v == Volume::Inf => Some(NoteSe { code: NO_GROUND, note: Some(67) }),
+        NO_GROUND => None,
+        code => Some(NoteSe { code, note: Some(note) }),
+    }
 }
 
 /// Row `param` of the table starting at row `start` of volume `v`'s
@@ -283,8 +312,8 @@ fn row_se(r: SeNt) -> Option<NoteSe> {
 /// `ccSeSetParamSPC(param, ch)` (0x0017aa20), a party member's note 1 or 2:
 /// row `param` of `spcSeTbl[id]` (`id` the `ccCharBaseParam.id`, +0xc);
 /// nothing for a NULL table (id 18) or a row of code -1. Param 0 is the
-/// footstep (`ccSeOnPCStep` 0x0017a6b0): the ground's row ([`se_hit_attr`]) at
-/// a note by `id`, or 67 on a ground with no row (docs/engine/sound.md).
+/// footstep (`ccSeOnPCStep` 0x0017a6b0): the ground's row at a note by
+/// `id` (`step`, docs/engine/sound.md).
 /// `None` for an `id` past the table and its padding (19 and 1 on
 /// Infection, 21 and 3 on Outbreak), which the game would read past.
 pub fn spc_note(v: Volume, param: u32, id: i16, hit_attribute: u32) -> Option<NoteSe> {
@@ -305,14 +334,13 @@ pub fn spc_note(v: Volume, param: u32, id: i16, hit_attribute: u32) -> Option<No
         0 => 60,
         _ => 61,
     };
-    Some(step(hit_attribute, note))
+    step(v, hit_attribute, note)
 }
 
 /// `ccSeSetParamPC(param, ch, ccstype)` (0x0017aaf0), a town PC's note
-/// (`rtpcCheckNote`): param 0 only, the footstep - the ground's row at 60
-/// for `ccstype` 0, 65 for 1, 58 for 2, 61 otherwise, or 67 on a ground
-/// with no row.
-pub fn pc_note(param: u32, ccstype: i32, hit_attribute: u32) -> Option<NoteSe> {
+/// (`rtpcCheckNote`): param 0 only, the footstep (`step`) at 60 for
+/// `ccstype` 0, 65 for 1, 58 for 2, 61 otherwise.
+pub fn pc_note(v: Volume, param: u32, ccstype: i32, hit_attribute: u32) -> Option<NoteSe> {
     if param != 0 {
         return None;
     }
@@ -322,7 +350,7 @@ pub fn pc_note(param: u32, ccstype: i32, hit_attribute: u32) -> Option<NoteSe> {
         2 => 58,
         _ => 61,
     };
-    Some(step(hit_attribute, note))
+    step(v, hit_attribute, note)
 }
 
 /// `ccSeSetParamEnemy(param, ch, category)` (0x0017abd0), an enemy's notes
@@ -336,15 +364,15 @@ pub fn enemy_note(v: Volume, param: u32, category: i32) -> Option<NoteSe> {
 
 /// `ccSeSetParamInu(param, ch)` (0x0017ac70), a town dog's or a Grunty's
 /// note (`inuCheckNote`, `ccPuccigusoCheckNote`): row `param` of
-/// `inuSeData`, nothing for code -1; params 0 and 1 are footsteps, the
-/// ground's row at 60 (67 on a ground with no row).
+/// `inuSeData`, nothing for code -1; params 0 and 1 are footsteps at 60
+/// (`step`).
 pub fn inu_note(v: Volume, param: u32, hit_attribute: u32) -> Option<NoteSe> {
     let r = row(v, setbl::inu(v), param)?;
     if r.code < 0 {
         return None;
     }
     if param < 2 {
-        return Some(step(hit_attribute, 60));
+        return step(v, hit_attribute, 60);
     }
     row_se(r)
 }
@@ -407,7 +435,7 @@ mod tests {
         let (a, m) = se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]);
         assert_eq!((a, m[m.len() - 2]), (0, 127));
         assert_eq!(se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]).0, 1);
-        assert_eq!(se_off_loop(&mut ids, &s, 0), [0xfd, 0x10, 2, 60, 0, 0, 0]);
+        assert_eq!(se_off_loop(Volume::Inf, &mut ids, &s, 0), [0xfd, 0x10, 2, 60, 0, 0, 0]);
         assert_eq!(se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]).0, 0);
         for _ in 0..6 {
             se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]);
@@ -445,8 +473,35 @@ mod tests {
         assert_eq!(enemy_note(Volume::Inf, 0, 0), None);
         assert_eq!(inu_note(Volume::Inf, 5, 0), Some(NoteSe { code: 78, note: None }));
         assert_eq!(inu_note(Volume::Inf, 1, 0xc000), Some(NoteSe { code: 21, note: Some(60) }));
-        assert_eq!(pc_note(0, 1, 0xc000), Some(NoteSe { code: 21, note: Some(65) }));
-        assert_eq!(pc_note(1, 1, 0xc000), None);
+        assert_eq!(pc_note(Volume::Inf, 0, 1, 0xc000), Some(NoteSe { code: 21, note: Some(65) }));
+        assert_eq!(pc_note(Volume::Inf, 1, 1, 0xc000), None);
+    }
+
+    #[test]
+    fn later_volumes_skip_programs_below_0() {
+        let s = SeTbl { prog: -9, ..se(96, 256) };
+        // Infection sends it as program 0x77; Mutation on returns first.
+        assert_eq!(se_on_3d(Volume::Inf, &s, None, &[0; 4], None)[..2], [0xc2, 0x77]);
+        assert!(se_on_3d(Volume::Mut, &s, None, &[0; 4], Some(60)).is_empty());
+        let mut ids = [-1i8; 8];
+        assert_eq!(se_on_3d_loop(Volume::Out, &mut ids, &s, None, &[0; 4]), (-1, Vec::new()));
+        // ccSeOffLoop sends nothing and leaves the slot taken.
+        ids[3] = 3;
+        assert!(se_off_loop(Volume::Qua, &mut ids, &s, 3).is_empty());
+        assert_eq!(ids[3], 3);
+        assert_eq!(se_off_loop(Volume::Inf, &mut ids, &s, 3), [0xfd, 0x10, 2, 60, 3, 0, 0]);
+        assert_eq!(ids[3], -1);
+    }
+
+    #[test]
+    fn later_volumes_step_silently_on_a_ground_with_no_row() {
+        assert_eq!(spc_note(Volume::Inf, 0, 0, 0), Some(NoteSe { code: 202, note: Some(67) }));
+        assert_eq!(spc_note(Volume::Mut, 0, 0, 0), None);
+        assert_eq!(pc_note(Volume::Out, 0, 1, 0), None);
+        assert_eq!(inu_note(Volume::Qua, 1, 0), None);
+        // A ground with a row steps as on Infection.
+        assert_eq!(spc_note(Volume::Mut, 0, 0, 0xc000), Some(NoteSe { code: 21, note: Some(60) }));
+        assert_eq!(pc_note(Volume::Qua, 0, 1, 0xc000), Some(NoteSe { code: 21, note: Some(65) }));
     }
 
     #[test]

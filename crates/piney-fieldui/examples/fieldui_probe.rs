@@ -605,8 +605,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 let names = save.names();
-                // Infection's glyphs, for the centred lines' widths.
-                let fonts = piney_desktop::kanji::Fonts::of(piney_data::volume::Volume::Inf, Vec::new());
+                // The disc's glyphs, for the centred lines' widths.
+                let fonts = piney_desktop::kanji::Fonts::of(volume, Vec::new());
                 let mut checking = false;
                 for fr in 1..=frames {
                     if movie_end == Some(fr) {

@@ -5,7 +5,8 @@
 //! `-` or `CX,CY,CZ,VX,VY,VZ,KIND`. The requests name the function: `vel`,
 //! `pan`, `on`, `note`, `reset`, `loop`, `off`, `spc`, `pc`, `enemy`, `inu`,
 //! `treset`, `tstart`, `tloop`; the answers are the bytes that reach port 0,
-//! the loop slots, and for the notes the call they end in.
+//! the loop slots, and for the notes the call they end in. The one
+//! argument is the disc's `volumeNum` (1-4): its tables and its code.
 
 use std::io::{BufRead, Write};
 
@@ -13,11 +14,6 @@ use piney_audio::driver::Driver;
 use piney_audio::se3d::{self, Listener, NoteSe, V4};
 use piney_data::sound::{self, Tables};
 use piney_data::volume::Volume;
-
-/// Infection's sound tables, the probe's volume.
-fn inf() -> &'static Tables {
-    sound::tables_of(Volume::Inf)
-}
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s, 16).unwrap()
@@ -43,15 +39,19 @@ fn ids(d: &Driver) -> String {
     d.loop_id.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",")
 }
 
-fn play(d: &Driver, s: Option<NoteSe>, c: Option<&Listener>, pos: &V4) -> String {
+fn play(d: &Driver, tables: &Tables, s: Option<NoteSe>, c: Option<&Listener>, pos: &V4) -> String {
     let Some(s) = s else { return "- - -".into() };
-    let m = inf().se.get(s.code).map(|se| d.se_3d(se, c, pos, s.note)).unwrap_or_default();
+    let m = tables.se.get(s.code).map(|se| d.se_3d(se, c, pos, s.note)).unwrap_or_default();
     let note = s.note.map_or("-".into(), |k| k.to_string());
     format!("{} {} {}", s.code, note, bytes(&m))
 }
 
 fn main() {
+    let volume =
+        std::env::args().nth(1).and_then(|n| Volume::from_number(n.parse().ok()?)).expect("the disc's volumeNum, 1-4");
+    let tables = sound::tables_of(volume);
     let mut d = Driver::new();
+    d.volume = volume;
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());
     for line in std::io::stdin().lock().lines() {
@@ -59,7 +59,7 @@ fn main() {
         let w: Vec<&str> = line.split_whitespace().collect();
         let int = |i: usize| w[i].parse::<i64>().unwrap();
         let pos = |i: usize| -> V4 { [hex(w[i]), hex(w[i + 1]), hex(w[i + 2]), 0] };
-        let se = |i: usize| &inf().se[int(i) as usize];
+        let se = |i: usize| &tables.se[int(i) as usize];
         let answer = match w[0] {
             "vel" => se3d::calc_vel(d.volume, se(1), cam(w[2]).as_ref(), &pos(3)).to_string(),
             "pan" => {
@@ -87,28 +87,28 @@ fn main() {
                 ids(&d)
             }
             "tstart" => {
-                let m = d.tobj_se_loop_start(&inf().se[se3d::TOBJ_SE]);
+                let m = d.tobj_se_loop_start(&tables.se[se3d::TOBJ_SE]);
                 format!("{} {} {} {}", bytes(&m), ids(&d), u8::from(d.tobj_loop), d.looptest)
             }
             "tloop" => {
                 let c = cam(w[1]).unwrap();
-                bytes(&d.tobj_se_loop(&inf().se[se3d::TOBJ_SE], &c, &pos(2), hex(w[5])))
+                bytes(&d.tobj_se_loop(&tables.se[se3d::TOBJ_SE], &c, &pos(2), hex(w[5])))
             }
             "spc" => {
-                let s = se3d::spc_note(Volume::Inf, int(1) as u32, int(2) as i16, int(3) as u32);
-                play(&d, s, cam(w[4]).as_ref(), &pos(5))
+                let s = se3d::spc_note(volume, int(1) as u32, int(2) as i16, int(3) as u32);
+                play(&d, tables, s, cam(w[4]).as_ref(), &pos(5))
             }
             "pc" => {
-                let s = se3d::pc_note(int(1) as u32, int(2) as i32, int(3) as u32);
-                play(&d, s, cam(w[4]).as_ref(), &pos(5))
+                let s = se3d::pc_note(volume, int(1) as u32, int(2) as i32, int(3) as u32);
+                play(&d, tables, s, cam(w[4]).as_ref(), &pos(5))
             }
             "enemy" => {
-                let s = se3d::enemy_note(Volume::Inf, int(1) as u32, int(2) as i32);
-                play(&d, s, cam(w[3]).as_ref(), &pos(4))
+                let s = se3d::enemy_note(volume, int(1) as u32, int(2) as i32);
+                play(&d, tables, s, cam(w[3]).as_ref(), &pos(4))
             }
             "inu" => {
-                let s = se3d::inu_note(Volume::Inf, int(1) as u32, int(2) as u32);
-                play(&d, s, cam(w[3]).as_ref(), &pos(4))
+                let s = se3d::inu_note(volume, int(1) as u32, int(2) as u32);
+                play(&d, tables, s, cam(w[3]).as_ref(), &pos(4))
             }
             other => panic!("unknown request {other}"),
         };

@@ -2,8 +2,8 @@
 title: Sound - effects, music and the IOP sound driver
 status: partial
 volumes: INF, MUT, OUT, QUA
-covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect; MUT SLUS_205.62:0x0017eda0 bgmBreed, 0x00185a10 ccSndSQLoad, 0x0017d6e0 ccSndBgmCtrl, 0x0017c2f0 ccSeOn, 0x00181f80 ccEvVoiceStop, 0x00183410 ccPgBgmInit; OUT SLUS_205.63:0x0017ebd0 bgmBreed, 0x0017bde0 the scenes' crossfade, 0x00181d50 ccEvVoiceStop; QUA SLUS_205.64:0x00181e10 ccEvVoiceStop
-worklog: 42, 327, 332, 370, 371, 398, 407, 438, 507
+covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect; MUT SLUS_205.62:0x0017eda0 bgmBreed, 0x00185a10 ccSndSQLoad, 0x0017d6e0 ccSndBgmCtrl, 0x0017c2f0 ccSeOn, 0x00181f80 ccEvVoiceStop, 0x00183410 ccPgBgmInit, 0x0017c490 ccSeOn3D, 0x0017c660 ccSeOn3DNote, 0x0017c850 ccSeOn3DLoop, 0x0017cd40 ccSeOffLoop, 0x0017cdd0 ccSeOnPCStep, 0x0017d1f0 ccSeSetParamPC, 0x0017d350 ccSeSetParamInu; OUT SLUS_205.63:0x0017ebd0 bgmBreed, 0x0017bde0 the scenes' crossfade, 0x00181d50 ccEvVoiceStop, 0x0017c120 ccSeOn3D, 0x0017c300 ccSeOn3DNote, 0x0017c500 ccSeOn3DLoop, 0x0017ca10 ccSeOffLoop, 0x0017cab0 ccSeOnPCStep, 0x0017cf40 ccSeSetParamPC, 0x0017d0c0 ccSeSetParamInu; QUA SLUS_205.64:0x00181e10 ccEvVoiceStop, 0x0017c080 ccSeOn3D, 0x0017c260 ccSeOn3DNote, 0x0017c460 ccSeOn3DLoop, 0x0017c970 ccSeOffLoop, 0x0017ca10 ccSeOnPCStep, 0x0017cea0 ccSeSetParamPC, 0x0017d020 ccSeSetParamInu
+worklog: 42, 327, 332, 370, 371, 398, 407, 438, 507, 606
 ---
 
 # Sound - effects, music and the IOP sound driver
@@ -51,8 +51,9 @@ How each part is checked:
   (none, types 0, 1 and 2, a view point straight below the eye) and points
   near and far, beside and behind, on the eye's x line and at the eye;
   every character id, enemy category and ground, params past their tables'
-  ends - 50,000 cases of each of the nine checks, the bytes sent (and the
-  slots, and the functions' returns) equal, 0 mismatches. What they send,
+  ends - 50,000 cases of each of the ten checks on each of the four discs
+  (`PINEY_VOLUME`, the probe given its `volumeNum`), the bytes sent (and
+  the slots, and the functions' returns) equal, 0 mismatches. What they send,
   played by MODHSYN.IRX in `tools/iopemu.py se3d-fixture` and by the port's
   synthesizer (`crates/piney-audio/tests/hsyn.rs`): every sound effect so
   sent, pans 0-126 with and without the bend, loops' note ons and offs by
@@ -142,7 +143,8 @@ SETBL
 channel `ch`), then `9c note velocity` (note on). `ccSeOnNote(n, note)`
 sends the same with `note` clamped to 0..127. From Mutation on both send
 nothing for a row whose program is below 0 (MUT 0x0017c310, 0x0017c3f4):
-rows 233 and 234 there. Nothing else chooses the voice, the pitch or the
+rows 233 and 234 there. So do the 3D forms and `ccSeOffLoop` (below);
+Infection sends such a row as program `progNo & 0x7f`. Nothing else chooses the voice, the pitch or the
 volume: the synthesizer does (below), from the SE bank's program.
 
 ### Positioned sound effects
@@ -188,6 +190,14 @@ FD 10 <ch> note 00 velocity 00   note on, id 0
 `ccSeOn3DNote(n, pos, note)` (0x00179f50) is the same with `note` for the
 row's, sends nothing at all for a note below 0 (where `ccSeOnNote`
 clamps), and leaves `testVelocity` alone.
+
+From Mutation on each of `ccSeOn3D`, `ccSeOn3DNote`, `ccSeOn3DLoop` and
+`ccSeOffLoop` first returns for a row whose program is below 0 (rows 233
+and 234): nothing sent, `testVelocity` not written, `ccSeOn3DLoop`
+returning -1, and `ccSeOffLoop` leaving the slot taken. MUT 0x0017c4cc,
+0x0017c6a4, 0x0017c890, 0x0017cd64; OUT 0x0017c15c, 0x0017c344,
+0x0017c540, 0x0017ca34; QUA 0x0017c0bc, 0x0017c2a4, 0x0017c4a0,
+0x0017c994.
 
 `ccSeOn3DLoop(n, pos)` (0x0017a140) returns -1 and sends nothing when
 `calcVel` is -1 - here the velocity is not capped by the row's - or when
@@ -266,8 +276,9 @@ the 19 enemy tables) comes a row of zeros, which plays `ccSeOn3D(0)`;
 then the next array, and after the last `spcN` and `cateEtc2` the pointer
 tables.
 
-Across the volumes the readers (`ccSeSetParam*`, `ccSeOnPCStep`,
-`seHitAttr`) differ only in code layout, and the data differs. MUT's
+Across the volumes `seHitAttr` and the readers' tables differ only in
+code layout, the footstep on a ground with no row aside (below), and the
+data differs. MUT's
 (gcmn 0x00669dc0) is INF's. OUT's (0x006687b0) and QUA's (0x0055fb30)
 change row 11 of each party table and the enemy tables, and their
 `spcSeTbl` points ids 18-20 at tables of their own (21 pointers and 3
@@ -295,7 +306,11 @@ gives for `hitAttribute & 0x00f0f0f0`:
 played with `ccSeOn3DNote` at note 67 for row 202, else at a note by who
 steps - SPC by `base->id`: 60 for 0 (Kite), 62 for 1, 58 for 2, 3 and 8,
 64 for 6, 61 for 10, 63 for 15, 61 for the others; PC by `ccstype`: 60
-for 0, 65 for 1, 58 for 2, 61 otherwise; Inu 60.
+for 0, 65 for 1, 58 for 2, 61 otherwise; Inu 60. From Mutation on a step
+on a ground with no row (202) is silent: `ccSeOnPCStep`,
+`ccSeSetParamPC` and `ccSeSetParamInu` return there (MUT 0x0017ce14,
+0x0017d234, 0x0017d3c8; OUT 0x0017caf4, 0x0017cf84, 0x0017d138; QUA
+0x0017ca54, 0x0017cee4, 0x0017d098).
 
 ## Music
 

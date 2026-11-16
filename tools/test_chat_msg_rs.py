@@ -155,7 +155,7 @@ class Game:
 
 class Probe:
     def __init__(self):
-        self.p = subprocess.Popen([EXAMPLE], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, cwd=ROOT)
+        self.p = subprocess.Popen([EXAMPLE, str(volume.number())], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, cwd=ROOT)
 
     def ask(self, line):
         self.p.stdin.write(line + "\n")

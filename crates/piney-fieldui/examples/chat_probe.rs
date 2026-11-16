@@ -3,7 +3,8 @@
 //! (numbers in hex), one JSON line back: `open WHO TEXT-HEX` (OpenChat),
 //! `close` (CloseChat) and `disp STILL PLAYER [WHO LISTED ON X Y]...`
 //! (Disp(still) with the speakers where they are: the slots, the window's
-//! cells and the texts).
+//! cells and the texts). The one argument is the disc's `volumeNum` (1-4),
+//! whose glyphs the texts are measured with.
 
 use std::io::BufRead;
 
@@ -19,8 +20,9 @@ fn hex(s: &str) -> u32 {
 fn main() {
     let mut chat = ChatMsg::new();
     let names = Names::default();
-    // Infection's, the game the harness runs.
-    let fonts = Fonts::of(Volume::Inf, Vec::new());
+    let volume =
+        std::env::args().nth(1).and_then(|n| Volume::from_number(n.parse().ok()?)).expect("the disc's volumeNum, 1-4");
+    let fonts = Fonts::of(volume, Vec::new());
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
         let w: Vec<&str> = line.split_whitespace().collect();
