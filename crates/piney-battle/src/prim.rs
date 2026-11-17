@@ -91,7 +91,10 @@ pub const GIM_RAD_INFO: RadInfo =
 /// the pair of screen points (`sceVu0RotTransPers`'s words) kick the strip
 /// on? Not when `cont` is false (a run's start), either point is behind the
 /// eye (z < 0), or both are more than 5632 across from the centre (0x8000)
-/// or both 4608 down: then both carry ADC and no triangle is drawn.
+/// or both 4608 down: then both carry ADC and no triangle is drawn. From
+/// Outbreak on the bounds are statics that gcmn's static initialiser sets
+/// to `(96 + 512 / 2) << 4` and `(96 + 384 / 2) << 4` as the overlay loads
+/// (OUT 0x0073d680, QUA 0x0063a200): the same on every disc.
 pub fn pair_continues(pair: [[i32; 4]; 2], cont: bool) -> bool {
     // addiu -0x8000, newlib abs, slti 5633: the EE's wrapping words.
     let far = |x: i32, lim: i32| x.wrapping_sub(0x8000).wrapping_abs() > lim;

@@ -1219,7 +1219,9 @@ From Mutation on:
   the dungeon's floors. Until issue #78 the runtime kept Infection's ten:
   B10 had no down stairs and its stairs led back to B9.
 - **`EditDungeon` has 90 entries** (was 88). New: area 118 (34 rooms, 4
-  floors) and 119 (43 rooms, 4 floors). 30 of the shared entries change,
+  floors) and 119 (43 rooms, 4 floors). No carried name covers their
+  ROOMDATA tables (MUT gcmn 0x006c31e0 and 0x006c3c40), so the generated
+  table and `tools/dungeon.py` both call them `rooms_<address>`. 30 of the shared entries change,
   17 of them in room count; area 125 goes from 10 to 15 floors.
 - **`SetDungeonTypeFromField`** (MUT `0x001b1a20`, OUT `0x001a77c0`, QUA
   `0x001aefd0`):

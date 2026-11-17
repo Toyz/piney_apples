@@ -14,7 +14,8 @@ Sony's CSL modules - MODMIDI.IRX, a MIDI sequencer, and MODHSYN.IRX, a
 4,167 us timer. Sound effects are MIDI notes sent straight to the
 synthesizer; the music is MIDI sequences (`.sq`) played over sample banks
 (`.hd` + `.bd`, [the sound banks](../formats/snddata.md)). Only the voice
-lines and the two tracks of `VOICE/BGM.BIN` are streamed PCM, by
+lines and the tracks of `VOICE/BGM.BIN` (two on Infection, eight from
+Mutation on) are streamed PCM, by
 SEWORDS.IRX ([voice](../formats/voice.md)).
 
 The executable's sound tables are read for each volume into the build
@@ -1004,6 +1005,11 @@ through their NRPN loop markers (the jump replays the same messages at
 the same positions), and the other 3 - the title's and two cutscene banks'
 - end and stay silent. Of `BGM.BIN`'s two streamed tracks, track 0
 (`bgmParam` mode 2) loops and track 1 (the staff roll, mode 0) plays once.
+From Mutation on `bgmWavTbl` sits in main and both tables have eight rows
+(MUT main 0x0031e840 and 0x0031cce0; the carried names keep Infection's
+sizes, so the tools size them by the gap to the next global, as piney-gen
+does). Tracks 0, 5 and 7 loop (mode 2); 1-4 and 6 play once. Track 7 is
+20,386,816 bytes on Mutation and 17,889,280 on Outbreak and Quarantine.
 
 ## The SPU2 set-up
 

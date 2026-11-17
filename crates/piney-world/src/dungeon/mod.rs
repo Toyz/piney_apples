@@ -814,7 +814,7 @@ pub fn local_bits(pose: &piney_data::anim::Pose) -> [V4; 4] {
 /// `SetRoom`'s `SetAmbient(row / 255)` (0x005c347c), divided in EE single
 /// precision.
 pub fn ambient_bits(fog: &FogRow) -> [F; 3] {
-    fog.ambient.map(|v| ee::div(v.to_bits(), 0x437f_0000))
+    fog.ambient().map(f32::to_bits)
 }
 
 /// `fptosi(v / 750)`: the map cell of a coordinate.

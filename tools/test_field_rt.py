@@ -46,6 +46,9 @@ interpreter), the matrix being the object's coordinate as the game's
 ccCoord::SetMatrix_PosRotZYX sets it.
 
 Skipped when the disc is not extracted or cargo is missing.
+
+It runs on PINEY_VOLUME's disc, through tools/test_world_rs.py's game
+and ISO.
 """
 
 import json

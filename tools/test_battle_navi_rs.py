@@ -61,7 +61,7 @@ eemu.Machine = test_anim.machine_class()
 import test_battle as TB                       # noqa: E402
 import test_battle_party_ai_rs as PA           # noqa: E402
 import test_battle_rs as T                     # noqa: E402
-import volume                                   # noqa: E402
+import volume                                   # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 from test_battle_rs import fbits               # noqa: E402
 
 AIS = PA.AIS                # the ccAI of scene character i at AIS + 0x400 * i
@@ -1965,7 +1965,7 @@ def town01_dummies():
     reads them from DATA.BIN): name -> (x, y, z, 1.0) bits."""
     import ccs
     import gzarc
-    data = gzarc.open_bytes(os.path.join(T.ROOT, "work", "infection", "disc", "DATA", "DATA.BIN"))
+    data = gzarc.open_bytes(volume.DATA)
     members = {mm.name.lower(): mm for mm in gzarc.members(data)}
     c = ccs.Ccs(gzarc.inflate(data, members["town01.cmp"]))
     out = {}

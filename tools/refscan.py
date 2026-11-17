@@ -7,7 +7,9 @@ VOLUME is infection, mutation, outbreak or quarantine (its work/<volume>/
 disc/ and image). The scan covers:
 
 - code: the executable's main segment and the four overlays' text
-  (GCMN, DEMO, DESKTOP, TOPPAGE .PRG), every word read as an instruction.
+  (GCMN, DEMO, DESKTOP, TOPPAGE .PRG) with their static initialisers (the
+  tail of .data the header's constructor table names, which mwLoadOverlay
+  runs after the load), every word read as an instruction.
   From each `lui` the registers holding an address are followed forward
   (`addiu`/`daddiu`/`ori` add to them, moves copy them, any other write or
   a call ends them) for 128 instructions; every load, store or address
@@ -185,6 +187,13 @@ def main():
         ov = Overlay(os.path.join(disc, "DATA", name + ".PRG"))
         text = ov.read(ov.text, ov.text_size)
         scan_code(list(struct.unpack_from("<%dI" % (len(text) // 4), text)), ov.text, lo, hi, p.gp, name, out)
+        # The static initialisers mwLoadOverlay runs sit at the tail of .data,
+        # from the lowest the constructor table names to the table itself.
+        ctors = [struct.unpack("<I", ov.read(a, 4))[0] for a in range(ov.ctor_start, ov.ctor_end, 4)]
+        if ctors:
+            init = ov.read(min(ctors), ov.ctor_start - min(ctors))
+            scan_code(list(struct.unpack_from("<%dI" % (len(init) // 4), init)), min(ctors), lo, hi, p.gp,
+                      name + " ctors", out)
     img = iso.Iso(os.path.join(ROOT, "work", a.volume, a.volume + ".iso"))
     files = 0
     for e in img.files():

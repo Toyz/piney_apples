@@ -39,6 +39,7 @@ ADPCM samples carry their own rate in the bank.
 
 import argparse
 import array
+import bisect
 import collections
 import pathlib
 import struct
@@ -93,12 +94,17 @@ def _disc_path(name):
 
 
 class Program:
-    """SLUS_202.67 with gcmn loaded (the voice tables) and desktop on the side
-    (the jukebox titles)."""
+    """An executable with gcmn loaded (the voice tables) and desktop on the
+    side (the jukebox titles). A later volume's carries Infection's names
+    with Infection's sizes, so its tables are sized by its own layout
+    against Infection's (`rows`), as piney-gen's placement::sound does."""
 
     def __init__(self, elf):
+        import volume
         self.elf = elf
         self.gcmn = image.Program(elf, "gcmn")
+        later = pathlib.Path(elf).resolve() != pathlib.Path(volume.INF_ELF).resolve()
+        self.ref = image.Program(volume.INF_ELF, "gcmn") if later else None
 
     def sym(self, name):
         s = self.gcmn.symbol_named(name)
@@ -106,11 +112,36 @@ class Program:
             raise KeyError(name)
         return s
 
+    @staticmethod
+    def _following(p, va):
+        i = bisect.bisect_right(p._starts, va)
+        return p.symbols[i] if i < len(p.symbols) else None
+
+    def rows(self, name, row):
+        """How many `row`-byte rows the table has. On a later volume: where
+        the next global is Infection's neighbour too, Infection's size plus
+        however much the gap grew, rounded up to a row and at most the gap;
+        where that neighbour sits elsewhere, up to the next global; where it
+        has no name here, Infection's size, at most the gap."""
+        s = self.sym(name)
+        if self.ref is None:
+            return s.size // row
+        r = self.ref.symbol_named(name)
+        n, rn = self._following(self.gcmn, s.value), self._following(self.ref, r.value)
+        gap, ref_gap = n.value - s.value, rn.value - r.value
+        if n.name == rn.name:
+            rows = min(-(-(r.size + gap - ref_gap) // row), gap // row)
+        elif self.gcmn.symbol_named(rn.name) is not None:
+            rows = gap // row
+        else:
+            rows = min(r.size, gap) // row
+        return max(rows, 0)
+
     def words(self, name, fmt="<I"):
         s = self.sym(name)
         n = struct.calcsize(fmt)
         return [struct.unpack_from(fmt, self.gcmn.read(s.value + n * i, n))
-                for i in range(s.size // n)]
+                for i in range(self.rows(name, n))]
 
     def strings(self, name):
         return [self.gcmn.cstr(p).decode("latin-1") if p else None
@@ -165,7 +196,7 @@ def load_banks(prog, snddata=None):
     """Every bank the executable can load, in file order, with the Head chunk
     read from SNDDATA.BIN when it is given (bytes)."""
     banks = {}
-    ofs, hd, bd = (w for (w,) in prog.words("commseTbl"))
+    ofs, hd, bd = (w for (w,) in prog.words("commseTbl")[:3])     # its padding grew on Outbreak
     banks[ofs] = Bank(ofs, hd, (0, 0, 0), bd)
     banks[ofs].refs.append("commseTbl")
     for t in SQ_TABLES:
@@ -308,11 +339,87 @@ def _safe(name):
 # -- BGM.BIN ----------------------------------------------------------------------
 
 def load_bgm(prog):
-    """[(index, ofs, siz, mode)]: bgmWavTbl (gcmn) and bgmParam's mode word,
-    as wavPlay (0x0017e6e0) sends them to bgmPlay. Mode & 0xf nonzero loops."""
-    params = prog.words("bgmParam", "<iI")
-    return [(i, o, s, params[i][0]) for i, (o, s) in enumerate(prog.words("bgmWavTbl", "<ii"))
-            if s > 0]
+    """[(index, ofs, siz, mode)]: bgmWavTbl and bgmParam's mode word, row by
+    row as wavPlay (INF 0x0017e6e0, MUT 0x00181750) indexes both by the
+    track, the tracks with a size. Mode & 0xf nonzero loops. Infection has
+    two tracks (bgmWavTbl in gcmn); from Mutation on both tables are in main
+    with eight rows (MUT 0x0031e840 and 0x0031cce0)."""
+    rows = zip(prog.words("bgmWavTbl", "<ii"), prog.words("bgmParam", "<iI"))
+    return [(i, o, s, mode) for i, ((o, s), (mode, _)) in enumerate(rows) if s > 0]
+
+
+# ccEvVoiceRequest's tables: kind by `voiceFile` (6 + 3 section main, + 1
+# side, + 2 Parody Mode's) and each kind's first event in its hundred.
+EV_KINDS = ("main", "side", "parody")
+EV_FIRST = {"main": 0, "side": 50, "parody": 0}
+
+
+def event_tables(prog):
+    """ccEvVoiceRequest's tables as the volume's own code picks them, by
+    `event / 100`: [(section, kind, lang, start, [rows or None per event])].
+    Every lui/addiu base before a `voiceFile` store is that file's, Japanese
+    first, English (saveData.voice) second; a table is its base plus 4 times
+    its first event and runs to the next table (at most 50 events), ending
+    early at a word that is neither NULL nor an address. An event's rows
+    run to the next array or table (at most 128) and end at the first that
+    is neither a line (2048-aligned, a size) nor -1, -1."""
+    p = prog.gcmn
+    f = prog.sym("ccEvVoiceRequest__Fii")
+    voice_file = prog.sym("voiceFile").value
+    hi, pending, li, stores = {}, [], None, []
+    for k in range(f.size // 4):
+        w = p.u32(f.value + 4 * k)
+        op, rs, rt = w >> 26, (w >> 21) & 31, (w >> 16) & 31
+        imm = ((w & 0xFFFF) ^ 0x8000) - 0x8000
+        if op == 0x0F:
+            hi[rt] = (w & 0xFFFF) << 16
+        elif op == 0x09 and rs == 0:
+            li = imm
+        elif op == 0x09 and rs == rt and rs in hi:
+            pending.append((hi.pop(rs) + imm) & 0xFFFFFFFF)
+        elif op == 0x2B and rs == 28 and (p.gp + imm) & 0xFFFFFFFF == voice_file:
+            stores.append((li, pending))
+            pending = []
+    tables = []
+    for file, bases in stores:
+        section, kind = divmod(file - 6, 3)
+        first = 100 * section + EV_FIRST[EV_KINDS[kind]]
+        for lang, base in zip(("jp", "en"), bases):
+            tables.append((section, EV_KINDS[kind], lang, (base + 4 * first) & 0xFFFFFFFF))
+    starts = sorted({t[3] for t in tables})
+
+    def bound(edges, a):
+        i = bisect.bisect_right(edges, a)
+        return edges[i] if i < len(edges) else None
+
+    entries = {}
+    for t in starts:
+        b = bound(starts, t)
+        out = []
+        for i in range(50 if b is None else min((b - t) // 4, 50)):
+            a = p.u32(t + 4 * i)
+            if a and not p.mapped(a):
+                break
+            out.append(a)
+        entries[t] = out
+    edges = sorted({a for e in entries.values() for a in e if a} | set(starts))
+    result = []
+    for section, kind, lang, t in tables:
+        events = []
+        for a in entries[t]:
+            if not a:
+                events.append(None)
+                continue
+            b = bound(edges, a)
+            rows = []
+            for i in range(1 if b is None else min((b - a) // 8, 128)):
+                ofs, siz = struct.unpack("<ii", p.read(a + 8 * i, 8))
+                if not ((ofs >= 0 and ofs % SECTOR == 0 and siz > 0) or (ofs, siz) == (-1, -1)):
+                    break
+                rows.append((ofs, siz))
+            events.append(rows or None)
+        result.append((section, kind, lang, t, events))
+    return result
 
 
 # -- cutscene PCM ---------------------------------------------------------------

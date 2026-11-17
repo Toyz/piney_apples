@@ -16,6 +16,9 @@ added, with `light_matrix`.
 
     python3 tools/test_lights_rs.py           the unit tests
     python3 tools/test_lights_rs.py bulk N    N random groups
+
+It runs on PINEY_VOLUME's disc, through tools/test_stream_rs.py's game
+and tools/test_world_rs.py's probe.
 """
 
 import os

@@ -239,16 +239,22 @@ class TestDungeonRust(unittest.TestCase):
         got = ask([f"story {ev} {idx}" for ev, idx in keys])
         for (ev, idx), rust in zip(keys, got):
             self.assertIsNone(first_difference(rust, py_story(self.data, ev, idx)), (ev, idx))
-        self.assertEqual(len(keys), 88)
+        # The DUNGEON constructor's search bound: 88 on Infection, 90 from
+        # Mutation on (MUT 0x005e31e0, OUT 0x005e1950, QUA 0x004d43b0).
+        self.assertEqual(len(keys), 88 if volume.number() == 1 else 90)
 
     def test_dungeon_types_match_python(self):
         dungeon = dungeon_mod()
         plain = ",".join(f"{e}={t}" for e, t in dungeon.PLAIN_FIXED_TYPES.items())
-        queries = [(rule, ft, ev, flag, save) for rule in ("e", "plain") for ft in range(13)
+        # "own" is the volume's rule (Data.type_rule, read from its
+        # SetDungeonTypeFromField: "alt" on Infection, "plain" from Mutation
+        # on); "plain" is Mutation's rule on this volume's tables.
+        own = self.data.type_rule[0]
+        queries = [(rule, ft, ev, flag, save) for rule in ("own", "plain") for ft in range(13)
                    for ev in EVENTS for flag in (0, 3) for save in (0, 1)]
         got = ask([f"type {' '.join(str(v) for v in q)}" for q in queries], "--plain-fixed", plain)
         for (rule, ft, ev, flag, save), rust in zip(queries, got):
-            want = dungeon.dungeon_type(ft, ev, flag, bool(save), "alt" if rule == "e" else "plain")
+            want = dungeon.dungeon_type(ft, ev, flag, bool(save), own if rule == "own" else "plain")
             self.assertEqual(rust, want, (rule, ft, ev, flag, save))
 
     def test_dummy_counts_match_python(self):
@@ -292,11 +298,9 @@ class TestDungeonRust(unittest.TestCase):
             self.assertEqual(rust["table"], m.load(DG + 0x144, 4), where)
             self.assertEqual(rust["index"], m.load(DG + 0x148, 4), where)
             self.assertEqual(rust["fog"], m.load(DG + 0x50, 4), where)
-            # SetAmbient's argument, row / 255 on the stack: the EE divides
-            # towards zero, IEEE to nearest, so allow the last bit.
+            # SetAmbient's argument, row / 255 on the stack (the EE's div.s).
             game = [m.load(eemu.STACK_TOP + 96 + 4 * i, 4) for i in range(3)]
-            for a, b in zip(rust["ambient"], game):
-                self.assertLessEqual(abs(a - b), 1, where)
+            self.assertEqual(rust["ambient"], game, where)
             tables.add(rust["table"])
         self.assertEqual(len(tables), 13)
         print(f"\n{len(cases)} fog selections, 0 mismatches over {len(tables)} tables", file=sys.stderr)

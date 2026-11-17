@@ -26,7 +26,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_battle_rs as T  # noqa: E402
-import volume  # noqa: E402
+import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 
 SKO = 0x01033000        # the ccSkill under test
 ANM = 0x01034000        # a stand-in ccAnm

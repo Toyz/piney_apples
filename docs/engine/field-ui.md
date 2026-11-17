@@ -267,10 +267,10 @@ face's name, "You have new mail."); the target cursor and window (name, HP
 and SP bars, numbers, element and condition icons); the party panels (face,
 name, HP and SP bars coloured by `ccGetNowMaxColor`: under 20 % colour 2,
 under 40 % 23, under 60 % 6, else 22; a panel's condition icons from
-(170 i + 12, 320) on Infection and Mutation, from a static the disc holds
-as 0 and no code writes on Outbreak and Quarantine, OUT gcmn 0x00539ad8
-reading 0x00720c90, QUA 0x00619690 (see "The condition icons' static"):
-there they stand at the screen's top, the panel's shake added either way);
+(170 i + 12, 320), the panel's shake added; on Outbreak and Quarantine the
+320 is a static, OUT gcmn 0x00539ad8 reading 0x00720c90, QUA 0x00619690,
+that gcmn's static initialiser sets as the overlay loads (see "The
+condition icons' static"));
 the enemies' life bars and
 off-screen arrows; the protect marks; the battle banner (not while a menu
 forbids, an event runs (`eventMng` +0x04) or a boss is entered
@@ -3251,40 +3251,29 @@ game's pictures.
 
 On Outbreak and Quarantine `Disp` reads a party panel's condition icons' y
 with `lui $at, 0x72; lw $v0, 0x0c90($at)` (OUT gcmn 0x00539ad4) from GCMN's
-data, which the PRG holds as 0; Infection and Mutation add a literal
-(`addiu $v0, $s2, 320`, INF gcmn 0x00520a9c, MUT 0x0053ec3c), so no static
-of theirs matches it. The word is one of a run of 4-byte statics each in
-its own 8 bytes (OUT 0x00720c38 to 0x00720c97: 512.0, 5400, 450, 300, 300,
-5400, 450, 900, 900, 32, 32, 0), between the jump tables `@1486` and
-`@2983` with strings before and string literals after; each is read by
-direct address only (`DataDrainMenu`, `ConditionIconDisp`, `Disp`).
+data; Infection and Mutation add a literal (`addiu $v0, $s2, 320`, INF gcmn
+0x00520a9c, MUT 0x0053ec3c). The word is one of a run of 4-byte statics
+each in its own 8 bytes (OUT 0x00720c38 to 0x00720c97: 512.0, 5400, 450,
+300, 300, 5400, 450, 900, 900, 32, 32, 0) in GCMN's `.data` (OUT
+0x005fd580 to 0x0073d800, QUA 0x004f4900 to 0x0063a380).
 
-`tools/refscan.py outbreak 0x00720c90 0x00720c98 --near 0x58` (and
-`quarantine 0x00619690 0x00619698`) proves nothing writes it:
-
-```
-code     main and the four overlays' text, every word as an instruction;
-         from each lui the address registers followed 128 instructions
-         (addiu/ori/daddiu, moves; any other write or a call ends them):
-         every load, store or address built near the word, an address
-         passed in $a0-$a3 to a call (memset, memcpy, a file read), and
-         an indexed access (lui; addu index; lw %lo) from a base up to
-         8 KB below; $gp-relative accesses ($gp 0x0038ddf0 OUT, 0x00280770
-         QUA, out of reach of 0x0072xxxx)
-data     every aligned word of every file on the image, DATA.BIN's and the
-         STREAM archives' members inflated (1440 files and members on
-         Outbreak, 1519 on Quarantine), equal to an address near it
-```
-
-Within 0x58 of the word the code holds only loads (`Disp`'s at
-0x00539ad8 the one of 0x00720c90; QUA 0x0042c3e8), two indexed loads that
-are the jump tables (`sltiu` bounds 6 from 0x00720ba0, 21 from 0x00720be0,
-ending at 0x00720c34), no store, no address taken, no argument; no word of
-the executable or any overlay points there, only words of audio, movie and
-compressed data do by chance. The range is GCMN's `.data` (OUT data
-0x005fd580 to 0x0073d800, QUA 0x004f4900 to 0x0063a380), filled from the
-PRG by `mwLoadOverlay`, not `.bss`; the heap starts past the overlay's end.
-So the y is 0 from boot to power-off and the icons stand at the top.
+The PRG holds it as 0, but it is not 0 in play. `mwLoadOverlay` reads the
+file, clears `.bss` and then runs the static initialisers the header's
+constructor table names ([the overlay](../formats/prg.md#loading)). On
+Outbreak and Quarantine gcmn's third one (`__sinit_menu.cpp`'s place, OUT
+0x0073d730, QUA 0x0063a2b0) stores `352 - [0x00720c88]`, 352 less the 32
+before it: 320, as on the first two discs. Running the disc's own
+`mwLoadOverlay` in eemu on the disc's GCMN.PRG (the file read handed the
+PRG's bytes, `FlushCache` a no-op) leaves 0x140 at OUT 0x00720c90 and QUA
+0x00619690. The same run leaves makePacket's bounds 352 and 288 (OUT
+0x006dc5a8 and 0x006dc5b0, from the first initialiser, OUT 0x0073d680).
+Those six bytes are all the initialisers change in the file's image on
+those discs; on Infection and Mutation they change none (they write only
+`.bss` and main). The PRG has no relocation table (its 0x40-byte header
+is all there is besides text and data), so nothing else rewrites the
+image. `tools/refscan.py` scans the initialisers, which sit at the tail of
+`.data`, as code: their stores are the only ones of those words.
+`volume.overlay_init` gives the harnesses' machines the same `.data`.
 
 ## Not yet known or not ported
 

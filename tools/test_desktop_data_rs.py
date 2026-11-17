@@ -38,7 +38,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import test_save_init_rs  # noqa: E402
-import volume  # noqa: E402
+import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 from test_desktop_rs import ELF, ISO, ask, build  # noqa: E402
 
 # Scratch memory for the interpreter.

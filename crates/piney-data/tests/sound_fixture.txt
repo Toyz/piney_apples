@@ -1247,1300 +1247,1491 @@ vag 78 9 455808 551072 44100 0 166684 5953 -1 -1 0 535c3ebfeca7ea37
 sq 78 41149824 10976 10976 -1 48 -1 -1 68
 bgm 0 0 16941056 2 8470528 7f321464176eedd8
 bgm 1 16941056 46073124 0 23036562 d527807d3bfe5429
-# evrow TABLE EVENT MSG OFS SIZE     (every row; -1 is no line)
+# evrow SECTION KIND LANG EVENT MSG OFS SIZE   (every row; -1 is no line)
 # voice PATH OFS SIZE SAMPLES FNV    (FNV-1a 64 of the 16-bit samples)
-evrow evVoiceDataVol1M 1 0 0 248216
-evrow evVoiceDataVol1M 1 1 249856 521216
-evrow evVoiceDataVol1M 1 2 772096 449894
-evrow evVoiceDataVol1M 2 0 1222656 172544
-evrow evVoiceDataVol1M 2 1 1396736 134144
-evrow evVoiceDataVol1M 2 2 1531904 304380
-evrow evVoiceDataVol1M 2 3 1837056 672768
-evrow evVoiceDataVol1M 2 4 2510848 738176
-evrow evVoiceDataVol1M 2 5 3250176 137700
-evrow evVoiceDataVol1M 2 6 3389440 234214
-evrow evVoiceDataVol1M 2 7 3624960 129792
-evrow evVoiceDataVol1M 2 8 3756032 622592
-evrow evVoiceDataVol1M 2 9 4378624 616320
-evrow evVoiceDataVol1M 2 10 4995072 644850
-evrow evVoiceDataVol1M 2 11 5640192 322624
-evrow evVoiceDataVol1M 2 12 5963776 329238
-evrow evVoiceDataVol1M 2 13 6293504 280832
-evrow evVoiceDataVol1M 2 14 6576128 206976
-evrow evVoiceDataVol1M 2 15 6785024 454080
-evrow evVoiceDataVol1M 2 16 7239680 423752
-evrow evVoiceDataVol1M 2 17 7663616 463616
-evrow evVoiceDataVol1M 2 18 8128512 401536
-evrow evVoiceDataVol1M 2 19 8531968 673762
-evrow evVoiceDataVol1M 2 20 -1 -1
-evrow evVoiceDataVol1M 2 21 9205760 728910
-evrow evVoiceDataVol1M 2 22 9934848 478584
-evrow evVoiceDataVol1M 2 23 10414080 529736
-evrow evVoiceDataVol1M 2 24 10944512 450900
-evrow evVoiceDataVol1M 2 25 11397120 366016
-evrow evVoiceDataVol1M 2 26 11763712 714144
-evrow evVoiceDataVol1M 2 27 12478464 663552
-evrow evVoiceDataVol1M 2 28 13142016 258752
-evrow evVoiceDataVol1M 2 29 13402112 759424
-evrow evVoiceDataVol1M 2 30 14161920 699136
-evrow evVoiceDataVol1M 2 31 14862336 213888
-evrow evVoiceDataVol1M 2 32 15077376 797686
-evrow evVoiceDataVol1M 2 33 15876096 194258
-evrow evVoiceDataVol1M 2 34 -1 -1
-evrow evVoiceDataVol1M 2 35 16070656 598784
-evrow evVoiceDataVol1M 2 36 16670720 571596
-evrow evVoiceDataVol1M 2 37 17244160 498336
-evrow evVoiceDataVol1M 2 38 17743872 627616
-evrow evVoiceDataVol1M 2 39 18372608 490544
-evrow evVoiceDataVol1M 2 40 18864128 281088
-evrow evVoiceDataVol1M 2 41 19146752 426972
-evrow evVoiceDataVol1M 2 42 19574784 333952
-evrow evVoiceDataVol1M 2 43 19910656 283954
-evrow evVoiceDataVol1M 2 44 20195328 350592
-evrow evVoiceDataVol1M 2 45 20547584 466688
-evrow evVoiceDataVol1M 2 46 21014528 315514
-evrow evVoiceDataVol1M 2 47 21331968 447488
-evrow evVoiceDataVol1M 2 48 21780480 373680
-evrow evVoiceDataVol1M 2 49 22155264 514560
-evrow evVoiceDataVol1M 2 50 22671360 550016
-evrow evVoiceDataVol1M 2 51 23222272 521370
-evrow evVoiceDataVol1M 2 52 23744512 428544
-evrow evVoiceDataVol1M 2 53 24174592 501210
-evrow evVoiceDataVol1M 2 54 24676352 425822
-evrow evVoiceDataVol1M 2 55 25102336 481754
-evrow evVoiceDataVol1M 2 56 25585664 153360
-evrow evVoiceDataVol1M 3 0 25739264 298208
-evrow evVoiceDataVol1M 3 1 26038272 365194
-evrow evVoiceDataVol1M 3 2 26404864 454020
-evrow evVoiceDataVol1M 3 3 26859520 442170
-evrow evVoiceDataVol1M 3 4 27301888 679500
-evrow evVoiceDataVol1M 3 5 27981824 629248
-evrow evVoiceDataVol1M 3 6 28612608 865664
-evrow evVoiceDataVol1M 3 7 29478912 444672
-evrow evVoiceDataVol1M 3 8 29925376 496980
-evrow evVoiceDataVol1M 3 9 30423040 700544
-evrow evVoiceDataVol1M 3 10 31125504 156690
-evrow evVoiceDataVol1M 3 11 31283200 449730
-evrow evVoiceDataVol1M 3 12 31733760 684720
-evrow evVoiceDataVol1M 3 13 32419840 761920
-evrow evVoiceDataVol1M 3 14 33183744 498686
-evrow evVoiceDataVol1M 3 15 33683456 756224
-evrow evVoiceDataVol1M 3 16 34441216 501824
-evrow evVoiceDataVol1M 3 17 34945024 764640
-evrow evVoiceDataVol1M 3 18 35710976 620992
-evrow evVoiceDataVol1M 3 19 36333568 670720
-evrow evVoiceDataVol1M 3 20 37005312 450368
-evrow evVoiceDataVol1M 3 21 37455872 577024
-evrow evVoiceDataVol1M 3 22 38033408 637290
-evrow evVoiceDataVol1M 3 23 38672384 418176
-evrow evVoiceDataVol1M 3 24 39092224 781376
-evrow evVoiceDataVol1M 3 25 39874560 156780
-evrow evVoiceDataVol1M 3 26 -1 -1
-evrow evVoiceDataVol1M 3 27 40032256 609920
-evrow evVoiceDataVol1M 3 28 40642560 753480
-evrow evVoiceDataVol1M 3 29 41396224 585408
-evrow evVoiceDataVol1M 3 30 41981952 431280
-evrow evVoiceDataVol1M 3 31 42414080 641700
-evrow evVoiceDataVol1M 3 32 43057152 442880
-evrow evVoiceDataVol1M 3 33 43501568 550272
-evrow evVoiceDataVol1M 3 34 44052480 423680
-evrow evVoiceDataVol1M 3 35 44476416 452042
-evrow evVoiceDataVol1M 3 36 44929024 574400
-evrow evVoiceDataVol1M 3 37 45504512 215970
-evrow evVoiceDataVol1M 3 38 45721600 562948
-evrow evVoiceDataVol1M 3 39 46284800 489344
-evrow evVoiceDataVol1M 3 40 46774272 566464
-evrow evVoiceDataVol1M 3 41 47341568 469824
-evrow evVoiceDataVol1M 3 42 47812608 383778
-evrow evVoiceDataVol1M 3 43 48197632 553104
-evrow evVoiceDataVol1M 3 44 -1 -1
-evrow evVoiceDataVol1M 3 45 48752640 413824
-evrow evVoiceDataVol1M 3 46 49168384 409984
-evrow evVoiceDataVol1M 3 47 -1 -1
-evrow evVoiceDataVol1M 3 48 -1 -1
-evrow evVoiceDataVol1M 3 49 -1 -1
-evrow evVoiceDataVol1M 3 50 49580032 327014
-evrow evVoiceDataVol1M 3 51 49907712 726708
-evrow evVoiceDataVol1M 3 52 50634752 659160
-evrow evVoiceDataVol1M 3 53 51294208 688574
-evrow evVoiceDataVol1M 3 54 51984384 228032
-evrow evVoiceDataVol1M 3 55 52213760 670500
-evrow evVoiceDataVol1M 3 56 52885504 565524
-evrow evVoiceDataVol1M 3 57 53452800 479872
-evrow evVoiceDataVol1M 3 58 53934080 568350
-evrow evVoiceDataVol1M 4 0 54503424 261000
-evrow evVoiceDataVol1M 4 1 54765568 520000
-evrow evVoiceDataVol1M 4 2 55285760 481024
-evrow evVoiceDataVol1M 4 3 55767040 684664
-evrow evVoiceDataVol1M 4 4 56453120 214016
-evrow evVoiceDataVol1M 4 5 56668160 416700
-evrow evVoiceDataVol1M 4 6 57085952 441920
-evrow evVoiceDataVol1M 4 7 57528320 363008
-evrow evVoiceDataVol1M 4 8 57892864 213248
-evrow evVoiceDataVol1M 4 9 58107904 774088
-evrow evVoiceDataVol1M 4 10 58882048 717840
-evrow evVoiceDataVol1M 4 11 59600896 569920
-evrow evVoiceDataVol1M 4 12 60172288 370974
-evrow evVoiceDataVol1M 4 13 60545024 298208
-evrow evVoiceDataVol1M 4 14 60844032 275310
-evrow evVoiceDataVol1M 4 15 61120512 577024
-evrow evVoiceDataVol1M 4 16 61698048 472896
-evrow evVoiceDataVol1M 4 17 62171136 832384
-evrow evVoiceDataVol1M 4 18 63004672 501300
-evrow evVoiceDataVol1M 4 19 -1 -1
-evrow evVoiceDataVol1M 4 20 63506432 388170
-evrow evVoiceDataVol1M 4 21 -1 -1
-evrow evVoiceDataVol1M 10 0 63895552 368896
-evrow evVoiceDataVol1M 10 1 64266240 537480
-evrow evVoiceDataVol1M 10 2 64804864 569216
-evrow evVoiceDataVol1M 10 3 65374208 464784
-evrow evVoiceDataVol1M 10 4 65839104 1016960
-evrow evVoiceDataVol1M 10 5 66856960 476416
-evrow evVoiceDataVol1M 10 6 67334144 726816
-evrow evVoiceDataVol1M 10 7 -1 -1
-evrow evVoiceDataVol1M 10 8 -1 -1
-evrow evVoiceDataVol1M 10 9 -1 -1
-evrow evVoiceDataVol1M 10 10 68061184 518400
-evrow evVoiceDataVol1M 10 11 -1 -1
-evrow evVoiceDataVol1M 10 12 68581376 110592
-evrow evVoiceDataVol1M 11 0 68691968 528480
-evrow evVoiceDataVol1M 11 1 69222400 78030
-evrow evVoiceDataVol1M 11 2 69302272 690688
-evrow evVoiceDataVol1M 11 3 69994496 521280
-evrow evVoiceDataVol1M 11 4 -1 -1
-evrow evVoiceDataVol1M 11 5 70516736 446016
-evrow evVoiceDataVol1M 11 6 70963200 329088
-evrow evVoiceDataVol1M 11 7 71292928 489152
-evrow evVoiceDataVol1M 11 8 -1 -1
-evrow evVoiceDataVol1M 11 9 71782400 457536
-evrow evVoiceDataVol1M 11 10 72241152 212934
-evrow evVoiceDataVol1M 11 11 -1 -1
-evrow evVoiceDataVol1M 11 12 72454144 585952
-evrow evVoiceDataVol1M 11 13 73041920 320096
-evrow evVoiceDataVol1M 11 14 73363456 460928
-evrow evVoiceDataVol1M 11 15 73826304 203328
-evrow evVoiceDataVol1M 11 16 74031104 40756
-evrow evVoiceDataVol1M 11 17 74072064 533088
-evrow evVoiceDataVol1M 11 18 74606592 75392
-evrow evVoiceDataVol1M 11 19 74682368 444038
-evrow evVoiceDataVol1M 11 20 75126784 271354
-evrow evVoiceDataVol1M 11 21 75399168 67860
-evrow evVoiceDataVol1M 11 22 75468800 388896
-evrow evVoiceDataVol1M 11 23 75857920 247808
-evrow evVoiceDataVol1M 11 24 76105728 357376
-evrow evVoiceDataVol1M 11 25 76464128 107640
-evrow evVoiceDataVol1M 11 26 76572672 932736
-evrow evVoiceDataVol1M 11 27 -1 -1
-evrow evVoiceDataVol1M 11 28 77506560 999908
-evrow evVoiceDataVol1M 11 29 78508032 454272
-evrow evVoiceDataVol1M 11 30 78962688 593916
-evrow evVoiceDataVol1M 11 31 79556608 482506
-evrow evVoiceDataVol1M 11 32 80039936 434816
-evrow evVoiceDataVol1M 11 33 80476160 753408
-evrow evVoiceDataVol1M 11 34 81229824 457200
-evrow evVoiceDataVol1M 11 35 81688576 247710
-evrow evVoiceDataVol1M 11 36 81936384 428598
-evrow evVoiceDataVol1M 11 37 82366464 68448
-evrow evVoiceDataVol1M 11 38 82436096 470016
-evrow evVoiceDataVol1M 11 39 -1 -1
-evrow evVoiceDataVol1M 12 0 82907136 248216
-evrow evVoiceDataVol1M 12 1 83156992 451968
-evrow evVoiceDataVol1M 12 2 83609600 269606
-evrow evVoiceDataVol1M 13 0 83879936 597954
-evrow evVoiceDataVol1M 13 1 84477952 405056
-evrow evVoiceDataVol1M 14 0 84883456 196288
-evrow evVoiceDataVol1M 14 1 85080064 707488
-evrow evVoiceDataVol1M 14 2 85788672 362688
-evrow evVoiceDataVol1M 14 3 86153216 735126
-evrow evVoiceDataVol1M 14 4 86888448 379362
-evrow evVoiceDataVol1M 14 5 87269376 240320
-evrow evVoiceDataVol1M 14 6 87511040 323680
-evrow evVoiceDataVol1M 14 7 87836672 846768
-evrow evVoiceDataVol1M 14 8 88684544 440280
-evrow evVoiceDataVol1M 14 9 89124864 636160
-evrow evVoiceDataVol1M 14 10 89761792 284504
-evrow evVoiceDataVol1M 14 11 90046464 734758
-evrow evVoiceDataVol1M 14 12 90781696 129920
-evrow evVoiceDataVol1M 14 13 90912768 523848
-evrow evVoiceDataVol1M 14 14 91437056 748896
-evrow evVoiceDataVol1M 14 15 92186624 647040
-evrow evVoiceDataVol1M 14 16 92833792 362624
-evrow evVoiceDataVol1M 14 17 93198336 194488
-evrow evVoiceDataVol1M 14 18 93392896 159252
-evrow evVoiceDataVol1M 14 19 93552640 468694
-evrow evVoiceDataVol1M 14 20 94021632 653184
-evrow evVoiceDataVol1M 14 21 -1 -1
-evrow evVoiceDataVol1M 14 22 -1 -1
-evrow evVoiceDataVol1M 14 23 -1 -1
-evrow evVoiceDataVol1M 15 0 94674944 207874
-evrow evVoiceDataVol1M 15 1 94883840 51152
-evrow evVoiceDataVol1M 15 2 94935040 235704
-evrow evVoiceDataVol1M 15 3 95172608 745062
-evrow evVoiceDataVol1M 15 4 95918080 501930
-evrow evVoiceDataVol1M 15 5 96421888 123200
-evrow evVoiceDataVol1M 15 6 -1 -1
-evrow evVoiceDataVol1M 15 7 96546816 891584
-evrow evVoiceDataVol1M 15 8 97439744 824704
-evrow evVoiceDataVol1M 15 9 98265088 130176
-evrow evVoiceDataVol1M 15 10 98396160 232704
-evrow evVoiceDataVol1M 15 11 98629632 283008
-evrow evVoiceDataVol1M 15 12 98914304 76176
-evrow evVoiceDataVol1M 15 13 98992128 359424
-evrow evVoiceDataVol1M 15 14 99352576 1129984
-evrow evVoiceDataVol1M 15 15 100483072 191264
-evrow evVoiceDataVol1M 15 16 100675584 204562
-evrow evVoiceDataVol1M 15 17 100880384 226274
-evrow evVoiceDataVol1M 15 18 101107712 671360
-evrow evVoiceDataVol1M 15 19 101779456 148864
-evrow evVoiceDataVol1M 15 20 101928960 682180
-evrow evVoiceDataVol1M 15 21 102612992 741952
-evrow evVoiceDataVol1M 15 22 103356416 193410
-evrow evVoiceDataVol1M 15 23 -1 -1
-evrow evVoiceDataVol1M 15 24 -1 -1
-evrow evVoiceDataVol1M 16 0 103550976 248216
-evrow evVoiceDataVol1M 16 1 103800832 510112
-evrow evVoiceDataVol1M 16 2 104312832 401200
-evrow evVoiceDataVol1M 16 3 104714240 399808
-evrow evVoiceDataVol1M 16 4 -1 -1
-evrow evVoiceDataVol1M 17 0 105115648 248216
-evrow evVoiceDataVol1M 17 1 -1 -1
-evrow evVoiceDataVol1M 17 2 -1 -1
-evrow evVoiceDataVol1M 17 3 105365504 202384
-evrow evVoiceDataVol1M 17 4 105568256 736372
-evrow evVoiceDataVol1M 17 5 106305536 515016
-evrow evVoiceDataVol1M 17 6 106821632 521216
-evrow evVoiceDataVol1M 17 7 107343872 202370
-evrow evVoiceDataVol1M 17 8 107546624 362688
-evrow evVoiceDataVol1M 17 9 107911168 735126
-evrow evVoiceDataVol1M 17 10 108646400 379362
-evrow evVoiceDataVol1M 17 11 109027328 447872
-evrow evVoiceDataVol1M 17 12 109475840 528376
-evrow evVoiceDataVol1M 17 13 110004224 308032
-evrow evVoiceDataVol1M 17 14 110313472 675832
-evrow evVoiceDataVol1M 17 15 110989312 678848
-evrow evVoiceDataVol1M 17 16 111669248 291200
-evrow evVoiceDataVol1M 17 17 111962112 212032
-evrow evVoiceDataVol1M 17 18 112175104 718658
-evrow evVoiceDataVol1M 17 19 112893952 330998
-evrow evVoiceDataVol1M 17 20 113225728 231360
-evrow evVoiceDataVol1M 17 21 113457152 101312
-evrow evVoiceDataVol1M 17 22 113559552 408960
-evrow evVoiceDataVol1M 17 23 113969152 542156
-evrow evVoiceDataVol1M 17 24 114511872 163392
-evrow evVoiceDataVol1M 17 25 114675712 494592
-evrow evVoiceDataVol1M 17 26 115171328 434176
-evrow evVoiceDataVol1M 17 27 115605504 525150
-evrow evVoiceDataVol1M 17 28 116131840 650620
-evrow evVoiceDataVol1M 17 29 -1 -1
-evrow evVoiceDataVol1M 18 0 116783104 433376
-evrow evVoiceDataVol1M 18 1 -1 -1
-evrow evVoiceDataVol1M 18 2 117217280 296192
-evrow evVoiceDataVol1M 18 3 117514240 266112
-evrow evVoiceDataVol1M 18 4 117780480 256384
-evrow evVoiceDataVol1M 18 5 118038528 395406
-evrow evVoiceDataVol1M 18 6 118435840 489280
-evrow evVoiceDataVol1M 18 7 118925312 416512
-evrow evVoiceDataVol1M 18 8 119343104 421498
-evrow evVoiceDataVol1M 18 9 119764992 530058
-evrow evVoiceDataVol1M 18 10 120295424 483210
-evrow evVoiceDataVol1M 18 11 120778752 690880
-evrow evVoiceDataVol1M 18 12 -1 -1
-evrow evVoiceDataVol1M 18 13 121470976 693376
-evrow evVoiceDataVol1M 18 14 122165248 350280
-evrow evVoiceDataVol1M 18 15 122517504 332550
-evrow evVoiceDataVol1M 18 16 122851328 378540
-evrow evVoiceDataVol1M 18 17 123230208 374464
-evrow evVoiceDataVol1M 18 18 123604992 381536
-evrow evVoiceDataVol1M 18 19 123987968 495680
-evrow evVoiceDataVol1M 18 20 -1 -1
-evrow evVoiceDataVol1M 18 21 124485632 223652
-evrow evVoiceDataVol1M 18 22 124710912 478080
-evrow evVoiceDataVol1M 18 23 125190144 560128
-evrow evVoiceDataVol1M 18 24 125751296 120448
-evrow evVoiceDataVol1M 18 25 125872128 398866
-evrow evVoiceDataVol1M 18 26 126271488 99200
-evrow evVoiceDataVol1M 18 27 126371840 84456
-evrow evVoiceDataVol1M 18 28 126457856 368512
-evrow evVoiceDataVol1M 20 0 126826496 248216
-evrow evVoiceDataVol1M 20 1 127076352 378350
-evrow evVoiceDataVol1M 20 2 127455232 364182
-evrow evVoiceDataVol1M 20 3 127819776 382784
-evrow evVoiceDataVol1M 20 4 128202752 196608
-evrow evVoiceDataVol1M 20 5 128399360 553216
-evrow evVoiceDataVol1M 20 6 128954368 387688
-evrow evVoiceDataVol1M 20 7 129343488 286592
-evrow evVoiceDataVol1M 20 8 129630208 395520
-evrow evVoiceDataVol1M 20 9 130027520 371392
-evrow evVoiceDataVol1M 20 10 130400256 553216
-evrow evVoiceDataVol1M 20 11 -1 -1
-evrow evVoiceDataVol1M 20 12 -1 -1
-evrow evVoiceDataVol1M 20 13 -1 -1
-evrow evVoiceDataVol1M 20 14 -1 -1
-evrow evVoiceDataVol1M 21 0 130955264 493504
-evrow evVoiceDataVol1M 21 1 131448832 361792
-evrow evVoiceDataVol1M 21 2 131811328 288404
-evrow evVoiceDataVol1M 21 3 132100096 329096
-evrow evVoiceDataVol1M 21 4 132429824 550640
-evrow evVoiceDataVol1M 21 5 132980736 418446
-evrow evVoiceDataVol1M 21 6 133400576 217472
-evrow evVoiceDataVol1M 21 7 133619712 683776
-evrow evVoiceDataVol1M 21 8 134303744 764336
-evrow evVoiceDataVol1M 21 9 135069696 74432
-evrow evVoiceDataVol1M 21 10 135145472 100440
-evrow evVoiceDataVol1M 21 11 135247872 646714
-evrow evVoiceDataVol1M 21 12 135895040 130880
-evrow evVoiceDataVol1M 21 13 136026112 380742
-evrow evVoiceDataVol1M 21 14 136407040 287820
-evrow evVoiceDataVol1M 21 15 136695808 652160
-evrow evVoiceDataVol1M 21 16 137349120 40832
-evrow evVoiceDataVol1M 21 17 137390080 802048
-evrow evVoiceDataVol1M 21 18 138192896 152800
-evrow evVoiceDataVol1M 21 19 138346496 715136
-evrow evVoiceDataVol1M 21 20 139063296 85952
-evrow evVoiceDataVol1M 21 21 139149312 260624
-evrow evVoiceDataVol1M 21 22 139411456 323712
-evrow evVoiceDataVol1M 21 23 139737088 523072
-evrow evVoiceDataVol1M 21 24 140261376 71296
-evrow evVoiceDataVol1M 21 25 140333056 383744
-evrow evVoiceDataVol1M 21 26 140718080 186622
-evrow evVoiceDataVol1M 21 27 140906496 78336
-evrow evVoiceDataVol1M 21 28 140986368 310770
-evrow evVoiceDataVol1M 21 29 141297664 445184
-evrow evVoiceDataVol1M 21 30 141744128 235136
-evrow evVoiceDataVol1M 21 31 141979648 570576
-evrow evVoiceDataVol1M 21 32 142551040 737748
-evrow evVoiceDataVol1M 21 33 143290368 779776
-evrow evVoiceDataVol1M 21 34 144070656 189028
-evrow evVoiceDataVol1M 21 35 -1 -1
-evrow evVoiceDataVol1M 22 0 144261120 289984
-evrow evVoiceDataVol1M 22 1 144551936 80832
-evrow evVoiceDataVol1M 22 2 144633856 242816
-evrow evVoiceDataVol1M 22 3 144877568 57920
-evrow evVoiceDataVol1M 22 4 144936960 220224
-evrow evVoiceDataVol1M 22 5 145158144 762368
-evrow evVoiceDataVol1M 22 6 145922048 159232
-evrow evVoiceDataVol1M 22 7 146081792 150282
-evrow evVoiceDataVol1M 22 8 146233344 186660
-evrow evVoiceDataVol1M 22 9 146421760 729008
-evrow evVoiceDataVol1M 22 10 147150848 308800
-evrow evVoiceDataVol1M 22 11 147460096 805376
-evrow evVoiceDataVol1M 22 12 148267008 642944
-evrow evVoiceDataVol1M 22 13 148910080 572310
-evrow evVoiceDataVol1M 22 14 -1 -1
-evrow evVoiceDataVol1M 22 15 149483520 323426
-evrow evVoiceDataVol1M 22 16 -1 -1
-evrow evVoiceDataVol1M 22 17 149807104 316296
-evrow evVoiceDataVol1M 22 18 -1 -1
-evrow evVoiceDataVol1M 22 19 150124544 230848
-evrow evVoiceDataVol1M 22 20 -1 -1
-evrow evVoiceDataVol1M 22 21 150355968 193230
-evrow evVoiceDataVol1M 22 22 -1 -1
-evrow evVoiceDataVol1M 22 23 150550528 237440
-evrow evVoiceDataVol1M 22 24 -1 -1
-evrow evVoiceDataVol1M 22 25 150788096 195570
-evrow evVoiceDataVol1M 22 26 150984704 46598
-evrow evVoiceDataVol1M 22 27 151031808 110336
-evrow evVoiceDataVol1M 22 28 -1 -1
-evrow evVoiceDataVol1M 22 29 151142400 81450
-evrow evVoiceDataVol1M 22 30 151224320 93600
-evrow evVoiceDataVol1M 22 31 151318528 147240
-evrow evVoiceDataVol1M 22 32 151465984 277888
-evrow evVoiceDataVol1M 22 33 151744512 275580
-evrow evVoiceDataVol1M 22 34 152020992 280832
-evrow evVoiceDataVol1M 22 35 -1 -1
-evrow evVoiceDataVol1M 22 36 -1 -1
-evrow evVoiceDataVol1M 22 37 -1 -1
-evrow evVoiceDataVol1M 23 0 152303616 469664
-evrow evVoiceDataVol1M 23 1 152774656 218624
-evrow evVoiceDataVol1M 23 2 152993792 134720
-evrow evVoiceDataVol1M 23 3 153128960 668832
-evrow evVoiceDataVol1M 23 4 153798656 356224
-evrow evVoiceDataVol1M 23 5 154155008 267904
-evrow evVoiceDataVol1M 23 6 154423296 316066
-evrow evVoiceDataVol1M 24 0 154740736 1020960
-evrow evVoiceDataVol1M 24 1 155762688 177744
-evrow evVoiceDataVol1M 24 2 155940864 185334
-evrow evVoiceDataVol1M 24 3 156127232 358708
-evrow evVoiceDataVol1M 24 4 156487680 398268
-evrow evVoiceDataVol1M 24 5 156887040 129600
-evrow evVoiceDataVol1M 24 6 157018112 267104
-evrow evVoiceDataVol1M 24 7 157286400 237870
-evrow evVoiceDataVol1M 24 8 157526016 379712
-evrow evVoiceDataVol1M 24 9 157906944 658168
-evrow evVoiceDataVol1M 24 10 158566400 331016
-evrow evVoiceDataVol1M 24 11 158898176 207360
-evrow evVoiceDataVol1M 24 12 159107072 427776
-evrow evVoiceDataVol1M 24 13 159535104 55296
-evrow evVoiceDataVol1M 24 14 159590400 71744
-evrow evVoiceDataVol1M 24 15 159664128 568330
-evrow evVoiceDataVol1M 24 16 160233472 610742
-evrow evVoiceDataVol1M 24 17 160845824 51980
-evrow evVoiceDataVol1M 24 18 160899072 264192
-evrow evVoiceDataVol1M 24 19 161163264 602688
-evrow evVoiceDataVol1M 24 20 161767424 410656
-evrow evVoiceDataVol1M 24 21 162179072 841632
-evrow evVoiceDataVol1M 24 22 163020800 70592
-evrow evVoiceDataVol1M 24 23 163092480 695428
-evrow evVoiceDataVol1M 24 24 163788800 100326
-evrow evVoiceDataVol1M 24 25 163889152 351936
-evrow evVoiceDataVol1M 24 26 164241408 565056
-evrow evVoiceDataVol1M 24 27 -1 -1
-evrow evVoiceDataVol1M 24 28 164806656 654016
-evrow evVoiceDataVol1M 24 29 165462016 121248
-evrow evVoiceDataVol1M 24 30 165584896 77970
-evrow evVoiceDataVol1M 24 31 165664768 585580
-evrow evVoiceDataVol1M 24 32 166250496 398272
-evrow evVoiceDataVol1M 24 33 166649856 556186
-evrow evVoiceDataVol1M 24 34 167206912 288618
-evrow evVoiceDataVol1M 24 35 167495680 66430
-evrow evVoiceDataVol1M 24 36 167563264 205696
-evrow evVoiceDataVol1M 24 37 167770112 196920
-evrow evVoiceDataVol1M 24 38 167968768 413440
-evrow evVoiceDataVol1M 24 39 168382464 407700
-evrow evVoiceDataVol1M 24 40 168792064 405812
-evrow evVoiceDataVol1M 24 41 169199616 148480
-evrow evVoiceDataVol1M 24 42 169349120 538496
-evrow evVoiceDataVol1M 24 43 -1 -1
-evrow evVoiceDataVol1M 24 44 169887744 293760
-evrow evVoiceDataVol1M 24 45 170182656 261952
-evrow evVoiceDataVol1M 24 46 170444800 532036
-evrow evVoiceDataVol1M 24 47 170977280 92070
-evrow evVoiceDataVol1M 24 48 -1 -1
-evrow evVoiceDataVol1M 25 0 171069440 449984
-evrow evVoiceDataVol1M 25 1 171520000 198656
-evrow evVoiceDataVol1M 25 2 171718656 283040
-evrow evVoiceDataVol1M 25 3 172003328 205470
-evrow evVoiceDataVol1M 25 4 172210176 88192
-evrow evVoiceDataVol1M 25 5 172300288 1373466
-evrow evVoiceDataVol1M 25 6 173674496 397402
-evrow evVoiceDataVol1M 25 7 174073856 892690
-evrow evVoiceDataVol1M 25 8 174966784 189098
-evrow evVoiceDataVol1M 25 9 175157248 744570
-evrow evVoiceDataVol1M 25 10 175902720 496710
-evrow evVoiceDataVol1M 25 11 176400384 456192
-evrow evVoiceDataVol1M 25 12 176857088 225860
-evrow evVoiceDataVol1M 25 13 177084416 1241470
-evrow evVoiceDataVol1M 25 14 178327552 1257818
-evrow evVoiceDataVol1M 25 15 179587072 279040
-evrow evVoiceDataVol1M 25 16 179867648 58112
-evrow evVoiceDataVol1M 25 17 179927040 239616
-evrow evVoiceDataVol1M 25 18 180166656 430848
-evrow evVoiceDataVol1M 25 19 -1 -1
-evrow evVoiceDataVol1M 26 0 180598784 802626
-evrow evVoiceDataVol1M 26 1 181401600 104384
-evrow evVoiceDataVol1M 26 2 -1 -1
-evrow evVoiceDataVol1M 26 3 181506048 506100
-evrow evVoiceDataVol1M 26 4 182013952 397670
-evrow evVoiceDataVol1M 26 5 182413312 583926
-evrow evVoiceDataVol1M 26 6 182999040 230272
-evrow evVoiceDataVol1M 26 7 183230464 256796
-evrow evVoiceDataVol1M 26 8 183488512 483840
-evrow evVoiceDataVol1M 26 9 183973888 328950
-evrow evVoiceDataVol1M 26 10 184303616 193024
-evrow evVoiceDataVol1M 26 11 184498176 125460
-evrow evVoiceDataVol1M 26 12 -1 -1
-evrow evVoiceDataVol1M 26 13 184625152 338476
-evrow evVoiceDataVol1M 26 14 184965120 103424
-evrow evVoiceDataVol1M 26 15 -1 -1
-evrow evVoiceDataVol1M 26 16 -1 -1
-evrow evVoiceDataVol1M 27 0 185069568 192786
-evrow evVoiceDataVol1M 27 1 185264128 49680
-evrow evVoiceDataVol1M 27 2 185315328 394880
-evrow evVoiceDataVol1M 27 3 185710592 691470
-evrow evVoiceDataVol1M 27 4 186402816 278016
-evrow evVoiceDataVol1M 27 5 186681344 673920
-evrow evVoiceDataVol1M 27 6 187357184 576640
-evrow evVoiceDataVol1M 27 7 187934720 246790
-evrow evVoiceDataVol1M 27 8 188182528 268134
-evrow evVoiceDataVol1M 27 9 188450816 564098
-evrow evVoiceDataVol1M 27 10 189016064 648554
-evrow evVoiceDataVol1M 27 11 189665280 291328
-evrow evVoiceDataVol1M 27 12 189958144 40768
-evrow evVoiceDataVol1M 27 13 189999104 291520
-evrow evVoiceDataVol1M 27 14 190291968 264320
-evrow evVoiceDataVol1M 27 15 190558208 484110
-evrow evVoiceDataVol1M 27 16 191043584 302910
-evrow evVoiceDataVol1M 27 17 191346688 291392
-evrow evVoiceDataVol1M 28 0 191639552 750240
-evrow evVoiceDataVol1M 28 1 192391168 596596
-evrow evVoiceDataVol1M 28 2 192989184 438272
-evrow evVoiceDataVol1M 29 0 193427456 248216
-evrow evVoiceDataVol1M 29 1 193677312 354688
-evrow evVoiceDataVol1M 29 2 194033664 657384
-evrow evVoiceDataVol1M 29 3 194691072 361920
-evrow evVoiceDataVol1M 29 4 195053568 144210
-evrow evVoiceDataVol1M 29 5 195198976 68352
-evrow evVoiceDataVol1M 29 6 195268608 369792
-evrow evVoiceDataVol1M 29 7 195639296 105570
-evrow evVoiceDataVol1M 29 8 195745792 362790
-evrow evVoiceDataVol1M 29 9 196110336 550528
-evrow evVoiceDataVol1M 29 10 196661248 90896
-evrow evVoiceDataVol1M 29 11 196753408 799434
-evrow evVoiceDataVol1M 29 12 197554176 163800
-evrow evVoiceDataVol1M 30 0 197718016 248216
-evrow evVoiceDataVol1M 30 1 197967872 240422
-evrow evVoiceDataVol1M 30 2 198209536 258368
-evrow evVoiceDataVol1M 30 3 198469632 537924
-evrow evVoiceDataVol1M 30 4 199008256 145080
-evrow evVoiceDataVol1M 30 5 199153664 282496
-evrow evVoiceDataVol1M 30 6 199436288 234360
-evrow evVoiceDataVol1M 30 7 199671808 73472
-evrow evVoiceDataVol1M 30 8 199745536 159068
-evrow evVoiceDataVol1M 30 9 199905280 312320
-evrow evVoiceDataVol1M 30 10 200218624 415040
-evrow evVoiceDataVol1M 30 11 200634368 318500
-evrow evVoiceDataVol1M 30 12 -1 -1
-evrow evVoiceDataVol1M 30 13 -1 -1
-evrow evVoiceDataVol1M 30 14 -1 -1
-evrow evVoiceDataVol1M 31 0 200953856 317952
-evrow evVoiceDataVol1M 31 1 201273344 206848
-evrow evVoiceDataVol1M 31 2 201480192 353152
-evrow evVoiceDataVol1S 50 0 0 319936
-evrow evVoiceDataVol1S 50 1 321536 761130
-evrow evVoiceDataVol1S 50 2 -1 -1
-evrow evVoiceDataVol1S 50 3 1083392 490908
-evrow evVoiceDataVol1S 50 4 1574912 1108160
-evrow evVoiceDataVol1S 51 0 2684928 319936
-evrow evVoiceDataVol1S 51 1 3006464 508332
-evrow evVoiceDataVol1S 51 2 -1 -1
-evrow evVoiceDataVol1S 51 3 3516416 734436
-evrow evVoiceDataVol1S 51 4 4251648 829248
-evrow evVoiceDataVol1S 52 0 5081088 319936
-evrow evVoiceDataVol1S 52 1 5402624 330688
-evrow evVoiceDataVol1S 52 2 -1 -1
-evrow evVoiceDataVol1S 52 3 5734400 142646
-evrow evVoiceDataVol1S 52 4 5877760 431744
-evrow evVoiceDataVol1S 53 0 6309888 319936
-evrow evVoiceDataVol1S 53 1 6631424 477720
-evrow evVoiceDataVol1S 53 2 -1 -1
-evrow evVoiceDataVol1S 53 3 7110656 533056
-evrow evVoiceDataVol1S 53 4 7645184 343890
-evrow evVoiceDataVol1S 54 0 7989248 319936
-evrow evVoiceDataVol1S 54 1 8310784 347254
-evrow evVoiceDataVol1S 54 2 -1 -1
-evrow evVoiceDataVol1S 54 3 8658944 1276544
-evrow evVoiceDataVol1S 54 4 9936896 835648
-evrow evVoiceDataVol1S 54 5 10774528 912384
-evrow evVoiceDataVol1S 58 0 11687936 360720
-evrow evVoiceDataVol1S 58 1 12050432 591836
-evrow evVoiceDataVol1S 58 2 12642304 468608
-evrow evVoiceDataVol1S 58 3 13111296 255296
-evrow evVoiceDataVol1S 58 4 13367296 572992
-evrow evVoiceDataVol1S 58 5 -1 -1
-evrow evVoiceDataVol1S 58 6 13940736 384790
-evrow evVoiceDataVol1S 58 7 14325760 355488
-evrow evVoiceDataVol1S 58 8 14682112 191820
-evrow evVoiceDataVol1S 58 9 -1 -1
-evrow evVoiceDataVol1S 59 0 14874624 415196
-evrow evVoiceDataVol1S 59 1 -1 -1
-evrow evVoiceDataVol1S 59 2 15290368 204562
-evrow evVoiceDataVol1S 59 3 15495168 495090
-evrow evVoiceDataVol1S 59 4 15990784 136576
-evrow evVoiceDataVol1S 59 5 16128000 203968
-evrow evVoiceDataVol1S 59 6 16332800 357170
-evrow evVoiceDataVol1S 59 7 16691200 288640
-evrow evVoiceDataVol1S 59 8 16979968 237636
-evrow evVoiceDataVol1S 59 9 17219584 241216
-evrow evVoiceDataVol1S 59 10 17461248 176384
-evrow evVoiceDataVol1S 59 11 17639424 562860
-evrow evVoiceDataVol1S 59 12 18202624 225090
-evrow evVoiceDataVol1S 59 13 18427904 447872
-evrow evVoiceDataVol1S 59 14 18876416 78848
-evrow evVoiceDataVol1S 59 15 18956288 328500
-evrow evVoiceDataVol1S 59 16 19286016 82432
-evrow evVoiceDataVol1S 59 17 19369984 96840
-evrow evVoiceDataVol1S 59 18 19468288 203968
-evrow evVoiceDataVol1S 59 19 19673088 318080
-evrow evVoiceDataVol1S 59 20 19992576 227840
-evrow evVoiceDataVol1S 59 21 20221952 352314
-evrow evVoiceDataVol1S 59 22 20576256 120704
-evrow evVoiceDataVol1S 59 23 20697088 931712
-evrow evVoiceDataVol1S 59 24 21628928 650368
-evrow evVoiceDataVol1S 59 25 22280192 744256
-evrow evVoiceDataVol1S 59 26 23025664 178944
-evrow evVoiceDataVol1S 59 27 23205888 200376
-evrow evVoiceDataVol1S 59 28 23406592 360512
-evrow evVoiceDataVol1S 59 29 23769088 205804
-evrow evVoiceDataVol1S 59 30 23975936 92226
-evrow evVoiceDataVol1S 59 31 -1 -1
-evrow evVoiceDataVol1S 59 32 -1 -1
-evrow evVoiceDataVol1S 60 0 24070144 241792
-evrow evVoiceDataVol1S 60 1 24313856 260130
-evrow evVoiceDataVol1S 60 2 24576000 251648
-evrow evVoiceDataVol1S 60 3 24827904 299840
-evrow evVoiceDataVol1S 60 4 25128960 710910
-evrow evVoiceDataVol1S 60 5 25841664 301530
-evrow evVoiceDataVol1S 60 6 26144768 90560
-evrow evVoiceDataVol1S 60 7 26236928 59904
-evrow evVoiceDataVol1S 60 8 26298368 521548
-evrow evVoiceDataVol1S 60 9 26820608 371070
-evrow evVoiceDataVol1S 60 10 27193344 592342
-evrow evVoiceDataVol1S 60 11 27787264 54090
-evrow evVoiceDataVol1S 60 12 27842560 395190
-evrow evVoiceDataVol1S 60 13 28237824 231150
-evrow evVoiceDataVol1S 61 0 28469248 654580
-evrow evVoiceDataVol1S 61 1 29124608 592618
-evrow evVoiceDataVol1S 61 2 29718528 232070
-evrow evVoiceDataVol1S 61 3 29952000 236854
-evrow evVoiceDataVol1S 61 4 30189568 548544
-evrow evVoiceDataVol1S 61 5 -1 -1
-evrow evVoiceDataVol1S 61 6 30738432 597034
-evrow evVoiceDataVol1S 61 7 31336448 214222
-evrow evVoiceDataVol1S 61 8 31551488 63872
-evrow evVoiceDataVol1S 61 9 31617024 403712
-evrow evVoiceDataVol1S 61 10 32022528 306304
-evrow evVoiceDataVol1S 61 11 32329728 66516
-evrow evVoiceDataVol1S 61 12 -1 -1
-evrow evVoiceDataVol1S 62 0 32397312 356352
-evrow evVoiceDataVol1S 62 1 32753664 425088
-evrow evVoiceDataVol1S 62 2 -1 -1
-evrow evVoiceDataVol1S 63 0 33179648 188094
-evrow evVoiceDataVol1ME 1 0 0 158720
-evrow evVoiceDataVol1ME 1 1 159744 441604
-evrow evVoiceDataVol1ME 1 2 602112 477088
-evrow evVoiceDataVol1ME 2 0 1079296 159488
-evrow evVoiceDataVol1ME 2 1 1239040 84608
-evrow evVoiceDataVol1ME 2 2 1325056 276480
-evrow evVoiceDataVol1ME 2 3 1601536 624928
-evrow evVoiceDataVol1ME 2 4 2228224 734974
-evrow evVoiceDataVol1ME 2 5 2963456 109546
-evrow evVoiceDataVol1ME 2 6 3074048 274286
-evrow evVoiceDataVol1ME 2 7 3348480 167872
-evrow evVoiceDataVol1ME 2 8 3516416 537086
-evrow evVoiceDataVol1ME 2 9 4055040 628154
-evrow evVoiceDataVol1ME 2 10 4683776 489378
-evrow evVoiceDataVol1ME 2 11 5173248 311452
-evrow evVoiceDataVol1ME 2 12 5486592 335064
-evrow evVoiceDataVol1ME 2 13 5822464 235576
-evrow evVoiceDataVol1ME 2 14 6060032 213784
-evrow evVoiceDataVol1ME 2 15 6275072 424206
-evrow evVoiceDataVol1ME 2 16 6701056 453218
-evrow evVoiceDataVol1ME 2 17 7155712 447666
-evrow evVoiceDataVol1ME 2 18 7604224 425140
-evrow evVoiceDataVol1ME 2 19 8030208 661744
-evrow evVoiceDataVol1ME 2 20 -1 -1
-evrow evVoiceDataVol1ME 2 21 8693760 508142
-evrow evVoiceDataVol1ME 2 22 9203712 507208
-evrow evVoiceDataVol1ME 2 23 9711616 498408
-evrow evVoiceDataVol1ME 2 24 10211328 441640
-evrow evVoiceDataVol1ME 2 25 10653696 384996
-evrow evVoiceDataVol1ME 2 26 11038720 505574
-evrow evVoiceDataVol1ME 2 27 11544576 634384
-evrow evVoiceDataVol1ME 2 28 12179456 280296
-evrow evVoiceDataVol1ME 2 29 12460032 741516
-evrow evVoiceDataVol1ME 2 30 13203456 629520
-evrow evVoiceDataVol1ME 2 31 13834240 233402
-evrow evVoiceDataVol1ME 2 32 14067712 702726
-evrow evVoiceDataVol1ME 2 33 14772224 231912
-evrow evVoiceDataVol1ME 2 34 -1 -1
-evrow evVoiceDataVol1ME 2 35 15005696 498078
-evrow evVoiceDataVol1ME 2 36 15505408 582314
-evrow evVoiceDataVol1ME 2 37 16089088 418788
-evrow evVoiceDataVol1ME 2 38 16508928 548390
-evrow evVoiceDataVol1ME 2 39 17057792 443290
-evrow evVoiceDataVol1ME 2 40 17502208 313664
-evrow evVoiceDataVol1ME 2 41 17817600 408836
-evrow evVoiceDataVol1ME 2 42 18227200 371662
-evrow evVoiceDataVol1ME 2 43 18599936 270618
-evrow evVoiceDataVol1ME 2 44 18872320 392280
-evrow evVoiceDataVol1ME 2 45 19265536 494470
-evrow evVoiceDataVol1ME 2 46 19761152 361998
-evrow evVoiceDataVol1ME 2 47 20123648 377058
-evrow evVoiceDataVol1ME 2 48 20502528 317722
-evrow evVoiceDataVol1ME 2 49 20822016 448032
-evrow evVoiceDataVol1ME 2 50 21270528 459602
-evrow evVoiceDataVol1ME 2 51 21731328 552468
-evrow evVoiceDataVol1ME 2 52 22284288 438516
-evrow evVoiceDataVol1ME 2 53 22724608 530696
-evrow evVoiceDataVol1ME 2 54 23257088 364152
-evrow evVoiceDataVol1ME 2 55 23621632 520520
-evrow evVoiceDataVol1ME 2 56 24143872 163930
-evrow evVoiceDataVol1ME 3 0 24309760 336468
-evrow evVoiceDataVol1ME 3 1 24647680 380602
-evrow evVoiceDataVol1ME 3 2 25028608 430278
-evrow evVoiceDataVol1ME 3 3 25460736 404612
-evrow evVoiceDataVol1ME 3 4 25866240 549158
-evrow evVoiceDataVol1ME 3 5 26417152 596332
-evrow evVoiceDataVol1ME 3 6 27015168 559860
-evrow evVoiceDataVol1ME 3 7 27576320 438638
-evrow evVoiceDataVol1ME 3 8 28016640 448008
-evrow evVoiceDataVol1ME 3 9 28465152 531576
-evrow evVoiceDataVol1ME 3 10 28997632 187140
-evrow evVoiceDataVol1ME 3 11 29186048 425570
-evrow evVoiceDataVol1ME 3 12 29612032 565754
-evrow evVoiceDataVol1ME 3 13 30179328 536372
-evrow evVoiceDataVol1ME 3 14 30715904 530274
-evrow evVoiceDataVol1ME 3 15 31246336 628314
-evrow evVoiceDataVol1ME 3 16 31875072 465928
-evrow evVoiceDataVol1ME 3 17 32342016 654614
-evrow evVoiceDataVol1ME 3 18 32997376 530404
-evrow evVoiceDataVol1ME 3 19 33527808 561304
-evrow evVoiceDataVol1ME 3 20 34091008 488196
-evrow evVoiceDataVol1ME 3 21 34580480 455784
-evrow evVoiceDataVol1ME 3 22 35037184 609490
-evrow evVoiceDataVol1ME 3 23 35647488 362754
-evrow evVoiceDataVol1ME 3 24 36012032 647540
-evrow evVoiceDataVol1ME 3 25 36661248 196498
-evrow evVoiceDataVol1ME 3 26 -1 -1
-evrow evVoiceDataVol1ME 3 27 36857856 520512
-evrow evVoiceDataVol1ME 3 28 37380096 512406
-evrow evVoiceDataVol1ME 3 29 37894144 546364
-evrow evVoiceDataVol1ME 3 30 38440960 427296
-evrow evVoiceDataVol1ME 3 31 38868992 555444
-evrow evVoiceDataVol1ME 3 32 39426048 346228
-evrow evVoiceDataVol1ME 3 33 39774208 537508
-evrow evVoiceDataVol1ME 3 34 40312832 405016
-evrow evVoiceDataVol1ME 3 35 40718336 398852
-evrow evVoiceDataVol1ME 3 36 41117696 578296
-evrow evVoiceDataVol1ME 3 37 41697280 261544
-evrow evVoiceDataVol1ME 3 38 41959424 570512
-evrow evVoiceDataVol1ME 3 39 42530816 440290
-evrow evVoiceDataVol1ME 3 40 42971136 491246
-evrow evVoiceDataVol1ME 3 41 43462656 348382
-evrow evVoiceDataVol1ME 3 42 43812864 401386
-evrow evVoiceDataVol1ME 3 43 44214272 465008
-evrow evVoiceDataVol1ME 3 44 -1 -1
-evrow evVoiceDataVol1ME 3 45 44681216 376188
-evrow evVoiceDataVol1ME 3 46 45058048 388432
-evrow evVoiceDataVol1ME 3 47 -1 -1
-evrow evVoiceDataVol1ME 3 48 -1 -1
-evrow evVoiceDataVol1ME 3 49 -1 -1
-evrow evVoiceDataVol1ME 3 50 45447168 310500
-evrow evVoiceDataVol1ME 3 51 45758464 574682
-evrow evVoiceDataVol1ME 3 52 46333952 554022
-evrow evVoiceDataVol1ME 3 53 46888960 529196
-evrow evVoiceDataVol1ME 3 54 47419392 283404
-evrow evVoiceDataVol1ME 3 55 47704064 663872
-evrow evVoiceDataVol1ME 3 56 48369664 589808
-evrow evVoiceDataVol1ME 3 57 48959488 452486
-evrow evVoiceDataVol1ME 3 58 49412096 581814
-evrow evVoiceDataVol1ME 4 0 49995776 299150
-evrow evVoiceDataVol1ME 4 1 50296832 483944
-evrow evVoiceDataVol1ME 4 2 50782208 451186
-evrow evVoiceDataVol1ME 4 3 51234816 528096
-evrow evVoiceDataVol1ME 4 4 51763200 229160
-evrow evVoiceDataVol1ME 4 5 51992576 373488
-evrow evVoiceDataVol1ME 4 6 52367360 499740
-evrow evVoiceDataVol1ME 4 7 52869120 321182
-evrow evVoiceDataVol1ME 4 8 53190656 217088
-evrow evVoiceDataVol1ME 4 9 53407744 543246
-evrow evVoiceDataVol1ME 4 10 53952512 572194
-evrow evVoiceDataVol1ME 4 11 54525952 539604
-evrow evVoiceDataVol1ME 4 12 55066624 310680
-evrow evVoiceDataVol1ME 4 13 55377920 341058
-evrow evVoiceDataVol1ME 4 14 55719936 285598
-evrow evVoiceDataVol1ME 4 15 56006656 527430
-evrow evVoiceDataVol1ME 4 16 56535040 336864
-evrow evVoiceDataVol1ME 4 17 56872960 641374
-evrow evVoiceDataVol1ME 4 18 57516032 453856
-evrow evVoiceDataVol1ME 4 19 -1 -1
-evrow evVoiceDataVol1ME 4 20 57970688 421208
-evrow evVoiceDataVol1ME 4 21 -1 -1
-evrow evVoiceDataVol1ME 10 0 58392576 363836
-evrow evVoiceDataVol1ME 10 1 58757120 493960
-evrow evVoiceDataVol1ME 10 2 59252736 531880
-evrow evVoiceDataVol1ME 10 3 59785216 462276
-evrow evVoiceDataVol1ME 10 4 60248064 665690
-evrow evVoiceDataVol1ME 10 5 60915712 348394
-evrow evVoiceDataVol1ME 10 6 61265920 558304
-evrow evVoiceDataVol1ME 10 7 -1 -1
-evrow evVoiceDataVol1ME 10 8 -1 -1
-evrow evVoiceDataVol1ME 10 9 -1 -1
-evrow evVoiceDataVol1ME 10 10 61825024 490052
-evrow evVoiceDataVol1ME 10 11 -1 -1
-evrow evVoiceDataVol1ME 10 12 62316544 108998
-evrow evVoiceDataVol1ME 11 0 62427136 583792
-evrow evVoiceDataVol1ME 11 1 63012864 130966
-evrow evVoiceDataVol1ME 11 2 63143936 614904
-evrow evVoiceDataVol1ME 11 3 63760384 536116
-evrow evVoiceDataVol1ME 11 4 -1 -1
-evrow evVoiceDataVol1ME 11 5 64296960 450998
-evrow evVoiceDataVol1ME 11 6 64749568 211198
-evrow evVoiceDataVol1ME 11 7 64962560 524722
-evrow evVoiceDataVol1ME 11 8 -1 -1
-evrow evVoiceDataVol1ME 11 9 65488896 458810
-evrow evVoiceDataVol1ME 11 10 65949696 271748
-evrow evVoiceDataVol1ME 11 11 -1 -1
-evrow evVoiceDataVol1ME 11 12 66222080 535424
-evrow evVoiceDataVol1ME 11 13 66758656 361736
-evrow evVoiceDataVol1ME 11 14 67121152 345716
-evrow evVoiceDataVol1ME 11 15 67467264 289438
-evrow evVoiceDataVol1ME 11 16 67758080 90432
-evrow evVoiceDataVol1ME 11 17 67850240 537410
-evrow evVoiceDataVol1ME 11 18 68388864 103098
-evrow evVoiceDataVol1ME 11 19 68493312 463904
-evrow evVoiceDataVol1ME 11 20 68958208 274580
-evrow evVoiceDataVol1ME 11 21 69234688 136024
-evrow evVoiceDataVol1ME 11 22 69371904 382808
-evrow evVoiceDataVol1ME 11 23 69754880 297632
-evrow evVoiceDataVol1ME 11 24 70053888 360762
-evrow evVoiceDataVol1ME 11 25 70416384 114706
-evrow evVoiceDataVol1ME 11 26 70533120 790356
-evrow evVoiceDataVol1ME 11 27 -1 -1
-evrow evVoiceDataVol1ME 11 28 71323648 863106
-evrow evVoiceDataVol1ME 11 29 72187904 352152
-evrow evVoiceDataVol1ME 11 30 72540160 591614
-evrow evVoiceDataVol1ME 11 31 73132032 530698
-evrow evVoiceDataVol1ME 11 32 73664512 417546
-evrow evVoiceDataVol1ME 11 33 74082304 838356
-evrow evVoiceDataVol1ME 11 34 74921984 237740
-evrow evVoiceDataVol1ME 11 35 75161600 261500
-evrow evVoiceDataVol1ME 11 36 75423744 520554
-evrow evVoiceDataVol1ME 11 37 75945984 105952
-evrow evVoiceDataVol1ME 11 38 76052480 470330
-evrow evVoiceDataVol1ME 11 39 -1 -1
-evrow evVoiceDataVol1ME 12 0 76523520 214286
-evrow evVoiceDataVol1ME 12 1 76738560 464516
-evrow evVoiceDataVol1ME 12 2 77203456 293634
-evrow evVoiceDataVol1ME 13 0 77498368 630902
-evrow evVoiceDataVol1ME 13 1 78131200 427280
-evrow evVoiceDataVol1ME 14 0 78559232 184828
-evrow evVoiceDataVol1ME 14 1 78745600 571744
-evrow evVoiceDataVol1ME 14 2 79319040 275718
-evrow evVoiceDataVol1ME 14 3 79595520 713418
-evrow evVoiceDataVol1ME 14 4 80310272 462494
-evrow evVoiceDataVol1ME 14 5 80773120 252990
-evrow evVoiceDataVol1ME 14 6 81027072 365468
-evrow evVoiceDataVol1ME 14 7 81393664 885532
-evrow evVoiceDataVol1ME 14 8 82280448 445140
-evrow evVoiceDataVol1ME 14 9 82726912 656096
-evrow evVoiceDataVol1ME 14 10 83384320 312320
-evrow evVoiceDataVol1ME 14 11 83697664 730418
-evrow evVoiceDataVol1ME 14 12 84428800 165012
-evrow evVoiceDataVol1ME 14 13 84594688 465642
-evrow evVoiceDataVol1ME 14 14 85061632 706412
-evrow evVoiceDataVol1ME 14 15 85768192 607982
-evrow evVoiceDataVol1ME 14 16 86376448 366338
-evrow evVoiceDataVol1ME 14 17 86743040 221676
-evrow evVoiceDataVol1ME 14 18 86966272 195156
-evrow evVoiceDataVol1ME 14 19 87162880 527542
-evrow evVoiceDataVol1ME 14 20 87691264 647998
-evrow evVoiceDataVol1ME 14 21 -1 -1
-evrow evVoiceDataVol1ME 14 22 -1 -1
-evrow evVoiceDataVol1ME 14 23 -1 -1
-evrow evVoiceDataVol1ME 15 0 88340480 184744
-evrow evVoiceDataVol1ME 15 1 88526848 84898
-evrow evVoiceDataVol1ME 15 2 88612864 244270
-evrow evVoiceDataVol1ME 15 3 88858624 702024
-evrow evVoiceDataVol1ME 15 4 89561088 500858
-evrow evVoiceDataVol1ME 15 5 90062848 139584
-evrow evVoiceDataVol1ME 15 6 -1 -1
-evrow evVoiceDataVol1ME 15 7 90204160 741024
-evrow evVoiceDataVol1ME 15 8 90945536 723320
-evrow evVoiceDataVol1ME 15 9 91670528 182690
-evrow evVoiceDataVol1ME 15 10 91854848 203548
-evrow evVoiceDataVol1ME 15 11 92059648 234008
-evrow evVoiceDataVol1ME 15 12 92295168 101094
-evrow evVoiceDataVol1ME 15 13 92397568 307906
-evrow evVoiceDataVol1ME 15 14 92706816 1135140
-evrow evVoiceDataVol1ME 15 15 93843456 172426
-evrow evVoiceDataVol1ME 15 16 94017536 227850
-evrow evVoiceDataVol1ME 15 17 94246912 261450
-evrow evVoiceDataVol1ME 15 18 94509056 551240
-evrow evVoiceDataVol1ME 15 19 95062016 164216
-evrow evVoiceDataVol1ME 15 20 95227904 687654
-evrow evVoiceDataVol1ME 15 21 95916032 599388
-evrow evVoiceDataVol1ME 15 22 96516096 221692
-evrow evVoiceDataVol1ME 15 23 -1 -1
-evrow evVoiceDataVol1ME 15 24 -1 -1
-evrow evVoiceDataVol1ME 16 0 96739328 201356
-evrow evVoiceDataVol1ME 16 1 96942080 493668
-evrow evVoiceDataVol1ME 16 2 97437696 375200
-evrow evVoiceDataVol1ME 16 3 97814528 457434
-evrow evVoiceDataVol1ME 16 4 -1 -1
-evrow evVoiceDataVol1ME 17 0 98273280 198568
-evrow evVoiceDataVol1ME 17 1 -1 -1
-evrow evVoiceDataVol1ME 17 2 -1 -1
-evrow evVoiceDataVol1ME 17 3 98471936 190518
-evrow evVoiceDataVol1ME 17 4 98664448 768268
-evrow evVoiceDataVol1ME 17 5 99434496 525856
-evrow evVoiceDataVol1ME 17 6 99960832 391896
-evrow evVoiceDataVol1ME 17 7 100354048 192640
-evrow evVoiceDataVol1ME 17 8 100548608 227982
-evrow evVoiceDataVol1ME 17 9 100777984 655656
-evrow evVoiceDataVol1ME 17 10 101435392 424344
-evrow evVoiceDataVol1ME 17 11 101861376 374422
-evrow evVoiceDataVol1ME 17 12 102236160 472604
-evrow evVoiceDataVol1ME 17 13 102709248 346132
-evrow evVoiceDataVol1ME 17 14 103057408 554144
-evrow evVoiceDataVol1ME 17 15 103612416 718890
-evrow evVoiceDataVol1ME 17 16 104333312 276242
-evrow evVoiceDataVol1ME 17 17 104609792 208428
-evrow evVoiceDataVol1ME 17 18 104818688 651422
-evrow evVoiceDataVol1ME 17 19 105472000 394392
-evrow evVoiceDataVol1ME 17 20 105867264 201356
-evrow evVoiceDataVol1ME 17 21 106070016 138120
-evrow evVoiceDataVol1ME 17 22 106209280 307442
-evrow evVoiceDataVol1ME 17 23 106518528 545824
-evrow evVoiceDataVol1ME 17 24 107065344 143114
-evrow evVoiceDataVol1ME 17 25 107208704 426842
-evrow evVoiceDataVol1ME 17 26 107636736 404376
-evrow evVoiceDataVol1ME 17 27 108042240 526896
-evrow evVoiceDataVol1ME 17 28 108570624 662462
-evrow evVoiceDataVol1ME 17 29 -1 -1
-evrow evVoiceDataVol1ME 18 0 109234176 407704
-evrow evVoiceDataVol1ME 18 1 -1 -1
-evrow evVoiceDataVol1ME 18 2 109643776 237966
-evrow evVoiceDataVol1ME 18 3 109883392 262926
-evrow evVoiceDataVol1ME 18 4 110147584 271248
-evrow evVoiceDataVol1ME 18 5 110419968 416024
-evrow evVoiceDataVol1ME 18 6 110837760 494238
-evrow evVoiceDataVol1ME 18 7 111333376 411032
-evrow evVoiceDataVol1ME 18 8 111745024 445978
-evrow evVoiceDataVol1ME 18 9 112191488 538362
-evrow evVoiceDataVol1ME 18 10 112730112 418490
-evrow evVoiceDataVol1ME 18 11 113149952 617382
-evrow evVoiceDataVol1ME 18 12 -1 -1
-evrow evVoiceDataVol1ME 18 13 113768448 640678
-evrow evVoiceDataVol1ME 18 14 114409472 367766
-evrow evVoiceDataVol1ME 18 15 114778112 374300
-evrow evVoiceDataVol1ME 18 16 115152896 331156
-evrow evVoiceDataVol1ME 18 17 115484672 359446
-evrow evVoiceDataVol1ME 18 18 115845120 331156
-evrow evVoiceDataVol1ME 18 19 116176896 364438
-evrow evVoiceDataVol1ME 18 20 -1 -1
-evrow evVoiceDataVol1ME 18 21 116541440 242960
-evrow evVoiceDataVol1ME 18 22 116785152 424344
-evrow evVoiceDataVol1ME 18 23 117211136 549210
-evrow evVoiceDataVol1ME 18 24 117762048 108166
-evrow evVoiceDataVol1ME 18 25 117870592 379132
-evrow evVoiceDataVol1ME 18 26 118251520 124808
-evrow evVoiceDataVol1ME 18 27 118376448 128218
-evrow evVoiceDataVol1ME 18 28 118505472 274576
-evrow evVoiceDataVol1ME 20 0 118781952 262422
-evrow evVoiceDataVol1ME 20 1 119046144 388158
-evrow evVoiceDataVol1ME 20 2 119435264 369430
-evrow evVoiceDataVol1ME 20 3 119805952 419268
-evrow evVoiceDataVol1ME 20 4 120225792 128968
-evrow evVoiceDataVol1ME 20 5 120354816 555808
-evrow evVoiceDataVol1ME 20 6 120911872 392728
-evrow evVoiceDataVol1ME 20 7 121305088 301202
-evrow evVoiceDataVol1ME 20 8 121608192 377882
-evrow evVoiceDataVol1ME 20 9 121987072 377750
-evrow evVoiceDataVol1ME 20 10 122365952 542496
-evrow evVoiceDataVol1ME 20 11 -1 -1
-evrow evVoiceDataVol1ME 20 12 -1 -1
-evrow evVoiceDataVol1ME 20 13 -1 -1
-evrow evVoiceDataVol1ME 20 14 -1 -1
-evrow evVoiceDataVol1ME 21 0 122908672 505886
-evrow evVoiceDataVol1ME 21 1 123416576 343220
-evrow evVoiceDataVol1ME 21 2 123760640 246288
-evrow evVoiceDataVol1ME 21 3 124008448 306194
-evrow evVoiceDataVol1ME 21 4 124315648 484254
-evrow evVoiceDataVol1ME 21 5 124801024 402712
-evrow evVoiceDataVol1ME 21 6 125204480 171402
-evrow evVoiceDataVol1ME 21 7 125376512 652328
-evrow evVoiceDataVol1ME 21 8 126029824 730540
-evrow evVoiceDataVol1ME 21 9 126760960 78212
-evrow evVoiceDataVol1ME 21 10 126840832 76550
-evrow evVoiceDataVol1ME 21 11 126918656 607396
-evrow evVoiceDataVol1ME 21 12 127526912 141448
-evrow evVoiceDataVol1ME 21 13 127670272 382744
-evrow evVoiceDataVol1ME 21 14 128053248 284560
-evrow evVoiceDataVol1ME 21 15 128337920 589092
-evrow evVoiceDataVol1ME 21 16 128927744 58244
-evrow evVoiceDataVol1ME 21 17 128987136 747182
-evrow evVoiceDataVol1ME 21 18 129734656 153098
-evrow evVoiceDataVol1ME 21 19 129888256 615716
-evrow evVoiceDataVol1ME 21 20 130504704 108810
-evrow evVoiceDataVol1ME 21 21 130615296 299538
-evrow evVoiceDataVol1ME 21 22 130916352 326164
-evrow evVoiceDataVol1ME 21 23 131244032 485916
-evrow evVoiceDataVol1ME 21 24 131731456 84870
-evrow evVoiceDataVol1ME 21 25 131817472 382742
-evrow evVoiceDataVol1ME 21 26 132200448 196362
-evrow evVoiceDataVol1ME 21 27 132397056 94854
-evrow evVoiceDataVol1ME 21 28 132493312 317842
-evrow evVoiceDataVol1ME 21 29 132812800 406040
-evrow evVoiceDataVol1ME 21 30 133220352 242958
-evrow evVoiceDataVol1ME 21 31 133464064 445980
-evrow evVoiceDataVol1ME 21 32 133910528 667304
-evrow evVoiceDataVol1ME 21 33 134578176 658304
-evrow evVoiceDataVol1ME 21 34 135237632 186380
-evrow evVoiceDataVol1ME 21 35 -1 -1
-evrow evVoiceDataVol1ME 22 0 135426048 314062
-evrow evVoiceDataVol1ME 22 1 135741440 105714
-evrow evVoiceDataVol1ME 22 2 135847936 274352
-evrow evVoiceDataVol1ME 22 3 136122368 75950
-evrow evVoiceDataVol1ME 22 4 136200192 159084
-evrow evVoiceDataVol1ME 22 5 136359936 603622
-evrow evVoiceDataVol1ME 22 6 136964096 149846
-evrow evVoiceDataVol1ME 22 7 137115648 100582
-evrow evVoiceDataVol1ME 22 8 137218048 207322
-evrow evVoiceDataVol1ME 22 9 137426944 623506
-evrow evVoiceDataVol1ME 22 10 138051584 233238
-evrow evVoiceDataVol1ME 22 11 138285056 700996
-evrow evVoiceDataVol1ME 22 12 138987520 656864
-evrow evVoiceDataVol1ME 22 13 139644928 552174
-evrow evVoiceDataVol1ME 22 14 -1 -1
-evrow evVoiceDataVol1ME 22 15 140197888 307262
-evrow evVoiceDataVol1ME 22 16 -1 -1
-evrow evVoiceDataVol1ME 22 17 140507136 288146
-evrow evVoiceDataVol1ME 22 18 -1 -1
-evrow evVoiceDataVol1ME 22 19 140795904 238112
-evrow evVoiceDataVol1ME 22 20 -1 -1
-evrow evVoiceDataVol1ME 22 21 141035520 184744
-evrow evVoiceDataVol1ME 22 22 -1 -1
-evrow evVoiceDataVol1ME 22 23 141221888 242732
-evrow evVoiceDataVol1ME 22 24 -1 -1
-evrow evVoiceDataVol1ME 22 25 141465600 195006
-evrow evVoiceDataVol1ME 22 26 141662208 68252
-evrow evVoiceDataVol1ME 22 27 141731840 149528
-evrow evVoiceDataVol1ME 22 28 -1 -1
-evrow evVoiceDataVol1ME 22 29 141883392 81594
-evrow evVoiceDataVol1ME 22 30 141965312 105200
-evrow evVoiceDataVol1ME 22 31 142071808 103276
-evrow evVoiceDataVol1ME 22 32 142176256 263772
-evrow evVoiceDataVol1ME 22 33 142440448 202192
-evrow evVoiceDataVol1ME 22 34 142643200 235034
-evrow evVoiceDataVol1ME 22 35 -1 -1
-evrow evVoiceDataVol1ME 22 36 -1 -1
-evrow evVoiceDataVol1ME 22 37 -1 -1
-evrow evVoiceDataVol1ME 23 0 142878720 455138
-evrow evVoiceDataVol1ME 23 1 143335424 252942
-evrow evVoiceDataVol1ME 23 2 143589376 178058
-evrow evVoiceDataVol1ME 23 3 143767552 604068
-evrow evVoiceDataVol1ME 23 4 144371712 226318
-evrow evVoiceDataVol1ME 23 5 144599040 254606
-evrow evVoiceDataVol1ME 23 6 144855040 329492
-evrow evVoiceDataVol1ME 24 0 145184768 911400
-evrow evVoiceDataVol1ME 24 1 146098176 203020
-evrow evVoiceDataVol1ME 24 2 146302976 206350
-evrow evVoiceDataVol1ME 24 3 146509824 329490
-evrow evVoiceDataVol1ME 24 4 146839552 326164
-evrow evVoiceDataVol1ME 24 5 147167232 153096
-evrow evVoiceDataVol1ME 24 6 147320832 282064
-evrow evVoiceDataVol1ME 24 7 147603456 246286
-evrow evVoiceDataVol1ME 24 8 147851264 311188
-evrow evVoiceDataVol1ME 24 9 148162560 622372
-evrow evVoiceDataVol1ME 24 10 148785152 334892
-evrow evVoiceDataVol1ME 24 11 149121024 193034
-evrow evVoiceDataVol1ME 24 12 149315584 443268
-evrow evVoiceDataVol1ME 24 13 149760000 93190
-evrow evVoiceDataVol1ME 24 14 149854208 78212
-evrow evVoiceDataVol1ME 24 15 149934080 509214
-evrow evVoiceDataVol1ME 24 16 150444032 575778
-evrow evVoiceDataVol1ME 24 17 151021568 78212
-evrow evVoiceDataVol1ME 24 18 151101440 299538
-evrow evVoiceDataVol1ME 24 19 151402496 519200
-evrow evVoiceDataVol1ME 24 20 151922688 364436
-evrow evVoiceDataVol1ME 24 21 152287232 697258
-evrow evVoiceDataVol1ME 24 22 152985600 108166
-evrow evVoiceDataVol1ME 24 23 153094144 632358
-evrow evVoiceDataVol1ME 24 24 153726976 109832
-evrow evVoiceDataVol1ME 24 25 153837568 324500
-evrow evVoiceDataVol1ME 24 26 154163200 502558
-evrow evVoiceDataVol1ME 24 27 -1 -1
-evrow evVoiceDataVol1ME 24 28 154667008 521696
-evrow evVoiceDataVol1ME 24 29 155189248 159752
-evrow evVoiceDataVol1ME 24 30 155351040 106504
-evrow evVoiceDataVol1ME 24 31 155459584 597412
-evrow evVoiceDataVol1ME 24 32 156057600 447644
-evrow evVoiceDataVol1ME 24 33 156506112 570786
-evrow evVoiceDataVol1ME 24 34 157077504 305364
-evrow evVoiceDataVol1ME 24 35 157384704 103174
-evrow evVoiceDataVol1ME 24 36 157489152 217996
-evrow evVoiceDataVol1ME 24 37 157708288 186794
-evrow evVoiceDataVol1ME 24 38 157896704 437658
-evrow evVoiceDataVol1ME 24 39 158334976 285810
-evrow evVoiceDataVol1ME 24 40 158621696 401048
-evrow evVoiceDataVol1ME 24 41 159023104 179722
-evrow evVoiceDataVol1ME 24 42 159203328 497566
-evrow evVoiceDataVol1ME 24 43 -1 -1
-evrow evVoiceDataVol1ME 24 44 159700992 296210
-evrow evVoiceDataVol1ME 24 45 159997952 205620
-evrow evVoiceDataVol1ME 24 46 160204800 574114
-evrow evVoiceDataVol1ME 24 47 160780288 116488
-evrow evVoiceDataVol1ME 24 48 -1 -1
-evrow evVoiceDataVol1ME 25 0 160897024 427674
-evrow evVoiceDataVol1ME 25 1 161325056 219662
-evrow evVoiceDataVol1ME 25 2 161546240 285324
-evrow evVoiceDataVol1ME 25 3 161832960 199112
-evrow evVoiceDataVol1ME 25 4 162033664 104688
-evrow evVoiceDataVol1ME 25 5 162140160 1059192
-evrow evVoiceDataVol1ME 25 6 163201024 322274
-evrow evVoiceDataVol1ME 25 7 163524608 656862
-evrow evVoiceDataVol1ME 25 8 164182016 213482
-evrow evVoiceDataVol1ME 25 9 164397056 490596
-evrow evVoiceDataVol1ME 25 10 164888576 361274
-evrow evVoiceDataVol1ME 25 11 165251072 396170
-evrow evVoiceDataVol1ME 25 12 165648384 258640
-evrow evVoiceDataVol1ME 25 13 165908480 1410202
-evrow evVoiceDataVol1ME 25 14 167319552 1430730
-evrow evVoiceDataVol1ME 25 15 168751104 285324
-evrow evVoiceDataVol1ME 25 16 169037824 62608
-evrow evVoiceDataVol1ME 25 17 169101312 248376
-evrow evVoiceDataVol1ME 25 18 169351168 293536
-evrow evVoiceDataVol1ME 25 19 -1 -1
-evrow evVoiceDataVol1ME 26 0 169646080 658916
-evrow evVoiceDataVol1ME 26 1 170305536 133426
-evrow evVoiceDataVol1ME 26 2 -1 -1
-evrow evVoiceDataVol1ME 26 3 170440704 474172
-evrow evVoiceDataVol1ME 26 4 170915840 317142
-evrow evVoiceDataVol1ME 26 5 171233280 521384
-evrow evVoiceDataVol1ME 26 6 171755520 202192
-evrow evVoiceDataVol1ME 26 7 171958272 206296
-evrow evVoiceDataVol1ME 26 8 172165120 395144
-evrow evVoiceDataVol1ME 26 9 172560384 349984
-evrow evVoiceDataVol1ME 26 10 172910592 144714
-evrow evVoiceDataVol1ME 26 11 173056000 114952
-evrow evVoiceDataVol1ME 26 12 -1 -1
-evrow evVoiceDataVol1ME 26 13 173172736 257612
-evrow evVoiceDataVol1ME 26 14 173430784 134452
-evrow evVoiceDataVol1ME 26 15 -1 -1
-evrow evVoiceDataVol1ME 26 16 -1 -1
-evrow evVoiceDataVol1ME 27 0 173565952 159084
-evrow evVoiceDataVol1ME 27 1 173725696 62606
-evrow evVoiceDataVol1ME 27 2 173789184 379750
-evrow evVoiceDataVol1ME 27 3 174170112 619914
-evrow evVoiceDataVol1ME 27 4 174790656 256586
-evrow evVoiceDataVol1ME 27 5 175048704 695864
-evrow evVoiceDataVol1ME 27 6 175745024 424908
-evrow evVoiceDataVol1ME 27 7 176171008 236060
-evrow evVoiceDataVol1ME 27 8 176408576 371506
-evrow evVoiceDataVol1ME 27 9 176781312 412594
-evrow evVoiceDataVol1ME 27 10 177195008 550124
-evrow evVoiceDataVol1ME 27 11 177745920 266852
-evrow evVoiceDataVol1ME 27 12 178014208 75984
-evrow evVoiceDataVol1ME 27 13 178092032 254534
-evrow evVoiceDataVol1ME 27 14 178348032 246324
-evrow evVoiceDataVol1ME 27 15 178595840 463910
-evrow evVoiceDataVol1ME 27 16 179060736 249402
-evrow evVoiceDataVol1ME 27 17 179310592 287522
-evrow evVoiceDataVol1ME 28 0 179599360 629152
-evrow evVoiceDataVol1ME 28 1 180230144 425934
-evrow evVoiceDataVol1ME 28 2 180656128 373590
-evrow evVoiceDataVol1ME 29 0 181030912 153252
-evrow evVoiceDataVol1ME 29 1 181184512 322274
-evrow evVoiceDataVol1ME 29 2 181508096 601440
-evrow evVoiceDataVol1ME 29 3 182110208 345878
-evrow evVoiceDataVol1ME 29 4 182456320 173152
-evrow evVoiceDataVol1ME 29 5 182630400 87240
-evrow evVoiceDataVol1ME 29 6 182718464 331510
-evrow evVoiceDataVol1ME 29 7 183050240 107252
-evrow evVoiceDataVol1ME 29 8 183158784 269418
-evrow evVoiceDataVol1ME 29 9 183429120 527544
-evrow evVoiceDataVol1ME 29 10 183957504 71844
-evrow evVoiceDataVol1ME 29 11 184031232 700764
-evrow evVoiceDataVol1ME 29 12 184733696 135478
-evrow evVoiceDataVol1ME 30 0 184870912 197188
-evrow evVoiceDataVol1ME 30 1 185069568 186282
-evrow evVoiceDataVol1ME 30 2 185255936 211428
-evrow evVoiceDataVol1ME 30 3 185468928 422856
-evrow evVoiceDataVol1ME 30 4 185892864 163272
-evrow evVoiceDataVol1ME 30 5 186056704 270956
-evrow evVoiceDataVol1ME 30 6 186329088 270578
-evrow evVoiceDataVol1ME 30 7 186601472 129320
-evrow evVoiceDataVol1ME 30 8 186732544 175966
-evrow evVoiceDataVol1ME 30 9 186908672 314062
-evrow evVoiceDataVol1ME 30 10 187224064 318168
-evrow evVoiceDataVol1ME 30 11 187543552 305852
-evrow evVoiceDataVol1ME 30 12 -1 -1
-evrow evVoiceDataVol1ME 30 13 -1 -1
-evrow evVoiceDataVol1ME 30 14 -1 -1
-evrow evVoiceDataVol1ME 31 0 187850752 198656
-evrow evVoiceDataVol1ME 31 1 188049408 346112
-evrow evVoiceDataVol1ME 31 2 188395520 358400
-evrow evVoiceDataVol1SE 50 0 0 322274
-evrow evVoiceDataVol1SE 50 1 323584 656864
-evrow evVoiceDataVol1SE 50 2 -1 -1
-evrow evVoiceDataVol1SE 50 3 980992 496752
-evrow evVoiceDataVol1SE 50 4 1478656 1079718
-evrow evVoiceDataVol1SE 51 0 2560000 352038
-evrow evVoiceDataVol1SE 51 1 2912256 577834
-evrow evVoiceDataVol1SE 51 2 -1 -1
-evrow evVoiceDataVol1SE 51 3 3491840 775920
-evrow evVoiceDataVol1SE 51 4 4268032 832370
-evrow evVoiceDataVol1SE 52 0 5101568 334590
-evrow evVoiceDataVol1SE 52 1 5437440 297642
-evrow evVoiceDataVol1SE 52 2 -1 -1
-evrow evVoiceDataVol1SE 52 3 5736448 168322
-evrow evVoiceDataVol1SE 52 4 5906432 348960
-evrow evVoiceDataVol1SE 53 0 6256640 322272
-evrow evVoiceDataVol1SE 53 1 6580224 446462
-evrow evVoiceDataVol1SE 53 2 -1 -1
-evrow evVoiceDataVol1SE 53 3 7026688 548070
-evrow evVoiceDataVol1SE 53 4 7575552 367432
-evrow evVoiceDataVol1SE 54 0 7944192 294564
-evrow evVoiceDataVol1SE 54 1 8239104 379750
-evrow evVoiceDataVol1SE 54 2 -1 -1
-evrow evVoiceDataVol1SE 54 3 8620032 1272672
-evrow evVoiceDataVol1SE 54 4 9893888 831342
-evrow evVoiceDataVol1SE 54 5 10725376 829290
-evrow evVoiceDataVol1SE 58 0 11554816 299694
-evrow evVoiceDataVol1SE 58 1 11855872 472120
-evrow evVoiceDataVol1SE 58 2 12328960 490594
-evrow evVoiceDataVol1SE 58 3 12820480 269930
-evrow evVoiceDataVol1SE 58 4 13090816 537806
-evrow evVoiceDataVol1SE 58 5 -1 -1
-evrow evVoiceDataVol1SE 58 6 13629440 369486
-evrow evVoiceDataVol1SE 58 7 14000128 320222
-evrow evVoiceDataVol1SE 58 8 14321664 158058
-evrow evVoiceDataVol1SE 58 9 -1 -1
-evrow evVoiceDataVol1SE 59 0 14481408 367432
-evrow evVoiceDataVol1SE 59 1 -1 -1
-evrow evVoiceDataVol1SE 59 2 14850048 219640
-evrow evVoiceDataVol1SE 59 3 15071232 531648
-evrow evVoiceDataVol1SE 59 4 15603712 141636
-evrow evVoiceDataVol1SE 59 5 15747072 257612
-evrow evVoiceDataVol1SE 59 6 16005120 336642
-evrow evVoiceDataVol1SE 59 7 16343040 277286
-evrow evVoiceDataVol1SE 59 8 16621568 275062
-evrow evVoiceDataVol1SE 59 9 16898048 131342
-evrow evVoiceDataVol1SE 59 10 17031168 210402
-evrow evVoiceDataVol1SE 59 11 17242112 486490
-evrow evVoiceDataVol1SE 59 12 17729536 247350
-evrow evVoiceDataVol1SE 59 13 17977344 322906
-evrow evVoiceDataVol1SE 59 14 18300928 135478
-evrow evVoiceDataVol1SE 59 15 18438144 228876
-evrow evVoiceDataVol1SE 59 16 18667520 109820
-evrow evVoiceDataVol1SE 59 17 18778112 118030
-evrow evVoiceDataVol1SE 59 18 18896896 178596
-evrow evVoiceDataVol1SE 59 19 19077120 267876
-evrow evVoiceDataVol1SE 59 20 19345408 248056
-evrow evVoiceDataVol1SE 59 21 19595264 358604
-evrow evVoiceDataVol1SE 59 22 19955712 134452
-evrow evVoiceDataVol1SE 59 23 20090880 713312
-evrow evVoiceDataVol1SE 59 24 20805632 679442
-evrow evVoiceDataVol1SE 59 25 21485568 746156
-evrow evVoiceDataVol1SE 59 26 22233088 212454
-evrow evVoiceDataVol1SE 59 27 22446080 203218
-evrow evVoiceDataVol1SE 59 28 22650880 324326
-evrow evVoiceDataVol1SE 59 29 22976512 245298
-evrow evVoiceDataVol1SE 59 30 23222272 118030
-evrow evVoiceDataVol1SE 59 31 -1 -1
-evrow evVoiceDataVol1SE 59 32 -1 -1
-evrow evVoiceDataVol1SE 60 0 23341056 220154
-evrow evVoiceDataVol1SE 60 1 23562240 254444
-evrow evVoiceDataVol1SE 60 2 23818240 246324
-evrow evVoiceDataVol1SE 60 3 24066048 296614
-evrow evVoiceDataVol1SE 60 4 24363008 646600
-evrow evVoiceDataVol1SE 60 5 25010176 236060
-evrow evVoiceDataVol1SE 60 6 25247744 104176
-evrow evVoiceDataVol1SE 60 7 25352192 80546
-evrow evVoiceDataVol1SE 60 8 25434112 456724
-evrow evVoiceDataVol1SE 60 9 25892864 315806
-evrow evVoiceDataVol1SE 60 10 26210304 502910
-evrow evVoiceDataVol1SE 60 11 26714112 94424
-evrow evVoiceDataVol1SE 60 12 26810368 324328
-evrow evVoiceDataVol1SE 60 13 27136000 217586
-evrow evVoiceDataVol1SE 61 0 27355136 710234
-evrow evVoiceDataVol1SE 61 1 28065792 578860
-evrow evVoiceDataVol1SE 61 2 28645376 268904
-evrow evVoiceDataVol1SE 61 3 28915712 238114
-evrow evVoiceDataVol1SE 61 4 29155328 535754
-evrow evVoiceDataVol1SE 61 5 -1 -1
-evrow evVoiceDataVol1SE 61 6 29691904 624020
-evrow evVoiceDataVol1SE 61 7 30316544 252482
-evrow evVoiceDataVol1SE 61 8 30570496 70818
-evrow evVoiceDataVol1SE 61 9 30642176 419262
-evrow evVoiceDataVol1SE 61 10 31062016 183974
-evrow evVoiceDataVol1SE 61 11 31246336 66200
-evrow evVoiceDataVol1SE 61 12 -1 -1
-evrow evVoiceDataVol1SE 62 0 31313920 294562
-evrow evVoiceDataVol1SE 62 1 31608832 394116
-evrow evVoiceDataVol1SE 62 2 -1 -1
-evrow evVoiceDataVol1SE 63 0 32004096 174594
+evrow 0 main jp 1 0 0 248216
+evrow 0 main jp 1 1 249856 521216
+evrow 0 main jp 1 2 772096 449894
+evrow 0 main jp 2 0 1222656 172544
+evrow 0 main jp 2 1 1396736 134144
+evrow 0 main jp 2 2 1531904 304380
+evrow 0 main jp 2 3 1837056 672768
+evrow 0 main jp 2 4 2510848 738176
+evrow 0 main jp 2 5 3250176 137700
+evrow 0 main jp 2 6 3389440 234214
+evrow 0 main jp 2 7 3624960 129792
+evrow 0 main jp 2 8 3756032 622592
+evrow 0 main jp 2 9 4378624 616320
+evrow 0 main jp 2 10 4995072 644850
+evrow 0 main jp 2 11 5640192 322624
+evrow 0 main jp 2 12 5963776 329238
+evrow 0 main jp 2 13 6293504 280832
+evrow 0 main jp 2 14 6576128 206976
+evrow 0 main jp 2 15 6785024 454080
+evrow 0 main jp 2 16 7239680 423752
+evrow 0 main jp 2 17 7663616 463616
+evrow 0 main jp 2 18 8128512 401536
+evrow 0 main jp 2 19 8531968 673762
+evrow 0 main jp 2 20 -1 -1
+evrow 0 main jp 2 21 9205760 728910
+evrow 0 main jp 2 22 9934848 478584
+evrow 0 main jp 2 23 10414080 529736
+evrow 0 main jp 2 24 10944512 450900
+evrow 0 main jp 2 25 11397120 366016
+evrow 0 main jp 2 26 11763712 714144
+evrow 0 main jp 2 27 12478464 663552
+evrow 0 main jp 2 28 13142016 258752
+evrow 0 main jp 2 29 13402112 759424
+evrow 0 main jp 2 30 14161920 699136
+evrow 0 main jp 2 31 14862336 213888
+evrow 0 main jp 2 32 15077376 797686
+evrow 0 main jp 2 33 15876096 194258
+evrow 0 main jp 2 34 -1 -1
+evrow 0 main jp 2 35 16070656 598784
+evrow 0 main jp 2 36 16670720 571596
+evrow 0 main jp 2 37 17244160 498336
+evrow 0 main jp 2 38 17743872 627616
+evrow 0 main jp 2 39 18372608 490544
+evrow 0 main jp 2 40 18864128 281088
+evrow 0 main jp 2 41 19146752 426972
+evrow 0 main jp 2 42 19574784 333952
+evrow 0 main jp 2 43 19910656 283954
+evrow 0 main jp 2 44 20195328 350592
+evrow 0 main jp 2 45 20547584 466688
+evrow 0 main jp 2 46 21014528 315514
+evrow 0 main jp 2 47 21331968 447488
+evrow 0 main jp 2 48 21780480 373680
+evrow 0 main jp 2 49 22155264 514560
+evrow 0 main jp 2 50 22671360 550016
+evrow 0 main jp 2 51 23222272 521370
+evrow 0 main jp 2 52 23744512 428544
+evrow 0 main jp 2 53 24174592 501210
+evrow 0 main jp 2 54 24676352 425822
+evrow 0 main jp 2 55 25102336 481754
+evrow 0 main jp 2 56 25585664 153360
+evrow 0 main jp 3 0 25739264 298208
+evrow 0 main jp 3 1 26038272 365194
+evrow 0 main jp 3 2 26404864 454020
+evrow 0 main jp 3 3 26859520 442170
+evrow 0 main jp 3 4 27301888 679500
+evrow 0 main jp 3 5 27981824 629248
+evrow 0 main jp 3 6 28612608 865664
+evrow 0 main jp 3 7 29478912 444672
+evrow 0 main jp 3 8 29925376 496980
+evrow 0 main jp 3 9 30423040 700544
+evrow 0 main jp 3 10 31125504 156690
+evrow 0 main jp 3 11 31283200 449730
+evrow 0 main jp 3 12 31733760 684720
+evrow 0 main jp 3 13 32419840 761920
+evrow 0 main jp 3 14 33183744 498686
+evrow 0 main jp 3 15 33683456 756224
+evrow 0 main jp 3 16 34441216 501824
+evrow 0 main jp 3 17 34945024 764640
+evrow 0 main jp 3 18 35710976 620992
+evrow 0 main jp 3 19 36333568 670720
+evrow 0 main jp 3 20 37005312 450368
+evrow 0 main jp 3 21 37455872 577024
+evrow 0 main jp 3 22 38033408 637290
+evrow 0 main jp 3 23 38672384 418176
+evrow 0 main jp 3 24 39092224 781376
+evrow 0 main jp 3 25 39874560 156780
+evrow 0 main jp 3 26 -1 -1
+evrow 0 main jp 3 27 40032256 609920
+evrow 0 main jp 3 28 40642560 753480
+evrow 0 main jp 3 29 41396224 585408
+evrow 0 main jp 3 30 41981952 431280
+evrow 0 main jp 3 31 42414080 641700
+evrow 0 main jp 3 32 43057152 442880
+evrow 0 main jp 3 33 43501568 550272
+evrow 0 main jp 3 34 44052480 423680
+evrow 0 main jp 3 35 44476416 452042
+evrow 0 main jp 3 36 44929024 574400
+evrow 0 main jp 3 37 45504512 215970
+evrow 0 main jp 3 38 45721600 562948
+evrow 0 main jp 3 39 46284800 489344
+evrow 0 main jp 3 40 46774272 566464
+evrow 0 main jp 3 41 47341568 469824
+evrow 0 main jp 3 42 47812608 383778
+evrow 0 main jp 3 43 48197632 553104
+evrow 0 main jp 3 44 -1 -1
+evrow 0 main jp 3 45 48752640 413824
+evrow 0 main jp 3 46 49168384 409984
+evrow 0 main jp 3 47 -1 -1
+evrow 0 main jp 3 48 -1 -1
+evrow 0 main jp 3 49 -1 -1
+evrow 0 main jp 3 50 49580032 327014
+evrow 0 main jp 3 51 49907712 726708
+evrow 0 main jp 3 52 50634752 659160
+evrow 0 main jp 3 53 51294208 688574
+evrow 0 main jp 3 54 51984384 228032
+evrow 0 main jp 3 55 52213760 670500
+evrow 0 main jp 3 56 52885504 565524
+evrow 0 main jp 3 57 53452800 479872
+evrow 0 main jp 3 58 53934080 568350
+evrow 0 main jp 4 0 54503424 261000
+evrow 0 main jp 4 1 54765568 520000
+evrow 0 main jp 4 2 55285760 481024
+evrow 0 main jp 4 3 55767040 684664
+evrow 0 main jp 4 4 56453120 214016
+evrow 0 main jp 4 5 56668160 416700
+evrow 0 main jp 4 6 57085952 441920
+evrow 0 main jp 4 7 57528320 363008
+evrow 0 main jp 4 8 57892864 213248
+evrow 0 main jp 4 9 58107904 774088
+evrow 0 main jp 4 10 58882048 717840
+evrow 0 main jp 4 11 59600896 569920
+evrow 0 main jp 4 12 60172288 370974
+evrow 0 main jp 4 13 60545024 298208
+evrow 0 main jp 4 14 60844032 275310
+evrow 0 main jp 4 15 61120512 577024
+evrow 0 main jp 4 16 61698048 472896
+evrow 0 main jp 4 17 62171136 832384
+evrow 0 main jp 4 18 63004672 501300
+evrow 0 main jp 4 19 -1 -1
+evrow 0 main jp 4 20 63506432 388170
+evrow 0 main jp 4 21 -1 -1
+evrow 0 main jp 10 0 63895552 368896
+evrow 0 main jp 10 1 64266240 537480
+evrow 0 main jp 10 2 64804864 569216
+evrow 0 main jp 10 3 65374208 464784
+evrow 0 main jp 10 4 65839104 1016960
+evrow 0 main jp 10 5 66856960 476416
+evrow 0 main jp 10 6 67334144 726816
+evrow 0 main jp 10 7 -1 -1
+evrow 0 main jp 10 8 -1 -1
+evrow 0 main jp 10 9 -1 -1
+evrow 0 main jp 10 10 68061184 518400
+evrow 0 main jp 10 11 -1 -1
+evrow 0 main jp 10 12 68581376 110592
+evrow 0 main jp 11 0 68691968 528480
+evrow 0 main jp 11 1 69222400 78030
+evrow 0 main jp 11 2 69302272 690688
+evrow 0 main jp 11 3 69994496 521280
+evrow 0 main jp 11 4 -1 -1
+evrow 0 main jp 11 5 70516736 446016
+evrow 0 main jp 11 6 70963200 329088
+evrow 0 main jp 11 7 71292928 489152
+evrow 0 main jp 11 8 -1 -1
+evrow 0 main jp 11 9 71782400 457536
+evrow 0 main jp 11 10 72241152 212934
+evrow 0 main jp 11 11 -1 -1
+evrow 0 main jp 11 12 72454144 585952
+evrow 0 main jp 11 13 73041920 320096
+evrow 0 main jp 11 14 73363456 460928
+evrow 0 main jp 11 15 73826304 203328
+evrow 0 main jp 11 16 74031104 40756
+evrow 0 main jp 11 17 74072064 533088
+evrow 0 main jp 11 18 74606592 75392
+evrow 0 main jp 11 19 74682368 444038
+evrow 0 main jp 11 20 75126784 271354
+evrow 0 main jp 11 21 75399168 67860
+evrow 0 main jp 11 22 75468800 388896
+evrow 0 main jp 11 23 75857920 247808
+evrow 0 main jp 11 24 76105728 357376
+evrow 0 main jp 11 25 76464128 107640
+evrow 0 main jp 11 26 76572672 932736
+evrow 0 main jp 11 27 -1 -1
+evrow 0 main jp 11 28 77506560 999908
+evrow 0 main jp 11 29 78508032 454272
+evrow 0 main jp 11 30 78962688 593916
+evrow 0 main jp 11 31 79556608 482506
+evrow 0 main jp 11 32 80039936 434816
+evrow 0 main jp 11 33 80476160 753408
+evrow 0 main jp 11 34 81229824 457200
+evrow 0 main jp 11 35 81688576 247710
+evrow 0 main jp 11 36 81936384 428598
+evrow 0 main jp 11 37 82366464 68448
+evrow 0 main jp 11 38 82436096 470016
+evrow 0 main jp 11 39 -1 -1
+evrow 0 main jp 12 0 82907136 248216
+evrow 0 main jp 12 1 83156992 451968
+evrow 0 main jp 12 2 83609600 269606
+evrow 0 main jp 13 0 83879936 597954
+evrow 0 main jp 13 1 84477952 405056
+evrow 0 main jp 14 0 84883456 196288
+evrow 0 main jp 14 1 85080064 707488
+evrow 0 main jp 14 2 85788672 362688
+evrow 0 main jp 14 3 86153216 735126
+evrow 0 main jp 14 4 86888448 379362
+evrow 0 main jp 14 5 87269376 240320
+evrow 0 main jp 14 6 87511040 323680
+evrow 0 main jp 14 7 87836672 846768
+evrow 0 main jp 14 8 88684544 440280
+evrow 0 main jp 14 9 89124864 636160
+evrow 0 main jp 14 10 89761792 284504
+evrow 0 main jp 14 11 90046464 734758
+evrow 0 main jp 14 12 90781696 129920
+evrow 0 main jp 14 13 90912768 523848
+evrow 0 main jp 14 14 91437056 748896
+evrow 0 main jp 14 15 92186624 647040
+evrow 0 main jp 14 16 92833792 362624
+evrow 0 main jp 14 17 93198336 194488
+evrow 0 main jp 14 18 93392896 159252
+evrow 0 main jp 14 19 93552640 468694
+evrow 0 main jp 14 20 94021632 653184
+evrow 0 main jp 14 21 -1 -1
+evrow 0 main jp 14 22 -1 -1
+evrow 0 main jp 14 23 -1 -1
+evrow 0 main jp 15 0 94674944 207874
+evrow 0 main jp 15 1 94883840 51152
+evrow 0 main jp 15 2 94935040 235704
+evrow 0 main jp 15 3 95172608 745062
+evrow 0 main jp 15 4 95918080 501930
+evrow 0 main jp 15 5 96421888 123200
+evrow 0 main jp 15 6 -1 -1
+evrow 0 main jp 15 7 96546816 891584
+evrow 0 main jp 15 8 97439744 824704
+evrow 0 main jp 15 9 98265088 130176
+evrow 0 main jp 15 10 98396160 232704
+evrow 0 main jp 15 11 98629632 283008
+evrow 0 main jp 15 12 98914304 76176
+evrow 0 main jp 15 13 98992128 359424
+evrow 0 main jp 15 14 99352576 1129984
+evrow 0 main jp 15 15 100483072 191264
+evrow 0 main jp 15 16 100675584 204562
+evrow 0 main jp 15 17 100880384 226274
+evrow 0 main jp 15 18 101107712 671360
+evrow 0 main jp 15 19 101779456 148864
+evrow 0 main jp 15 20 101928960 682180
+evrow 0 main jp 15 21 102612992 741952
+evrow 0 main jp 15 22 103356416 193410
+evrow 0 main jp 15 23 -1 -1
+evrow 0 main jp 15 24 -1 -1
+evrow 0 main jp 16 0 103550976 248216
+evrow 0 main jp 16 1 103800832 510112
+evrow 0 main jp 16 2 104312832 401200
+evrow 0 main jp 16 3 104714240 399808
+evrow 0 main jp 16 4 -1 -1
+evrow 0 main jp 17 0 105115648 248216
+evrow 0 main jp 17 1 -1 -1
+evrow 0 main jp 17 2 -1 -1
+evrow 0 main jp 17 3 105365504 202384
+evrow 0 main jp 17 4 105568256 736372
+evrow 0 main jp 17 5 106305536 515016
+evrow 0 main jp 17 6 106821632 521216
+evrow 0 main jp 17 7 107343872 202370
+evrow 0 main jp 17 8 107546624 362688
+evrow 0 main jp 17 9 107911168 735126
+evrow 0 main jp 17 10 108646400 379362
+evrow 0 main jp 17 11 109027328 447872
+evrow 0 main jp 17 12 109475840 528376
+evrow 0 main jp 17 13 110004224 308032
+evrow 0 main jp 17 14 110313472 675832
+evrow 0 main jp 17 15 110989312 678848
+evrow 0 main jp 17 16 111669248 291200
+evrow 0 main jp 17 17 111962112 212032
+evrow 0 main jp 17 18 112175104 718658
+evrow 0 main jp 17 19 112893952 330998
+evrow 0 main jp 17 20 113225728 231360
+evrow 0 main jp 17 21 113457152 101312
+evrow 0 main jp 17 22 113559552 408960
+evrow 0 main jp 17 23 113969152 542156
+evrow 0 main jp 17 24 114511872 163392
+evrow 0 main jp 17 25 114675712 494592
+evrow 0 main jp 17 26 115171328 434176
+evrow 0 main jp 17 27 115605504 525150
+evrow 0 main jp 17 28 116131840 650620
+evrow 0 main jp 17 29 -1 -1
+evrow 0 main jp 18 0 116783104 433376
+evrow 0 main jp 18 1 -1 -1
+evrow 0 main jp 18 2 117217280 296192
+evrow 0 main jp 18 3 117514240 266112
+evrow 0 main jp 18 4 117780480 256384
+evrow 0 main jp 18 5 118038528 395406
+evrow 0 main jp 18 6 118435840 489280
+evrow 0 main jp 18 7 118925312 416512
+evrow 0 main jp 18 8 119343104 421498
+evrow 0 main jp 18 9 119764992 530058
+evrow 0 main jp 18 10 120295424 483210
+evrow 0 main jp 18 11 120778752 690880
+evrow 0 main jp 18 12 -1 -1
+evrow 0 main jp 18 13 121470976 693376
+evrow 0 main jp 18 14 122165248 350280
+evrow 0 main jp 18 15 122517504 332550
+evrow 0 main jp 18 16 122851328 378540
+evrow 0 main jp 18 17 123230208 374464
+evrow 0 main jp 18 18 123604992 381536
+evrow 0 main jp 18 19 123987968 495680
+evrow 0 main jp 18 20 -1 -1
+evrow 0 main jp 18 21 124485632 223652
+evrow 0 main jp 18 22 124710912 478080
+evrow 0 main jp 18 23 125190144 560128
+evrow 0 main jp 18 24 125751296 120448
+evrow 0 main jp 18 25 125872128 398866
+evrow 0 main jp 18 26 126271488 99200
+evrow 0 main jp 18 27 126371840 84456
+evrow 0 main jp 18 28 126457856 368512
+evrow 0 main jp 20 0 126826496 248216
+evrow 0 main jp 20 1 127076352 378350
+evrow 0 main jp 20 2 127455232 364182
+evrow 0 main jp 20 3 127819776 382784
+evrow 0 main jp 20 4 128202752 196608
+evrow 0 main jp 20 5 128399360 553216
+evrow 0 main jp 20 6 128954368 387688
+evrow 0 main jp 20 7 129343488 286592
+evrow 0 main jp 20 8 129630208 395520
+evrow 0 main jp 20 9 130027520 371392
+evrow 0 main jp 20 10 130400256 553216
+evrow 0 main jp 20 11 -1 -1
+evrow 0 main jp 20 12 -1 -1
+evrow 0 main jp 20 13 -1 -1
+evrow 0 main jp 20 14 -1 -1
+evrow 0 main jp 21 0 130955264 493504
+evrow 0 main jp 21 1 131448832 361792
+evrow 0 main jp 21 2 131811328 288404
+evrow 0 main jp 21 3 132100096 329096
+evrow 0 main jp 21 4 132429824 550640
+evrow 0 main jp 21 5 132980736 418446
+evrow 0 main jp 21 6 133400576 217472
+evrow 0 main jp 21 7 133619712 683776
+evrow 0 main jp 21 8 134303744 764336
+evrow 0 main jp 21 9 135069696 74432
+evrow 0 main jp 21 10 135145472 100440
+evrow 0 main jp 21 11 135247872 646714
+evrow 0 main jp 21 12 135895040 130880
+evrow 0 main jp 21 13 136026112 380742
+evrow 0 main jp 21 14 136407040 287820
+evrow 0 main jp 21 15 136695808 652160
+evrow 0 main jp 21 16 137349120 40832
+evrow 0 main jp 21 17 137390080 802048
+evrow 0 main jp 21 18 138192896 152800
+evrow 0 main jp 21 19 138346496 715136
+evrow 0 main jp 21 20 139063296 85952
+evrow 0 main jp 21 21 139149312 260624
+evrow 0 main jp 21 22 139411456 323712
+evrow 0 main jp 21 23 139737088 523072
+evrow 0 main jp 21 24 140261376 71296
+evrow 0 main jp 21 25 140333056 383744
+evrow 0 main jp 21 26 140718080 186622
+evrow 0 main jp 21 27 140906496 78336
+evrow 0 main jp 21 28 140986368 310770
+evrow 0 main jp 21 29 141297664 445184
+evrow 0 main jp 21 30 141744128 235136
+evrow 0 main jp 21 31 141979648 570576
+evrow 0 main jp 21 32 142551040 737748
+evrow 0 main jp 21 33 143290368 779776
+evrow 0 main jp 21 34 144070656 189028
+evrow 0 main jp 21 35 -1 -1
+evrow 0 main jp 22 0 144261120 289984
+evrow 0 main jp 22 1 144551936 80832
+evrow 0 main jp 22 2 144633856 242816
+evrow 0 main jp 22 3 144877568 57920
+evrow 0 main jp 22 4 144936960 220224
+evrow 0 main jp 22 5 145158144 762368
+evrow 0 main jp 22 6 145922048 159232
+evrow 0 main jp 22 7 146081792 150282
+evrow 0 main jp 22 8 146233344 186660
+evrow 0 main jp 22 9 146421760 729008
+evrow 0 main jp 22 10 147150848 308800
+evrow 0 main jp 22 11 147460096 805376
+evrow 0 main jp 22 12 148267008 642944
+evrow 0 main jp 22 13 148910080 572310
+evrow 0 main jp 22 14 -1 -1
+evrow 0 main jp 22 15 149483520 323426
+evrow 0 main jp 22 16 -1 -1
+evrow 0 main jp 22 17 149807104 316296
+evrow 0 main jp 22 18 -1 -1
+evrow 0 main jp 22 19 150124544 230848
+evrow 0 main jp 22 20 -1 -1
+evrow 0 main jp 22 21 150355968 193230
+evrow 0 main jp 22 22 -1 -1
+evrow 0 main jp 22 23 150550528 237440
+evrow 0 main jp 22 24 -1 -1
+evrow 0 main jp 22 25 150788096 195570
+evrow 0 main jp 22 26 150984704 46598
+evrow 0 main jp 22 27 151031808 110336
+evrow 0 main jp 22 28 -1 -1
+evrow 0 main jp 22 29 151142400 81450
+evrow 0 main jp 22 30 151224320 93600
+evrow 0 main jp 22 31 151318528 147240
+evrow 0 main jp 22 32 151465984 277888
+evrow 0 main jp 22 33 151744512 275580
+evrow 0 main jp 22 34 152020992 280832
+evrow 0 main jp 22 35 -1 -1
+evrow 0 main jp 22 36 -1 -1
+evrow 0 main jp 22 37 -1 -1
+evrow 0 main jp 23 0 152303616 469664
+evrow 0 main jp 23 1 152774656 218624
+evrow 0 main jp 23 2 152993792 134720
+evrow 0 main jp 23 3 153128960 668832
+evrow 0 main jp 23 4 153798656 356224
+evrow 0 main jp 23 5 154155008 267904
+evrow 0 main jp 23 6 154423296 316066
+evrow 0 main jp 24 0 154740736 1020960
+evrow 0 main jp 24 1 155762688 177744
+evrow 0 main jp 24 2 155940864 185334
+evrow 0 main jp 24 3 156127232 358708
+evrow 0 main jp 24 4 156487680 398268
+evrow 0 main jp 24 5 156887040 129600
+evrow 0 main jp 24 6 157018112 267104
+evrow 0 main jp 24 7 157286400 237870
+evrow 0 main jp 24 8 157526016 379712
+evrow 0 main jp 24 9 157906944 658168
+evrow 0 main jp 24 10 158566400 331016
+evrow 0 main jp 24 11 158898176 207360
+evrow 0 main jp 24 12 159107072 427776
+evrow 0 main jp 24 13 159535104 55296
+evrow 0 main jp 24 14 159590400 71744
+evrow 0 main jp 24 15 159664128 568330
+evrow 0 main jp 24 16 160233472 610742
+evrow 0 main jp 24 17 160845824 51980
+evrow 0 main jp 24 18 160899072 264192
+evrow 0 main jp 24 19 161163264 602688
+evrow 0 main jp 24 20 161767424 410656
+evrow 0 main jp 24 21 162179072 841632
+evrow 0 main jp 24 22 163020800 70592
+evrow 0 main jp 24 23 163092480 695428
+evrow 0 main jp 24 24 163788800 100326
+evrow 0 main jp 24 25 163889152 351936
+evrow 0 main jp 24 26 164241408 565056
+evrow 0 main jp 24 27 -1 -1
+evrow 0 main jp 24 28 164806656 654016
+evrow 0 main jp 24 29 165462016 121248
+evrow 0 main jp 24 30 165584896 77970
+evrow 0 main jp 24 31 165664768 585580
+evrow 0 main jp 24 32 166250496 398272
+evrow 0 main jp 24 33 166649856 556186
+evrow 0 main jp 24 34 167206912 288618
+evrow 0 main jp 24 35 167495680 66430
+evrow 0 main jp 24 36 167563264 205696
+evrow 0 main jp 24 37 167770112 196920
+evrow 0 main jp 24 38 167968768 413440
+evrow 0 main jp 24 39 168382464 407700
+evrow 0 main jp 24 40 168792064 405812
+evrow 0 main jp 24 41 169199616 148480
+evrow 0 main jp 24 42 169349120 538496
+evrow 0 main jp 24 43 -1 -1
+evrow 0 main jp 24 44 169887744 293760
+evrow 0 main jp 24 45 170182656 261952
+evrow 0 main jp 24 46 170444800 532036
+evrow 0 main jp 24 47 170977280 92070
+evrow 0 main jp 24 48 -1 -1
+evrow 0 main jp 25 0 171069440 449984
+evrow 0 main jp 25 1 171520000 198656
+evrow 0 main jp 25 2 171718656 283040
+evrow 0 main jp 25 3 172003328 205470
+evrow 0 main jp 25 4 172210176 88192
+evrow 0 main jp 25 5 172300288 1373466
+evrow 0 main jp 25 6 173674496 397402
+evrow 0 main jp 25 7 174073856 892690
+evrow 0 main jp 25 8 174966784 189098
+evrow 0 main jp 25 9 175157248 744570
+evrow 0 main jp 25 10 175902720 496710
+evrow 0 main jp 25 11 176400384 456192
+evrow 0 main jp 25 12 176857088 225860
+evrow 0 main jp 25 13 177084416 1241470
+evrow 0 main jp 25 14 178327552 1257818
+evrow 0 main jp 25 15 179587072 279040
+evrow 0 main jp 25 16 179867648 58112
+evrow 0 main jp 25 17 179927040 239616
+evrow 0 main jp 25 18 180166656 430848
+evrow 0 main jp 25 19 -1 -1
+evrow 0 main jp 26 0 180598784 802626
+evrow 0 main jp 26 1 181401600 104384
+evrow 0 main jp 26 2 -1 -1
+evrow 0 main jp 26 3 181506048 506100
+evrow 0 main jp 26 4 182013952 397670
+evrow 0 main jp 26 5 182413312 583926
+evrow 0 main jp 26 6 182999040 230272
+evrow 0 main jp 26 7 183230464 256796
+evrow 0 main jp 26 8 183488512 483840
+evrow 0 main jp 26 9 183973888 328950
+evrow 0 main jp 26 10 184303616 193024
+evrow 0 main jp 26 11 184498176 125460
+evrow 0 main jp 26 12 -1 -1
+evrow 0 main jp 26 13 184625152 338476
+evrow 0 main jp 26 14 184965120 103424
+evrow 0 main jp 26 15 -1 -1
+evrow 0 main jp 26 16 -1 -1
+evrow 0 main jp 27 0 185069568 192786
+evrow 0 main jp 27 1 185264128 49680
+evrow 0 main jp 27 2 185315328 394880
+evrow 0 main jp 27 3 185710592 691470
+evrow 0 main jp 27 4 186402816 278016
+evrow 0 main jp 27 5 186681344 673920
+evrow 0 main jp 27 6 187357184 576640
+evrow 0 main jp 27 7 187934720 246790
+evrow 0 main jp 27 8 188182528 268134
+evrow 0 main jp 27 9 188450816 564098
+evrow 0 main jp 27 10 189016064 648554
+evrow 0 main jp 27 11 189665280 291328
+evrow 0 main jp 27 12 189958144 40768
+evrow 0 main jp 27 13 189999104 291520
+evrow 0 main jp 27 14 190291968 264320
+evrow 0 main jp 27 15 190558208 484110
+evrow 0 main jp 27 16 191043584 302910
+evrow 0 main jp 27 17 191346688 291392
+evrow 0 main jp 28 0 191639552 750240
+evrow 0 main jp 28 1 192391168 596596
+evrow 0 main jp 28 2 192989184 438272
+evrow 0 main jp 29 0 193427456 248216
+evrow 0 main jp 29 1 193677312 354688
+evrow 0 main jp 29 2 194033664 657384
+evrow 0 main jp 29 3 194691072 361920
+evrow 0 main jp 29 4 195053568 144210
+evrow 0 main jp 29 5 195198976 68352
+evrow 0 main jp 29 6 195268608 369792
+evrow 0 main jp 29 7 195639296 105570
+evrow 0 main jp 29 8 195745792 362790
+evrow 0 main jp 29 9 196110336 550528
+evrow 0 main jp 29 10 196661248 90896
+evrow 0 main jp 29 11 196753408 799434
+evrow 0 main jp 29 12 197554176 163800
+evrow 0 main jp 30 0 197718016 248216
+evrow 0 main jp 30 1 197967872 240422
+evrow 0 main jp 30 2 198209536 258368
+evrow 0 main jp 30 3 198469632 537924
+evrow 0 main jp 30 4 199008256 145080
+evrow 0 main jp 30 5 199153664 282496
+evrow 0 main jp 30 6 199436288 234360
+evrow 0 main jp 30 7 199671808 73472
+evrow 0 main jp 30 8 199745536 159068
+evrow 0 main jp 30 9 199905280 312320
+evrow 0 main jp 30 10 200218624 415040
+evrow 0 main jp 30 11 200634368 318500
+evrow 0 main jp 30 12 -1 -1
+evrow 0 main jp 30 13 -1 -1
+evrow 0 main jp 30 14 -1 -1
+evrow 0 main jp 31 0 200953856 317952
+evrow 0 main jp 31 1 201273344 206848
+evrow 0 main jp 31 2 201480192 353152
+evrow 0 main en 1 0 0 158720
+evrow 0 main en 1 1 159744 441604
+evrow 0 main en 1 2 602112 477088
+evrow 0 main en 2 0 1079296 159488
+evrow 0 main en 2 1 1239040 84608
+evrow 0 main en 2 2 1325056 276480
+evrow 0 main en 2 3 1601536 624928
+evrow 0 main en 2 4 2228224 734974
+evrow 0 main en 2 5 2963456 109546
+evrow 0 main en 2 6 3074048 274286
+evrow 0 main en 2 7 3348480 167872
+evrow 0 main en 2 8 3516416 537086
+evrow 0 main en 2 9 4055040 628154
+evrow 0 main en 2 10 4683776 489378
+evrow 0 main en 2 11 5173248 311452
+evrow 0 main en 2 12 5486592 335064
+evrow 0 main en 2 13 5822464 235576
+evrow 0 main en 2 14 6060032 213784
+evrow 0 main en 2 15 6275072 424206
+evrow 0 main en 2 16 6701056 453218
+evrow 0 main en 2 17 7155712 447666
+evrow 0 main en 2 18 7604224 425140
+evrow 0 main en 2 19 8030208 661744
+evrow 0 main en 2 20 -1 -1
+evrow 0 main en 2 21 8693760 508142
+evrow 0 main en 2 22 9203712 507208
+evrow 0 main en 2 23 9711616 498408
+evrow 0 main en 2 24 10211328 441640
+evrow 0 main en 2 25 10653696 384996
+evrow 0 main en 2 26 11038720 505574
+evrow 0 main en 2 27 11544576 634384
+evrow 0 main en 2 28 12179456 280296
+evrow 0 main en 2 29 12460032 741516
+evrow 0 main en 2 30 13203456 629520
+evrow 0 main en 2 31 13834240 233402
+evrow 0 main en 2 32 14067712 702726
+evrow 0 main en 2 33 14772224 231912
+evrow 0 main en 2 34 -1 -1
+evrow 0 main en 2 35 15005696 498078
+evrow 0 main en 2 36 15505408 582314
+evrow 0 main en 2 37 16089088 418788
+evrow 0 main en 2 38 16508928 548390
+evrow 0 main en 2 39 17057792 443290
+evrow 0 main en 2 40 17502208 313664
+evrow 0 main en 2 41 17817600 408836
+evrow 0 main en 2 42 18227200 371662
+evrow 0 main en 2 43 18599936 270618
+evrow 0 main en 2 44 18872320 392280
+evrow 0 main en 2 45 19265536 494470
+evrow 0 main en 2 46 19761152 361998
+evrow 0 main en 2 47 20123648 377058
+evrow 0 main en 2 48 20502528 317722
+evrow 0 main en 2 49 20822016 448032
+evrow 0 main en 2 50 21270528 459602
+evrow 0 main en 2 51 21731328 552468
+evrow 0 main en 2 52 22284288 438516
+evrow 0 main en 2 53 22724608 530696
+evrow 0 main en 2 54 23257088 364152
+evrow 0 main en 2 55 23621632 520520
+evrow 0 main en 2 56 24143872 163930
+evrow 0 main en 3 0 24309760 336468
+evrow 0 main en 3 1 24647680 380602
+evrow 0 main en 3 2 25028608 430278
+evrow 0 main en 3 3 25460736 404612
+evrow 0 main en 3 4 25866240 549158
+evrow 0 main en 3 5 26417152 596332
+evrow 0 main en 3 6 27015168 559860
+evrow 0 main en 3 7 27576320 438638
+evrow 0 main en 3 8 28016640 448008
+evrow 0 main en 3 9 28465152 531576
+evrow 0 main en 3 10 28997632 187140
+evrow 0 main en 3 11 29186048 425570
+evrow 0 main en 3 12 29612032 565754
+evrow 0 main en 3 13 30179328 536372
+evrow 0 main en 3 14 30715904 530274
+evrow 0 main en 3 15 31246336 628314
+evrow 0 main en 3 16 31875072 465928
+evrow 0 main en 3 17 32342016 654614
+evrow 0 main en 3 18 32997376 530404
+evrow 0 main en 3 19 33527808 561304
+evrow 0 main en 3 20 34091008 488196
+evrow 0 main en 3 21 34580480 455784
+evrow 0 main en 3 22 35037184 609490
+evrow 0 main en 3 23 35647488 362754
+evrow 0 main en 3 24 36012032 647540
+evrow 0 main en 3 25 36661248 196498
+evrow 0 main en 3 26 -1 -1
+evrow 0 main en 3 27 36857856 520512
+evrow 0 main en 3 28 37380096 512406
+evrow 0 main en 3 29 37894144 546364
+evrow 0 main en 3 30 38440960 427296
+evrow 0 main en 3 31 38868992 555444
+evrow 0 main en 3 32 39426048 346228
+evrow 0 main en 3 33 39774208 537508
+evrow 0 main en 3 34 40312832 405016
+evrow 0 main en 3 35 40718336 398852
+evrow 0 main en 3 36 41117696 578296
+evrow 0 main en 3 37 41697280 261544
+evrow 0 main en 3 38 41959424 570512
+evrow 0 main en 3 39 42530816 440290
+evrow 0 main en 3 40 42971136 491246
+evrow 0 main en 3 41 43462656 348382
+evrow 0 main en 3 42 43812864 401386
+evrow 0 main en 3 43 44214272 465008
+evrow 0 main en 3 44 -1 -1
+evrow 0 main en 3 45 44681216 376188
+evrow 0 main en 3 46 45058048 388432
+evrow 0 main en 3 47 -1 -1
+evrow 0 main en 3 48 -1 -1
+evrow 0 main en 3 49 -1 -1
+evrow 0 main en 3 50 45447168 310500
+evrow 0 main en 3 51 45758464 574682
+evrow 0 main en 3 52 46333952 554022
+evrow 0 main en 3 53 46888960 529196
+evrow 0 main en 3 54 47419392 283404
+evrow 0 main en 3 55 47704064 663872
+evrow 0 main en 3 56 48369664 589808
+evrow 0 main en 3 57 48959488 452486
+evrow 0 main en 3 58 49412096 581814
+evrow 0 main en 4 0 49995776 299150
+evrow 0 main en 4 1 50296832 483944
+evrow 0 main en 4 2 50782208 451186
+evrow 0 main en 4 3 51234816 528096
+evrow 0 main en 4 4 51763200 229160
+evrow 0 main en 4 5 51992576 373488
+evrow 0 main en 4 6 52367360 499740
+evrow 0 main en 4 7 52869120 321182
+evrow 0 main en 4 8 53190656 217088
+evrow 0 main en 4 9 53407744 543246
+evrow 0 main en 4 10 53952512 572194
+evrow 0 main en 4 11 54525952 539604
+evrow 0 main en 4 12 55066624 310680
+evrow 0 main en 4 13 55377920 341058
+evrow 0 main en 4 14 55719936 285598
+evrow 0 main en 4 15 56006656 527430
+evrow 0 main en 4 16 56535040 336864
+evrow 0 main en 4 17 56872960 641374
+evrow 0 main en 4 18 57516032 453856
+evrow 0 main en 4 19 -1 -1
+evrow 0 main en 4 20 57970688 421208
+evrow 0 main en 4 21 -1 -1
+evrow 0 main en 10 0 58392576 363836
+evrow 0 main en 10 1 58757120 493960
+evrow 0 main en 10 2 59252736 531880
+evrow 0 main en 10 3 59785216 462276
+evrow 0 main en 10 4 60248064 665690
+evrow 0 main en 10 5 60915712 348394
+evrow 0 main en 10 6 61265920 558304
+evrow 0 main en 10 7 -1 -1
+evrow 0 main en 10 8 -1 -1
+evrow 0 main en 10 9 -1 -1
+evrow 0 main en 10 10 61825024 490052
+evrow 0 main en 10 11 -1 -1
+evrow 0 main en 10 12 62316544 108998
+evrow 0 main en 11 0 62427136 583792
+evrow 0 main en 11 1 63012864 130966
+evrow 0 main en 11 2 63143936 614904
+evrow 0 main en 11 3 63760384 536116
+evrow 0 main en 11 4 -1 -1
+evrow 0 main en 11 5 64296960 450998
+evrow 0 main en 11 6 64749568 211198
+evrow 0 main en 11 7 64962560 524722
+evrow 0 main en 11 8 -1 -1
+evrow 0 main en 11 9 65488896 458810
+evrow 0 main en 11 10 65949696 271748
+evrow 0 main en 11 11 -1 -1
+evrow 0 main en 11 12 66222080 535424
+evrow 0 main en 11 13 66758656 361736
+evrow 0 main en 11 14 67121152 345716
+evrow 0 main en 11 15 67467264 289438
+evrow 0 main en 11 16 67758080 90432
+evrow 0 main en 11 17 67850240 537410
+evrow 0 main en 11 18 68388864 103098
+evrow 0 main en 11 19 68493312 463904
+evrow 0 main en 11 20 68958208 274580
+evrow 0 main en 11 21 69234688 136024
+evrow 0 main en 11 22 69371904 382808
+evrow 0 main en 11 23 69754880 297632
+evrow 0 main en 11 24 70053888 360762
+evrow 0 main en 11 25 70416384 114706
+evrow 0 main en 11 26 70533120 790356
+evrow 0 main en 11 27 -1 -1
+evrow 0 main en 11 28 71323648 863106
+evrow 0 main en 11 29 72187904 352152
+evrow 0 main en 11 30 72540160 591614
+evrow 0 main en 11 31 73132032 530698
+evrow 0 main en 11 32 73664512 417546
+evrow 0 main en 11 33 74082304 838356
+evrow 0 main en 11 34 74921984 237740
+evrow 0 main en 11 35 75161600 261500
+evrow 0 main en 11 36 75423744 520554
+evrow 0 main en 11 37 75945984 105952
+evrow 0 main en 11 38 76052480 470330
+evrow 0 main en 11 39 -1 -1
+evrow 0 main en 12 0 76523520 214286
+evrow 0 main en 12 1 76738560 464516
+evrow 0 main en 12 2 77203456 293634
+evrow 0 main en 13 0 77498368 630902
+evrow 0 main en 13 1 78131200 427280
+evrow 0 main en 14 0 78559232 184828
+evrow 0 main en 14 1 78745600 571744
+evrow 0 main en 14 2 79319040 275718
+evrow 0 main en 14 3 79595520 713418
+evrow 0 main en 14 4 80310272 462494
+evrow 0 main en 14 5 80773120 252990
+evrow 0 main en 14 6 81027072 365468
+evrow 0 main en 14 7 81393664 885532
+evrow 0 main en 14 8 82280448 445140
+evrow 0 main en 14 9 82726912 656096
+evrow 0 main en 14 10 83384320 312320
+evrow 0 main en 14 11 83697664 730418
+evrow 0 main en 14 12 84428800 165012
+evrow 0 main en 14 13 84594688 465642
+evrow 0 main en 14 14 85061632 706412
+evrow 0 main en 14 15 85768192 607982
+evrow 0 main en 14 16 86376448 366338
+evrow 0 main en 14 17 86743040 221676
+evrow 0 main en 14 18 86966272 195156
+evrow 0 main en 14 19 87162880 527542
+evrow 0 main en 14 20 87691264 647998
+evrow 0 main en 14 21 -1 -1
+evrow 0 main en 14 22 -1 -1
+evrow 0 main en 14 23 -1 -1
+evrow 0 main en 15 0 88340480 184744
+evrow 0 main en 15 1 88526848 84898
+evrow 0 main en 15 2 88612864 244270
+evrow 0 main en 15 3 88858624 702024
+evrow 0 main en 15 4 89561088 500858
+evrow 0 main en 15 5 90062848 139584
+evrow 0 main en 15 6 -1 -1
+evrow 0 main en 15 7 90204160 741024
+evrow 0 main en 15 8 90945536 723320
+evrow 0 main en 15 9 91670528 182690
+evrow 0 main en 15 10 91854848 203548
+evrow 0 main en 15 11 92059648 234008
+evrow 0 main en 15 12 92295168 101094
+evrow 0 main en 15 13 92397568 307906
+evrow 0 main en 15 14 92706816 1135140
+evrow 0 main en 15 15 93843456 172426
+evrow 0 main en 15 16 94017536 227850
+evrow 0 main en 15 17 94246912 261450
+evrow 0 main en 15 18 94509056 551240
+evrow 0 main en 15 19 95062016 164216
+evrow 0 main en 15 20 95227904 687654
+evrow 0 main en 15 21 95916032 599388
+evrow 0 main en 15 22 96516096 221692
+evrow 0 main en 15 23 -1 -1
+evrow 0 main en 15 24 -1 -1
+evrow 0 main en 16 0 96739328 201356
+evrow 0 main en 16 1 96942080 493668
+evrow 0 main en 16 2 97437696 375200
+evrow 0 main en 16 3 97814528 457434
+evrow 0 main en 16 4 -1 -1
+evrow 0 main en 17 0 98273280 198568
+evrow 0 main en 17 1 -1 -1
+evrow 0 main en 17 2 -1 -1
+evrow 0 main en 17 3 98471936 190518
+evrow 0 main en 17 4 98664448 768268
+evrow 0 main en 17 5 99434496 525856
+evrow 0 main en 17 6 99960832 391896
+evrow 0 main en 17 7 100354048 192640
+evrow 0 main en 17 8 100548608 227982
+evrow 0 main en 17 9 100777984 655656
+evrow 0 main en 17 10 101435392 424344
+evrow 0 main en 17 11 101861376 374422
+evrow 0 main en 17 12 102236160 472604
+evrow 0 main en 17 13 102709248 346132
+evrow 0 main en 17 14 103057408 554144
+evrow 0 main en 17 15 103612416 718890
+evrow 0 main en 17 16 104333312 276242
+evrow 0 main en 17 17 104609792 208428
+evrow 0 main en 17 18 104818688 651422
+evrow 0 main en 17 19 105472000 394392
+evrow 0 main en 17 20 105867264 201356
+evrow 0 main en 17 21 106070016 138120
+evrow 0 main en 17 22 106209280 307442
+evrow 0 main en 17 23 106518528 545824
+evrow 0 main en 17 24 107065344 143114
+evrow 0 main en 17 25 107208704 426842
+evrow 0 main en 17 26 107636736 404376
+evrow 0 main en 17 27 108042240 526896
+evrow 0 main en 17 28 108570624 662462
+evrow 0 main en 17 29 -1 -1
+evrow 0 main en 18 0 109234176 407704
+evrow 0 main en 18 1 -1 -1
+evrow 0 main en 18 2 109643776 237966
+evrow 0 main en 18 3 109883392 262926
+evrow 0 main en 18 4 110147584 271248
+evrow 0 main en 18 5 110419968 416024
+evrow 0 main en 18 6 110837760 494238
+evrow 0 main en 18 7 111333376 411032
+evrow 0 main en 18 8 111745024 445978
+evrow 0 main en 18 9 112191488 538362
+evrow 0 main en 18 10 112730112 418490
+evrow 0 main en 18 11 113149952 617382
+evrow 0 main en 18 12 -1 -1
+evrow 0 main en 18 13 113768448 640678
+evrow 0 main en 18 14 114409472 367766
+evrow 0 main en 18 15 114778112 374300
+evrow 0 main en 18 16 115152896 331156
+evrow 0 main en 18 17 115484672 359446
+evrow 0 main en 18 18 115845120 331156
+evrow 0 main en 18 19 116176896 364438
+evrow 0 main en 18 20 -1 -1
+evrow 0 main en 18 21 116541440 242960
+evrow 0 main en 18 22 116785152 424344
+evrow 0 main en 18 23 117211136 549210
+evrow 0 main en 18 24 117762048 108166
+evrow 0 main en 18 25 117870592 379132
+evrow 0 main en 18 26 118251520 124808
+evrow 0 main en 18 27 118376448 128218
+evrow 0 main en 18 28 118505472 274576
+evrow 0 main en 20 0 118781952 262422
+evrow 0 main en 20 1 119046144 388158
+evrow 0 main en 20 2 119435264 369430
+evrow 0 main en 20 3 119805952 419268
+evrow 0 main en 20 4 120225792 128968
+evrow 0 main en 20 5 120354816 555808
+evrow 0 main en 20 6 120911872 392728
+evrow 0 main en 20 7 121305088 301202
+evrow 0 main en 20 8 121608192 377882
+evrow 0 main en 20 9 121987072 377750
+evrow 0 main en 20 10 122365952 542496
+evrow 0 main en 20 11 -1 -1
+evrow 0 main en 20 12 -1 -1
+evrow 0 main en 20 13 -1 -1
+evrow 0 main en 20 14 -1 -1
+evrow 0 main en 21 0 122908672 505886
+evrow 0 main en 21 1 123416576 343220
+evrow 0 main en 21 2 123760640 246288
+evrow 0 main en 21 3 124008448 306194
+evrow 0 main en 21 4 124315648 484254
+evrow 0 main en 21 5 124801024 402712
+evrow 0 main en 21 6 125204480 171402
+evrow 0 main en 21 7 125376512 652328
+evrow 0 main en 21 8 126029824 730540
+evrow 0 main en 21 9 126760960 78212
+evrow 0 main en 21 10 126840832 76550
+evrow 0 main en 21 11 126918656 607396
+evrow 0 main en 21 12 127526912 141448
+evrow 0 main en 21 13 127670272 382744
+evrow 0 main en 21 14 128053248 284560
+evrow 0 main en 21 15 128337920 589092
+evrow 0 main en 21 16 128927744 58244
+evrow 0 main en 21 17 128987136 747182
+evrow 0 main en 21 18 129734656 153098
+evrow 0 main en 21 19 129888256 615716
+evrow 0 main en 21 20 130504704 108810
+evrow 0 main en 21 21 130615296 299538
+evrow 0 main en 21 22 130916352 326164
+evrow 0 main en 21 23 131244032 485916
+evrow 0 main en 21 24 131731456 84870
+evrow 0 main en 21 25 131817472 382742
+evrow 0 main en 21 26 132200448 196362
+evrow 0 main en 21 27 132397056 94854
+evrow 0 main en 21 28 132493312 317842
+evrow 0 main en 21 29 132812800 406040
+evrow 0 main en 21 30 133220352 242958
+evrow 0 main en 21 31 133464064 445980
+evrow 0 main en 21 32 133910528 667304
+evrow 0 main en 21 33 134578176 658304
+evrow 0 main en 21 34 135237632 186380
+evrow 0 main en 21 35 -1 -1
+evrow 0 main en 22 0 135426048 314062
+evrow 0 main en 22 1 135741440 105714
+evrow 0 main en 22 2 135847936 274352
+evrow 0 main en 22 3 136122368 75950
+evrow 0 main en 22 4 136200192 159084
+evrow 0 main en 22 5 136359936 603622
+evrow 0 main en 22 6 136964096 149846
+evrow 0 main en 22 7 137115648 100582
+evrow 0 main en 22 8 137218048 207322
+evrow 0 main en 22 9 137426944 623506
+evrow 0 main en 22 10 138051584 233238
+evrow 0 main en 22 11 138285056 700996
+evrow 0 main en 22 12 138987520 656864
+evrow 0 main en 22 13 139644928 552174
+evrow 0 main en 22 14 -1 -1
+evrow 0 main en 22 15 140197888 307262
+evrow 0 main en 22 16 -1 -1
+evrow 0 main en 22 17 140507136 288146
+evrow 0 main en 22 18 -1 -1
+evrow 0 main en 22 19 140795904 238112
+evrow 0 main en 22 20 -1 -1
+evrow 0 main en 22 21 141035520 184744
+evrow 0 main en 22 22 -1 -1
+evrow 0 main en 22 23 141221888 242732
+evrow 0 main en 22 24 -1 -1
+evrow 0 main en 22 25 141465600 195006
+evrow 0 main en 22 26 141662208 68252
+evrow 0 main en 22 27 141731840 149528
+evrow 0 main en 22 28 -1 -1
+evrow 0 main en 22 29 141883392 81594
+evrow 0 main en 22 30 141965312 105200
+evrow 0 main en 22 31 142071808 103276
+evrow 0 main en 22 32 142176256 263772
+evrow 0 main en 22 33 142440448 202192
+evrow 0 main en 22 34 142643200 235034
+evrow 0 main en 22 35 -1 -1
+evrow 0 main en 22 36 -1 -1
+evrow 0 main en 22 37 -1 -1
+evrow 0 main en 23 0 142878720 455138
+evrow 0 main en 23 1 143335424 252942
+evrow 0 main en 23 2 143589376 178058
+evrow 0 main en 23 3 143767552 604068
+evrow 0 main en 23 4 144371712 226318
+evrow 0 main en 23 5 144599040 254606
+evrow 0 main en 23 6 144855040 329492
+evrow 0 main en 24 0 145184768 911400
+evrow 0 main en 24 1 146098176 203020
+evrow 0 main en 24 2 146302976 206350
+evrow 0 main en 24 3 146509824 329490
+evrow 0 main en 24 4 146839552 326164
+evrow 0 main en 24 5 147167232 153096
+evrow 0 main en 24 6 147320832 282064
+evrow 0 main en 24 7 147603456 246286
+evrow 0 main en 24 8 147851264 311188
+evrow 0 main en 24 9 148162560 622372
+evrow 0 main en 24 10 148785152 334892
+evrow 0 main en 24 11 149121024 193034
+evrow 0 main en 24 12 149315584 443268
+evrow 0 main en 24 13 149760000 93190
+evrow 0 main en 24 14 149854208 78212
+evrow 0 main en 24 15 149934080 509214
+evrow 0 main en 24 16 150444032 575778
+evrow 0 main en 24 17 151021568 78212
+evrow 0 main en 24 18 151101440 299538
+evrow 0 main en 24 19 151402496 519200
+evrow 0 main en 24 20 151922688 364436
+evrow 0 main en 24 21 152287232 697258
+evrow 0 main en 24 22 152985600 108166
+evrow 0 main en 24 23 153094144 632358
+evrow 0 main en 24 24 153726976 109832
+evrow 0 main en 24 25 153837568 324500
+evrow 0 main en 24 26 154163200 502558
+evrow 0 main en 24 27 -1 -1
+evrow 0 main en 24 28 154667008 521696
+evrow 0 main en 24 29 155189248 159752
+evrow 0 main en 24 30 155351040 106504
+evrow 0 main en 24 31 155459584 597412
+evrow 0 main en 24 32 156057600 447644
+evrow 0 main en 24 33 156506112 570786
+evrow 0 main en 24 34 157077504 305364
+evrow 0 main en 24 35 157384704 103174
+evrow 0 main en 24 36 157489152 217996
+evrow 0 main en 24 37 157708288 186794
+evrow 0 main en 24 38 157896704 437658
+evrow 0 main en 24 39 158334976 285810
+evrow 0 main en 24 40 158621696 401048
+evrow 0 main en 24 41 159023104 179722
+evrow 0 main en 24 42 159203328 497566
+evrow 0 main en 24 43 -1 -1
+evrow 0 main en 24 44 159700992 296210
+evrow 0 main en 24 45 159997952 205620
+evrow 0 main en 24 46 160204800 574114
+evrow 0 main en 24 47 160780288 116488
+evrow 0 main en 24 48 -1 -1
+evrow 0 main en 25 0 160897024 427674
+evrow 0 main en 25 1 161325056 219662
+evrow 0 main en 25 2 161546240 285324
+evrow 0 main en 25 3 161832960 199112
+evrow 0 main en 25 4 162033664 104688
+evrow 0 main en 25 5 162140160 1059192
+evrow 0 main en 25 6 163201024 322274
+evrow 0 main en 25 7 163524608 656862
+evrow 0 main en 25 8 164182016 213482
+evrow 0 main en 25 9 164397056 490596
+evrow 0 main en 25 10 164888576 361274
+evrow 0 main en 25 11 165251072 396170
+evrow 0 main en 25 12 165648384 258640
+evrow 0 main en 25 13 165908480 1410202
+evrow 0 main en 25 14 167319552 1430730
+evrow 0 main en 25 15 168751104 285324
+evrow 0 main en 25 16 169037824 62608
+evrow 0 main en 25 17 169101312 248376
+evrow 0 main en 25 18 169351168 293536
+evrow 0 main en 25 19 -1 -1
+evrow 0 main en 26 0 169646080 658916
+evrow 0 main en 26 1 170305536 133426
+evrow 0 main en 26 2 -1 -1
+evrow 0 main en 26 3 170440704 474172
+evrow 0 main en 26 4 170915840 317142
+evrow 0 main en 26 5 171233280 521384
+evrow 0 main en 26 6 171755520 202192
+evrow 0 main en 26 7 171958272 206296
+evrow 0 main en 26 8 172165120 395144
+evrow 0 main en 26 9 172560384 349984
+evrow 0 main en 26 10 172910592 144714
+evrow 0 main en 26 11 173056000 114952
+evrow 0 main en 26 12 -1 -1
+evrow 0 main en 26 13 173172736 257612
+evrow 0 main en 26 14 173430784 134452
+evrow 0 main en 26 15 -1 -1
+evrow 0 main en 26 16 -1 -1
+evrow 0 main en 27 0 173565952 159084
+evrow 0 main en 27 1 173725696 62606
+evrow 0 main en 27 2 173789184 379750
+evrow 0 main en 27 3 174170112 619914
+evrow 0 main en 27 4 174790656 256586
+evrow 0 main en 27 5 175048704 695864
+evrow 0 main en 27 6 175745024 424908
+evrow 0 main en 27 7 176171008 236060
+evrow 0 main en 27 8 176408576 371506
+evrow 0 main en 27 9 176781312 412594
+evrow 0 main en 27 10 177195008 550124
+evrow 0 main en 27 11 177745920 266852
+evrow 0 main en 27 12 178014208 75984
+evrow 0 main en 27 13 178092032 254534
+evrow 0 main en 27 14 178348032 246324
+evrow 0 main en 27 15 178595840 463910
+evrow 0 main en 27 16 179060736 249402
+evrow 0 main en 27 17 179310592 287522
+evrow 0 main en 28 0 179599360 629152
+evrow 0 main en 28 1 180230144 425934
+evrow 0 main en 28 2 180656128 373590
+evrow 0 main en 29 0 181030912 153252
+evrow 0 main en 29 1 181184512 322274
+evrow 0 main en 29 2 181508096 601440
+evrow 0 main en 29 3 182110208 345878
+evrow 0 main en 29 4 182456320 173152
+evrow 0 main en 29 5 182630400 87240
+evrow 0 main en 29 6 182718464 331510
+evrow 0 main en 29 7 183050240 107252
+evrow 0 main en 29 8 183158784 269418
+evrow 0 main en 29 9 183429120 527544
+evrow 0 main en 29 10 183957504 71844
+evrow 0 main en 29 11 184031232 700764
+evrow 0 main en 29 12 184733696 135478
+evrow 0 main en 30 0 184870912 197188
+evrow 0 main en 30 1 185069568 186282
+evrow 0 main en 30 2 185255936 211428
+evrow 0 main en 30 3 185468928 422856
+evrow 0 main en 30 4 185892864 163272
+evrow 0 main en 30 5 186056704 270956
+evrow 0 main en 30 6 186329088 270578
+evrow 0 main en 30 7 186601472 129320
+evrow 0 main en 30 8 186732544 175966
+evrow 0 main en 30 9 186908672 314062
+evrow 0 main en 30 10 187224064 318168
+evrow 0 main en 30 11 187543552 305852
+evrow 0 main en 30 12 -1 -1
+evrow 0 main en 30 13 -1 -1
+evrow 0 main en 30 14 -1 -1
+evrow 0 main en 31 0 187850752 198656
+evrow 0 main en 31 1 188049408 346112
+evrow 0 main en 31 2 188395520 358400
+evrow 0 side jp 50 0 0 319936
+evrow 0 side jp 50 1 321536 761130
+evrow 0 side jp 50 2 -1 -1
+evrow 0 side jp 50 3 1083392 490908
+evrow 0 side jp 50 4 1574912 1108160
+evrow 0 side jp 51 0 2684928 319936
+evrow 0 side jp 51 1 3006464 508332
+evrow 0 side jp 51 2 -1 -1
+evrow 0 side jp 51 3 3516416 734436
+evrow 0 side jp 51 4 4251648 829248
+evrow 0 side jp 52 0 5081088 319936
+evrow 0 side jp 52 1 5402624 330688
+evrow 0 side jp 52 2 -1 -1
+evrow 0 side jp 52 3 5734400 142646
+evrow 0 side jp 52 4 5877760 431744
+evrow 0 side jp 53 0 6309888 319936
+evrow 0 side jp 53 1 6631424 477720
+evrow 0 side jp 53 2 -1 -1
+evrow 0 side jp 53 3 7110656 533056
+evrow 0 side jp 53 4 7645184 343890
+evrow 0 side jp 54 0 7989248 319936
+evrow 0 side jp 54 1 8310784 347254
+evrow 0 side jp 54 2 -1 -1
+evrow 0 side jp 54 3 8658944 1276544
+evrow 0 side jp 54 4 9936896 835648
+evrow 0 side jp 54 5 10774528 912384
+evrow 0 side jp 58 0 11687936 360720
+evrow 0 side jp 58 1 12050432 591836
+evrow 0 side jp 58 2 12642304 468608
+evrow 0 side jp 58 3 13111296 255296
+evrow 0 side jp 58 4 13367296 572992
+evrow 0 side jp 58 5 -1 -1
+evrow 0 side jp 58 6 13940736 384790
+evrow 0 side jp 58 7 14325760 355488
+evrow 0 side jp 58 8 14682112 191820
+evrow 0 side jp 58 9 -1 -1
+evrow 0 side jp 59 0 14874624 415196
+evrow 0 side jp 59 1 -1 -1
+evrow 0 side jp 59 2 15290368 204562
+evrow 0 side jp 59 3 15495168 495090
+evrow 0 side jp 59 4 15990784 136576
+evrow 0 side jp 59 5 16128000 203968
+evrow 0 side jp 59 6 16332800 357170
+evrow 0 side jp 59 7 16691200 288640
+evrow 0 side jp 59 8 16979968 237636
+evrow 0 side jp 59 9 17219584 241216
+evrow 0 side jp 59 10 17461248 176384
+evrow 0 side jp 59 11 17639424 562860
+evrow 0 side jp 59 12 18202624 225090
+evrow 0 side jp 59 13 18427904 447872
+evrow 0 side jp 59 14 18876416 78848
+evrow 0 side jp 59 15 18956288 328500
+evrow 0 side jp 59 16 19286016 82432
+evrow 0 side jp 59 17 19369984 96840
+evrow 0 side jp 59 18 19468288 203968
+evrow 0 side jp 59 19 19673088 318080
+evrow 0 side jp 59 20 19992576 227840
+evrow 0 side jp 59 21 20221952 352314
+evrow 0 side jp 59 22 20576256 120704
+evrow 0 side jp 59 23 20697088 931712
+evrow 0 side jp 59 24 21628928 650368
+evrow 0 side jp 59 25 22280192 744256
+evrow 0 side jp 59 26 23025664 178944
+evrow 0 side jp 59 27 23205888 200376
+evrow 0 side jp 59 28 23406592 360512
+evrow 0 side jp 59 29 23769088 205804
+evrow 0 side jp 59 30 23975936 92226
+evrow 0 side jp 59 31 -1 -1
+evrow 0 side jp 59 32 -1 -1
+evrow 0 side jp 60 0 24070144 241792
+evrow 0 side jp 60 1 24313856 260130
+evrow 0 side jp 60 2 24576000 251648
+evrow 0 side jp 60 3 24827904 299840
+evrow 0 side jp 60 4 25128960 710910
+evrow 0 side jp 60 5 25841664 301530
+evrow 0 side jp 60 6 26144768 90560
+evrow 0 side jp 60 7 26236928 59904
+evrow 0 side jp 60 8 26298368 521548
+evrow 0 side jp 60 9 26820608 371070
+evrow 0 side jp 60 10 27193344 592342
+evrow 0 side jp 60 11 27787264 54090
+evrow 0 side jp 60 12 27842560 395190
+evrow 0 side jp 60 13 28237824 231150
+evrow 0 side jp 61 0 28469248 654580
+evrow 0 side jp 61 1 29124608 592618
+evrow 0 side jp 61 2 29718528 232070
+evrow 0 side jp 61 3 29952000 236854
+evrow 0 side jp 61 4 30189568 548544
+evrow 0 side jp 61 5 -1 -1
+evrow 0 side jp 61 6 30738432 597034
+evrow 0 side jp 61 7 31336448 214222
+evrow 0 side jp 61 8 31551488 63872
+evrow 0 side jp 61 9 31617024 403712
+evrow 0 side jp 61 10 32022528 306304
+evrow 0 side jp 61 11 32329728 66516
+evrow 0 side jp 61 12 -1 -1
+evrow 0 side jp 62 0 32397312 356352
+evrow 0 side jp 62 1 32753664 425088
+evrow 0 side jp 62 2 -1 -1
+evrow 0 side jp 63 0 33179648 188094
+evrow 0 side en 50 0 0 322274
+evrow 0 side en 50 1 323584 656864
+evrow 0 side en 50 2 -1 -1
+evrow 0 side en 50 3 980992 496752
+evrow 0 side en 50 4 1478656 1079718
+evrow 0 side en 51 0 2560000 352038
+evrow 0 side en 51 1 2912256 577834
+evrow 0 side en 51 2 -1 -1
+evrow 0 side en 51 3 3491840 775920
+evrow 0 side en 51 4 4268032 832370
+evrow 0 side en 52 0 5101568 334590
+evrow 0 side en 52 1 5437440 297642
+evrow 0 side en 52 2 -1 -1
+evrow 0 side en 52 3 5736448 168322
+evrow 0 side en 52 4 5906432 348960
+evrow 0 side en 53 0 6256640 322272
+evrow 0 side en 53 1 6580224 446462
+evrow 0 side en 53 2 -1 -1
+evrow 0 side en 53 3 7026688 548070
+evrow 0 side en 53 4 7575552 367432
+evrow 0 side en 54 0 7944192 294564
+evrow 0 side en 54 1 8239104 379750
+evrow 0 side en 54 2 -1 -1
+evrow 0 side en 54 3 8620032 1272672
+evrow 0 side en 54 4 9893888 831342
+evrow 0 side en 54 5 10725376 829290
+evrow 0 side en 58 0 11554816 299694
+evrow 0 side en 58 1 11855872 472120
+evrow 0 side en 58 2 12328960 490594
+evrow 0 side en 58 3 12820480 269930
+evrow 0 side en 58 4 13090816 537806
+evrow 0 side en 58 5 -1 -1
+evrow 0 side en 58 6 13629440 369486
+evrow 0 side en 58 7 14000128 320222
+evrow 0 side en 58 8 14321664 158058
+evrow 0 side en 58 9 -1 -1
+evrow 0 side en 59 0 14481408 367432
+evrow 0 side en 59 1 -1 -1
+evrow 0 side en 59 2 14850048 219640
+evrow 0 side en 59 3 15071232 531648
+evrow 0 side en 59 4 15603712 141636
+evrow 0 side en 59 5 15747072 257612
+evrow 0 side en 59 6 16005120 336642
+evrow 0 side en 59 7 16343040 277286
+evrow 0 side en 59 8 16621568 275062
+evrow 0 side en 59 9 16898048 131342
+evrow 0 side en 59 10 17031168 210402
+evrow 0 side en 59 11 17242112 486490
+evrow 0 side en 59 12 17729536 247350
+evrow 0 side en 59 13 17977344 322906
+evrow 0 side en 59 14 18300928 135478
+evrow 0 side en 59 15 18438144 228876
+evrow 0 side en 59 16 18667520 109820
+evrow 0 side en 59 17 18778112 118030
+evrow 0 side en 59 18 18896896 178596
+evrow 0 side en 59 19 19077120 267876
+evrow 0 side en 59 20 19345408 248056
+evrow 0 side en 59 21 19595264 358604
+evrow 0 side en 59 22 19955712 134452
+evrow 0 side en 59 23 20090880 713312
+evrow 0 side en 59 24 20805632 679442
+evrow 0 side en 59 25 21485568 746156
+evrow 0 side en 59 26 22233088 212454
+evrow 0 side en 59 27 22446080 203218
+evrow 0 side en 59 28 22650880 324326
+evrow 0 side en 59 29 22976512 245298
+evrow 0 side en 59 30 23222272 118030
+evrow 0 side en 59 31 -1 -1
+evrow 0 side en 59 32 -1 -1
+evrow 0 side en 60 0 23341056 220154
+evrow 0 side en 60 1 23562240 254444
+evrow 0 side en 60 2 23818240 246324
+evrow 0 side en 60 3 24066048 296614
+evrow 0 side en 60 4 24363008 646600
+evrow 0 side en 60 5 25010176 236060
+evrow 0 side en 60 6 25247744 104176
+evrow 0 side en 60 7 25352192 80546
+evrow 0 side en 60 8 25434112 456724
+evrow 0 side en 60 9 25892864 315806
+evrow 0 side en 60 10 26210304 502910
+evrow 0 side en 60 11 26714112 94424
+evrow 0 side en 60 12 26810368 324328
+evrow 0 side en 60 13 27136000 217586
+evrow 0 side en 61 0 27355136 710234
+evrow 0 side en 61 1 28065792 578860
+evrow 0 side en 61 2 28645376 268904
+evrow 0 side en 61 3 28915712 238114
+evrow 0 side en 61 4 29155328 535754
+evrow 0 side en 61 5 -1 -1
+evrow 0 side en 61 6 29691904 624020
+evrow 0 side en 61 7 30316544 252482
+evrow 0 side en 61 8 30570496 70818
+evrow 0 side en 61 9 30642176 419262
+evrow 0 side en 61 10 31062016 183974
+evrow 0 side en 61 11 31246336 66200
+evrow 0 side en 61 12 -1 -1
+evrow 0 side en 62 0 31313920 294562
+evrow 0 side en 62 1 31608832 394116
+evrow 0 side en 62 2 -1 -1
+evrow 0 side en 63 0 32004096 174594
+evrow 1 side jp 150 0 0 312096
+evrow 1 side jp 150 1 313344 301248
+evrow 1 side jp 150 2 -1 -1
+evrow 1 side jp 150 3 616448 1183232
+evrow 1 side jp 151 0 1800192 312096
+evrow 1 side jp 151 1 2113536 327968
+evrow 1 side jp 151 2 -1 -1
+evrow 1 side jp 151 3 2443264 1058208
+evrow 1 side jp 152 0 3502080 312096
+evrow 1 side jp 152 1 3815424 525344
+evrow 1 side jp 152 2 -1 -1
+evrow 1 side jp 152 3 4341760 900864
+evrow 1 side jp 153 0 5242880 312096
+evrow 1 side jp 153 1 5556224 319328
+evrow 1 side jp 153 2 -1 -1
+evrow 1 side jp 153 3 5875712 715520
+evrow 1 side jp 153 4 6592512 340000
+evrow 1 side jp 154 0 6934528 312096
+evrow 1 side jp 154 1 7247872 553088
+evrow 1 side jp 154 2 -1 -1
+evrow 1 side jp 154 3 7802880 1238720
+evrow 1 side jp 154 4 9041920 814976
+evrow 1 side jp 154 5 9857024 844960
+evrow 1 side jp 154 6 10702848 393920
+evrow 1 side jp 155 0 11098112 209920
+evrow 1 side jp 155 1 11309056 146048
+evrow 1 side jp 155 2 11456512 114848
+evrow 1 side jp 155 3 11573248 311488
+evrow 1 side jp 155 4 11886592 115072
+evrow 1 side jp 155 5 12003328 411776
+evrow 1 side jp 155 6 12417024 198432
+evrow 1 side jp 155 7 12615680 205376
+evrow 1 side jp 155 8 12822528 214912
+evrow 1 side jp 155 9 13037568 135936
+evrow 1 side jp 155 10 13174784 672768
+evrow 1 side jp 155 11 13848576 95424
+evrow 1 side jp 155 12 13944832 714464
+evrow 1 side jp 155 13 14659584 213856
+evrow 1 side jp 155 14 14874624 782656
+evrow 1 side jp 155 15 15659008 433632
+evrow 1 side jp 155 16 16093184 236096
+evrow 1 side jp 155 17 16330752 706240
+evrow 1 side jp 155 18 17037312 503904
+evrow 1 side jp 155 19 17543168 126304
+evrow 1 side jp 155 20 17670144 139904
+evrow 1 side jp 155 21 17811456 312096
+evrow 1 side jp 155 22 -1 -1
+evrow 1 side jp 156 0 18124800 191424
+evrow 1 side jp 156 1 18317312 438848
+evrow 1 side jp 156 2 18757632 365024
+evrow 1 side jp 156 3 19124224 241792
+evrow 1 side jp 156 4 19367936 281408
+evrow 1 side jp 156 5 19650560 167616
+evrow 1 side jp 156 6 19818496 691840
+evrow 1 side jp 156 7 20510720 495872
+evrow 1 side jp 156 8 21008384 667200
+evrow 1 side jp 156 9 21676032 504544
+evrow 1 side jp 156 10 22181888 214880
+evrow 1 side jp 156 11 22396928 192224
+evrow 1 side jp 156 12 22589440 622752
+evrow 1 side jp 156 13 23214080 427104
+evrow 1 side jp 156 14 23642112 691232
+evrow 1 side jp 156 15 24334336 312096
+evrow 1 side jp 157 0 24647680 427488
+evrow 1 side jp 157 1 25075712 410272
+evrow 1 side jp 157 2 25487360 444352
+evrow 1 side jp 157 3 25931776 420672
+evrow 1 side jp 157 4 26353664 135424
+evrow 1 side jp 157 5 26490880 141536
+evrow 1 side jp 157 6 26634240 362048
+evrow 1 side jp 157 7 26996736 326592
+evrow 1 side jp 157 8 27324416 221792
+evrow 1 side jp 157 9 27547648 381184
+evrow 1 side jp 157 10 27930624 155776
+evrow 1 side jp 157 11 28088320 170240
+evrow 1 side jp 157 12 28260352 255104
+evrow 1 side jp 157 13 28516352 251008
+evrow 1 side jp 157 14 28768256 712160
+evrow 1 side jp 157 15 -1 -1
+evrow 1 side jp 157 16 29480960 351104
+evrow 1 side jp 157 17 29833216 78208
+evrow 1 side jp 157 18 29913088 588288
+evrow 1 side jp 157 19 -1 -1
+evrow 1 side jp 157 20 30502912 271552
+evrow 1 side jp 157 21 30775296 122592
+evrow 1 side jp 157 22 30898176 751424
+evrow 1 side jp 157 23 -1 -1
+evrow 1 side jp 157 24 31649792 418720
+evrow 1 side jp 157 25 32069632 172160
+evrow 1 side jp 157 26 32243712 417920
+evrow 1 side jp 157 27 -1 -1
+evrow 1 side jp 157 28 32663552 469120
+evrow 1 side jp 157 29 33134592 75008
+evrow 1 side jp 157 30 33210368 827680
+evrow 1 side jp 157 31 34039808 653216
+evrow 1 side jp 157 32 34693120 128960
+evrow 1 side jp 157 33 34822144 493888
+evrow 1 side jp 157 34 35317760 480704
+evrow 1 side jp 157 35 35799040 74848
+evrow 1 side jp 157 36 35874816 425984
+evrow 1 side jp 157 37 36300800 449376
+evrow 1 side jp 157 38 36751360 538240
+evrow 1 side jp 157 39 37289984 357312
+evrow 1 side jp 157 40 37648384 217920
+evrow 1 side jp 157 41 -1 -1
+evrow 1 side jp 159 0 37867520 307648
+evrow 1 side jp 159 1 38176768 314752
+evrow 1 side jp 159 2 38492160 55648
+evrow 1 side jp 159 3 38549504 98752
+evrow 1 side jp 159 4 38649856 260864
+evrow 1 side jp 159 5 38912000 161792
+evrow 1 side jp 159 6 39073792 590848
+evrow 1 side jp 159 7 39665664 205312
+evrow 1 side jp 159 8 39872512 226304
+evrow 1 side jp 159 9 40099840 154496
+evrow 1 side jp 159 10 40255488 58016
+evrow 1 side jp 159 11 40314880 346640
+evrow 1 side jp 159 12 40663040 107744
+evrow 1 side jp 159 13 40771584 42816
+evrow 1 side jp 159 14 40814592 477920
+evrow 1 side jp 159 15 41293824 173152
+evrow 1 side jp 159 16 41467904 184736
+evrow 1 side jp 159 17 41654272 368672
+evrow 1 side jp 159 18 42024960 176704
+evrow 1 side jp 159 19 42203136 60672
+evrow 1 side jp 159 20 42264576 927488
+evrow 1 side jp 159 21 -1 -1
+evrow 1 side jp 159 22 -1 -1
+evrow 1 side jp 160 0 43192320 421952
+evrow 1 side jp 160 1 43616256 609280
+evrow 1 side jp 160 2 44226560 237248
+evrow 1 side jp 160 3 44464128 89728
+evrow 1 side jp 160 4 44554240 301920
+evrow 1 side jp 160 5 44857344 112304
+evrow 1 side jp 160 6 44969984 86080
+evrow 1 side jp 160 7 -1 -1
+evrow 1 side jp 160 8 45058048 352768
+evrow 1 side jp 161 0 45412352 596288
+evrow 1 side jp 161 1 46010368 516416
+evrow 1 side jp 161 2 46528512 518368
+evrow 1 side jp 161 3 47048704 74944
+evrow 1 side jp 161 4 47124480 351616
+evrow 1 side jp 161 5 47476736 191056
+evrow 1 side jp 161 6 47669248 845632
+evrow 1 side jp 161 7 48515072 328192
+evrow 1 side jp 162 0 48844800 695744
+evrow 1 side jp 162 1 49541120 407776
+evrow 1 side jp 162 2 49950720 208896
+evrow 1 side jp 162 3 50159616 228208
+evrow 1 side jp 162 4 50388992 214464
+evrow 1 side jp 162 5 50604032 594176
+evrow 1 side jp 162 6 51200000 473088
+evrow 1 side jp 162 7 51673088 247808
+evrow 1 side jp 163 0 51920896 204864
+evrow 1 side jp 163 1 52127744 634848
+evrow 1 side jp 163 2 52762624 355712
+evrow 1 side jp 164 0 53118976 249856
+evrow 1 side jp 164 1 53368832 211968
+evrow 1 side jp 164 2 53581824 84224
+evrow 1 side jp 164 3 53667840 78336
+evrow 1 side jp 164 4 53747712 507904
+evrow 1 side jp 164 5 54255616 353792
+evrow 1 side jp 164 6 54609920 187392
+evrow 1 side jp 164 7 54798336 328704
+evrow 1 side jp 164 8 55128064 64512
+evrow 1 side jp 164 9 55193600 403456
+evrow 1 side jp 164 10 55597056 321026
+evrow 1 side jp 164 11 55918592 97280
+evrow 1 side jp 164 12 56016896 262144
+evrow 1 side jp 164 13 56279040 179712
+evrow 1 side jp 164 14 56459264 93952
+evrow 1 side jp 164 15 56553472 330240
+evrow 1 side jp 164 16 56885248 249858
+evrow 1 side jp 164 17 57137152 483330
+evrow 1 side jp 164 18 57622528 112640
+evrow 1 side jp 164 19 57735168 274432
+evrow 1 side jp 164 20 58009600 84992
+evrow 1 side jp 164 21 58095616 403458
+evrow 1 side jp 164 22 58501120 444418
+evrow 1 side jp 164 23 58947584 311298
+evrow 1 side jp 164 24 59260928 66048
+evrow 1 side jp 164 25 59328512 270338
+evrow 1 side jp 164 26 59600896 183808
+evrow 1 side jp 165 0 59785216 108800
+evrow 1 side jp 165 1 59895808 217088
+evrow 1 side jp 165 2 60112896 458752
+evrow 1 side jp 166 0 60571648 113920
+evrow 1 side jp 166 1 60686336 804864
+evrow 1 side jp 167 0 61491200 107008
+evrow 1 side jp 167 1 61599744 739328
+evrow 1 side jp 168 0 62339072 782336
 voice VOICE/EVVOL1.BIN 0 248216 124108 0d86e04043b22e49
 voice VOICE/EVVOL1.BIN 249856 521216 260608 74b78e662e088601
 voice VOICE/EVVOL1.BIN 772096 449894 224947 d313d2611c94fff0
@@ -2562,23 +2753,24 @@ voice VOICE/EVVOL1.BIN 163020800 70592 35296 b55cadecf1b2f787
 voice VOICE/EVVOL1.BIN 174966784 189098 94549 ae966fbe0ea100e0
 voice VOICE/EVVOL1.BIN 188182528 268134 134067 e4642395c636d739
 voice VOICE/EVVOL1.BIN 199436288 234360 117180 c6e27a234b9daf5c
-voice VOICE/EVVOL1S.BIN 12642304 468608 234304 876c33859d584bb0
-voice VOICE/EVVOL1S.BIN 23205888 200376 100188 fe8bb7cbc20a133e
-voice VOICE_E/EVVOL1_E.BIN 13203456 629520 314760 31509a892fbfbcc5
-voice VOICE_E/EVVOL1_E.BIN 27015168 559860 279930 79966a5c71c49783
-voice VOICE_E/EVVOL1_E.BIN 42530816 440290 220145 ffcc6785e4d0a98c
-voice VOICE_E/EVVOL1_E.BIN 56535040 336864 168432 091c191454542571
-voice VOICE_E/EVVOL1_E.BIN 69371904 382808 191404 fdb226a3cbe66e2d
-voice VOICE_E/EVVOL1_E.BIN 83697664 730418 365209 9c013678fabd0bff
-voice VOICE_E/EVVOL1_E.BIN 96739328 201356 100678 8c6f3efb7d4c6d14
-voice VOICE_E/EVVOL1_E.BIN 109643776 237966 118983 b8e626e3d8130bd0
-voice VOICE_E/EVVOL1_E.BIN 121305088 301202 150601 5774938fa3ce5428
-voice VOICE_E/EVVOL1_E.BIN 132493312 317842 158921 ea33ea0dd9baade6
-voice VOICE_E/EVVOL1_E.BIN 142176256 263772 131886 283e160ad91777c1
-voice VOICE_E/EVVOL1_E.BIN 152985600 108166 54083 ab98ef2ad5458612
-voice VOICE_E/EVVOL1_E.BIN 164182016 213482 106741 9981454d0ac158a3
-voice VOICE_E/EVVOL1_E.BIN 176408576 371506 185753 a92549fc66419a65
-voice VOICE_E/EVVOL1_E.BIN 186329088 270578 135289 5d7e45e914ba3374
+voice VOICE_E/EVVOL1_E.BIN 8693760 508142 254071 cc49c31aa88b47a1
+voice VOICE_E/EVVOL1_E.BIN 23257088 364152 182076 a59f6e8e84996d6b
+voice VOICE_E/EVVOL1_E.BIN 38440960 427296 213648 9d531f551eda8456
+voice VOICE_E/EVVOL1_E.BIN 52869120 321182 160591 c17c98222f8b7dcc
+voice VOICE_E/EVVOL1_E.BIN 66758656 361736 180868 a1bb36e1a7568c2a
+voice VOICE_E/EVVOL1_E.BIN 79319040 275718 137859 149d368991b988c0
+voice VOICE_E/EVVOL1_E.BIN 92706816 1135140 567570 3296b016352da9d9
+voice VOICE_E/EVVOL1_E.BIN 106070016 138120 69060 2e4fce78e6e75a1a
+voice VOICE_E/EVVOL1_E.BIN 118376448 128218 64109 ca30c5c8d3714d9a
+voice VOICE_E/EVVOL1_E.BIN 129888256 615716 307858 636375b7843a8b48
+voice VOICE_E/EVVOL1_E.BIN 140795904 238112 119056 54f23f8e4df844d2
+voice VOICE_E/EVVOL1_E.BIN 149760000 93190 46595 f1f37d2424f02627
+voice VOICE_E/EVVOL1_E.BIN 160780288 116488 58244 7b0f4ad84f243cc8
+voice VOICE_E/EVVOL1_E.BIN 173430784 134452 67226 61446343ebad3dc2
+voice VOICE_E/EVVOL1_E.BIN 183957504 71844 35922 568c2185ba4f953d
+voice VOICE/EVVOL1S.BIN 7110656 533056 266528 037d630ba0b36e0e
+voice VOICE/EVVOL1S.BIN 19468288 203968 101984 46ffa4295f3f621f
+voice VOICE/EVVOL1S.BIN 30738432 597034 298517 29478f979ef9076f
 voice VOICE_E/EVVOL1SE.BIN 12328960 490594 245297 12c75cf90c2abbfd
 voice VOICE_E/EVVOL1SE.BIN 22446080 203218 101609 9e85804b8e470f10
 voice VOICE/EVVOL1.BIN 74031104 40756 20378 e0aa3abc4bcec381

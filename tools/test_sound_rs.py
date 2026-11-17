@@ -3,7 +3,8 @@
 tools/adpcm.py.
 
     python3 tools/test_sound_rs.py fixture   the expectations, to stdout
-                                             (crates/piney-data/tests/sound_fixture.txt)
+                                             (crates/piney-data/tests/sound_fixture.txt;
+                                             PINEY_VOLUME's: sound_fixture_mut.txt ...)
     python3 tools/test_sound_rs.py           check the fixture is current and
                                              run the Rust test against it
 
@@ -34,7 +35,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELF = volume.ELF
 SNDDATA = os.path.join(os.path.dirname(volume.DATA), "SNDDATA.BIN")
 ISO = volume.ISO
-FIXTURE = os.path.join(ROOT, "crates", "piney-data", "tests", "sound_fixture.txt")
+# Infection's sound_fixture.txt, a later volume's sound_fixture_mut.txt and so on.
+SUFFIX = {"infection": "", "mutation": "_mut", "outbreak": "_out", "quarantine": "_qua"}[volume.NAME]
+FIXTURE = os.path.join(ROOT, "crates", "piney-data", "tests", f"sound_fixture{SUFFIX}.txt")
 
 FNV_OFFSET = 0xCBF29CE484222325
 FNV_PRIME = 0x100000001B3
@@ -125,29 +128,31 @@ def fixture():
     return 0
 
 
-# ccEvVoiceRequest's tables: (table, first event, evVoiceFile index)
-EV_TABLES = (("evVoiceDataVol1M", 0, 6), ("evVoiceDataVol1S", 50, 7),
-             ("evVoiceDataVol1ME", 0, 6), ("evVoiceDataVol1SE", 50, 7))
-
-
 def voice_lines(prog, img):
-    """Every row of the event voice tables, and a sample of their lines
-    decoded as sound.py export-voices writes them: event 1's, every 32nd,
-    the shortest and the longest."""
-    print("# evrow TABLE EVENT MSG OFS SIZE     (every row; -1 is no line)")
+    """Every row of ccEvVoiceRequest's tables as the volume's code picks
+    them (sound.event_tables), and a sample of their lines decoded as
+    sound.py export-voices writes them: the first voiced event's, every
+    32nd, the shortest and the longest. Rows past an array's end are the
+    words the game reads there (Outbreak's EVVOL3SE event 266 array is one
+    row in .sdata at 0x003862f8); only lines within their file are decoded."""
+    print("# evrow SECTION KIND LANG EVENT MSG OFS SIZE   (every row; -1 is no line)")
     print("# voice PATH OFS SIZE SAMPLES FNV    (FNV-1a 64 of the 16-bit samples)")
     lines = []
-    for table, first, fi in EV_TABLES:
-        english = table.endswith("E")
-        path = sound._disc_path(prog.strings("evVoiceFile" + ("E" if english else ""))[fi])
-        for i, (ptr,) in enumerate(prog.words(table)):
-            if not ptr or i >= 50:
-                continue
-            for k, (ofs, size) in enumerate(prog.words(prog.gcmn.name_at(ptr), "<ii")):
-                print(f"evrow {table} {first + i} {k} {ofs} {size}")
-                if ofs >= 0:
+    files = {"jp": prog.strings("evVoiceFile"), "en": prog.strings("evVoiceFileE")}
+    sizes = {}
+    for section, kind, lang, _start, events in sound.event_tables(prog):
+        file = 6 + 3 * section + sound.EV_KINDS.index(kind)
+        path = sound._disc_path(files[lang][file]) if file < len(files[lang]) else None
+        first = 100 * section + sound.EV_FIRST[kind]
+        for i, rows in enumerate(events):
+            for k, (ofs, size) in enumerate(rows or ()):
+                print(f"evrow {section} {kind} {lang} {first + i} {k} {ofs} {size}")
+                if path not in sizes:
+                    e = path and sound.find(img, path)
+                    sizes[path] = e.size if e else 0
+                if 0 <= ofs and ofs + size <= sizes[path]:
                     lines.append((path, ofs, size, first + i))
-    pick = [x for x in lines if x[3] == 1] + lines[::32]
+    pick = [x for x in lines if x[3] == min(x[3] for x in lines)] + lines[::32]
     pick += [min(lines, key=lambda x: x[2]), max(lines, key=lambda x: x[2])]
     files = {}
     seen = set()
@@ -174,6 +179,55 @@ class RustTest(unittest.TestCase):
             fixture()
         with open(FIXTURE) as f:
             self.assertEqual(f.read(), buf.getvalue(), "run: tools/test_sound_rs.py fixture > " + FIXTURE)
+
+    def test_event_tables_from_the_code(self):
+        """sound.event_tables reads ccEvVoiceRequest's code. On Infection,
+        the one disc with its own names, every table it finds starts at an
+        evVoiceData symbol and every array with rows is a whole VOICE_DATA
+        object (the placeholder tables of the other volumes run into other
+        data, which holds no row). On every disc its own hundred's main and
+        side tables have rows in both languages."""
+        prog = sound.Program(ELF)
+        g = prog.gcmn
+        tables = sound.event_tables(prog)
+        if volume.number() == 1:
+            for _section, _kind, _lang, start, events in tables:
+                sym, off = g.symbol_at(start)
+                self.assertEqual((off, sym.name[:11]), (0, "evVoiceData"), hex(start))
+                for i, rows in enumerate(events):
+                    if rows:
+                        arr, off = g.symbol_at(g.u32(start + 4 * i))
+                        self.assertEqual((off, arr.size), (0, 8 * len(rows)), (sym.name, i))
+        own = {(kind, lang) for section, kind, lang, _, events in tables
+               if section == volume.number() - 1 and any(events)}
+        self.assertTrue({("main", "jp"), ("main", "en"), ("side", "jp"), ("side", "en")} <= own, own)
+
+    def test_script_messages_voice_the_rows(self):
+        """Every message every event script can open, in both languages and
+        Parody Mode: the line the game's ccEvVoiceRequest and evVoicePlay
+        hand SEWORDS (tools/evscript.py runs them) is the table row
+        sound.event_tables reads, and no message is past its event's array
+        (the rows the tables keep past an array's end are never asked)."""
+        import evscript
+        ev = evscript.Events(ELF)
+        rows = {}
+        for section, kind, lang, _start, events in sound.event_tables(sound.Program(ELF)):
+            first = 100 * section + sound.EV_FIRST[kind]
+            for i, r in enumerate(events):
+                rows[(kind, lang, first + i)] = r
+        voiced = 0
+        for event in sorted(ev.events):
+            for parody in (False, True):
+                kind = "side" if event % 100 >= 50 else "parody" if parody else "main"
+                for k in range(len(ev.messages(event, parody))):
+                    for english in (False, True):
+                        r = rows.get((kind, "en" if english else "jp", event))
+                        self.assertFalse(r is not None and k >= len(r), (event, k, english, parody))
+                        game = ev.voice(event, k, english, parody)
+                        if game is not None:
+                            self.assertEqual(r and r[k], game[1:], (event, k, english, parody))
+                            voiced += 1
+        self.assertGreater(voiced, 1000)
 
     @unittest.skipUnless(shutil.which("cargo"), "no cargo")
     def test_rust(self):

@@ -419,6 +419,7 @@ class Game:
         from test_anim import machine_class
         self.sc = sc
         m = self.m = machine_class()(P)
+        volume.overlay_init(m, P)
         self.heap = HEAP
         self.strs = STRS
         self.frame = 0

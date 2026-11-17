@@ -62,6 +62,8 @@ class GameBattle:
         self.data = data
         self.prog = Program(data.elf_path, "gcmn")
         self.m = eemu.Machine(self.prog)
+        import volume
+        volume.overlay_init(self.m, self.prog)
         self.sym = self._sym
         m = self.m
         m.store(self.sym("saveData"), 4, SAVE)

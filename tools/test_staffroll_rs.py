@@ -43,7 +43,11 @@ inf_va = functools.partial(va, overlay='desktop')  # this overlay's globals
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELF = volume.ELF
-FIXTURE = os.path.join(ROOT, "crates", "piney-desktop", "tests", "staffroll_fixture.txt")
+# Infection's fixture, and one for each later disc with a roll: Quarantine's
+# desktop.prg has none (its ending's roll is the field's `ending_kanji`).
+SUFFIX = {"infection": "", "mutation": "_mut", "outbreak": "_out"}.get(volume.NAME)
+FIXTURE = SUFFIX is not None and os.path.join(ROOT, "crates", "piney-desktop", "tests",
+                                              f"staffroll_fixture{SUFFIX}.txt")
 
 CCSYS, SAVEDATA = inf_va(0x003788E0), inf_va(0x003789D8)
 VOLUME, MTI = inf_va(0x0034BBF8), inf_va(0x00377FD0)
@@ -76,7 +80,7 @@ class Roll:
         m.mem[SAVE + 24:SAVE + 24 + len(NAME1)] = NAME1
         m.store(CCSYS, 4, SYSOBJ)
         m.store(SAVEDATA, 4, SAVE)
-        m.store(VOLUME, 4, 1)
+        m.store(VOLUME, 4, volume.number())
         m.store(MTI, 4, 625)
         self.draws = []
 
@@ -265,6 +269,15 @@ def fixture_lines():
 @unittest.skipUnless(os.path.exists(ELF), "needs the extracted disc")
 class StaffRollFixture(unittest.TestCase):
     def test_fixture_is_the_games(self):
+        if not FIXTURE:
+            # Quarantine: no ccThStaffRoll in desktop.prg and no scene name
+            # for one (SR_CCS_NAME's "stfroll"); its case 147 starts none.
+            from image import Program
+            desk = Program(ELF, "desktop")
+            self.assertFalse([s.name for s in desk.symbols if "StaffRoll" in s.name])
+            with open(os.path.join(os.path.dirname(ELF), "DATA", "DESKTOP.PRG"), "rb") as f:
+                self.assertNotIn(b"stfroll", f.read())
+            return
         with open(FIXTURE) as f:
             have = f.read().splitlines()
         self.assertEqual(have, fixture_lines())
@@ -274,7 +287,7 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["detail"]:
         for line in Roll().run(detail=sys.argv[2]):
             print(line)
-    elif sys.argv[1:] == ["fixture"]:
+    elif sys.argv[1:] == ["fixture"] and FIXTURE:
         lines = fixture_lines()
         with open(FIXTURE, "w") as f:
             f.write("\n".join(lines) + "\n")

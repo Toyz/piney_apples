@@ -24,6 +24,8 @@ its thread (ccThEquipMenu) is noted at the menu's breath, as the shop
 harness does.
 
 Skipped when the disc is not extracted or cargo is missing.
+
+It runs on PINEY_VOLUME's disc, through tools/test_fieldui_rs.py's game.
 """
 
 import os

@@ -43,6 +43,27 @@ def program(path, overlay="gcmn"):
     return Program(path, overlay)
 
 
+def overlay_init(m, prog):
+    """The overlay's .data as mwLoadOverlay leaves it (INF main 0x001002c0):
+    after the read and the .bss clear it runs the static initialisers in
+    the header's constructor table (`__initialize_cpp_rts`). A machine
+    built from the file lacks their writes: from Outbreak on gcmn's set
+    makePacket's bounds (OUT 0x0073d680) and the condition icons' y (OUT
+    0x0073d730), which the file holds as 0. Only their writes to .data are
+    kept; the objects they build in .bss and main (menuList, ccSpcManager,
+    the damage list) the harnesses set up as their scenarios need."""
+    import struct
+    ov = prog.overlay
+    lo = ov.text + ov.text_size
+    hi = lo + ov.data_size
+    before = bytes(m.mem)
+    for a in range(ov.ctor_start, ov.ctor_end, 4):
+        m.call(struct.unpack("<I", ov.read(a, 4))[0], (), limit=50_000_000)
+    data = bytes(m.mem[lo:hi])
+    m.mem[:len(before)] = before
+    m.mem[lo:hi] = data
+
+
 CARRY_FILES = {"mutation": "mut_", "outbreak": "out", "quarantine": "qua"}
 SECTIONS = {"main": 0, "gcmn": 1, "demo": 2, "desktop": 3, "toppage": 4}
 

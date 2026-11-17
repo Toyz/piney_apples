@@ -70,7 +70,7 @@ import test_anim  # noqa: E402
 eemu.Machine = test_anim.machine_class()
 
 import test_battle_rs as rs  # noqa: E402
-import volume  # noqa: E402
+import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 from test_battle import GAME, MENU, SAVE, SYS  # noqa: E402
 
 AIS = 0x01060000        # the ccAI of character i at AIS + 0x400 * i

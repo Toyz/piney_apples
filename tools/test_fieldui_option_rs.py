@@ -27,6 +27,8 @@ shadowed) are compared, and the options' part of the save (+0x841a -
 +0x8431) after every frame.
 
 Skipped when the disc is not extracted or cargo is missing.
+
+It runs on PINEY_VOLUME's disc, through tools/test_fieldui_rs.py's game.
 """
 
 import os

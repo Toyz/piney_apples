@@ -1,12 +1,19 @@
-//! The staff roll against the game: `tools/test_staffroll_rs.py` ran the
-//! game's `ccThStaffRollCtrl` in eemu (seed 12345, names Kite and Tester,
+//! The staff roll against the game: `tools/test_staffroll_rs.py` ran each
+//! volume's `ccThStaffRollCtrl` in eemu (seed 12345, names Kite and Tester,
 //! `ccRand` as at boot) and kept each frame's state and draws; this runs
-//! [`StaffRoll`] the same way and compares every frame.
+//! [`StaffRoll`] the same way and compares every frame. Quarantine's
+//! desktop has no roll.
 
 use piney_data::volume::Volume;
 use piney_desktop::staffroll::{CcRand, Draw, LINES, StaffRoll};
 
-const FIXTURE: &str = include_str!("staffroll_fixture.txt");
+/// Each volume's fixture (`PINEY_VOLUME=... python3
+/// tools/test_staffroll_rs.py fixture`) and its scene file.
+const FIXTURES: [(Volume, &str, &str); 3] = [
+    (Volume::Inf, "stfroll1", include_str!("staffroll_fixture.txt")),
+    (Volume::Mut, "stfroll2", include_str!("staffroll_fixture_mut.txt")),
+    (Volume::Out, "stfroll3", include_str!("staffroll_fixture_out.txt")),
+];
 
 fn fnv(b: &[u8]) -> u32 {
     let mut h: u32 = 0x811c_9dc5;
@@ -76,29 +83,34 @@ fn draws(s: &StaffRoll) -> (Vec<String>, String) {
 
 #[test]
 fn the_staff_roll_is_the_games() {
-    let tables = piney_data::tables::staffroll::of(Volume::Inf);
-    assert_eq!(tables.ccs, "stfroll1");
-    let names = (b"Kite".to_vec(), b"Tester".to_vec());
-    let mut s = StaffRoll::new(tables, 12345, CcRand::seeded(0x1100), names);
-    let mut want = FIXTURE.lines().filter(|l| !l.starts_with('#') && !l.starts_with("view "));
-    let check = |s: &StaffRoll, label: &str, line: &str| {
-        let (all, summary) = draws(s);
-        let got = format!("{label} | {} | {summary}", state(s));
-        assert_eq!(
-            got,
-            line,
-            "frame {label} differs; the port's draws (compare `python3 tools/test_staffroll_rs.py detail {label}`):\n{}",
-            all.join("\n")
-        );
-    };
-    check(&s, "new", want.next().unwrap());
-    let mut frames = 0;
-    for (f, line) in want.enumerate() {
-        s.main();
-        check(&s, &f.to_string(), line);
-        frames += 1;
+    for (volume, ccs, fixture) in FIXTURES {
+        let tables = piney_data::tables::staffroll::of(volume);
+        assert_eq!(tables.ccs, ccs);
+        let names = (b"Kite".to_vec(), b"Tester".to_vec());
+        let mut s = StaffRoll::new(tables, 12345, CcRand::seeded(0x1100), names);
+        let mut want = fixture.lines().filter(|l| !l.starts_with('#') && !l.starts_with("view "));
+        let check = |s: &StaffRoll, label: &str, line: &str| {
+            let (all, summary) = draws(s);
+            let got = format!("{label} | {} | {summary}", state(s));
+            assert_eq!(
+                got,
+                line,
+                "{volume:?} frame {label} differs; the port's draws (compare `PINEY_VOLUME=... python3 \
+                 tools/test_staffroll_rs.py detail {label}`):\n{}",
+                all.join("\n")
+            );
+        };
+        check(&s, "new", want.next().unwrap());
+        let mut frames = 0;
+        for (f, line) in want.enumerate() {
+            s.main();
+            check(&s, &f.to_string(), line);
+            frames += 1;
+        }
+        assert!(s.done, "{volume:?}: the roll did not end with the fixture ({frames} frames)");
     }
-    assert!(s.done, "the roll did not end with the fixture ({frames} frames)");
+    let qua = piney_data::tables::staffroll::of(Volume::Qua);
+    assert!(qua.pages.is_empty() && qua.ccs.is_empty(), "Quarantine's desktop has no staff roll");
 }
 
 /// The layer's view: the game's `SetFrame` at s1, `SetLayerCenter(256, 192)`
@@ -108,7 +120,7 @@ fn the_staff_roll_is_the_games() {
 #[test]
 fn the_staff_roll_view_is_the_games() {
     let mut n = 0;
-    for line in FIXTURE.lines().filter(|l| l.starts_with("view ")) {
+    for line in FIXTURES.iter().flat_map(|f| f.2.lines()).filter(|l| l.starts_with("view ")) {
         let w: Vec<&str> = line.split(' ').collect();
         let f = |i: usize| f32::from_bits(u32::from_str_radix(w[i], 16).unwrap());
         let (s2, x, y) = (f(2), f(3), f(4));
@@ -117,5 +129,5 @@ fn the_staff_roll_view_is_the_games() {
         assert_eq!(v.apply(x, y), want, "{line}");
         n += 1;
     }
-    assert_eq!(n, 36);
+    assert_eq!(n, 3 * 36);
 }

@@ -68,6 +68,16 @@ compiler-generated static initialiser for one source file.
 4. `__initialize_cpp_rts(ctor_start, ctor_end)` runs the static
    constructors.
 
+The PRG carries no relocations, so the file's bytes are the image except
+for what the initialisers write. On Infection and Mutation gcmn's three
+write only `.bss` and main. Outbreak's and Quarantine's gcmn has four, and
+two of them set `.data` statics the file holds as 0 (run in eemu through
+the disc's own `mwLoadOverlay`): makePacket's bounds, 352 and 288 (OUT
+0x0073d680 writes 0x006dc5a8 and 0x006dc5b0; QUA 0x0063a200), and the
+condition icons' y, 320 (OUT 0x0073d730 writes 0x00720c90; QUA 0x0063a2b0).
+A harness machine built from the file gets them from
+`volume.overlay_init`.
+
 It returns 1 on success and 0 if the read returned nothing. Of the header
 it reads only `bss_size` (+0x14) and the constructor table (+0x18, +0x1c),
 at `dest`.

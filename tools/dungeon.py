@@ -725,7 +725,10 @@ class Edited:
             raise KeyError(f"no EditDungeon entry for event {event} dungeon {index}")
         self.slot = i
         sym = p.symbol_at(rooms & 0xFFFFFFFF)
-        self.name = sym[0].name if sym and sym[0] and not sym[1] else hex(rooms & 0xFFFFFFFF)
+        # A table no symbol names (event areas 118 and 119, EditDungeon's
+        # last two rows from Mutation on, which Infection lacks) takes
+        # piney-gen's name for it (placement/dungeon.rs name_of).
+        self.name = sym[0].name if sym and sym[0] and not sym[1] else f"rooms_{rooms & 0xFFFFFFFF:08x}"
         self.roomdata = [dict(zip(ROOMDATA, struct.unpack("<19i", p.read(rooms + 76 * k, 76))))
                          for k in range(nrooms)]
         self.gimdata = [dict(zip(GIMMICKDATA, struct.unpack("<8i", p.read(gims + 32 * k, 32))))

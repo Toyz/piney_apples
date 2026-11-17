@@ -62,6 +62,8 @@ compared.
                                                      random cases
 
 Skipped when the disc is not extracted or cargo is missing.
+
+It runs on PINEY_VOLUME's disc, through tools/test_effect_rs.py's game.
 """
 
 import os

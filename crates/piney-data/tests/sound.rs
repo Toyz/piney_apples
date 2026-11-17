@@ -1,11 +1,11 @@
 //! `sound` against `tools/sound.py`, `tools/scei.py` and `tools/adpcm.py`.
-//! The fixture (`sound_fixture.txt`, written by `python3
-//! tools/test_sound_rs.py fixture`) holds only numbers and hashes; the banks
-//! come from the disc. Every bank's place and parsed header, every VAG's
-//! decoded samples and loop, every `.sq`'s chunks, the `BGM.BIN` tracks,
-//! every row of the event voice tables and a sample of their lines must
-//! match exactly. Skipped when the disc image is not extracted; set
-//! PINEY_ISO to point at it elsewhere.
+//! The fixtures (`sound_fixture.txt` and `_mut`, `_out`, `_qua`, written by
+//! `PINEY_VOLUME=... python3 tools/test_sound_rs.py fixture`) hold only
+//! numbers and hashes; the banks come from each disc. Every bank's place and
+//! parsed header, every VAG's decoded samples and loop, every `.sq`'s
+//! chunks, the `BGM.BIN` tracks, every row of the event voice tables and a
+//! sample of their lines must match exactly. A volume whose disc image is
+//! not extracted is skipped; PINEY_ISO points at Infection's elsewhere.
 
 use std::path::PathBuf;
 
@@ -166,9 +166,26 @@ fn hd_values(hd: &Hd) -> Vec<i64> {
     out
 }
 
-fn fixture() -> Vec<Vec<String>> {
-    include_str!("sound_fixture.txt")
-        .lines()
+/// Each volume's fixture, its disc's directory under `work/`, and how many
+/// banks, VAGs, `.sq`s, BGM tracks, event voice rows and sampled lines it
+/// lists.
+const FIXTURES: [(Volume, &str, &str, [usize; 6]); 4] = [
+    (Volume::Inf, "infection", include_str!("sound_fixture.txt"), [79, 1013, 150, 2, 1483, 43]),
+    (Volume::Mut, "mutation", include_str!("sound_fixture_mut.txt"), [79, 1018, 150, 8, 1204, 44]),
+    (Volume::Out, "outbreak", include_str!("sound_fixture_out.txt"), [79, 1018, 150, 8, 1740, 59]),
+    (Volume::Qua, "quarantine", include_str!("sound_fixture_qua.txt"), [79, 1011, 150, 8, 1984, 66]),
+];
+
+fn disc(volume: Volume, dir: &str) -> Option<PathBuf> {
+    let p = match volume {
+        Volume::Inf => return iso_path(),
+        _ => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{dir}/{dir}.iso")),
+    };
+    p.exists().then_some(p)
+}
+
+fn fixture(text: &str) -> Vec<Vec<String>> {
+    text.lines()
         .filter(|l| !l.starts_with('#') && !l.is_empty())
         .map(|l| l.split_whitespace().map(String::from).collect())
         .collect()
@@ -180,17 +197,25 @@ fn num(s: &str) -> i64 {
 
 #[test]
 fn banks_vags_and_sequences_match_the_tools() {
-    let Some(path) = iso_path() else {
-        eprintln!("skipped: no disc image");
-        return;
-    };
+    for (volume, dir, text, counts) in FIXTURES {
+        let Some(path) = disc(volume, dir) else {
+            eprintln!("skipped {dir}: no disc image");
+            continue;
+        };
+        check_volume(volume, path, &fixture(text), counts);
+    }
+}
+
+fn check_volume(volume: Volume, path: PathBuf, lines: &[Vec<String>], counts: [usize; 6]) {
+    let tables = sound::tables_of(volume);
+    let voice_tables = piney_data::tables::voice::of(volume);
     let mut iso = Iso::open(path).unwrap();
     let snd = SndData::read(&mut iso).unwrap();
+    assert!(std::ptr::eq(snd.tables(), tables), "{volume:?}: its own tables");
     let bgm_bin = iso.read_path("VOICE/BGM.BIN").unwrap();
-    let lines = fixture();
     let mut bank = None;
     let (mut banks, mut vags, mut sqs, mut bgms, mut evrows, mut voices) = (0, 0, 0, 0, 0, 0);
-    for f in &lines {
+    for f in lines {
         match f[0].as_str() {
             "bank" => {
                 let info = &snd.banks()[num(&f[1]) as usize];
@@ -248,7 +273,7 @@ fn banks_vags_and_sequences_match_the_tools() {
                 sqs += 1;
             }
             "bgm" => {
-                let t = &inf().bgm[num(&f[1]) as usize];
+                let t = &tables.bgm[num(&f[1]) as usize];
                 assert_eq!([t.ofs, t.size, t.mode].map(|x| x as i64), [num(&f[2]), num(&f[3]), num(&f[4])]);
                 let pcm = sound::bgm_pcm(&bgm_bin, t).unwrap();
                 assert_eq!(pcm.len() as i64, num(&f[5]));
@@ -257,18 +282,19 @@ fn banks_vags_and_sequences_match_the_tools() {
                 bgms += 1;
             }
             "evrow" => {
-                let vol1 = &piney_data::tables::voice::of(piney_data::volume::Volume::Inf).events[0];
-                let (main, side) = (vol1.main.unwrap(), vol1.side.unwrap());
-                let table = match f[1].as_str() {
-                    "evVoiceDataVol1M" => main.jp,
-                    "evVoiceDataVol1S" => side.jp,
-                    "evVoiceDataVol1ME" => main.en.unwrap(),
-                    "evVoiceDataVol1SE" => side.en.unwrap(),
-                    t => panic!("table {t}"),
-                };
-                let (event, msg) = (num(&f[2]) as usize, num(&f[3]) as usize);
-                let row = table[event % 50].expect("a table for the event")[msg];
-                assert_eq!((row.ofs, row.siz), (num(&f[4]) as i32, num(&f[5]) as i32), "{}", f.join(" "));
+                // SECTION KIND LANG EVENT MSG OFS SIZE
+                let section = &voice_tables.events[num(&f[1]) as usize];
+                let branch = match f[2].as_str() {
+                    "main" => section.main,
+                    "side" => section.side,
+                    "parody" => section.parody,
+                    k => panic!("kind {k}"),
+                }
+                .expect("a table of that kind");
+                let table = if f[3] == "en" { branch.en.expect("an English table") } else { branch.jp };
+                let (event, msg) = (num(&f[4]) as usize, num(&f[5]) as usize);
+                let row = table[event % 50].expect("rows for the event")[msg];
+                assert_eq!((row.ofs, row.siz), (num(&f[6]) as i32, num(&f[7]) as i32), "{}", f.join(" "));
                 evrows += 1;
             }
             "voice" => {
@@ -282,18 +308,20 @@ fn banks_vags_and_sequences_match_the_tools() {
             other => panic!("fixture line {other}"),
         }
     }
-    assert_eq!((banks, vags, sqs, bgms), (79, 1013, 150, 2));
-    assert_eq!((evrows, voices), (1292, 42));
-    // Every row the fixture does not list is absent: the tables hold 1,292.
-    let vol1 = &piney_data::tables::voice::of(piney_data::volume::Volume::Inf).events[0];
-    let (main, side) = (vol1.main.unwrap(), vol1.side.unwrap());
-    let all: usize = [main.jp, side.jp, main.en.unwrap(), side.en.unwrap()]
+    assert_eq!([banks, vags, sqs, bgms, evrows, voices], counts, "{volume:?}");
+    // Every row the fixture does not list is absent.
+    let all: usize = voice_tables
+        .events
         .iter()
+        .flat_map(|s| [s.main, s.side, s.parody])
+        .flatten()
+        .flat_map(|b| [Some(b.jp), b.en])
+        .flatten()
         .flat_map(|t| t.iter().flatten())
         .map(|r| r.len())
         .sum();
-    assert_eq!(all, 1292);
-    assert_eq!(snd.banks().len(), 79);
+    assert_eq!(all, evrows, "{volume:?}");
+    assert_eq!(snd.banks().len(), banks);
 }
 
 #[test]

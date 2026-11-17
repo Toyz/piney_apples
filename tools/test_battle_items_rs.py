@@ -42,7 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import test_battle_rs as rs  # noqa: E402
 import test_battle_party_ai_rs as PA  # noqa: E402
-import volume  # noqa: E402
+import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 from test_battle_rs import F_ONE, NEW, fbits, rnd_pos  # noqa: E402
 
 SAVE, MENU = 0x01010000, 0x01020000

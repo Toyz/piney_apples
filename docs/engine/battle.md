@@ -3374,7 +3374,15 @@ point's colour (`[r, g, b, a]`) and screen place with ADC set when the pair
 does not continue the strip. A pair does not continue when it starts an
 edge's run, when either point is behind the eye, when both points are more
 than 5632 (352 pixels) across from the screen's centre (0x8000), or when
-both are more than 4608 (288 pixels) down from it. The depth sort takes
+both are more than 4608 (288 pixels) down from it. Infection and Mutation
+compare with `slti` literals (MUT 0x0044df20). From Outbreak on makePacket
+reads two gcmn statics and shifts them left by 4 (OUT 0x00449100 reads
+0x006dc5a8 and 0x006dc5b0, QUA 0x0033ba10 reads 0x005d4fa8 and 0x005d4fb0).
+The PRG holds both as 0, but gcmn's first static initialiser, which
+`mwLoadOverlay` runs once the file is read, sets them to `(int)(96 +
+(int)(512.0 / 2))` and `(int)(96 + (int)(384.0 / 2))`, 352 and 288 (OUT
+0x0073d680, QUA 0x0063a200; see [the overlay](../formats/prg.md#loading)).
+So the bounds are 5632 and 4608 on every disc. The depth sort takes
 the points' mean z. `sendPacket` (0x00438820) sends nothing under 2 pairs.
 `ccPrimRadiate::disp` (0x00439df0) hands each ray's inner pair with `cont`
 0 and its outer pair with 1, so a ray's two triangles are drawn only when
@@ -3445,7 +3453,7 @@ flash and the `makePacket` calls against `weapon_probe`.
 | check | what runs natively | cases | mismatches |
 | --- | --- | ---: | ---: |
 | weapons | `ccEnemyWeaponCtrl` constructor, `note`, `ctrl` with everything under them (`setCell`, `interpolateCell`, `eneSplineH`, `ctrlCell`, `dispCell`, `makePacketCell`, `ctrlRadiate`, `ccEnemyWeaponRad::ctrl`, `ccPrimRadiate::init`, `create`, `createPlate`, `ccFractionalHsv`); `ccTransPosFW2LW` a shift, `RotTransPers` a copy, `makePacket`, `disp` and the light group recorded | 98 tables x 360 frames (1,188,443 `makePacket` calls, 20,882 flash frames, 6,036 notes) | 0 |
-| makePacket's ADC | `ccPrimPacket::makePacket` on a pair of screen words, `cont` 0 or 1: the ADC it writes against `pair_continues` (`MakePacketAgainstGame`) | 4,000 pairs (behind the eye, the bounds 5632/5633 and 4608/4609, the word's ends) | 0 |
+| makePacket's ADC | `ccPrimPacket::makePacket` on a pair of screen words, `cont` 0 or 1: the ADC it writes against `pair_continues` (`MakePacketAgainstGame`) | 4,000 pairs on each disc (behind the eye, the bounds 5632/5633 and 4608/4609, the word's ends) | 0 |
 
 ### The party's weapon trails
 

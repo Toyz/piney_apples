@@ -18,6 +18,8 @@ SetPathFindingMap are stubbed.
 
     python3 tools/test_battle_frame_rs.py            the unit tests
     python3 tools/test_battle_frame_rs.py bulk N     N cases of every check
+
+It runs on PINEY_VOLUME's disc, through tools/test_battle_rs.py's game.
 """
 
 import os
