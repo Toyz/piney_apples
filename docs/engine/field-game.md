@@ -785,19 +785,73 @@ characters the same way.
   distant light first (`town00Light`, `town02Light`, `eventareaB0Light`),
   yet it comes after every omni light.
 - **The slots.** `ccDrawEnv::SetLightMatrix` (0x00105900) walks the group
-  (after a second one at +0x88, when there is one). It keeps three
+  (after a second one at +0x88, when there is one: below). It keeps three
   records of (priority, slot), all -128 at first. A light above the
   lowest record's priority is asked `CheckRange`. If it answers, it takes
   its place among the three by priority (strictly greater goes higher)
   and the slot of the record it pushes out. In a descending group the
   first three that answer take slots 2, 1 and 0, and a later light of
   equal priority is not asked.
-- **The port.** `piney_world::chara::kite::light_matrix` sorts the lights
-  stably by descending priority and takes the first three that answer.
-  `tools/test_lights_rs.py` checks it against the game's code: groups
-  built with the game's `ccCreateLight` and `AddGrp`, then
-  `SetLightMatrix` at a point, over random groups of distant, omni and
-  boss lights. The slots, directions and colours match.
+- **The arithmetic.** Every step is the EE's or VU's, the same on all
+  four discs but for one op. `CheckRange`: omni (0x00139830) `d = at -
+  pos` (`SubVector`, `MulVector`, `z + (x + y)`), the distance by `sqrt`,
+  `(i (end - d)) / (end - start)`, `Normalize(d)`; direct (0x00139330)
+  and spot (0x001395b0) take `at` through `InversMatrix` of the light's
+  matrix, `-z` the depth, `x x + y y` by `mula`/`madd`, its root, the
+  same fade along the beam and out to the second radius (a spot light
+  between `tan` of its two half angles times the depth); distant
+  (0x00139170) `lightVector` through its matrix. The colour is
+  `ScaleVector` by what reaches. `sceVu0NormalLightMatrix` scales each
+  row by -1, `Normalize`s it and transposes; `ccSetMatrixPacket`
+  multiplies that by the `lwMatrix` (`sceVu0MulMatrix`); VU1's
+  `mc_SetMatrix` sums each light's lane squared (`mula`, `madda`,
+  `madd`), times `ERSQRT` of it, and the colours times `loi 2.0`. The
+  `sqrt` is newlib's `sqrtf` on Infection and Mutation, `sqrt.s` from
+  Outbreak on (OUT 0x00137d74 omni, 0x00137900 direct, 0x00137b28 spot).
+- **The second group.** Three stores can reach a `ccDrawEnv`'s +0x88 on
+  any disc (main, the four overlays and their initialisers, every way a
+  `ccDrawEnv` pointer is built): `Reset` clears it, and `ccAnm::Draw`
+  (INF 0x001527bc, 0x001528ac; OUT 0x0015171c, 0x0015181c) points it at
+  the drawn anm's own group (+0xf0) for its draw and clears it after.
+  `SetAnm` puts an anm's lights in that group unless `SetLightEnv(1)` came
+  first, and every animation with light records that has a lit model is
+  played that way (the towns', fields', event areas', event rooms', the
+  Chaos Gate's, `STATICOBJECT`s'); the only one without is the desktop's
+  `ANM_xddesk01`, whose 148-151 models are all unlit. So the second group
+  never lights a model, and the port has none.
+- **Static objects' lights.** A `STATICOBJECT` sets `SetLightEnv(1)`
+  before `SetAnm` (gcmn 0x005cfc54), so its anm's light records join the
+  draw environment's group, the anm their parent, before the area's own
+  lights; its `_AnimateForward` moves them. On the four discs that is the
+  disc of `EVENTAREAB8` (`ANM_se1_6ob1a`'s `LGT_omn01`: an omni 100 below
+  the disc, full to 600 and gone at 1200, its colour keyed): the port's
+  `TownLights::objects`, as the objects' last step left them.
+- **The port.** `piney_data::light` holds the group as the game holds
+  it (each kind's matrix or direction, colour, intensity, fall-off with
+  its stored square) and does those steps in `piney_data::field::ee`
+  and `piney_data::vu0`; `piney_world::chara::kite::light_matrix`, the
+  streams' `draw::lights` and the title's `omni_lights` hand it the
+  group and the model's matrix. `tools/test_lights_rs.py` checks it on
+  every disc, word for word: groups built with the game's
+  `ccCreateLight` and `AddGrp` (distant, omni, boss, direct and spot
+  lights), then `SetLightMatrix`, `ccSetMatrixPacket` and VU1's
+  `mc_SetMatrix` (`tools/vu.py`) for a model with a random `lwMatrix`,
+  every register of every slot; and every light animation of `DATA.BIN`
+  run by the game's `ccAnm` (`SetAnm`, `_AnimateForward`, `GetDirc`,
+  `_SetLWMatrix`) against `piney_data::light::AnimLight`.
+- **The lights' values.** `SetAnmCtrlWork` (0x00150670) makes a light's
+  local matrix (`sceVu0TransMatrix` of the rotation and place; an omni
+  light's from the unit matrix), `ccSetColor` of a constant colour or
+  `ccSetBlendColor` between keys, the floats by `ccAnmCtrlFloat_Set`,
+  each square by `mul.s`, a spot light's half angles `(pi deg / 180) / 2`
+  kept as their `tanf`. `SetAnm` makes the anm the light's parent, so
+  `_SetLWMatrix` takes it through the anm's matrix: the unit matrix
+  `ccCoord`'s constructor gives a town's or a story map's light anm, which
+  no constructor sets (`ROOTTOWN01`, `EVENTAREA01`, `EVENTAREAB0`,
+  `EVENTAREA02::ChangeBlock`: `new ccAnm`, `SetAnm`, one
+  `_AnimateForward`, `AddGrp`); the Chaos Gate's anm its root. The dungeon's own
+  distant light is `ccLight(1, 0)`: priority 0, not `ccCreateLight`'s -1
+  (gcmn 0x005b8c78).
 - **When.** `ccModel::Draw` (main 0x0013eab0) calls `SetLightMatrix`
   (0x0013ec14) as the draw is made, so a character is lit by the group as
   the tasks before its draw left it. Kite (`ccPlayer::Main`, gcmn
@@ -2120,11 +2174,6 @@ runs event 2's character flow through the World API.
   `the_gates_circle_sounds`), and Kite's footsteps (his notes 1 and 2
   through `ccPlayer::CheckNote`'s `ccSeSetParamSPC`, by the ground's
   attribute: `kite::Out::Sound`, `kite_has_footsteps_in_mac_anu`).
-- The lights' values as the areas' animations leave them (positions,
-  colours, fall-off at frame 1) are not checked against the game; the
-  group's order and slots are (the light group, above).
-- `SetLightMatrix` first walks a second group, `ccDrawEnv` +0x88, when
-  there is one. What fills it is not traced, and the port has none.
 - Nothing compares the walking PCs' presentation with the game's
   pictures. What they show: their `changeTEX` variants (`MAT_tex` takes
   the row's texture through `Body::tex_swaps` and the draw list's

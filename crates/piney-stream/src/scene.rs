@@ -10,6 +10,8 @@
 use std::collections::{HashMap, HashSet};
 
 use piney_data::anim::{const_radians, ee, rot_bits_of};
+use piney_data::light::{self, Falloff};
+use piney_data::vu0;
 use piney_desktop::camera::Camera;
 use piney_desktop::view::Frame;
 
@@ -37,6 +39,8 @@ pub struct Loaded {
     /// byte (Outbreak on: each Pcm chunk and F_Pcm record carries its
     /// language, and `ccPcmSound::Open` is given the voice byte).
     pub pcm_track: Option<u8>,
+    /// The disc, whose code lights the scenes.
+    pub volume: piney_data::volume::Volume,
 }
 
 impl Loaded {
@@ -205,32 +209,30 @@ impl EffNode {
     }
 }
 
-/// A light of the scene's draw environment.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// A light of the scene's draw environment: its object and its `ccLight`
+/// as the frame records left it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Light {
     pub obj: u32,
-    pub kind: i16,
-    /// Omni: position. Distant: the rotation in radians (bits).
-    pub pos: [f32; 3],
-    pub rot: [u32; 3],
-    /// Colour (0..1), before the intensity.
-    pub colour: [f32; 3],
-    pub intensity: f32,
-    /// Omni fall-off: full to `far_start`, none past `far_end`; 0 is none.
-    pub far_start: f32,
-    pub far_end: f32,
+    pub light: light::Light,
 }
 
 impl Light {
-    /// `ccCreateLight` (0x001389b0)'s priority, as a sort key: a distant
-    /// light's -1 after every other kind's 0.
-    fn priority(&self) -> u8 {
-        u8::from(self.kind == file::LIGHT_DISTANT)
-    }
-
+    /// `ccCreateLight` (0x001389b0) and the kind's `Init`: black,
+    /// intensity 1, at the unit matrix the constructor leaves; a direct or
+    /// spot light's two radii 1000 and 2000 (`Init` 0x001392d0, 0x00139550,
+    /// which leave the square and the tangents unwritten: 0 here); priority
+    /// -1 for a distant light, 0 for the others.
     fn new(obj: u32, kind: i16) -> Self {
-        // ccOmniLight::Init / ccDistantLight::Init: black, intensity 1.
-        Light { obj, kind, pos: [0.0; 3], rot: [0; 3], colour: [0.0; 3], intensity: 1.0, far_start: 0.0, far_end: 0.0 }
+        let (black, none) = ([0; 4], Falloff::default());
+        let radius = Falloff { start: 0x447a_0000, end: 0x44fa_0000, end2: 0 };
+        let kind = match kind {
+            file::LIGHT_DISTANT => return Light { obj, light: light::Light::distant(&vu0::UNIT, black, ONE) },
+            file::LIGHT_DIRECT => light::Kind::Direct { matrix: vu0::UNIT, far: none, radius },
+            file::LIGHT_SPOT => light::Kind::Spot { matrix: vu0::UNIT, far: none, cone: [0; 2] },
+            _ => light::Kind::Omni { pos: vu0::UNIT[3], far: none },
+        };
+        Light { obj, light: light::Light { kind, colour: black, intensity: ONE, priority: 0 } }
     }
 }
 
@@ -276,6 +278,8 @@ pub struct Scene {
     pub ambient: [f32; 3],
     /// The draw environment's light group, in its order.
     pub lights: Vec<Light>,
+    /// The disc, whose code lights the group ([`Loaded::volume`]).
+    pub volume: piney_data::volume::Volume,
     /// Material name -> ccMaterial u, v (1/4096) set by `F_Material`: the
     /// scene's Material chunks reach the models' materials of the same name
     /// (InitScene's `modifyMat` links, 0x00148b74).
@@ -531,7 +535,7 @@ impl Scene {
         // lights come before the distant ones (str0580's LGT_se1_5omn*
         // before LGT_se1_5lig1).
         let mut lights: Vec<Light> = s.lights.iter().rev().map(|&(o, k)| Light::new(o, k)).collect();
-        lights.sort_by_key(|l| l.priority());
+        lights.sort_by_key(|l| std::cmp::Reverse(l.light.priority));
         let names: Vec<Option<String>> = nodes.iter().map(|n| file.name(n.obj).map(str::to_string)).collect();
         let by_name = names.iter().enumerate().filter_map(|(i, n)| n.clone().map(|n| (n, i))).collect();
         Scene {
@@ -548,6 +552,7 @@ impl Scene {
             camera: Camera::default(),
             ambient: [0.0; 3],
             lights,
+            volume: loaded.volume,
             uv: HashMap::new(),
             morph: HashMap::new(),
             alpha: HashMap::new(),
@@ -686,6 +691,7 @@ impl Scene {
                 }
                 file::F_OMNI_LIGHT => self.f_omni(f, r.at),
                 file::F_DISTANT_LIGHT => self.f_distant(f, r.at),
+                file::F_DIRECT_LIGHT | file::F_SPOT_LIGHT => self.f_beam(f, r.at, r.kind == file::F_SPOT_LIGHT),
                 file::F_MATERIAL => self.f_material(f, r.at),
                 file::F_SHADOW => self.f_shadow(f, r.at),
                 file::F_MORPHER => {
@@ -720,8 +726,7 @@ impl Scene {
                         }
                     }
                 }
-                // Frame, F_Shadow, the direct and spot lights, vertex and
-                // normal records: read and not used here.
+                // Frame, vertex and normal records: read and not used here.
                 _ => {}
             }
         }
@@ -784,16 +789,43 @@ impl Scene {
         self.lights.iter_mut().find(|l| l.obj == obj)
     }
 
-    /// `DecodeF_OmniLight` (0x0014f6a0): position, colour, intensity, the
-    /// fall-off distances.
+    /// `DecodeF_OmniLight` (0x0014f6a0): its matrix the unit matrix moved
+    /// to the position (`TransMatrix`), `ccSetColor(colour, 1)`, the
+    /// intensity, the fall-off and its square (`mul.s`).
     fn f_omni(&mut self, f: &StreamFile, at: usize) {
         let obj = f.u32_at(at);
         let Some(l) = self.light(obj) else { return };
-        l.pos = [f.f32_at(at + 8), f.f32_at(at + 12), f.f32_at(at + 16)];
-        l.colour = colour(f.u32_at(at + 20));
-        l.intensity = f.f32_at(at + 24);
-        l.far_start = f.f32_at(at + 28);
-        l.far_end = f.f32_at(at + 32);
+        let place = [f.u32_at(at + 8), f.u32_at(at + 12), f.u32_at(at + 16), ONE];
+        let far = Falloff::new(f.u32_at(at + 28), f.u32_at(at + 32));
+        let lit = light::Light::omni(
+            vu0::trans_matrix(&vu0::UNIT, place)[3],
+            colour(f.u32_at(at + 20)),
+            f.u32_at(at + 24),
+            far,
+        );
+        l.light = light::Light { priority: l.light.priority, ..lit };
+    }
+
+    /// `DecodeF_DirectLight` (0x0014f130) and `DecodeF_SpotLight`
+    /// (0x0014f3b0): position, rotation in degrees (`SetMatrix_PosRotZYX` of
+    /// `(pi deg) / 180`), `ccSetColor(colour, 1)`, intensity, then a
+    /// direct light's two radii (the second squared by `mul.s`) or a spot
+    /// light's two angles (each `(pi deg / 180) / 2`, kept as its `tanf`),
+    /// and the beam's start and end.
+    fn f_beam(&mut self, f: &StreamFile, at: usize, spot: bool) {
+        let obj = f.u32_at(at);
+        let Some(l) = self.light(obj) else { return };
+        let w = |k: usize| f.u32_at(at + 8 + 4 * k);
+        let place = [w(0), w(1), w(2), ONE];
+        let matrix = vu0::trans_matrix(&rot_bits_of(vu0::UNIT, const_radians([w(3), w(4), w(5)])), place);
+        let far = Falloff::new(w(10), w(11));
+        let kind = if spot {
+            let half = const_radians([w(8), w(9), 0]).map(|r| piney_data::libm::tanf(ee::div(r, 0x4000_0000)));
+            light::Kind::Spot { matrix, far, cone: [half[0], half[1]] }
+        } else {
+            light::Kind::Direct { matrix, far, radius: Falloff::new(w(8), w(9)) }
+        };
+        l.light = light::Light { kind, colour: colour(w(6)), intensity: w(7), priority: l.light.priority };
     }
 
     /// `DecodeF_Shadow` (0x0014e830): the shadow layer's packet (its
@@ -810,17 +842,17 @@ impl Scene {
         sh.alpha = f.f32_at(at + 16);
     }
 
-    /// `DecodeF_DistantLight` (0x0014ef80): rotation, colour, and with flag
-    /// 0x20 the intensity.
+    /// `DecodeF_DistantLight` (0x0014ef80): rotation in degrees
+    /// (`SetMatrix_RotZYX` of `(pi deg) / 180`), `ccSetColor(colour, 1)`,
+    /// and with flag 0x20 the intensity.
     fn f_distant(&mut self, f: &StreamFile, at: usize) {
         let obj = f.u32_at(at);
         let flag = f.u32_at(at + 4);
         let Some(l) = self.light(obj) else { return };
-        l.rot = const_radians([f.u32_at(at + 8), f.u32_at(at + 12), f.u32_at(at + 16)]);
-        l.colour = colour(f.u32_at(at + 20));
-        if flag & 0x20 != 0 {
-            l.intensity = f.f32_at(at + 24);
-        }
+        let rot = rot_bits_of(vu0::UNIT, const_radians([f.u32_at(at + 8), f.u32_at(at + 12), f.u32_at(at + 16)]));
+        let intensity = if flag & 0x20 != 0 { f.u32_at(at + 24) } else { l.light.intensity };
+        let lit = light::Light::distant(&rot, colour(f.u32_at(at + 20)), intensity);
+        l.light = light::Light { priority: l.light.priority, ..lit };
     }
 
     /// `DecodeF_Material` (0x0014e5b0): the material's texture offset, u
@@ -947,9 +979,9 @@ fn ee_f(bits: u32) -> f32 {
     f32::from_bits(bits)
 }
 
-/// `ccSetColor(out, rgba, 1.0)` for an alpha of 0: each channel / 255.
-fn colour(c: u32) -> [f32; 3] {
-    [0, 8, 16].map(|s| ee_f(ee::mul(ee::from_int(((c >> s) & 0xff) as i32), COL255)))
+/// `ccSetColor(out, colour, 1.0)`.
+fn colour(c: u32) -> [u32; 4] {
+    light::colour_of(c, ONE)
 }
 
 /// `sceVu0MulMatrix(a, b)`: a times b, as stored columns.

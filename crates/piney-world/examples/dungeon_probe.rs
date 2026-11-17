@@ -133,9 +133,12 @@ fn dress(d: &DungeonArea) -> String {
                 r.pat,
                 list(&p2),
                 r.pat2,
-                list(&l.pos.to_array().map(f32::to_bits)),
-                list(&l.colour.to_array().map(f32::to_bits)),
-                l.intensity.to_bits()
+                list(&match l.kind {
+                    piney_world::town::LightKind::Omni { pos, .. } => [pos[0], pos[1], pos[2]],
+                    _ => [0; 3],
+                }),
+                list(&l.colour[..3]),
+                l.intensity
             )
         })
         .collect();
@@ -369,7 +372,7 @@ fn main() {
                         .collect();
                     let room_lights = a.systems().get::<RoomLights>().map_or(&[][..], |x| &x.lights);
                     let lights: Vec<u32> =
-                        room_lights.iter().map(|r| a.core.lights.lights[r.light].intensity.to_bits()).collect();
+                        room_lights.iter().map(|r| a.core.lights.lights[r.light].intensity).collect();
                     let r = *a.rng();
                     frames.push(format!(
                         "{{\"sprites\": [{}], \"lights\": {}, \"rng\": [{}, {}]}}",
@@ -611,6 +614,24 @@ fn main() {
                 let b: Vec<u32> = (0..128).map(|k| u32::from(save.u8(at + k))).collect();
                 println!("{{\"bans\": {}}}", list(&b));
             }
+            // The event room's light as the group holds it: its lwMatrix,
+            // colour, intensity, the beam's start and end and radii.
+            "evlight" => {
+                let a = d.as_ref().unwrap();
+                let words = a.core.lights.lights.iter().skip(1).find_map(|l| match l.kind {
+                    piney_world::town::LightKind::Direct { matrix, far, radius } => {
+                        let mut v: Vec<u32> = matrix.as_flattened().to_vec();
+                        v.extend(&l.colour[..3]);
+                        v.extend([l.intensity, far.start, far.end, radius.start, radius.end, radius.end2]);
+                        Some(v)
+                    }
+                    _ => None,
+                });
+                match words {
+                    Some(v) => println!("{{\"light\": {}}}", list(&v)),
+                    None => println!("{{\"light\": null}}"),
+                }
+            }
             "fog" => {
                 let a = d.as_ref().unwrap();
                 let f = &a.room_fog;
@@ -621,9 +642,9 @@ fn main() {
                     f.far.to_bits(),
                     f.max.to_bits(),
                     f.packed_colour(),
-                    amb.x.to_bits(),
-                    amb.y.to_bits(),
-                    amb.z.to_bits()
+                    amb[0],
+                    amb[1],
+                    amb[2]
                 );
             }
             "drawn" => {

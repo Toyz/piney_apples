@@ -887,6 +887,19 @@ class Game:
         ret = ret - (1 << 32) if ret & 0x80000000 else ret
         return ret, self.rvec(WM + 0x20)
 
+    def event_light(self):
+        """The event room's light (DUNGEON+0x370) as CheckRange takes it:
+        its lwMatrix after _SetLWMatrix (its parent the room's anm), the
+        colour, intensity, the beam's start and end and radii; None."""
+        m = self.m
+        lt = m.load(DG + 0x370, 4)
+        if not lt:
+            return None
+        m.store(lt + 0x8D, 1, 1)
+        self.call("_SetLWMatrix__7ccCoordFv", lt)
+        return [m.load(lt + 4 * k, 4) for k in range(16)] + [m.load(lt + 0x130 + 4 * k, 4) for k in range(3)] + \
+            [m.load(lt + 0x140 + 4 * k, 4) for k in range(6)]
+
     def go_field(self, dungeon):
         """WORLD_MAN::GoField (main 0x0019e410) from game.dungeon `dungeon`:
         its ChangeScene calls and entryFlag[1 + dungeon] (+0x58) after it,
@@ -1434,6 +1447,8 @@ class DungeonAgainstGame(unittest.TestCase):
                 self.same_hits(mine["hits"], g.hit_list(), where)
                 fog = p.ask("fog")
                 self.assertEqual(tuple(fog["fog"]), [x for x in g.fogs if len(x) == 5][-1], where + ": SetFog")
+                self.assertEqual(p.ask("evlight")["light"], g.event_light(), where + ": the light")
+                self.count("event room lights to the bit")
                 amb = [x for x in g.fogs if len(x) == 3]
                 if amb:
                     self.assertEqual(fog["ambient"], list(amb[-1]), where + ": SetAmbient")
@@ -1472,6 +1487,8 @@ class DungeonAgainstGame(unittest.TestCase):
                         if ret not in (-100, -255):
                             self.assertEqual(mine["position"], pos, where + ": the arrival")
                         self.same_hits(mine["hits"], g.hit_list(), where + ": the room built")
+                        if ret == s:
+                            self.assertEqual(p.ask("evlight")["light"], g.event_light(), where + ": the light")
                         self.count(f"GotoNextRoom into an event room answering {ret}")
                         if any(h[0] == "CMP_o_block_m0_" for h in mine["hits"]):
                             self.count("rooms built with the ban block")

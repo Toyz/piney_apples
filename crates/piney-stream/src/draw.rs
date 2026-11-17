@@ -7,22 +7,18 @@
 //! `divZ` ([`Scene::div_z`]), below which VU1 clips a triangle instead of
 //! dropping it, so the draws never ask the renderer to drop triangles.
 
-use glam::{Mat3, Mat4, Vec3};
+use glam::Mat4;
 use piney_desktop::anm::{Ctx, OPAQUE_TRANSPARENCY, model_state, sort_key};
 use piney_desktop::assets::{TEX_FLAG_CLAMP, TEX_FLAG_SORTED};
 use piney_desktop::camera::frame_projection;
 use piney_desktop::view::View;
 use piney_draw::{AlphaFail, AlphaTest, Cmd, Compare, Filter, Lights, MmatDraw, ModelDraw, TexFunc, TexParams, Wrap};
 
-use crate::file;
-use crate::scene::{Light, Loaded, Scene, to_mat4};
+use crate::scene::{Loaded, Scene, to_mat4};
 
 /// `ccObj::Draw` skips an object at or below this transparency
 /// (`c.le.s tp, 1/128` at 0x0013f2b0), and `ccModel::Draw` a mmat below it.
 pub const MIN_TRANSPARENCY: f32 = 1.0 / 128.0;
-
-/// `mc_SetMatrix`'s `loi 2.0` on the light colours.
-pub const VU_LIGHT_SCALE: f32 = 2.0;
 
 /// Model type bit: lit.
 pub const MTYPE_LIT: u16 = 1;
@@ -96,78 +92,31 @@ pub fn scene_view(scene: &Scene) -> View {
     View::new(frame_projection(&scene.frame), scene.view_camera())
 }
 
-/// `CheckRange` of one light at world position `at`: (direction the light
-/// travels, colour times intensity), or None when it does not reach.
-pub fn check_range(l: &Light, at: Vec3) -> Option<(Vec3, Vec3)> {
-    let colour = Vec3::from(l.colour);
-    match l.kind {
-        file::LIGHT_OMNI => {
-            if l.intensity <= MIN_TRANSPARENCY {
-                return None;
-            }
-            let d = at - Vec3::from(l.pos);
-            let d2 = d.x * d.x + d.y * d.y + d.z * d.z;
-            let f = if l.far_end == 0.0 {
-                l.intensity
-            } else if d2 <= l.far_end * l.far_end {
-                let dist = d2.sqrt();
-                if dist <= l.far_start {
-                    l.intensity
-                } else {
-                    let f = l.intensity * (l.far_end - dist) / (l.far_end - l.far_start);
-                    if f <= MIN_TRANSPARENCY {
-                        return None;
-                    }
-                    f
-                }
-            } else {
-                return None;
-            };
-            Some((d.normalize_or_zero(), colour * f))
-        }
-        file::LIGHT_DISTANT => {
-            if l.intensity <= MIN_TRANSPARENCY {
-                return None;
-            }
-            let r = to_mat4(&piney_data::anim::rot_bits(l.rot));
-            Some((r.transform_vector3(Vec3::new(0.0, 0.0, -1.0)), colour * l.intensity))
-        }
-        // Direct and spot lights: no stream on this disc records them.
-        _ => None,
-    }
+/// The scene's light group as `ccLight`s, in its order, and its ambient.
+fn group(scene: &Scene) -> (Vec<piney_data::light::Light>, [u32; 4]) {
+    let [r, g, b] = scene.ambient.map(f32::to_bits);
+    (scene.lights.iter().map(|l| l.light).collect(), [r, g, b, 0])
 }
 
-/// `SetLightMatrix` at world position `at`: per slot, the unit vector toward
-/// the light (`sceVu0NormalLightMatrix` negates and normalises each
-/// `CheckRange` normal) and its colour times intensity, before VU1 doubles
-/// it. Lights of equal priority fill slots 2, 1, 0 in group order.
-pub fn light_slots(scene: &Scene, at: Vec3) -> [Option<(Vec3, Vec3)>; 3] {
-    let mut out = [None; 3];
-    let mut used = 0;
-    for l in &scene.lights {
-        if used == 3 {
-            break;
-        }
-        let Some((normal, colour)) = check_range(l, at) else { continue };
-        out[2 - used] = Some((-normal.normalize_or_zero(), colour));
-        used += 1;
-    }
-    out
+/// `SetLightMatrix` (0x00105900) at `at` (a `lwMatrix`'s place), then
+/// `sceVu0NormalLightMatrix`: the light matrix and the colours as the
+/// game stores them ([`piney_data::light`]).
+pub fn light_matrix(scene: &Scene, at: [u32; 4]) -> ([[u32; 4]; 4], [[u32; 4]; 4]) {
+    let (lights, ambient) = group(scene);
+    let (normals, colours) = piney_data::light::set_light_matrix(scene.volume, &lights, ambient, at);
+    (piney_data::light::normal_light_matrix(&normals), colours)
 }
 
-/// What VU1 lights a lit model at `world` with: the light directions in
-/// model space (`ccSetMatrixPacket` multiplies the light matrix by
-/// `lwMatrix`; VU1 renormalises), the colours doubled, the ambient.
+/// What VU1 lights a lit model at `world` with, after `mc_SetMatrix`: the
+/// light matrix times `lwMatrix` (`ccSetMatrixPacket`), renormalised, the
+/// colours doubled, the ambient ([`piney_data::light::light_regs`]).
 pub fn lights(scene: &Scene, world: Mat4) -> Lights {
-    let mut out = Lights { dirs: [[0.0; 3]; 3], colours: [[0.0; 3]; 3], ambient: scene.ambient };
-    let w = Mat3::from_mat4(world).transpose();
-    for (slot, l) in light_slots(scene, world.w_axis.truncate()).iter().enumerate() {
-        if let Some((toward, colour)) = l {
-            out.dirs[slot] = (w * *toward).normalize_or_zero().into();
-            out.colours[slot] = (*colour * VU_LIGHT_SCALE).into();
-        }
-    }
-    out
+    let (lights, ambient) = group(scene);
+    let w = world.to_cols_array().map(f32::to_bits);
+    let world: [[u32; 4]; 4] = std::array::from_fn(|r| std::array::from_fn(|c| w[4 * r + c]));
+    let regs = piney_data::light::light_regs(scene.volume, &lights, ambient, &world);
+    let f = |v: [u32; 3]| v.map(f32::from_bits);
+    Lights { dirs: regs.dirs.map(f), colours: regs.colours.map(f), ambient: f(regs.ambient) }
 }
 
 fn draw_node(ctx: &mut Ctx, view: &View, loaded: &Loaded, scene: &Scene, i: usize, layer: i16) {

@@ -1,0 +1,1595 @@
+# tools/test_stream_rs.py lights: the game's stream code run in eemu (stream_fixture.txt's lines).
+# scene NUM STEM ...; draw ...; frame ...; camera ...;
+# lights NUM STEM STEP DRAWN FNV1A-64(lightNormal, lightColor words at each object drawn, in order)
+scene 89 str2062 frames 640 objects 1231
+draw 89 str2062 4 EXT_se4_8f02 -
+draw 89 str2062 7 EXT_smork_b26 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b25 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b24 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b23 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b22 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b21 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b20 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b19 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b18 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b17 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b16 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b15 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b14 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b13 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b12 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b11 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b10 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b09 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b08 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b07 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b06 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b05 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b04 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b03 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b02 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_b01 OBJ_smokecenter_b
+draw 89 str2062 7 EXT_smork_a32 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a31 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a30 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a29 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a28 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a27 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a26 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a25 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a24 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a23 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a22 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a21 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a20 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a19 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a18 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a17 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a16 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a15 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a14 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a13 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a12 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a11 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a10 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a09 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a08 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a07 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a06 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a05 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a04 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a03 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a02 OBJ_smokecenter_a
+draw 89 str2062 7 EXT_smork_a01 OBJ_smokecenter_a
+draw 89 str2062 8 OBJ_whitebords_a01 OBJ_cameradammy_a01
+draw 89 str2062 8 OBJ_blackbords_a01 OBJ_cameradammy_a01
+draw 89 str2062 6 EXT_ex8lbod21ef EXT_trallex8l21
+draw 89 str2062 6 EXT_ex8lbod21f_13 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_12 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_11 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_10 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_09 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_08 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_07 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_06 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_05 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_04 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_03 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_02 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f_01 EXT_ex8lbod21fcenter
+draw 89 str2062 6 EXT_ex8lbod21f EXT_trallex8l21
+draw 89 str2062 1 EXT_se4_8dom1 EXT_dmmy1
+draw 89 str2062 3 EXT_se4_8dom3 EXT_dmmy1
+draw 89 str2062 2 EXT_se4_8dom2 EXT_dmmy1
+draw 89 str2062 5 EXT_ctu3body EXT_t0_tu3%20pelvis
+draw 89 str2062 5 EXT_dummy11_tu3 EXT_t0_tu3%20r%20toe0
+draw 89 str2062 5 EXT_t0_tu3%20r%20toe0 EXT_t0_tu3%20r%20foot
+draw 89 str2062 5 EXT_t0_tu3%20r%20foot EXT_t0_tu3%20r%20calf
+draw 89 str2062 5 EXT_t0_tu3%20r%20calf EXT_t0_tu3%20r%20thigh
+draw 89 str2062 5 EXT_t0_tu3%20r%20thigh EXT_t0_tu3%20spine
+draw 89 str2062 5 EXT_dummy16_tu3 EXT_t0_tu3%20l%20toe0
+draw 89 str2062 5 EXT_t0_tu3%20l%20toe0 EXT_t0_tu3%20l%20foot
+draw 89 str2062 5 EXT_t0_tu3%20l%20foot EXT_t0_tu3%20l%20calf
+draw 89 str2062 5 EXT_t0_tu3%20l%20calf EXT_t0_tu3%20l%20thigh
+draw 89 str2062 5 EXT_t0_tu3%20l%20thigh EXT_t0_tu3%20spine
+draw 89 str2062 5 EXT_dummy01_tu3 EXT_t0_tu3%20r%20finger0
+draw 89 str2062 5 EXT_t0_tu3%20r%20finger0 EXT_t0_tu3%20r%20hand
+draw 89 str2062 5 EXT_t0_tu3%20r%20hand EXT_t0_tu3%20r%20forearm
+draw 89 str2062 5 EXT_t0_tu3%20r%20forearm EXT_t0_tu3%20r%20upperarm
+draw 89 str2062 5 EXT_t0_tu3%20r%20upperarm EXT_t0_tu3%20r%20clavicle
+draw 89 str2062 5 EXT_t0_tu3%20r%20clavicle EXT_t0_tu3%20neck
+draw 89 str2062 5 EXT_dummy06_tu3 EXT_t0_tu3%20l%20finger0
+draw 89 str2062 5 EXT_t0_tu3%20l%20finger0 EXT_t0_tu3%20l%20hand
+draw 89 str2062 5 EXT_t0_tu3%20l%20hand EXT_t0_tu3%20l%20forearm
+draw 89 str2062 5 EXT_t0_tu3%20l%20forearm EXT_t0_tu3%20l%20upperarm
+draw 89 str2062 5 EXT_t0_tu3%20l%20upperarm EXT_t0_tu3%20l%20clavicle
+draw 89 str2062 5 EXT_t0_tu3%20l%20clavicle EXT_t0_tu3%20neck
+draw 89 str2062 5 EXT_dummy23_tu3 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2022
+draw 89 str2062 5 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2022 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2021
+draw 89 str2062 5 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2021 EXT_t0_tu3%20ÎßÆ°Ã°Ù%202
+draw 89 str2062 5 EXT_t0_tu3%20ÎßÆ°Ã°Ù%202 EXT_t0_tu3%20head
+draw 89 str2062 5 EXT_dummy22_tu3 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2013
+draw 89 str2062 5 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2013 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2012
+draw 89 str2062 5 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2012 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2011
+draw 89 str2062 5 EXT_t0_tu3%20ÎßÆ°Ã°Ù%2011 EXT_t0_tu3%20ÎßÆ°Ã°Ù%201
+draw 89 str2062 5 EXT_t0_tu3%20ÎßÆ°Ã°Ù%201 EXT_t0_tu3%20head
+draw 89 str2062 5 EXT_dummy21_tu3 EXT_t0_tu3%20head
+draw 89 str2062 5 EXT_t0_tu3%20head EXT_t0_tu3%20neck
+draw 89 str2062 5 EXT_t0_tu3%20neck EXT_t0_tu3%20spine1
+draw 89 str2062 5 EXT_t0_tu3%20spine1 EXT_t0_tu3%20spine
+draw 89 str2062 5 EXT_t0_tu3%20spine EXT_t0_tu3%20pelvis
+draw 89 str2062 5 EXT_t0_tu3%20pelvis EXT_t0_tu3
+draw 89 str2062 5 EXT_t0_tu3%20footsteps EXT_t0_tu3
+draw 89 str2062 5 EXT_t0_tu3 EXT_trall_tu3
+draw 89 str2062 5 EXT_trall_tu3 -
+draw 89 str2062 5 EXT_ctu2body EXT_t0_tu2%20pelvis
+draw 89 str2062 5 EXT_t0_tu2%20r%20belt3 EXT_t0_tu2%20r%20belt1
+draw 89 str2062 5 EXT_t0_tu2%20r%20belt1 EXT_t0_tu2%20pelvis
+draw 89 str2062 5 EXT_t0_tu2%20l%20belt3 EXT_t0_tu2%20l%20belt1
+draw 89 str2062 5 EXT_t0_tu2%20l%20belt1 EXT_t0_tu2%20pelvis
+draw 89 str2062 5 EXT_dummy02_tu2 EXT_t0_tu2%20l%20finger0
+draw 89 str2062 5 EXT_t0_tu2%20l%20finger0 EXT_t0_tu2%20l%20hand
+draw 89 str2062 5 EXT_t0_tu2%20l%20hand EXT_t0_tu2%20l%20forearm
+draw 89 str2062 5 EXT_t0_tu2%20l%20forearm EXT_t0_tu2%20l%20upperarm
+draw 89 str2062 5 EXT_t0_tu2%20l%20upperarm EXT_t0_tu2%20l%20clavicle
+draw 89 str2062 5 EXT_t0_tu2%20l%20clavicle EXT_t0_tu2%20neck
+draw 89 str2062 5 EXT_dummy01_tu2 EXT_t0_tu2%20r%20finger0
+draw 89 str2062 5 EXT_t0_tu2%20r%20finger0 EXT_t0_tu2%20r%20hand
+draw 89 str2062 5 EXT_t0_tu2%20r%20hand EXT_t0_tu2%20r%20forearm
+draw 89 str2062 5 EXT_t0_tu2%20r%20forearm EXT_t0_tu2%20r%20upperarm
+draw 89 str2062 5 EXT_t0_tu2%20r%20upperarm EXT_t0_tu2%20r%20clavicle
+draw 89 str2062 5 EXT_t0_tu2%20r%20clavicle EXT_t0_tu2%20neck
+draw 89 str2062 5 EXT_dummy13_tu2 EXT_t0_tu2%20head
+draw 89 str2062 5 EXT_t0_tu2%20head EXT_t0_tu2%20neck
+draw 89 str2062 5 EXT_t0_tu2%20neck EXT_t0_tu2%20spine1
+draw 89 str2062 5 EXT_t0_tu2%20spine1 EXT_t0_tu2%20spine
+draw 89 str2062 5 EXT_dummy11_tu2 EXT_t0_tu2%20r%20toe0
+draw 89 str2062 5 EXT_t0_tu2%20r%20toe0 EXT_t0_tu2%20r%20foot
+draw 89 str2062 5 EXT_t0_tu2%20r%20foot EXT_t0_tu2%20r%20calf
+draw 89 str2062 5 EXT_t0_tu2%20r%20calf EXT_t0_tu2%20r%20thigh
+draw 89 str2062 5 EXT_t0_tu2%20r%20thigh EXT_t0_tu2%20spine
+draw 89 str2062 5 EXT_dummy12_tu2 EXT_t0_tu2%20l%20toe0
+draw 89 str2062 5 EXT_t0_tu2%20l%20toe0 EXT_t0_tu2%20l%20foot
+draw 89 str2062 5 EXT_t0_tu2%20l%20foot EXT_t0_tu2%20l%20calf
+draw 89 str2062 5 EXT_t0_tu2%20l%20calf EXT_t0_tu2%20l%20thigh
+draw 89 str2062 5 EXT_t0_tu2%20l%20thigh EXT_t0_tu2%20spine
+draw 89 str2062 5 EXT_t0_tu2%20spine EXT_t0_tu2%20pelvis
+draw 89 str2062 5 EXT_t0_tu2%20pelvis EXT_t0_tu2
+draw 89 str2062 5 EXT_t0_tu2%20footsteps EXT_t0_tu2
+draw 89 str2062 5 EXT_t0_tu2 EXT_trall_tu2
+draw 89 str2062 5 EXT_trall_tu2 -
+draw 89 str2062 5 EXT_cwm4body EXT_t0_wm4%20pelvis
+draw 89 str2062 5 EXT_dummy05_wm4 EXT_t0_wm4%20tail1
+draw 89 str2062 5 EXT_t0_wm4%20tail1 EXT_t0_wm4%20tail
+draw 89 str2062 5 EXT_t0_wm4%20tail EXT_t0_wm4%20spine
+draw 89 str2062 5 EXT_dummy03_wm4 EXT_t0_wm4%20r%20toe0
+draw 89 str2062 5 EXT_t0_wm4%20r%20toe0 EXT_t0_wm4%20r%20foot
+draw 89 str2062 5 EXT_t0_wm4%20r%20foot EXT_t0_wm4%20r%20calf
+draw 89 str2062 5 EXT_t0_wm4%20r%20calf EXT_t0_wm4%20r%20thigh
+draw 89 str2062 5 EXT_t0_wm4%20r%20thigh EXT_t0_wm4%20spine
+draw 89 str2062 5 EXT_dummy04_wm4 EXT_t0_wm4%20l%20toe0
+draw 89 str2062 5 EXT_t0_wm4%20l%20toe0 EXT_t0_wm4%20l%20foot
+draw 89 str2062 5 EXT_t0_wm4%20l%20foot EXT_t0_wm4%20l%20calf
+draw 89 str2062 5 EXT_t0_wm4%20l%20calf EXT_t0_wm4%20l%20thigh
+draw 89 str2062 5 EXT_t0_wm4%20l%20thigh EXT_t0_wm4%20spine
+draw 89 str2062 5 EXT_dummy01_wm4 EXT_t0_wm4%20r%20finger0
+draw 89 str2062 5 EXT_t0_wm4%20r%20finger0 EXT_t0_wm4%20r%20hand
+draw 89 str2062 5 EXT_t0_wm4%20r%20hand EXT_t0_wm4%20r%20forearm
+draw 89 str2062 5 EXT_t0_wm4%20r%20forearm EXT_t0_wm4%20r%20upperarm
+draw 89 str2062 5 EXT_t0_wm4%20r%20upperarm EXT_t0_wm4%20r%20clavicle
+draw 89 str2062 5 EXT_t0_wm4%20r%20clavicle EXT_t0_wm4%20neck
+draw 89 str2062 5 EXT_dummy02_wm4 EXT_t0_wm4%20l%20finger0
+draw 89 str2062 5 EXT_t0_wm4%20l%20finger0 EXT_t0_wm4%20l%20hand
+draw 89 str2062 5 EXT_t0_wm4%20l%20hand EXT_t0_wm4%20l%20forearm
+draw 89 str2062 5 EXT_t0_wm4%20l%20forearm EXT_t0_wm4%20l%20upperarm
+draw 89 str2062 5 EXT_t0_wm4%20l%20upperarm EXT_t0_wm4%20l%20clavicle
+draw 89 str2062 5 EXT_t0_wm4%20l%20clavicle EXT_t0_wm4%20neck
+draw 89 str2062 5 EXT_dummy07_wm4 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2023
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2023 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2022
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2022 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2021
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2021 EXT_t0_wm4%20ÎßÆ°Ã°Ù%202
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%202 EXT_t0_wm4%20head
+draw 89 str2062 5 EXT_dummy06_wm4 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2013
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2013 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2012
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2012 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2011
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%2011 EXT_t0_wm4%20ÎßÆ°Ã°Ù%201
+draw 89 str2062 5 EXT_t0_wm4%20ÎßÆ°Ã°Ù%201 EXT_t0_wm4%20head
+draw 89 str2062 5 EXT_dummy08_wm4 EXT_t0_wm4%20head
+draw 89 str2062 5 EXT_t0_wm4%20head EXT_t0_wm4%20neck
+draw 89 str2062 5 EXT_t0_wm4%20neck EXT_t0_wm4%20spine1
+draw 89 str2062 5 EXT_t0_wm4%20spine1 EXT_t0_wm4%20spine
+draw 89 str2062 5 EXT_t0_wm4%20spine EXT_t0_wm4%20pelvis
+draw 89 str2062 5 EXT_t0_wm4%20pelvis EXT_t0_wm4
+draw 89 str2062 5 EXT_t0_wm4%20footsteps EXT_t0_wm4
+draw 89 str2062 5 EXT_t0_wm4 EXT_trall_wm4
+draw 89 str2062 5 EXT_trall_wm4 -
+draw 89 str2062 5 EXT_cha2body EXT_t0_ha2%20pelvis
+draw 89 str2062 5 EXT_dummy05_ha2 EXT_t0_ha2%20tail2
+draw 89 str2062 5 EXT_t0_ha2%20tail2 EXT_t0_ha2%20tail1
+draw 89 str2062 5 EXT_t0_ha2%20tail1 EXT_t0_ha2%20tail
+draw 89 str2062 5 EXT_t0_ha2%20tail EXT_t0_ha2%20spine
+draw 89 str2062 5 EXT_dummy03_ha2 EXT_t0_ha2%20r%20toe0
+draw 89 str2062 5 EXT_t0_ha2%20r%20toe0 EXT_t0_ha2%20r%20foot
+draw 89 str2062 5 EXT_t0_ha2%20r%20foot EXT_t0_ha2%20r%20calf
+draw 89 str2062 5 EXT_t0_ha2%20r%20calf EXT_t0_ha2%20r%20thigh
+draw 89 str2062 5 EXT_t0_ha2%20r%20thigh EXT_t0_ha2%20spine
+draw 89 str2062 5 EXT_dummy04_ha2 EXT_t0_ha2%20l%20toe0
+draw 89 str2062 5 EXT_t0_ha2%20l%20toe0 EXT_t0_ha2%20l%20foot
+draw 89 str2062 5 EXT_t0_ha2%20l%20foot EXT_t0_ha2%20l%20calf
+draw 89 str2062 5 EXT_t0_ha2%20l%20calf EXT_t0_ha2%20l%20thigh
+draw 89 str2062 5 EXT_t0_ha2%20l%20thigh EXT_t0_ha2%20spine
+draw 89 str2062 5 EXT_cha2dummy02 EXT_cha2wing03
+draw 89 str2062 5 EXT_cha2wing03 EXT_cha2wing02
+draw 89 str2062 5 EXT_cha2wing02 EXT_cha2wing01
+draw 89 str2062 5 EXT_cha2wing01 EXT_t0_ha2%20spine1
+draw 89 str2062 5 EXT_cha2dummy01 EXT_cha2wing06
+draw 89 str2062 5 EXT_cha2wing06 EXT_cha2wing05
+draw 89 str2062 5 EXT_cha2wing05 EXT_cha2wing04
+draw 89 str2062 5 EXT_cha2wing04 EXT_t0_ha2%20spine1
+draw 89 str2062 5 EXT_dummy01_ha2 EXT_t0_ha2%20r%20finger0
+draw 89 str2062 5 EXT_t0_ha2%20r%20finger0 EXT_t0_ha2%20r%20hand
+draw 89 str2062 5 EXT_t0_ha2%20r%20hand EXT_t0_ha2%20r%20forearm
+draw 89 str2062 5 EXT_t0_ha2%20r%20forearm EXT_t0_ha2%20r%20upperarm
+draw 89 str2062 5 EXT_t0_ha2%20r%20upperarm EXT_t0_ha2%20r%20clavicle
+draw 89 str2062 5 EXT_t0_ha2%20r%20clavicle EXT_t0_ha2%20neck
+draw 89 str2062 5 EXT_dummy02_ha2 EXT_t0_ha2%20l%20finger0
+draw 89 str2062 5 EXT_t0_ha2%20l%20finger0 EXT_t0_ha2%20l%20hand
+draw 89 str2062 5 EXT_t0_ha2%20l%20hand EXT_t0_ha2%20l%20forearm
+draw 89 str2062 5 EXT_t0_ha2%20l%20forearm EXT_t0_ha2%20l%20upperarm
+draw 89 str2062 5 EXT_t0_ha2%20l%20upperarm EXT_t0_ha2%20l%20clavicle
+draw 89 str2062 5 EXT_t0_ha2%20l%20clavicle EXT_t0_ha2%20neck
+draw 89 str2062 5 EXT_dummy06_ha2 EXT_t0_ha2%20ÎßÆ°Ã°Ù%201
+draw 89 str2062 5 EXT_t0_ha2%20ÎßÆ°Ã°Ù%201 EXT_t0_ha2%20head
+draw 89 str2062 5 EXT_dummy07_ha2 EXT_t0_ha2%20head
+draw 89 str2062 5 EXT_t0_ha2%20head EXT_t0_ha2%20neck
+draw 89 str2062 5 EXT_t0_ha2%20neck EXT_t0_ha2%20spine1
+draw 89 str2062 5 EXT_t0_ha2%20spine1 EXT_t0_ha2%20spine
+draw 89 str2062 5 EXT_t0_ha2%20spine EXT_t0_ha2%20pelvis
+draw 89 str2062 5 EXT_t0_ha2%20pelvis EXT_t0_ha2
+draw 89 str2062 5 EXT_t0_ha2%20footsteps EXT_t0_ha2
+draw 89 str2062 5 EXT_t0_ha2 EXT_trall_ha2
+draw 89 str2062 5 EXT_trall_ha2 -
+draw 89 str2062 5 EXT_cwm3body EXT_t0_wm3%20pelvis
+draw 89 str2062 5 EXT_dummy03_wm3 EXT_t0_wm3%20r%20toe0
+draw 89 str2062 5 EXT_t0_wm3%20r%20toe0 EXT_t0_wm3%20r%20foot
+draw 89 str2062 5 EXT_t0_wm3%20r%20foot EXT_t0_wm3%20r%20calf
+draw 89 str2062 5 EXT_t0_wm3%20r%20calf EXT_t0_wm3%20r%20thigh
+draw 89 str2062 5 EXT_t0_wm3%20r%20thigh EXT_t0_wm3%20spine
+draw 89 str2062 5 EXT_dummy04_wm3 EXT_t0_wm3%20l%20toe0
+draw 89 str2062 5 EXT_t0_wm3%20l%20toe0 EXT_t0_wm3%20l%20foot
+draw 89 str2062 5 EXT_t0_wm3%20l%20foot EXT_t0_wm3%20l%20calf
+draw 89 str2062 5 EXT_t0_wm3%20l%20calf EXT_t0_wm3%20l%20thigh
+draw 89 str2062 5 EXT_t0_wm3%20l%20thigh EXT_t0_wm3%20spine
+draw 89 str2062 5 EXT_dummy01_wm3 EXT_t0_wm3%20r%20finger0
+draw 89 str2062 5 EXT_t0_wm3%20r%20finger0 EXT_t0_wm3%20r%20hand
+draw 89 str2062 5 EXT_t0_wm3%20r%20hand EXT_t0_wm3%20r%20forearm
+draw 89 str2062 5 EXT_t0_wm3%20r%20forearm EXT_t0_wm3%20r%20upperarm
+draw 89 str2062 5 EXT_t0_wm3%20r%20upperarm EXT_t0_wm3%20r%20clavicle
+draw 89 str2062 5 EXT_t0_wm3%20r%20clavicle EXT_t0_wm3%20neck
+draw 89 str2062 5 EXT_dummy02_wm3 EXT_t0_wm3%20l%20finger0
+draw 89 str2062 5 EXT_t0_wm3%20l%20finger0 EXT_t0_wm3%20l%20hand
+draw 89 str2062 5 EXT_t0_wm3%20l%20hand EXT_t0_wm3%20l%20forearm
+draw 89 str2062 5 EXT_t0_wm3%20l%20forearm EXT_t0_wm3%20l%20upperarm
+draw 89 str2062 5 EXT_t0_wm3%20l%20upperarm EXT_t0_wm3%20l%20clavicle
+draw 89 str2062 5 EXT_t0_wm3%20l%20clavicle EXT_t0_wm3%20neck
+draw 89 str2062 5 EXT_dummy05_wm3 EXT_t0_wm3%20head
+draw 89 str2062 5 EXT_t0_wm3%20head EXT_t0_wm3%20neck
+draw 89 str2062 5 EXT_t0_wm3%20neck EXT_t0_wm3%20spine1
+draw 89 str2062 5 EXT_t0_wm3%20spine1 EXT_t0_wm3%20spine
+draw 89 str2062 5 EXT_t0_wm3%20spine EXT_t0_wm3%20pelvis
+draw 89 str2062 5 EXT_t0_wm3%20pelvis EXT_t0_wm3
+draw 89 str2062 5 EXT_t0_wm3%20footsteps EXT_t0_wm3
+draw 89 str2062 5 EXT_t0_wm3 EXT_trall_wm3
+draw 89 str2062 5 EXT_trall_wm3 -
+draw 89 str2062 5 EXT_cla2body EXT_t0_la2%20pelvis
+draw 89 str2062 5 EXT_dummy03_la2 EXT_t0_la2%20r%20toe0
+draw 89 str2062 5 EXT_t0_la2%20r%20toe0 EXT_t0_la2%20r%20foot
+draw 89 str2062 5 EXT_t0_la2%20r%20foot EXT_t0_la2%20r%20calf
+draw 89 str2062 5 EXT_t0_la2%20r%20calf EXT_t0_la2%20r%20thigh
+draw 89 str2062 5 EXT_t0_la2%20r%20thigh EXT_t0_la2%20spine
+draw 89 str2062 5 EXT_dummy04_la2 EXT_t0_la2%20l%20toe0
+draw 89 str2062 5 EXT_t0_la2%20l%20toe0 EXT_t0_la2%20l%20foot
+draw 89 str2062 5 EXT_t0_la2%20l%20foot EXT_t0_la2%20l%20calf
+draw 89 str2062 5 EXT_t0_la2%20l%20calf EXT_t0_la2%20l%20thigh
+draw 89 str2062 5 EXT_t0_la2%20l%20thigh EXT_t0_la2%20spine
+draw 89 str2062 5 EXT_dummy01_la2 EXT_t0_la2%20r%20finger0
+draw 89 str2062 5 EXT_t0_la2%20r%20finger0 EXT_t0_la2%20r%20hand
+draw 89 str2062 5 EXT_t0_la2%20r%20hand EXT_t0_la2%20r%20forearm
+draw 89 str2062 5 EXT_t0_la2%20r%20forearm EXT_t0_la2%20r%20upperarm
+draw 89 str2062 5 EXT_t0_la2%20r%20upperarm EXT_t0_la2%20r%20clavicle
+draw 89 str2062 5 EXT_t0_la2%20r%20clavicle EXT_t0_la2%20neck
+draw 89 str2062 5 EXT_dummy02_la2 EXT_t0_la2%20l%20finger0
+draw 89 str2062 5 EXT_t0_la2%20l%20finger0 EXT_t0_la2%20l%20hand
+draw 89 str2062 5 EXT_t0_la2%20l%20hand EXT_t0_la2%20l%20forearm
+draw 89 str2062 5 EXT_t0_la2%20l%20forearm EXT_t0_la2%20l%20upperarm
+draw 89 str2062 5 EXT_t0_la2%20l%20upperarm EXT_t0_la2%20l%20clavicle
+draw 89 str2062 5 EXT_t0_la2%20l%20clavicle EXT_t0_la2%20neck
+draw 89 str2062 5 EXT_dummy05_la2 EXT_t0_la2%20ÎßÆ°Ã°Ù%2012
+draw 89 str2062 5 EXT_t0_la2%20ÎßÆ°Ã°Ù%2012 EXT_t0_la2%20ÎßÆ°Ã°Ù%2011
+draw 89 str2062 5 EXT_t0_la2%20ÎßÆ°Ã°Ù%2011 EXT_t0_la2%20ÎßÆ°Ã°Ù%201
+draw 89 str2062 5 EXT_t0_la2%20ÎßÆ°Ã°Ù%201 EXT_t0_la2%20head
+draw 89 str2062 5 EXT_dummy06_la2 EXT_t0_la2%20head
+draw 89 str2062 5 EXT_t0_la2%20head EXT_t0_la2%20neck
+draw 89 str2062 5 EXT_t0_la2%20neck EXT_t0_la2%20spine1
+draw 89 str2062 5 EXT_t0_la2%20spine1 EXT_t0_la2%20spine
+draw 89 str2062 5 EXT_t0_la2%20spine EXT_t0_la2%20pelvis
+draw 89 str2062 5 EXT_t0_la2%20pelvis EXT_t0_la2
+draw 89 str2062 5 EXT_t0_la2%20footsteps EXT_t0_la2
+draw 89 str2062 5 EXT_t0_la2 EXT_trall_la2
+draw 89 str2062 5 EXT_trall_la2 -
+draw 89 str2062 5 EXT_chb2bod1 EXT_t0_hb2%20pelvis
+draw 89 str2062 5 EXT_dummy11_hb2 EXT_t0_hb2%20r%20toe0
+draw 89 str2062 5 EXT_t0_hb2%20r%20toe0 EXT_t0_hb2%20r%20foot
+draw 89 str2062 5 EXT_t0_hb2%20r%20foot EXT_t0_hb2%20r%20calf
+draw 89 str2062 5 EXT_t0_hb2%20r%20calf EXT_t0_hb2%20r%20thigh
+draw 89 str2062 5 EXT_t0_hb2%20r%20thigh EXT_t0_hb2%20spine
+draw 89 str2062 5 EXT_dummy16_hb2 EXT_t0_hb2%20l%20toe0
+draw 89 str2062 5 EXT_t0_hb2%20l%20toe0 EXT_t0_hb2%20l%20foot
+draw 89 str2062 5 EXT_t0_hb2%20l%20foot EXT_t0_hb2%20l%20calf
+draw 89 str2062 5 EXT_t0_hb2%20l%20calf EXT_t0_hb2%20l%20thigh
+draw 89 str2062 5 EXT_t0_hb2%20l%20thigh EXT_t0_hb2%20spine
+draw 89 str2062 5 EXT_dummy01_hb2 EXT_t0_hb2%20r%20finger0
+draw 89 str2062 5 EXT_t0_hb2%20r%20finger0 EXT_t0_hb2%20r%20hand
+draw 89 str2062 5 EXT_t0_hb2%20r%20hand EXT_t0_hb2%20r%20forearm
+draw 89 str2062 5 EXT_t0_hb2%20r%20forearm EXT_t0_hb2%20r%20upperarm
+draw 89 str2062 5 EXT_t0_hb2%20r%20upperarm EXT_t0_hb2%20r%20clavicle
+draw 89 str2062 5 EXT_t0_hb2%20r%20clavicle EXT_t0_hb2%20neck
+draw 89 str2062 5 EXT_chb2sho1 EXT_t0_hb2%20l%20upperarm
+draw 89 str2062 5 EXT_chb2sho2 EXT_t0_hb2%20l%20forearm
+draw 89 str2062 5 EXT_dummy06_hb2 EXT_t0_hb2%20l%20finger0
+draw 89 str2062 5 EXT_t0_hb2%20l%20finger0 EXT_t0_hb2%20l%20hand
+draw 89 str2062 5 EXT_t0_hb2%20l%20hand EXT_t0_hb2%20l%20forearm
+draw 89 str2062 5 EXT_t0_hb2%20l%20forearm EXT_t0_hb2%20l%20upperarm
+draw 89 str2062 5 EXT_t0_hb2%20l%20upperarm EXT_t0_hb2%20l%20clavicle
+draw 89 str2062 5 EXT_t0_hb2%20l%20clavicle EXT_t0_hb2%20neck
+draw 89 str2062 5 EXT_dummy21_hb2 EXT_t0_hb2%20head
+draw 89 str2062 5 EXT_t0_hb2%20head EXT_t0_hb2%20neck
+draw 89 str2062 5 EXT_t0_hb2%20neck EXT_t0_hb2%20spine1
+draw 89 str2062 5 EXT_t0_hb2%20spine1 EXT_t0_hb2%20spine
+draw 89 str2062 5 EXT_t0_hb2%20spine EXT_t0_hb2%20pelvis
+draw 89 str2062 5 EXT_t0_hb2%20pelvis EXT_t0_hb2
+draw 89 str2062 5 EXT_t0_hb2%20footsteps EXT_t0_hb2
+draw 89 str2062 5 EXT_t0_hb2 EXT_trall_hb2
+draw 89 str2062 5 EXT_trall_hb2 -
+draw 89 str2062 5 OBJ_xnote -
+draw 89 str2062 5 EXT_smork_c05 OBJ_smokecenter_c
+draw 89 str2062 5 EXT_smork_c04 OBJ_smokecenter_c
+draw 89 str2062 5 EXT_smork_c03 OBJ_smokecenter_c
+draw 89 str2062 5 EXT_smork_c02 OBJ_smokecenter_c
+draw 89 str2062 5 EXT_smork_c01 OBJ_smokecenter_c
+draw 89 str2062 5 OBJ_smokecenter_c -
+draw 89 str2062 5 OBJ_smokecenter_b -
+draw 89 str2062 5 OBJ_smokecenter_a -
+draw 89 str2062 5 EXT_croskosi1 EXT_t1%20pelvis
+draw 89 str2062 5 EXT_crosbodh EXT_t1%20pelvis
+draw 89 str2062 5 EXT_t0%20f%20cloth%20d EXT_t0%20f%20cloth2
+draw 89 str2062 5 EXT_t0%20f%20cloth2 EXT_t0%20f%20cloth1
+draw 89 str2062 5 EXT_t0%20f%20cloth1 EXT_t1%20pelvis
+draw 89 str2062 5 EXT_dummy24ros EXT_t1%20tail1
+draw 89 str2062 5 EXT_t1%20tail1 EXT_t1%20tail
+draw 89 str2062 5 EXT_t1%20tail EXT_t1%20spine
+draw 89 str2062 5 EXT_dummy11ros EXT_t1%20r%20toe0
+draw 89 str2062 5 EXT_t1%20r%20toe0 EXT_t1%20r%20foot
+draw 89 str2062 5 EXT_t1%20r%20foot EXT_t1%20r%20calf
+draw 89 str2062 5 EXT_t1%20r%20calf EXT_t1%20r%20thigh
+draw 89 str2062 5 EXT_t1%20r%20thigh EXT_t1%20spine
+draw 89 str2062 5 EXT_dummy16ros EXT_t1%20l%20toe0
+draw 89 str2062 5 EXT_t1%20l%20toe0 EXT_t1%20l%20foot
+draw 89 str2062 5 EXT_t1%20l%20foot EXT_t1%20l%20calf
+draw 89 str2062 5 EXT_t1%20l%20calf EXT_t1%20l%20thigh
+draw 89 str2062 5 EXT_t1%20l%20thigh EXT_t1%20spine
+draw 89 str2062 5 EXT_t0%20r%20bust%20d EXT_t0%20r%20bust
+draw 89 str2062 5 EXT_t0%20r%20bust EXT_t1%20spine1
+draw 89 str2062 5 EXT_t0%20l%20bust%20d EXT_t0%20l%20bust
+draw 89 str2062 5 EXT_t0%20l%20bust EXT_t1%20spine1
+draw 89 str2062 5 EXT_crosfr00 EXT_t1%20r%20hand
+draw 89 str2062 5 EXT_crosswh EXT_t1%20r%20hand
+draw 89 str2062 5 EXT_sword01 EXT_t1%20r%20hand
+draw 89 str2062 5 EXT_crosfr02 EXT_t1%20r%20finger0
+draw 89 str2062 5 EXT_crosfr01 EXT_t1%20r%20finger0
+draw 89 str2062 5 EXT_dummy01ros EXT_t1%20r%20finger0
+draw 89 str2062 5 EXT_t1%20r%20finger0 EXT_t1%20r%20hand
+draw 89 str2062 5 EXT_t1%20r%20hand EXT_t1%20r%20forearm
+draw 89 str2062 5 EXT_t1%20r%20forearm EXT_t1%20r%20upperarm
+draw 89 str2062 5 EXT_t1%20r%20upperarm EXT_t1%20r%20clavicle
+draw 89 str2062 5 EXT_t1%20r%20clavicle EXT_t1%20neck
+draw 89 str2062 5 EXT_crosfl00 EXT_t1%20l%20hand
+draw 89 str2062 5 EXT_crosfl01 EXT_t1%20l%20finger0
+draw 89 str2062 5 EXT_crosfl02 EXT_t1%20l%20finger0
+draw 89 str2062 5 EXT_dummy06ros EXT_t1%20l%20finger0
+draw 89 str2062 5 EXT_t1%20l%20finger0 EXT_t1%20l%20hand
+draw 89 str2062 5 EXT_t1%20l%20hand EXT_t1%20l%20forearm
+draw 89 str2062 5 EXT_t1%20l%20forearm EXT_t1%20l%20upperarm
+draw 89 str2062 5 EXT_t1%20l%20upperarm EXT_t1%20l%20clavicle
+draw 89 str2062 5 EXT_t1%20l%20clavicle EXT_t1%20neck
+draw 89 str2062 5 EXT_croshedn0 EXT_t1%20head
+draw 89 str2062 5 EXT_croshedn3 EXT_t1%20head
+draw 89 str2062 5 EXT_croshedn2 EXT_t1%20head
+draw 89 str2062 5 EXT_croshedn1 EXT_t1%20head
+draw 89 str2062 5 EXT_dummy23ros EXT_t1%20ÎßÆ°Ã°Ù%202
+draw 89 str2062 5 EXT_t1%20ÎßÆ°Ã°Ù%202 EXT_t1%20head
+draw 89 str2062 5 EXT_dummy22ros EXT_t1%20ÎßÆ°Ã°Ù%201
+draw 89 str2062 5 EXT_t1%20ÎßÆ°Ã°Ù%201 EXT_t1%20head
+draw 89 str2062 5 EXT_dummy21ros EXT_t1%20head
+draw 89 str2062 5 EXT_t1%20head EXT_t1%20neck
+draw 89 str2062 5 EXT_t1%20neck EXT_t1%20spine1
+draw 89 str2062 5 EXT_t1%20spine1 EXT_t1%20spine
+draw 89 str2062 5 EXT_t1%20spine EXT_t1%20pelvis
+draw 89 str2062 5 EXT_t1%20pelvis EXT_t1
+draw 89 str2062 5 EXT_t1%20footsteps EXT_t1
+draw 89 str2062 5 EXT_t1 EXT_trall1
+draw 89 str2062 5 EXT_trall1 -
+draw 89 str2062 5 EXT_ckitbod1h EXT_t0%20pelvis
+draw 89 str2062 5 EXT_t0%20r%20belt3 EXT_t0%20r%20belt2
+draw 89 str2062 5 EXT_t0%20r%20belt2 EXT_t0%20r%20belt1
+draw 89 str2062 5 EXT_t0%20r%20belt1 EXT_t0%20spine
+draw 89 str2062 5 EXT_t0%20l%20belt3 EXT_t0%20l%20belt2
+draw 89 str2062 5 EXT_t0%20l%20belt2 EXT_t0%20l%20belt1
+draw 89 str2062 5 EXT_t0%20l%20belt1 EXT_t0%20spine
+draw 89 str2062 5 EXT_ckithl11 EXT_t0%20r%20hand
+draw 89 str2062 5 EXT_ckitswh02 EXT_t0%20r%20hand
+draw 89 str2062 5 EXT_ckithl15 EXT_t0%20r%20finger0
+draw 89 str2062 5 EXT_ckithl14 EXT_t0%20r%20finger0
+draw 89 str2062 5 EXT_ckithl13 EXT_t0%20r%20finger0
+draw 89 str2062 5 EXT_ckithl12 EXT_t0%20r%20finger0
+draw 89 str2062 5 EXT_dummy02kit EXT_t0%20r%20finger0
+draw 89 str2062 5 EXT_t0%20r%20finger0 EXT_t0%20r%20hand
+draw 89 str2062 5 EXT_t0%20r%20hand EXT_t0%20r%20forearm
+draw 89 str2062 5 EXT_t0%20r%20forearm EXT_t0%20r%20upperarm
+draw 89 str2062 5 EXT_t0%20r%20upperarm EXT_t0%20r%20clavicle
+draw 89 str2062 5 EXT_t0%20r%20clavicle EXT_t0%20neck
+draw 89 str2062 5 EXT_ckithr11 EXT_t0%20l%20hand
+draw 89 str2062 5 EXT_ckitswh1 EXT_t0%20l%20hand
+draw 89 str2062 5 EXT_ckithr15 EXT_t0%20l%20finger0
+draw 89 str2062 5 EXT_ckithr14 EXT_t0%20l%20finger0
+draw 89 str2062 5 EXT_ckithr13 EXT_t0%20l%20finger0
+draw 89 str2062 5 EXT_ckithr12 EXT_t0%20l%20finger0
+draw 89 str2062 5 EXT_dummy01kit EXT_t0%20l%20finger0
+draw 89 str2062 5 EXT_t0%20l%20finger0 EXT_t0%20l%20hand
+draw 89 str2062 5 EXT_t0%20l%20hand EXT_t0%20l%20forearm
+draw 89 str2062 5 EXT_t0%20l%20forearm EXT_t0%20l%20upperarm
+draw 89 str2062 5 EXT_t0%20l%20upperarm EXT_t0%20l%20clavicle
+draw 89 str2062 5 EXT_t0%20l%20clavicle EXT_t0%20neck
+draw 89 str2062 5 EXT_ckithedn1 EXT_t0%20head
+draw 89 str2062 5 EXT_ckithedn0 EXT_t0%20head
+draw 89 str2062 5 EXT_t0%20r%20cap2 EXT_t0%20r%20cap1
+draw 89 str2062 5 EXT_t0%20r%20cap1 EXT_t0%20head
+draw 89 str2062 5 EXT_t0%20l%20cap2 EXT_t0%20l%20cap1
+draw 89 str2062 5 EXT_t0%20l%20cap1 EXT_t0%20head
+draw 89 str2062 5 EXT_dummy14kit EXT_t0%20ÎßÆ°Ã°Ù%201
+draw 89 str2062 5 EXT_t0%20ÎßÆ°Ã°Ù%201 EXT_t0%20head
+draw 89 str2062 5 EXT_dummy15kit EXT_t0%20ÎßÆ°Ã°Ù%202
+draw 89 str2062 5 EXT_t0%20ÎßÆ°Ã°Ù%202 EXT_t0%20head
+draw 89 str2062 5 EXT_dummy13kit EXT_t0%20head
+draw 89 str2062 5 EXT_t0%20head EXT_t0%20neck
+draw 89 str2062 5 EXT_t0%20neck EXT_t0%20spine1
+draw 89 str2062 5 EXT_t0%20spine1 EXT_t0%20spine
+draw 89 str2062 5 EXT_dummy11kit EXT_t0%20r%20toe0
+draw 89 str2062 5 EXT_t0%20r%20toe0 EXT_t0%20r%20foot
+draw 89 str2062 5 EXT_t0%20r%20foot EXT_t0%20r%20calf
+draw 89 str2062 5 EXT_t0%20r%20calf EXT_t0%20r%20thigh
+draw 89 str2062 5 EXT_t0%20r%20thigh EXT_t0%20spine
+draw 89 str2062 5 EXT_dummy12kit EXT_t0%20l%20toe0
+draw 89 str2062 5 EXT_t0%20l%20toe0 EXT_t0%20l%20foot
+draw 89 str2062 5 EXT_t0%20l%20foot EXT_t0%20l%20calf
+draw 89 str2062 5 EXT_t0%20l%20calf EXT_t0%20l%20thigh
+draw 89 str2062 5 EXT_t0%20l%20thigh EXT_t0%20spine
+draw 89 str2062 5 EXT_t0%20spine EXT_t0%20pelvis
+draw 89 str2062 5 EXT_t0%20pelvis EXT_t0
+draw 89 str2062 5 EXT_t0%20footsteps EXT_t0
+draw 89 str2062 5 EXT_t0 EXT_trall
+draw 89 str2062 5 EXT_trall -
+draw 89 str2062 5 OBJ_cameradammy_a01 -
+draw 89 str2062 5 EXT_ex8lbdt_b226 OBJ_ex8lbdtcenter_b16
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b16 EXT_trallex8l8b
+draw 89 str2062 5 EXT_ex8lbdt_a226 OBJ_ex8lbdtcenter_a16
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a16 EXT_trallex8l8b
+draw 89 str2062 5 EXT_ex8lbod8b03 EXT_trallex8l8b
+draw 89 str2062 5 EXT_ex8lbod8b02 EXT_trallex8l8b
+draw 89 str2062 5 EXT_ex8lbod8b01 EXT_trallex8l8b
+draw 89 str2062 5 EXT_trallex8l8b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b211 OBJ_ex8lbdtcenter_b15
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b15 EXT_trallex8l8a
+draw 89 str2062 5 EXT_ex8lbdt_a211 OBJ_ex8lbdtcenter_a15
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a15 EXT_trallex8l8a
+draw 89 str2062 5 EXT_ex8lbod8a02 EXT_trallex8l8a
+draw 89 str2062 5 EXT_ex8lbod8a01 EXT_trallex8l8a
+draw 89 str2062 5 EXT_trallex8l8a OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b203 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 EXT_ex8lbdt_b202 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 EXT_ex8lbdt_b201 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 EXT_ex8lbdt_b200 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 EXT_ex8lbdt_b199 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 EXT_ex8lbdt_b198 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 EXT_ex8lbdt_b197 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 EXT_ex8lbdt_b196 OBJ_ex8lbdtcenter_b14
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b14 EXT_trallex8l7b
+draw 89 str2062 5 EXT_ex8lbdt_a203 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 EXT_ex8lbdt_a202 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 EXT_ex8lbdt_a201 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 EXT_ex8lbdt_a200 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 EXT_ex8lbdt_a199 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 EXT_ex8lbdt_a198 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 EXT_ex8lbdt_a197 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 EXT_ex8lbdt_a196 OBJ_ex8lbdtcenter_a14
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a14 EXT_trallex8l7b
+draw 89 str2062 5 EXT_ex8lbod7b03 EXT_trallex8l7b
+draw 89 str2062 5 EXT_ex8lbod7b02 EXT_trallex8l7b
+draw 89 str2062 5 EXT_ex8lbod7b01 EXT_trallex8l7b
+draw 89 str2062 5 EXT_trallex8l7b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b188 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 EXT_ex8lbdt_b187 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 EXT_ex8lbdt_b186 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 EXT_ex8lbdt_b185 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 EXT_ex8lbdt_b184 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 EXT_ex8lbdt_b183 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 EXT_ex8lbdt_b182 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 EXT_ex8lbdt_b181 OBJ_ex8lbdtcenter_b13
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b13 EXT_trallex8l7a
+draw 89 str2062 5 EXT_ex8lbdt_a188 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 EXT_ex8lbdt_a187 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 EXT_ex8lbdt_a186 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 EXT_ex8lbdt_a185 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 EXT_ex8lbdt_a184 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 EXT_ex8lbdt_a183 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 EXT_ex8lbdt_a182 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 EXT_ex8lbdt_a181 OBJ_ex8lbdtcenter_a13
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a13 EXT_trallex8l7a
+draw 89 str2062 5 EXT_ex8lbod7a02 EXT_trallex8l7a
+draw 89 str2062 5 EXT_ex8lbod7a01 EXT_trallex8l7a
+draw 89 str2062 5 EXT_trallex8l7a OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b173 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 EXT_ex8lbdt_b172 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 EXT_ex8lbdt_b171 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 EXT_ex8lbdt_b170 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 EXT_ex8lbdt_b169 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 EXT_ex8lbdt_b168 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 EXT_ex8lbdt_b167 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 EXT_ex8lbdt_b166 OBJ_ex8lbdtcenter_b12
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b12 EXT_trallex8l6b
+draw 89 str2062 5 EXT_ex8lbdt_a173 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 EXT_ex8lbdt_a172 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 EXT_ex8lbdt_a171 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 EXT_ex8lbdt_a170 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 EXT_ex8lbdt_a169 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 EXT_ex8lbdt_a168 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 EXT_ex8lbdt_a167 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 EXT_ex8lbdt_a166 OBJ_ex8lbdtcenter_a12
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a12 EXT_trallex8l6b
+draw 89 str2062 5 EXT_ex8lbod6b03 EXT_trallex8l6b
+draw 89 str2062 5 EXT_ex8lbod6b02 EXT_trallex8l6b
+draw 89 str2062 5 EXT_ex8lbod6b01 EXT_trallex8l6b
+draw 89 str2062 5 EXT_trallex8l6b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b158 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 EXT_ex8lbdt_b157 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 EXT_ex8lbdt_b156 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 EXT_ex8lbdt_b155 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 EXT_ex8lbdt_b154 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 EXT_ex8lbdt_b153 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 EXT_ex8lbdt_b152 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 EXT_ex8lbdt_b151 OBJ_ex8lbdtcenter_b11
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b11 EXT_trallex8l6a
+draw 89 str2062 5 EXT_ex8lbdt_a158 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 EXT_ex8lbdt_a157 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 EXT_ex8lbdt_a156 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 EXT_ex8lbdt_a155 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 EXT_ex8lbdt_a154 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 EXT_ex8lbdt_a153 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 EXT_ex8lbdt_a152 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 EXT_ex8lbdt_a151 OBJ_ex8lbdtcenter_a11
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a11 EXT_trallex8l6a
+draw 89 str2062 5 EXT_ex8lbod6a02 EXT_trallex8l6a
+draw 89 str2062 5 EXT_ex8lbod6a01 EXT_trallex8l6a
+draw 89 str2062 5 EXT_trallex8l6a OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b143 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 EXT_ex8lbdt_b142 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 EXT_ex8lbdt_b141 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 EXT_ex8lbdt_b140 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 EXT_ex8lbdt_b139 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 EXT_ex8lbdt_b138 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 EXT_ex8lbdt_b137 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 EXT_ex8lbdt_b136 OBJ_ex8lbdtcenter_b10
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b10 EXT_trallex8l5b
+draw 89 str2062 5 EXT_ex8lbdt_a143 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 EXT_ex8lbdt_a142 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 EXT_ex8lbdt_a141 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 EXT_ex8lbdt_a140 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 EXT_ex8lbdt_a139 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 EXT_ex8lbdt_a138 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 EXT_ex8lbdt_a137 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 EXT_ex8lbdt_a136 OBJ_ex8lbdtcenter_a10
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a10 EXT_trallex8l5b
+draw 89 str2062 5 EXT_ex8lbod5b03 EXT_trallex8l5b
+draw 89 str2062 5 EXT_ex8lbod5b02 EXT_trallex8l5b
+draw 89 str2062 5 EXT_ex8lbod5b01 EXT_trallex8l5b
+draw 89 str2062 5 EXT_trallex8l5b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b128 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 EXT_ex8lbdt_b127 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 EXT_ex8lbdt_b126 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 EXT_ex8lbdt_b125 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 EXT_ex8lbdt_b124 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 EXT_ex8lbdt_b123 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 EXT_ex8lbdt_b122 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 EXT_ex8lbdt_b121 OBJ_ex8lbdtcenter_b09
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b09 EXT_trallex8l5a
+draw 89 str2062 5 EXT_ex8lbdt_a128 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 EXT_ex8lbdt_a127 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 EXT_ex8lbdt_a126 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 EXT_ex8lbdt_a125 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 EXT_ex8lbdt_a124 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 EXT_ex8lbdt_a123 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 EXT_ex8lbdt_a122 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 EXT_ex8lbdt_a121 OBJ_ex8lbdtcenter_a09
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a09 EXT_trallex8l5a
+draw 89 str2062 5 EXT_ex8lbod5a02 EXT_trallex8l5a
+draw 89 str2062 5 EXT_ex8lbod5a01 EXT_trallex8l5a
+draw 89 str2062 5 EXT_trallex8l5a OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b113 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 EXT_ex8lbdt_b112 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 EXT_ex8lbdt_b111 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 EXT_ex8lbdt_b110 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 EXT_ex8lbdt_b109 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 EXT_ex8lbdt_b108 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 EXT_ex8lbdt_b107 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 EXT_ex8lbdt_b106 OBJ_ex8lbdtcenter_b08
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b08 EXT_trallex8l4b
+draw 89 str2062 5 EXT_ex8lbdt_a113 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 EXT_ex8lbdt_a112 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 EXT_ex8lbdt_a111 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 EXT_ex8lbdt_a110 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 EXT_ex8lbdt_a109 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 EXT_ex8lbdt_a108 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 EXT_ex8lbdt_a107 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 EXT_ex8lbdt_a106 OBJ_ex8lbdtcenter_a08
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a08 EXT_trallex8l4b
+draw 89 str2062 5 EXT_ex8lbod4b03 EXT_trallex8l4b
+draw 89 str2062 5 EXT_ex8lbod4b02 EXT_trallex8l4b
+draw 89 str2062 5 EXT_ex8lbod4b01 EXT_trallex8l4b
+draw 89 str2062 5 EXT_trallex8l4b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b098 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 EXT_ex8lbdt_b097 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 EXT_ex8lbdt_b096 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 EXT_ex8lbdt_b095 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 EXT_ex8lbdt_b094 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 EXT_ex8lbdt_b093 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 EXT_ex8lbdt_b092 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 EXT_ex8lbdt_b091 OBJ_ex8lbdtcenter_b07
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b07 EXT_trallex8l4a
+draw 89 str2062 5 EXT_ex8lbdt_a098 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 EXT_ex8lbdt_a097 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 EXT_ex8lbdt_a096 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 EXT_ex8lbdt_a095 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 EXT_ex8lbdt_a094 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 EXT_ex8lbdt_a093 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 EXT_ex8lbdt_a092 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 EXT_ex8lbdt_a091 OBJ_ex8lbdtcenter_a07
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a07 EXT_trallex8l4a
+draw 89 str2062 5 EXT_ex8lbod4a02 EXT_trallex8l4a
+draw 89 str2062 5 EXT_ex8lbod4a01 EXT_trallex8l4a
+draw 89 str2062 5 EXT_trallex8l4a OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b083 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 EXT_ex8lbdt_b082 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 EXT_ex8lbdt_b081 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 EXT_ex8lbdt_b080 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 EXT_ex8lbdt_b079 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 EXT_ex8lbdt_b078 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 EXT_ex8lbdt_b077 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 EXT_ex8lbdt_b076 OBJ_ex8lbdtcenter_b06
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b06 EXT_trallex8l3b
+draw 89 str2062 5 EXT_ex8lbdt_a083 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 EXT_ex8lbdt_a082 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 EXT_ex8lbdt_a081 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 EXT_ex8lbdt_a080 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 EXT_ex8lbdt_a079 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 EXT_ex8lbdt_a078 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 EXT_ex8lbdt_a077 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 EXT_ex8lbdt_a076 OBJ_ex8lbdtcenter_a06
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a06 EXT_trallex8l3b
+draw 89 str2062 5 EXT_ex8lbod3b03 EXT_trallex8l3b
+draw 89 str2062 5 EXT_ex8lbod3b02 EXT_trallex8l3b
+draw 89 str2062 5 EXT_ex8lbod3b01 EXT_trallex8l3b
+draw 89 str2062 5 EXT_trallex8l3b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_b068 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 EXT_ex8lbdt_b067 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 EXT_ex8lbdt_b066 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 EXT_ex8lbdt_b065 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 EXT_ex8lbdt_b064 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 EXT_ex8lbdt_b063 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 EXT_ex8lbdt_b062 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 EXT_ex8lbdt_b061 OBJ_ex8lbdtcenter_b05
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b05 EXT_trallex8l3a
+draw 89 str2062 5 EXT_ex8lbdt_a068 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 EXT_ex8lbdt_a067 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 EXT_ex8lbdt_a066 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 EXT_ex8lbdt_a065 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 EXT_ex8lbdt_a064 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 EXT_ex8lbdt_a063 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 EXT_ex8lbdt_a062 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 EXT_ex8lbdt_a061 OBJ_ex8lbdtcenter_a05
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a05 EXT_trallex8l3a
+draw 89 str2062 5 EXT_ex8lbod3a02 EXT_trallex8l3a
+draw 89 str2062 5 EXT_ex8lbod3a01 EXT_trallex8l3a
+draw 89 str2062 5 EXT_trallex8l3a OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbod2b03 EXT_trallex8l2b
+draw 89 str2062 5 EXT_ex8lbod2b02 EXT_trallex8l2b
+draw 89 str2062 5 EXT_ex8lbod2b01 EXT_trallex8l2b
+draw 89 str2062 5 EXT_trallex8l2b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_a038 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 EXT_ex8lbdt_a037 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 EXT_ex8lbdt_a036 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 EXT_ex8lbdt_a035 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 EXT_ex8lbdt_a034 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 EXT_ex8lbdt_a033 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 EXT_ex8lbdt_a032 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 EXT_ex8lbdt_a031 OBJ_ex8lbdtcenter_a03
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a03 EXT_trallex8l2a
+draw 89 str2062 5 EXT_ex8lbdt_b038 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 EXT_ex8lbdt_b037 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 EXT_ex8lbdt_b036 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 EXT_ex8lbdt_b035 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 EXT_ex8lbdt_b034 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 EXT_ex8lbdt_b033 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 EXT_ex8lbdt_b032 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 EXT_ex8lbdt_b031 OBJ_ex8lbdtcenter_b03
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b03 EXT_trallex8l2a
+draw 89 str2062 5 EXT_ex8lbod2a02 EXT_trallex8l2a
+draw 89 str2062 5 EXT_ex8lbod2a01 EXT_trallex8l2a
+draw 89 str2062 5 EXT_trallex8l2a OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_a023 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 EXT_ex8lbdt_a022 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 EXT_ex8lbdt_a021 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 EXT_ex8lbdt_a020 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 EXT_ex8lbdt_a019 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 EXT_ex8lbdt_a018 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 EXT_ex8lbdt_a017 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 EXT_ex8lbdt_a016 OBJ_ex8lbdtcenter_a02
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a02 EXT_trallex8l1b
+draw 89 str2062 5 EXT_ex8lbdt_b023 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 EXT_ex8lbdt_b022 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 EXT_ex8lbdt_b021 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 EXT_ex8lbdt_b020 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 EXT_ex8lbdt_b019 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 EXT_ex8lbdt_b018 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 EXT_ex8lbdt_b017 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 EXT_ex8lbdt_b016 OBJ_ex8lbdtcenter_b02
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b02 EXT_trallex8l1b
+draw 89 str2062 5 EXT_ex8lbod1b03 EXT_trallex8l1b
+draw 89 str2062 5 EXT_ex8lbod1b02 EXT_trallex8l1b
+draw 89 str2062 5 EXT_ex8lbod1b01 EXT_trallex8l1b
+draw 89 str2062 5 EXT_trallex8l1b OBJ_trallex8l_02
+draw 89 str2062 5 EXT_ex8lbdt_a001 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 EXT_ex8lbdt_a002 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 EXT_ex8lbdt_a003 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 EXT_ex8lbdt_a004 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 EXT_ex8lbdt_a005 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 EXT_ex8lbdt_a006 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 EXT_ex8lbdt_a007 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 EXT_ex8lbdt_a008 OBJ_ex8lbdtcenter_a01
+draw 89 str2062 5 OBJ_ex8lbdtcenter_a01 EXT_trallex8l1a
+draw 89 str2062 5 EXT_ex8lbdt_b001 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 EXT_ex8lbdt_b002 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 EXT_ex8lbdt_b003 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 EXT_ex8lbdt_b004 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 EXT_ex8lbdt_b005 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 EXT_ex8lbdt_b006 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 EXT_ex8lbdt_b007 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 EXT_ex8lbdt_b008 OBJ_ex8lbdtcenter_b01
+draw 89 str2062 5 OBJ_ex8lbdtcenter_b01 EXT_trallex8l1a
+draw 89 str2062 5 EXT_ex8lbod1a02 EXT_trallex8l1a
+draw 89 str2062 5 EXT_ex8lbod1a01 EXT_trallex8l1a
+draw 89 str2062 5 EXT_trallex8l1a OBJ_trallex8l_02
+draw 89 str2062 5 OBJ_trallex8l_02 -
+draw 89 str2062 5 EXT_line_data_b00f EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_b00 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_c00 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_c00f EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_c01f EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_c01 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer23 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer22 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer21 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer13 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer12 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer11 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer03 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer02 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer01 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer20 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer10 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_stabilizer00 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_virus_lance01 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_virus_lance02 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_a01f EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_a01 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_a00f EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_line_data_a00 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_lens00 EXT_lens00f
+draw 89 str2062 5 EXT_lens00f EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_virusbelt_s_47 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_virusbelt_s_46 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_virusbelt_s_45 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_virusarrow_47 EXT_virusbelt47
+draw 89 str2062 5 EXT_virusbelt47 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_virusarrow_46 EXT_virusbelt46
+draw 89 str2062 5 EXT_virusbelt46 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_virusarrow_45 EXT_virusbelt45
+draw 89 str2062 5 EXT_virusbelt45 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_ring_arm_m1_pb140 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb139 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb138 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb137 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb136 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb135 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb134 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb133 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb132 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb131 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb130 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pb129 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa140 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa139 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa138 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa137 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa136 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa135 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa134 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa133 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa132 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa131 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa130 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_pa129 EXT_ring_arm_m1_v09
+draw 89 str2062 5 EXT_ring_arm_m1_v09 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_flash29 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_flash28 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_flash27 EXT_dummy_mainarm_tr09
+draw 89 str2062 5 EXT_dummy_mainarm_tr09 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_virusbelt_s_44 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_virusbelt_s_43 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_virusbelt_s_42 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_virusarrow_44 EXT_virusbelt44
+draw 89 str2062 5 EXT_virusbelt44 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_virusarrow_43 EXT_virusbelt43
+draw 89 str2062 5 EXT_virusbelt43 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_virusarrow_42 EXT_virusbelt42
+draw 89 str2062 5 EXT_virusbelt42 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_ring_arm_m1_pb128 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb127 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb126 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb125 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb124 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb123 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb122 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb121 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb120 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb119 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb118 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pb117 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa128 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa127 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa126 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa125 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa124 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa123 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa122 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa121 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa120 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa119 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa118 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_pa117 EXT_ring_arm_m1_v08
+draw 89 str2062 5 EXT_ring_arm_m1_v08 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_flash26 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_flash25 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_flash24 EXT_dummy_mainarm_tr08
+draw 89 str2062 5 EXT_dummy_mainarm_tr08 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_virusbelt_s_41 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_virusbelt_s_40 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_virusbelt_s_39 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_virusarrow_41 EXT_virusbelt41
+draw 89 str2062 5 EXT_virusbelt41 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_virusarrow_40 EXT_virusbelt40
+draw 89 str2062 5 EXT_virusbelt40 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_virusarrow_39 EXT_virusbelt39
+draw 89 str2062 5 EXT_virusbelt39 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_ring_arm_m1_pb116 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb115 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb114 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb113 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb112 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb111 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb110 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb109 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb108 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb107 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb106 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pb105 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa116 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa115 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa114 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa113 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa112 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa111 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa110 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa109 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa108 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa107 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa106 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_pa105 EXT_ring_arm_m1_v07
+draw 89 str2062 5 EXT_ring_arm_m1_v07 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_flash23 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_flash22 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_flash21 EXT_dummy_mainarm_tr07
+draw 89 str2062 5 EXT_dummy_mainarm_tr07 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_virusbelt_s_38 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_virusbelt_s_37 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_virusbelt_s_36 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_virusarrow_38 EXT_virusbelt38
+draw 89 str2062 5 EXT_virusbelt38 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_virusarrow_37 EXT_virusbelt37
+draw 89 str2062 5 EXT_virusbelt37 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_virusarrow_36 EXT_virusbelt36
+draw 89 str2062 5 EXT_virusbelt36 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_ring_arm_m1_pb104 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb103 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb102 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb101 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb100 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb99 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb98 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb97 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb96 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb95 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb94 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pb93 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa104 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa103 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa102 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa101 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa100 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa99 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa98 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa97 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa96 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa95 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa94 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_pa93 EXT_ring_arm_m1_v06
+draw 89 str2062 5 EXT_ring_arm_m1_v06 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_flash20 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_flash19 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_flash18 EXT_dummy_mainarm_tr06
+draw 89 str2062 5 EXT_dummy_mainarm_tr06 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_virusbelt_s_35 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_virusbelt_s_34 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_virusbelt_s_33 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_virusarrow_35 EXT_virusbelt35
+draw 89 str2062 5 EXT_virusbelt35 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_virusarrow_34 EXT_virusbelt34
+draw 89 str2062 5 EXT_virusbelt34 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_virusarrow_33 EXT_virusbelt33
+draw 89 str2062 5 EXT_virusbelt33 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_ring_arm_m1_pb92 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb91 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb90 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb89 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb88 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb87 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb86 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb85 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb84 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb83 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb82 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pb81 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa92 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa91 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa90 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa89 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa88 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa87 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa86 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa85 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa84 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa83 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa82 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_pa81 EXT_ring_arm_m1_v05
+draw 89 str2062 5 EXT_ring_arm_m1_v05 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_flash17 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_flash16 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_flash15 EXT_dummy_mainarm_tr05
+draw 89 str2062 5 EXT_dummy_mainarm_tr05 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_flash13 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_flash14 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_flash12 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_virusbelt_s_32 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_virusbelt_s_31 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_virusbelt_s_30 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_virusarrow_32 EXT_virusbelt32
+draw 89 str2062 5 EXT_virusbelt32 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_virusarrow_31 EXT_virusbelt31
+draw 89 str2062 5 EXT_virusbelt31 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_virusarrow_30 EXT_virusbelt30
+draw 89 str2062 5 EXT_virusbelt30 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_ring_arm_m1_pb80 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb79 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb78 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb77 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb76 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb75 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb74 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb73 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb72 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb71 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb70 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pb69 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa80 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa79 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa78 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa77 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa76 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa75 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa74 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa73 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa72 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa71 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa70 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_pa69 EXT_ring_arm_m1_v04
+draw 89 str2062 5 EXT_ring_arm_m1_v04 EXT_dummy_mainarm_tr04
+draw 89 str2062 5 EXT_dummy_mainarm_tr04 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_flash10 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_flash11 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_flash09 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_virusbelt_s_29 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_virusbelt_s_28 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_virusbelt_s_27 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_virusarrow_29 EXT_virusbelt29
+draw 89 str2062 5 EXT_virusbelt29 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_virusarrow_28 EXT_virusbelt28
+draw 89 str2062 5 EXT_virusbelt28 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_virusarrow_27 EXT_virusbelt27
+draw 89 str2062 5 EXT_virusbelt27 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_ring_arm_m1_pb68 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb67 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb66 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb65 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb64 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb63 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb62 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb61 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb60 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb59 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb58 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pb57 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa68 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa67 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa66 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa65 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa64 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa63 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa62 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa61 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa60 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa59 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa58 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_pa57 EXT_ring_arm_m1_v03
+draw 89 str2062 5 EXT_ring_arm_m1_v03 EXT_dummy_mainarm_tr03
+draw 89 str2062 5 EXT_dummy_mainarm_tr03 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_flash08 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_flash07 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_flash06 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_virusbelt_s_26 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_virusbelt_s_25 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_virusbelt_s_24 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_virusarrow_26 EXT_virusbelt26
+draw 89 str2062 5 EXT_virusbelt26 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_virusarrow_25 EXT_virusbelt25
+draw 89 str2062 5 EXT_virusbelt25 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_virusarrow_24 EXT_virusbelt24
+draw 89 str2062 5 EXT_virusbelt24 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_ring_arm_m1_pb56 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb55 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb54 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb53 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb52 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb51 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb50 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb49 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb48 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb47 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb46 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pb45 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa56 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa55 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa54 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa53 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa52 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa51 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa50 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa49 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa48 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa47 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa46 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_pa45 EXT_ring_arm_m1_v02
+draw 89 str2062 5 EXT_ring_arm_m1_v02 EXT_dummy_mainarm_tr02
+draw 89 str2062 5 EXT_dummy_mainarm_tr02 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_flash05 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_flash04 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_flash03 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_virusbelt_s_23 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_virusbelt_s_22 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_virusbelt_s_21 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_virusarrow_23 EXT_virusbelt23
+draw 89 str2062 5 EXT_virusbelt23 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_virusarrow_22 EXT_virusbelt22
+draw 89 str2062 5 EXT_virusbelt22 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_virusarrow_21 EXT_virusbelt21
+draw 89 str2062 5 EXT_virusbelt21 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_ring_arm_m1_pb44 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb43 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb42 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb41 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb40 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb39 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb38 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb37 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb36 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb35 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb34 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pb33 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa44 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa43 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa42 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa41 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa40 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa39 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa38 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa37 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa36 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa35 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa34 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_pa33 EXT_ring_arm_m1_v01
+draw 89 str2062 5 EXT_ring_arm_m1_v01 EXT_dummy_mainarm_tr01
+draw 89 str2062 5 EXT_dummy_mainarm_tr01 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_flash02 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_flash01 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_flash00 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_virusbelt_s_10 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_virusbelt_s_20 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_virusbelt_s_00 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_virusarrow_20 EXT_virusbelt20
+draw 89 str2062 5 EXT_virusbelt20 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_virusarrow_10 EXT_virusbelt10
+draw 89 str2062 5 EXT_virusbelt10 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_virusarrow_00 EXT_virusbelt00
+draw 89 str2062 5 EXT_virusbelt00 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_ring_arm_m1_pb12 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa12 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb32 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb31 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa32 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa31 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb22 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa22 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb21 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa21 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb11 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa00 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb02 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa02 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb10 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb01 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa01 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb30 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb20 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa30 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa20 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa10 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pb00 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_pa11 EXT_ring_arm_m1_v00
+draw 89 str2062 5 EXT_ring_arm_m1_v00 EXT_dummy_mainarm_tr00
+draw 89 str2062 5 EXT_dummy_mainarm_tr00 EXT_dummy_arms_mall_tr
+draw 89 str2062 5 EXT_dummy_arms_mall_tr EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_lens02 EXT_lens01
+draw 89 str2062 5 EXT_lens01 EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_ring_r108 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r107 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r106 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r105 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r104 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r103 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r102 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r008 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r007 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r006 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r005 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r004 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r003 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r002 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f108 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f107 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f106 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f105 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f104 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f103 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f102 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f008 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f007 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f006 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f005 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f004 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f003 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f002 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r101 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_r001 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f101 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_ring_f001 EXT_dummy_ring_r
+draw 89 str2062 5 EXT_dummy_ring_r EXT_dummy_ring_trall
+draw 89 str2062 5 EXT_dummy_ring_trall -
+draw 89 str2062 5 EXT_ex8lbod_eye EXT_trallex8l
+draw 89 str2062 5 EXT_ex8lbod21fcenter EXT_trallex8l21
+draw 89 str2062 5 EXT_trallex8l21 EXT_trallex8l
+draw 89 str2062 5 EXT_ex8lbod_05 EXT_ex8lbod_01
+draw 89 str2062 5 EXT_ex8lbod_04a EXT_ex8lbod_01
+draw 89 str2062 5 EXT_ex8lbod_03 EXT_ex8lbod_01
+draw 89 str2062 5 EXT_ex8lbod_02 EXT_ex8lbod_01
+draw 89 str2062 5 EXT_ex8lbod_01 EXT_trallex8l
+draw 89 str2062 5 EXT_trallex8l -
+draw 89 str2062 5 EXT_se4_8f01 -
+draw 89 str2062 5 EXT_dmmy1 -
+frame 89 str2062 1 1 0 106 81a235d3b3c7b6ab notes -
+camera 89 str2062 1 1120.58643 816.732056 -741.362183 0.362167358 1566.02917 1903.41711 -1727.7655 0.844041288 810.006775 368.240723 -809.617371 0.395511121 46793.1016 -119577.094 2.14762496e+09 -61.2076836
+lights 89 str2062 1 106 659e81db0ff48e7f
+frame 89 str2062 2 2 0 107 1358edd3df45b6af notes -
+camera 89 str2062 2 1117.28186 812.708252 -737.716187 0.360386252 1568.42249 1905.15271 -1729.3562 0.844818354 809.941223 368.168549 -809.551819 0.395479113 44298.8672 -122069.164 2.14762726e+09 -62.3380318
+lights 89 str2062 2 107 485b61b8898e8ddb
+frame 89 str2062 3 3 0 107 2c445bc585cb89cc notes -
+camera 89 str2062 3 1113.96545 808.67218 -734.059387 0.358599842 1570.81543 1906.88403 -1730.94397 0.845593989 809.871765 368.092041 -809.482422 0.395445198 41802.6172 -124561.844 2.14762957e+09 -63.4686928
+lights 89 str2062 3 107 7abdfc297fa40613
+frame 89 str2062 4 4 0 107 bf889b36d6419990 notes -
+camera 89 str2062 4 1110.63855 804.62561 -730.39325 0.356808871 1573.2063 1908.61023 -1732.52759 0.846367598 809.800049 368.013123 -809.410767 0.39541018 39305.1719 -127054.203 2.14763187e+09 -64.5992508
+lights 89 str2062 4 107 1cd49ca21f3644c6
+frame 89 str2062 5 5 0 106 080b20e2ff176e6b notes -
+camera 89 str2062 5 1107.29834 800.565002 -726.714661 0.355011821 1575.59814 1910.33313 -1734.10913 0.847140253 809.724182 367.929565 -809.3349 0.395373136 36804.9219 -129547.945 2.14763418e+09 -65.7304688
+lights 89 str2062 5 106 7985195a2491ed83
+frame 89 str2062 6 6 0 106 772771360487d1e5 notes -
+camera 89 str2062 6 1103.94641 796.49231 -723.025269 0.353209496 1577.98865 1912.05127 -1735.68713 0.847911119 809.645691 367.84317 -809.25647 0.39533481 34302.875 -132042.047 2.14763648e+09 -66.8618851
+lights 89 str2062 6 106 591febcbb0b748db
+frame 89 str2062 7 7 0 107 ccd03ebba5112518 notes -
+camera 89 str2062 7 1100.58289 792.407776 -719.325439 0.351402074 1580.37866 1913.76526 -1737.26221 0.848680556 809.563416 367.752533 -809.174194 0.395294636 31799.0469 -134536.438 2.14763878e+09 -67.9934845
+lights 89 str2062 7 107 cc7f1ee55450a844
+frame 89 str2062 8 8 0 107 8ff209d15dc5160d notes -
+camera 89 str2062 8 1097.20752 788.310913 -715.614685 0.349589288 1582.76758 1915.47437 -1738.83374 0.849448264 809.477966 367.658447 -809.088806 0.395252913 29293.2812 -137031.266 2.14764109e+09 -69.1253281
+lights 89 str2062 8 107 5fd0e4eb2de37590
+frame 89 str2062 9 9 0 107 bdfbf88158cfbfdf notes -
+camera 89 str2062 9 1093.82031 784.202026 -711.893188 0.347771287 1585.15576 1917.17908 -1740.40198 0.850214362 809.38916 367.560669 -809.000061 0.395209551 26785.7812 -139526.359 2.14764339e+09 -70.2573318
+lights 89 str2062 9 107 3e58c18896d533e2
+frame 89 str2062 10 10 0 106 72e715b7b1959fe9 notes -
+camera 89 str2062 10 1090.42102 780.08075 -708.160706 0.345947921 1587.54285 1918.87903 -1741.96667 0.850978792 809.296936 367.459137 -808.907837 0.39516452 24276.3594 -142021.875 2.1476457e+09 -71.3895798
+lights 89 str2062 10 106 6dc38b82cbfee808
+frame 89 str2062 11 11 0 106 ab39cb46e6fee713 notes -
+camera 89 str2062 11 1087.0105 775.947937 -704.417969 0.344119519 1589.92871 1920.5741 -1743.52783 0.851741433 809.201416 367.353973 -808.812378 0.395117879 21765.3906 -144517.406 2.147648e+09 -72.5218811
+lights 89 str2062 11 106 463f141155b65d36
+frame 89 str2062 12 12 0 107 04362907c906c59d notes -
+camera 89 str2062 12 1083.58704 771.80188 -700.663391 0.342285365 1592.31421 1922.26489 -1745.08594 0.852502584 809.102478 367.245056 -808.713501 0.395069569 19252.1875 -147013.656 2.1476503e+09 -73.6545639
+lights 89 str2062 12 107 a72480401edc1185
+frame 89 str2062 13 13 0 107 19a7553d0ee3ea00 notes -
+camera 89 str2062 13 1080.15234 767.644531 -696.898804 0.340446293 1594.69788 1923.95032 -1746.64001 0.853261769 809.000488 367.132721 -808.611572 0.39501977 16737.625 -149509.703 2.14765286e+09 -74.7872086
+lights 89 str2062 13 107 b69216fa347cbba1
+frame 89 str2062 14 14 0 107 59ded18db5d6095f notes -
+camera 89 str2062 14 1076.70508 763.474182 -693.12262 0.338601559 1597.08081 1925.6311 -1748.19067 0.854019284 808.894836 367.016449 -808.505981 0.394968182 14221.0469 -152006.234 2.14765517e+09 -75.9201202
+lights 89 str2062 14 107 e8ff66565c57bb2b
+frame 89 str2062 15 15 0 106 6eee7b77bf05408e notes -
+camera 89 str2062 15 1073.24658 759.292542 -689.336426 0.336751938 1599.46228 1927.30664 -1749.73755 0.854774952 808.785828 366.896393 -808.397034 0.394914955 11703.0312 -154502.656 2.14765747e+09 -77.0530548
+lights 89 str2062 15 106 8cc9540610b04535
+frame 89 str2062 16 16 0 106 3cda032724723d37 notes -
+camera 89 str2062 16 1069.776 755.098572 -685.539246 0.334896952 1601.84253 1928.97729 -1751.28076 0.855528831 808.673035 366.772247 -808.284241 0.39485988 9183.3125 -156999.188 2.14765978e+09 -78.1860962
+lights 89 str2062 16 106 a0694d953d09e742
+frame 89 str2062 17 17 0 107 7a0865900432272d notes -
+camera 89 str2062 17 1066.2926 750.891418 -681.730347 0.333036244 1604.22205 1930.64319 -1752.82068 0.856281102 808.55658 366.644012 -808.167847 0.394803017 6661.48438 -159496.25 2.14766208e+09 -79.3194351
+lights 89 str2062 17 107 68c2bc489ffdb8f8
+frame 89 str2062 18 18 0 107 ea9d87e4f0b36a8d notes -
+camera 89 str2062 18 1062.79773 746.672791 -677.911133 0.331170499 1606.59973 1932.30359 -1754.35632 0.857031286 808.437012 366.512421 -808.04834 0.394744635 4138.29688 -161993.078 2.14766438e+09 -80.4527359
+lights 89 str2062 18 107 6995a9a7b43ebafe
+frame 89 str2062 19 19 0 107 7f74e443ad1392a1 notes -
+camera 89 str2062 19 1059.29138 742.442627 -674.081665 0.329299748 1608.97546 1933.9585 -1755.88782 0.857779443 808.313904 366.376892 -807.925293 0.394684523 1613.84375 -164489.531 2.14766669e+09 -81.5859375
+lights 89 str2062 19 107 f62a2747899087fc
+frame 89 str2062 20 20 0 135 5255e25ed4d7a20c notes -
+camera 89 str2062 20 1055.77209 738.199341 -670.240417 0.327423245 1611.35046 1935.60864 -1757.41565 0.858525872 808.187622 366.237854 -807.799072 0.394622862 -912.71875 -166986.531 2.14766899e+09 -82.7194443
+lights 89 str2062 20 135 6c803e85559d7f53
+frame 89 str2062 21 21 0 135 16ddfaca4f60023c notes -
+camera 89 str2062 21 1052.24146 733.944641 -666.38916 0.325541824 1613.72363 1937.25305 -1758.93958 0.859270334 808.057068 366.094147 -807.668579 0.394559115 -3440.48438 -169483.062 2.1476713e+09 -83.8528214
+lights 89 str2062 21 135 69069bd6c0f42ff7
+frame 89 str2062 22 22 0 136 271696fbb00e9516 notes -
+camera 89 str2062 22 1048.69824 729.677307 -662.526489 0.32365486 1616.09534 1938.89221 -1760.45947 0.860012829 807.923157 365.946716 -807.534729 0.394493729 -5969.98438 -171979.75 2.1476736e+09 -84.9863358
+lights 89 str2062 22 136 1f74745d9f37d9ba
+frame 89 str2062 23 23 0 136 8003fa0bf10685e0 notes -
+camera 89 str2062 23 1045.14319 725.39801 -658.653137 0.321762681 1618.46545 1940.52588 -1761.97559 0.860753417 807.785217 365.794861 -807.396851 0.394426376 -8500.98438 -174476.25 2.1476759e+09 -86.1198425
+lights 89 str2062 23 136 e344c2d4d921590d
+frame 89 str2062 24 24 0 136 65ed04ecfe73922e notes -
+camera 89 str2062 24 1041.57642 721.107056 -654.769409 0.319865406 1620.8335 1942.15381 -1763.48706 0.861491799 807.644287 365.639709 -807.256042 0.394357562 -11033.2344 -176972.344 2.14767821e+09 -87.2532425
+lights 89 str2062 24 136 8286f44adb6ff5dc
+frame 89 str2062 25 25 0 135 1f8918ded6e73146 notes -
+camera 89 str2062 25 1037.99731 716.803589 -650.874512 0.317962676 1623.19995 1943.77612 -1764.99438 0.862228155 807.499817 365.480682 -807.111633 0.39428702 -13567.0938 -179468.359 2.14768051e+09 -88.3866882
+lights 89 str2062 25 135 1fcdd16632516457
+frame 89 str2062 26 26 0 135 081899ce5b8410c9 notes -
+camera 89 str2062 26 1034.40576 712.487732 -646.968567 0.316054553 1625.56506 1945.39307 -1766.49792 0.862962663 807.350586 365.316437 -806.962463 0.394214153 -16102.5 -181964.281 2.14768282e+09 -89.5201721
+lights 89 str2062 26 135 125877fb3a9b215a
+frame 89 str2062 27 27 0 136 4a6d17edfdf5a258 notes -
+camera 89 str2062 27 1030.80261 708.160339 -643.052185 0.314141363 1627.92773 1947.00391 -1767.9967 0.863694847 807.198669 365.1492 -806.810608 0.394139975 -18639.0781 -184459.688 2.14768512e+09 -90.6535034
+lights 89 str2062 27 136 37c991ce519db966
+frame 89 str2062 28 28 0 136 f3676dd9a5cb3072 notes -
+camera 89 str2062 28 1027.1875 703.821167 -639.125305 0.312223017 1630.28833 1948.60889 -1769.49109 0.864424884 807.042786 364.977631 -806.654785 0.39406386 -21176.9688 -186954.641 2.14768742e+09 -91.7867203
+lights 89 str2062 28 136 ba33ef2b025766c3
+frame 89 str2062 29 29 0 135 32667ca68f268f3d notes -
+camera 89 str2062 29 1023.55975 699.469177 -635.186951 0.310299069 1632.64709 1950.20801 -1770.98108 0.865152776 806.883423 364.802216 -806.495544 0.393986046 -23716.4375 -189449.5 2.14768998e+09 -92.9199753
+lights 89 str2062 29 135 abc12721da07ef85
+frame 89 str2062 30 30 0 134 e25a84cd5b86169b notes -
+camera 89 str2062 30 1019.92072 695.10614 -631.238708 0.308370292 1635.00366 1951.80103 -1772.46655 0.865878463 806.71991 364.622253 -806.332092 0.393906206 -26256.875 -191943.594 2.14769229e+09 -94.0529785
+lights 89 str2062 30 134 a8c2f45bc7b4b34d
+frame 89 str2062 31 31 0 134 27f861c09dd98d01 notes -
+camera 89 str2062 31 1016.26813 690.729431 -627.278259 0.306435525 1637.35889 1953.38855 -1773.948 0.866602182 806.552856 364.438385 -806.1651 0.393824637 -28799.3438 -194437.953 2.14769459e+09 -95.1861954
+lights 89 str2062 31 134 5748543435b5700e
+frame 89 str2062 32 32 0 136 e3a05fb0dc108f47 notes -
+camera 89 str2062 32 1012.60468 686.342163 -623.30835 0.304496169 1639.71118 1954.96936 -1775.42456 0.867323458 806.38147 364.249756 -805.993774 0.393740952 -31342.3281 -196931.125 2.1476969e+09 -96.3189697
+lights 89 str2062 32 136 62df8def5129223e
+frame 89 str2062 33 33 0 136 4ae59d8482f9c516 notes -
+camera 89 str2062 33 1008.92841 681.942261 -619.326965 0.30255121 1642.06128 1956.54419 -1776.89624 0.868042409 806.207275 364.058044 -805.819702 0.393655896 -33886.8594 -199424.047 2.1476992e+09 -97.4517212
+lights 89 str2062 33 136 53fe4fbf182f14e4
+frame 89 str2062 34 34 0 136 2aae81f5f5e7c093 notes -
+camera 89 str2062 34 1005.24072 677.531128 -615.335632 0.300601363 1644.40906 1958.11267 -1778.36328 0.868759096 806.028442 363.861237 -805.64093 0.393568575 -36432.2812 -201916.141 2.1477015e+09 -98.5842056
+lights 89 str2062 34 136 c5737fec2f17c519
+frame 89 str2062 35 35 0 135 d1184680059afcbc notes -
+camera 89 str2062 35 1001.54022 673.107178 -611.332764 0.298645914 1646.75488 1959.67517 -1779.82593 0.869473636 805.845947 363.6604 -805.458557 0.393479466 -38979.2344 -204407.922 2.14770381e+09 -99.7166443
+lights 89 str2062 35 135 c8c3f1b2af3f7fab
+frame 89 str2062 36 36 0 135 3c1d4517f0c77033 notes -
+camera 89 str2062 36 997.828186 668.672119 -607.319946 0.296685576 1649.09802 1961.23108 -1781.28357 0.870185733 805.659363 363.455048 -805.272034 0.393388361 -41527.0312 -206898.797 2.14770611e+09 -100.848778
+lights 89 str2062 36 135 e0b0e250b8a2560f
+frame 89 str2062 37 37 0 136 80ff80a8b8c89538 notes -
+camera 89 str2062 37 994.10376 664.224792 -603.296082 0.294719845 1651.4386 1962.7804 -1782.73633 0.870895386 805.469116 363.245697 -805.081909 0.393295467 -44075.9844 -209389 2.14770842e+09 -101.980721
+lights 89 str2062 37 136 7cc9b114381ac550
+frame 89 str2062 38 38 0 136 f87e8b16e68e3d39 notes -
+camera 89 str2062 38 990.367188 659.765564 -599.261475 0.292748898 1653.77686 1964.32336 -1784.1842 0.871602714 805.274719 363.031769 -804.887573 0.393200547 -46626.0938 -211878.531 2.14771072e+09 -103.112457
+lights 89 str2062 38 136 6c74af44ef1eb665
+frame 89 str2062 39 39 0 136 a2c5b263c7e153db notes -
+camera 89 str2062 39 986.618103 655.294189 -595.215881 0.290772557 1656.11218 1965.85974 -1785.62683 0.872307479 805.077393 362.814606 -804.690369 0.393104196 -49177.375 -214367.5 2.14771302e+09 -104.244041
+lights 89 str2062 39 136 3f54a733bf6f00f0
+frame 89 str2062 40 40 0 161 9e4817fefc6a1d16 notes -
+camera 89 str2062 40 982.857422 650.811462 -591.160217 0.288791299 1658.44519 1967.3894 -1787.06494 0.87300998 804.874634 362.591492 -804.487671 0.393005192 -51729.3594 -216855.188 2.14771533e+09 -105.375183
+lights 89 str2062 40 161 3361b9c9aeeccca1
+frame 89 str2062 41 41 0 176 1538752fc6b7bc64 notes -
+camera 89 str2062 41 979.084229 646.316528 -587.093445 0.286804616 1660.77515 1968.91223 -1788.49744 0.873709798 804.668762 362.36499 -804.281921 0.392904669 -54282.5312 -219342.312 2.14771763e+09 -106.506172
+lights 89 str2062 41 176 a4e8aa4ac9254e61
+frame 89 str2062 42 42 0 177 eb5cb6b59fc0583f notes -
+camera 89 str2062 42 975.299561 641.810547 -583.016785 0.284813106 1663.10217 1970.4281 -1789.9248 0.874407113 804.458862 362.134003 -804.072144 0.392802179 -56836.3281 -221828.172 2.14771994e+09 -107.636703
+lights 89 str2062 42 177 c8a41238a3af2aa3
+frame 89 str2062 43 43 0 177 f013bcdbeb1fc649 notes -
+camera 89 str2062 43 971.502747 637.292908 -578.929565 0.28281641 1665.42627 1971.93726 -1791.34705 0.875101864 804.245117 361.898834 -803.858459 0.392697811 -59391.0312 -224313.094 2.14772224e+09 -108.76693
+lights 89 str2062 43 177 21b5614ac4420026
+frame 89 str2062 44 44 0 177 373b43be8465b7d9 notes -
+camera 89 str2062 44 967.692566 632.761963 -574.830383 0.280813903 1667.74817 1973.4397 -1792.76428 0.875794232 804.026855 361.658691 -803.64032 0.392591238 -61947.2031 -226797.625 2.14772454e+09 -109.897102
+lights 89 str2062 44 177 3c091b9be8b4c5de
+frame 89 str2062 45 45 0 176 15626baae6b32d3f notes -
+camera 89 str2062 45 963.871338 628.220581 -570.721741 0.278806776 1670.06653 1974.93481 -1794.17603 0.876483858 803.804565 361.414124 -803.418152 0.392482698 -64503.6719 -229280.469 2.14772685e+09 -111.026642
+lights 89 str2062 45 176 c5858530c0a9fa30
+frame 89 str2062 46 46 0 176 328315fd8dd4c2f9 notes -
+camera 89 str2062 46 960.037415 623.666809 -566.60199 0.276794195 1672.3822 1976.42322 -1795.58252 0.87717098 803.57843 361.165314 -803.192139 0.39237228 -67061.3281 -231762.719 2.14772915e+09 -112.156029
+lights 89 str2062 46 176 3385f6f42fc232df
+frame 89 str2062 47 47 0 177 ad1be5bb1f55081a notes -
+camera 89 str2062 47 956.191956 619.102173 -562.47229 0.274776787 1674.69446 1977.90405 -1796.9834 0.877855301 803.348022 360.911835 -802.961792 0.392259777 -69619.3594 -234243.312 2.14773146e+09 -113.284805
+lights 89 str2062 47 177 c8cf05d52cf822b4
+frame 89 str2062 48 48 0 177 7a5dad5e8ac2398d notes -
+camera 89 str2062 48 952.333984 614.525391 -558.331726 0.272754043 1677.00342 1979.37781 -1798.37866 0.87853694 803.11377 360.654114 -802.727661 0.392145395 -72178.2812 -236722.938 2.14773376e+09 -114.413269
+lights 89 str2062 48 177 d3e006f3c62bdd37
+frame 89 str2062 49 49 0 177 35eaa23d4207603f notes -
+camera 89 str2062 49 948.463867 609.936951 -554.180603 0.270726144 1679.30945 1980.84424 -1799.76868 0.879215956 802.874817 360.391266 -802.488831 0.392028719 -74738.0625 -239201.469 2.14773606e+09 -115.541374
+lights 89 str2062 49 177 b0bb5f9baf28f70b
+frame 89 str2062 50 50 0 176 ec88c92a5e7d45c3 notes -
+camera 89 str2062 50 944.581421 605.336731 -550.018677 0.268693 1681.61206 1982.30347 -1801.15283 0.87989217 802.632446 360.124634 -802.246582 0.391910374 -77298.5156 -241678.719 2.14773837e+09 -116.669029
+lights 89 str2062 50 176 9ac6e6e01027476b
+frame 89 str2062 51 51 0 176 69a261eaed190b2e notes -
+camera 89 str2062 51 940.687439 600.725586 -545.846985 0.266655058 1683.91113 1983.755 -1802.53137 0.880565584 802.385376 359.852844 -801.999634 0.391789734 -79859.3438 -244154.453 2.14774067e+09 -117.796143
+lights 89 str2062 51 176 ba92a05fa279f78b
+frame 89 str2062 52 52 0 177 e86a350cbdacc8d9 notes -
+camera 89 str2062 52 936.781311 596.102844 -541.664734 0.264611959 1686.20654 1985.19885 -1803.90381 0.881236076 802.134705 359.577118 -801.749084 0.391667336 -82420.7812 -246628.734 2.14774298e+09 -118.922737
+lights 89 str2062 52 177 230d6b158d9b83d6
+frame 89 str2062 53 53 0 177 e8fcf333e8213931 notes -
+camera 89 str2062 53 932.863098 591.468628 -537.472107 0.262563795 1688.49878 1986.63538 -1805.27087 0.881903887 801.879517 359.296417 -801.494019 0.391542733 -84982.8438 -249101.719 2.14774528e+09 -120.048889
+lights 89 str2062 53 177 f69eee7899db07c0
+frame 89 str2062 54 54 0 177 b0e464392df44c36 notes -
+camera 89 str2062 54 928.93219 586.822266 -533.268433 0.260510236 1690.7876 1988.06445 -1806.6322 0.882568896 801.619995 359.010956 -801.234619 0.391416013 -87545.6562 -251573.469 2.14774758e+09 -121.174629
+lights 89 str2062 54 177 09d92169503aa128
+frame 89 str2062 55 55 0 176 6d04997a85e251e8 notes -
+camera 89 str2062 55 924.989685 582.165039 -529.054932 0.258451849 1693.07263 1989.48547 -1807.98743 0.883230984 801.355835 358.720398 -800.970581 0.391287029 -90108.7812 -254043.5 2.14774989e+09 -122.299744
+lights 89 str2062 55 176 3735a0993696b97b
+frame 89 str2062 56 56 0 176 064a83d9c78edeb5 notes -
+camera 89 str2062 56 921.035278 577.496643 -524.831238 0.256388515 1695.35388 1990.8988 -1809.33667 0.883890092 801.088013 358.425842 -800.702881 0.391156256 -92672.2344 -256511.891 2.14775219e+09 -123.424255
+lights 89 str2062 56 176 b75f88a3ef8033a8
+frame 89 str2062 57 57 0 177 27c07c9bd172bf9c notes -
+camera 89 str2062 57 917.068481 572.816467 -520.596802 0.254319936 1697.63135 1992.30432 -1810.67993 0.88454628 800.815674 358.126312 -800.430664 0.391023278 -95236.2969 -258978.797 2.1477545e+09 -124.548256
+lights 89 str2062 57 177 53de89f2aff54190
+frame 89 str2062 58 58 0 177 bc78f2b76916b7a4 notes -
+camera 89 str2062 58 913.089417 568.124756 -516.351929 0.252246231 1699.90491 1993.70178 -1812.01685 0.885199428 800.53949 357.822601 -800.154602 0.390888423 -97800.7812 -261444.172 2.1477568e+09 -125.671707
+lights 89 str2062 58 177 f76949ead709fcec
+frame 89 str2062 59 59 0 177 3aa7fae16bfaacdd notes -
+camera 89 str2062 59 909.098755 563.422302 -512.097168 0.250167727 1702.17432 1995.09106 -1813.34753 0.885849476 800.259033 357.514191 -799.874329 0.390751481 -100365.406 -263907.625 2.1477591e+09 -126.794456
+lights 89 str2062 59 177 c6b3c4d67ee11fb3
+frame 89 str2062 60 60 0 202 ce3372505ea71489 notes -
+camera 89 str2062 60 905.095886 558.708374 -507.832062 0.248084143 1704.44031 1996.47253 -1814.67261 0.886496782 799.9729 357.199524 -799.588318 0.390611768 -102930.484 -266369.438 2.14776141e+09 -127.916641
+lights 89 str2062 60 202 2bbaa4f21a242b5a
+frame 89 str2062 61 61 0 202 f050a7e26c978961 notes -
+camera 89 str2062 61 901.081421 553.983704 -503.557098 0.245995745 1706.70154 1997.84546 -1815.99072 0.887140691 799.683899 356.881744 -799.299438 0.390470654 -105495.594 -268829.25 2.14776371e+09 -129.038055
+lights 89 str2062 61 202 5d1e6ecd60d13d24
+frame 89 str2062 62 62 0 203 dfa0984044c1d264 notes -
+camera 89 str2062 62 897.054382 549.247253 -499.271362 0.243902102 1708.95886 1999.21045 -1817.30273 0.88778162 799.39032 356.558929 -799.006042 0.390327305 -108061.094 -271287.406 2.14776602e+09 -130.15889
+lights 89 str2062 62 203 e4965b6c6a6374c3
+frame 89 str2062 63 63 0 203 d5e1efe2bbe2bdc4 notes -
+camera 89 str2062 63 893.015503 544.499695 -494.975555 0.241803527 1711.2124 2000.56714 -1818.60852 0.888419569 799.091614 356.230469 -798.707458 0.390181452 -110626.906 -273743.75 2.14776832e+09 -131.279083
+lights 89 str2062 63 203 a2a1caf22f4a3bd3
+frame 89 str2062 64 64 0 203 3cf812320665382f notes -
+camera 89 str2062 64 888.964783 539.741333 -490.66983 0.239700109 1713.4613 2001.91528 -1819.90771 0.889054239 798.788818 355.897552 -798.404785 0.390033603 -113192.672 -276197.969 2.14777062e+09 -132.398483
+lights 89 str2062 64 203 052c428397be39ff
+frame 89 str2062 65 65 0 202 ff4ac42a6bf7fb35 notes -
+camera 89 str2062 65 884.901794 534.971497 -486.353607 0.237591565 1715.7063 2003.25537 -1821.20068 0.889685869 798.481567 355.559753 -798.097717 0.389883578 -115758.766 -278650.406 2.14777293e+09 -133.517242
+lights 89 str2062 65 202 2a0ac427df31f4c1
+frame 89 str2062 66 66 0 202 c349fac06cd55eff notes -
+camera 89 str2062 66 880.827454 530.191345 -482.027954 0.235478416 1717.94666 2004.58667 -1822.48694 0.890314221 798.169739 355.216888 -797.786011 0.389731318 -118324.688 -281100.531 2.14777523e+09 -134.635147
+lights 89 str2062 66 202 2b9a359fed4a21b3
+frame 89 str2062 67 67 0 203 930049a567c624f8 notes -
+camera 89 str2062 67 876.740417 525.399414 -477.691437 0.233359963 1720.18225 2005.90918 -1823.76611 0.890939116 797.854248 354.870056 -797.470703 0.38957727 -120890.828 -283548.812 2.14777754e+09 -135.752365
+lights 89 str2062 67 203 b57bd94490283c91
+frame 89 str2062 68 68 0 203 a3fca89b5107b1dd notes -
+camera 89 str2062 68 872.641724 520.596741 -473.345184 0.231236741 1722.41382 2007.22339 -1825.03918 0.891561031 797.533386 354.517334 -797.149963 0.389420599 -123456.969 -285994.938 2.14777984e+09 -136.868805
+lights 89 str2062 68 203 40e5279c7bbbcdb8
+frame 89 str2062 69 69 0 203 9acc92bb5a46bdba notes -
+camera 89 str2062 69 868.531921 515.784119 -468.989716 0.229109034 1724.64038 2008.52856 -1826.3053 0.892179549 797.207764 354.159393 -796.824524 0.389261603 -126022.719 -288438.469 2.14778214e+09 -137.984268
+lights 89 str2062 69 203 a73eaa862eda9e0b
+frame 89 str2062 70 70 0 202 9f9cccac699d306d notes -
+camera 89 str2062 70 864.40918 510.959534 -464.62323 0.226975933 1726.86218 2009.82507 -1827.56433 0.892794609 796.878967 353.797974 -796.49585 0.389101058 -128588.75 -290880.219 2.14778445e+09 -139.099075
+lights 89 str2062 70 202 693b8e000a06e1d8
+frame 89 str2062 71 71 0 202 ad01af47d0652e94 notes -
+camera 89 str2062 71 860.275269 506.124878 -460.247528 0.224838331 1729.07947 2011.11267 -1828.81677 0.893406451 796.544739 353.430573 -796.161804 0.388937861 -131154.469 -293319.438 2.14778675e+09 -140.212952
+lights 89 str2062 71 202 d5e7f014f831c61b
+frame 89 str2062 72 72 0 203 9e05942759101024 notes -
+camera 89 str2062 72 856.129395 501.279358 -455.861816 0.222695842 1731.29163 2012.39111 -1830.06201 0.894014776 796.206055 353.05835 -795.823303 0.388772488 -133719.953 -295756.281 2.14778906e+09 -141.325928
+lights 89 str2062 72 203 1ea921dbfc24d24f
+frame 89 str2062 73 73 0 203 c07771b2d9300950 notes -
+camera 89 str2062 73 851.971313 496.422638 -451.465851 0.220548332 1733.49927 2013.66089 -1831.30054 0.894619823 795.862732 352.681 -795.480103 0.38860485 -136285.453 -298190.938 2.1477911e+09 -142.43811
+lights 89 str2062 73 203 43226a63e2272086
+frame 89 str2062 74 74 0 203 dde1e296b1eee61f notes -
+camera 89 str2062 74 847.801392 491.555298 -447.060028 0.218396023 1735.70178 2014.92139 -1832.53198 0.895221353 795.514954 352.298798 -795.132507 0.388435036 -138850.688 -300623.125 2.14779341e+09 -143.549377
+lights 89 str2062 74 203 ce782c925145eacb
+frame 89 str2062 75 75 0 202 6a5d47e7a2109b3a notes -
+camera 89 str2062 75 843.620178 486.677856 -442.644897 0.216239154 1737.89929 2016.17273 -1833.75623 0.895819426 795.162598 351.91153 -794.780334 0.388262987 -141415.406 -303052.594 2.14779571e+09 -144.659607
+lights 89 str2062 75 202 c531058fdb822e76
+frame 89 str2062 76 76 0 202 d8143aa2a70e67d1 notes -
+camera 89 str2062 76 839.42627 481.788849 -438.219055 0.21407707 1740.0918 2017.41479 -1834.97327 0.896413982 794.805542 351.519196 -794.423462 0.388088644 -143980.203 -305479.938 2.14779802e+09 -145.769073
+lights 89 str2062 76 202 5ec704698a25574d
+frame 89 str2062 77 77 0 203 b78aac988760fe52 notes -
+camera 89 str2062 77 835.221191 476.889954 -433.784088 0.211910516 1742.27917 2018.64783 -1836.18323 0.897005081 794.44397 351.121826 -794.062012 0.387912095 -146544.312 -307904.375 2.14780032e+09 -146.877426
+lights 89 str2062 77 203 f342e80be881c78a
+frame 89 str2062 78 78 0 203 7d5490c33980a129 notes -
+camera 89 str2062 78 831.005127 471.981445 -429.34021 0.209739611 1744.46069 2019.87085 -1837.38538 0.897592366 794.07782 350.719543 -793.696045 0.38773331 -149107.734 -310325.906 2.14780262e+09 -147.984665
+lights 89 str2062 78 203 debd036a304bb03a
+frame 89 str2062 79 79 0 203 166ad8482b86773a notes -
+camera 89 str2062 79 826.776184 467.061096 -424.885437 0.20756337 1746.6377 2021.08508 -1838.58093 0.898176372 793.706482 350.311493 -793.32489 0.387551993 -151671.281 -312745.281 2.14780493e+09 -149.091141
+lights 89 str2062 79 203 9ed293b444b09adc
+frame 89 str2062 80 80 0 228 663c2d65b35dbe96 notes -
+camera 89 str2062 80 822.536133 462.131104 -420.421631 0.205382735 1748.80872 2022.28943 -1839.76843 0.898756504 793.331299 349.899292 -792.94989 0.387368798 -154233.938 -315161.562 2.14780698e+09 -150.196411
+lights 89 str2062 80 228 6a0a57f4b9c9dc92
+frame 89 str2062 81 81 0 228 2a29ac4c5ca1ecb0 notes -
+camera 89 str2062 81 818.285217 457.191742 -415.949127 0.203197852 1750.974 2023.48401 -1840.94836 0.899332941 792.950928 349.481415 -792.569702 0.38718307 -156795.703 -317574.656 2.14780928e+09 -151.300476
+lights 89 str2062 81 228 14dffcc55484f631
+frame 89 str2062 82 82 0 229 8c7b90c79411178c notes -
+camera 89 str2062 82 814.021851 452.241058 -411.466156 0.201007843 1753.13452 2024.66931 -1842.12134 0.89990592 792.565735 349.058228 -792.184692 0.386994988 -159357.297 -319985.344 2.14781158e+09 -152.403656
+lights 89 str2062 82 229 83f2e27ec5e411f6
+frame 89 str2062 83 83 0 229 d8748a2763014908 notes -
+camera 89 str2062 83 809.747009 447.280365 -406.973877 0.198813289 1755.28918 2025.84473 -1843.2865 0.900475144 792.175598 348.629639 -791.794739 0.386804491 -161918.203 -322393 2.14781389e+09 -153.505692
+lights 89 str2062 83 229 b295b05830725d70
+frame 89 str2062 84 84 0 229 387ae7a1b2e9c100 notes -
+camera 89 str2062 84 805.460388 442.309326 -402.471924 0.196614012 1757.43799 2027.01038 -1844.44397 0.901040554 791.781311 348.196503 -791.400635 0.386611968 -164478.469 -324797.781 2.14781619e+09 -154.606628
+lights 89 str2062 84 229 e865655abce664d8
+frame 89 str2062 85 85 0 228 6f8679db0f3ed22a notes -
+camera 89 str2062 85 801.162231 437.328186 -397.960571 0.194410145 1759.5813 2028.16614 -1845.59375 0.901602268 791.381653 347.757538 -791.001221 0.386416823 -167038 -327199.531 2.1478185e+09 -155.706421
+lights 89 str2062 85 228 d3ccbcc604b4d2d6
+frame 89 str2062 86 86 0 228 777b564ec7c59034 notes -
+camera 89 str2062 86 796.853149 432.337708 -393.44046 0.192202002 1761.71826 2029.31177 -1846.73547 0.902159989 790.977905 347.314056 -790.597656 0.38621968 -169596.516 -329597.969 2.14782054e+09 -156.804932
+lights 89 str2062 86 228 1eba3a0746664979
+frame 89 str2062 87 87 0 229 89c3492c43ba7d74 notes -
+camera 89 str2062 87 792.531921 427.336487 -388.910309 0.189988956 1763.84961 2030.44751 -1847.86938 0.902713954 790.569397 346.865387 -790.189331 0.386020213 -172154.516 -331993.562 2.14782285e+09 -157.90239
+lights 89 str2062 87 229 a0d744c01b78fd8f
+frame 89 str2062 88 88 0 229 037e83eecd8d2ebe notes -
+camera 89 str2062 88 788.198975 422.324982 -384.370636 0.187771246 1765.97559 2031.57349 -1848.99609 0.903264344 790.154968 346.410248 -789.775085 0.385817856 -174711.734 -334386.031 2.14782515e+09 -158.998672
+lights 89 str2062 88 229 f6d54454da8e128b
+frame 89 str2062 89 89 0 228 bab65f097931afbb notes -
+camera 89 str2062 89 783.856262 417.305542 -379.823425 0.185549855 1768.09424 2032.6886 -1850.11377 0.903810382 789.736877 345.951111 -789.357239 0.38561371 -177267.359 -336774.625 2.14782746e+09 -160.093414
+lights 89 str2062 89 228 37c22de91ee1bf22
+frame 89 str2062 90 90 0 227 c148697b6654653e notes -
+camera 89 str2062 90 779.500305 412.2742 -375.265106 0.183323056 1770.20789 2033.79419 -1851.22424 0.904352844 789.313354 345.486053 -788.933899 0.385406911 -179822.766 -339160.625 2.1478295e+09 -161.187225
+lights 89 str2062 90 227 458292e2d5014f5a
+frame 89 str2062 91 91 0 227 eb750b60ea5b20b2 notes -
+camera 89 str2062 91 775.133484 407.233673 -370.698151 0.181092024 1772.31482 2034.88904 -1852.32629 0.904891193 788.885376 345.016113 -788.506104 0.385197937 -182376.984 -341543.094 2.14783181e+09 -162.279678
+lights 89 str2062 91 227 fb757d6b924d5884
+frame 89 str2062 92 92 0 228 d34488a6299f0339 notes -
+camera 89 str2062 92 770.756836 402.185242 -366.123718 0.178857327 1774.41504 2035.97339 -1853.41992 0.905425489 788.452332 344.540619 -788.073303 0.38498649 -184929.562 -343921.562 2.14783411e+09 -163.37056
+lights 89 str2062 92 228 06124c6a8eba6c9c
+frame 89 str2062 93 93 0 228 29e871a0bf7c7226 notes -
+camera 89 str2062 93 766.367004 397.124969 -361.538208 0.176617235 1776.50989 2037.04785 -1854.50598 0.90595603 788.014282 344.059662 -787.635437 0.384772599 -187481.766 -346297.312 2.14783642e+09 -164.460449
+lights 89 str2062 93 228 ef97c6fd7f806868
+frame 89 str2062 94 94 0 228 68762609a173977a notes -
+camera 89 str2062 94 761.966919 392.056335 -356.944763 0.174373269 1778.59766 2038.11145 -1855.58337 0.906482339 787.571472 343.573517 -787.192871 0.384556383 -190032.391 -348669.094 2.14783846e+09 -165.548782
+lights 89 str2062 94 228 7f4d40677eb560b1
+frame 89 str2062 95 95 0 227 d0a9a3be534383fa notes -
+camera 89 str2062 95 757.555237 386.977783 -352.34198 0.172124729 1780.6792 2039.16455 -1856.65259 0.907004654 787.123901 343.082153 -786.745483 0.384337842 -192582.109 -351037.562 2.14784077e+09 -166.63588
+lights 89 str2062 95 227 d08ede89526a6cf6
+frame 89 str2062 96 96 0 227 c0de15412d220b32 notes -
+camera 89 str2062 96 753.13269 381.890167 -347.730621 0.169872016 1782.75403 2040.20703 -1857.71326 0.907522857 786.671021 342.584991 -786.292847 0.384116709 -195130.297 -353402.156 2.14784307e+09 -167.721451
+lights 89 str2062 96 227 8d3cf202606ad312
+frame 89 str2062 97 97 0 228 8d7939dce6c373cd notes -
+camera 89 str2062 97 748.697693 376.791748 -343.10907 0.167614311 1784.82251 2041.23889 -1858.76562 0.908036947 786.213928 342.083282 -785.835938 0.38389352 -197677.766 -355763.625 2.14784512e+09 -168.805862
+lights 89 str2062 97 228 512495734e5318d4
+frame 89 str2062 98 98 0 228 c75aecb49f7bf688 notes -
+camera 89 str2062 98 744.253723 371.686371 -338.480896 0.165353373 1786.88428 2042.25989 -1859.80981 0.908547044 785.750305 341.574371 -785.372559 0.383667141 -200223.188 -358120.594 2.14784742e+09 -169.888519
+lights 89 str2062 98 228 e35ecbafb7077a56
+frame 89 str2062 99 99 0 228 7f0d0292ac4a4dd5 notes -
+camera 89 str2062 99 739.797302 366.570343 -333.84259 0.163087487 1788.93872 2043.2699 -1860.84473 0.90905261 785.28363 341.062225 -784.906128 0.383439273 -202767.531 -360474.125 2.14784973e+09 -170.969833
+lights 89 str2062 99 228 bc3ac7880bb4e3d9
+frame 89 str2062 100 100 0 253 f2e3e84fcf3ad24b notes -
+camera 89 str2062 100 735.330688 361.446014 -329.196411 0.160817742 1790.98669 2044.26917 -1861.87158 0.909554243 784.810791 340.543274 -784.433472 0.383208394 -205310.297 -362823.656 2.14785178e+09 -172.049622
+lights 89 str2062 100 253 d23dd6960261b867
+frame 89 str2062 101 101 0 253 92c48bd3a300b771 notes -
+camera 89 str2062 101 730.852539 356.312042 -324.541046 0.158543527 1793.02747 2045.25732 -1862.8894 0.910051465 784.333557 340.019562 -783.956482 0.38297537 -207851.703 -365169.406 2.14785408e+09 -173.127945
+lights 89 str2062 101 253 019a1131fa8f5424
+frame 89 str2062 102 102 0 254 5777cd219ab17248 notes -
+camera 89 str2062 102 726.363281 351.168884 -319.876923 0.156265035 1795.06152 2046.2345 -1863.89868 0.910544515 783.850952 339.48999 -783.474121 0.382739723 -210391.703 -367511.281 2.14785613e+09 -174.204788
+lights 89 str2062 102 254 4b2301cd38ebb03c
+frame 89 str2062 103 103 0 254 cdb202f5a514a4b6 notes -
+camera 89 str2062 103 721.86322 346.016846 -315.204346 0.153982401 1797.0885 2047.20068 -1864.89929 0.911033332 783.363464 338.955109 -782.986877 0.382501692 -212930.047 -369849.062 2.14785843e+09 -175.280045
+lights 89 str2062 103 254 ae5cee5afd4a90dd
+frame 89 str2062 104 104 0 254 39817bfff4b5c6f5 notes -
+camera 89 str2062 104 717.352844 340.856628 -310.523926 0.151695937 1799.10815 2048.15552 -1865.89087 0.911517739 782.871033 338.414795 -782.49469 0.382261246 -215466.531 -372182.562 2.14786074e+09 -176.353622
+lights 89 str2062 104 254 a95123c1be4f1504
+frame 89 str2062 105 105 0 253 ae25d76d15a88fed notes -
+camera 89 str2062 105 712.831604 335.687531 -305.834991 0.149405316 1801.12061 2049.09912 -1866.87366 0.911997855 782.373108 337.8685 -781.997009 0.382018119 -218001.375 -374511.969 2.14786278e+09 -177.425629
+lights 89 str2062 105 253 12c41dfb450bf56a
+frame 89 str2062 106 106 0 253 4b760e7c3f0fcae6 notes -
+camera 89 str2062 106 708.298401 330.508362 -301.136414 0.147109985 1803.1261 2050.03174 -1867.84741 0.912473559 781.87085 337.317505 -781.494995 0.381772876 -220534.984 -376837.656 2.14786509e+09 -178.496216
+lights 89 str2062 106 253 1ade20dea56109ff
+frame 89 str2062 107 107 0 254 4d6e90d2df02fac9 notes -
+camera 89 str2062 107 703.756226 325.32254 -296.431396 0.144811511 1805.12366 2050.95264 -1868.81226 0.912944853 781.362854 336.760254 -780.987244 0.381524831 -223066.109 -379158.375 2.14786714e+09 -179.564835
+lights 89 str2062 107 254 6b28a8675dd9774f
+frame 89 str2062 108 108 0 254 86980a45e07b6e48 notes -
+camera 89 str2062 108 699.201233 320.125763 -291.715912 0.142507926 1807.1145 2051.86255 -1869.76807 0.913411796 780.850525 336.198273 -780.475159 0.38127467 -225596.234 -381475.656 2.14786944e+09 -180.632156
+lights 89 str2062 108 254 122801d3a06f3569
+frame 89 str2062 109 109 0 254 bf62351c33ff6d23 notes -
+camera 89 str2062 109 694.638 314.923248 -286.994751 0.140201554 1809.09668 2052.76025 -1870.71423 0.91387403 780.332825 335.630463 -779.957703 0.381021887 -228123.5 -383787.594 2.14787149e+09 -181.697357
+lights 89 str2062 109 254 2db4d637e4997042
+frame 89 str2062 110 110 0 253 3b971756fa3c467c notes -
+camera 89 str2062 110 690.062988 309.710938 -282.264221 0.137890622 1811.07214 2053.64673 -1871.65173 0.914332032 779.809509 335.056519 -779.434631 0.380766362 -230649.297 -386095.531 2.14787379e+09 -182.761032
+lights 89 str2062 110 253 7a6f40d49b7998bf
+frame 89 str2062 111 111 0 253 b4c03a9befe8cb40 notes -
+camera 89 str2062 111 685.477295 304.490082 -277.525421 0.135575637 1813.03992 2054.52173 -1872.57996 0.914785445 779.281433 334.477386 -778.906799 0.380508512 -233173.234 -388399.156 2.14787584e+09 -183.823029
+lights 89 str2062 111 253 f8526706727c1712
+frame 89 str2062 112 112 0 254 dcbf9501b38e11c3 notes -
+camera 89 str2062 112 680.881104 299.261017 -272.778656 0.133256763 1814.99988 2055.38501 -1873.49878 0.915234327 778.748535 333.892975 -778.374146 0.380248308 -235695.094 -390698.188 2.14787814e+09 -184.883224
+lights 89 str2062 112 254 58d44a99c99abe1b
+frame 89 str2062 113 113 0 254 0f439ed5fb14f42f notes -
+camera 89 str2062 113 676.274475 294.023804 -268.023956 0.130934015 1816.9519 2056.23657 -1874.40833 0.91567862 778.210205 333.302704 -777.83606 0.379985452 -238214.859 -392992.625 2.14788019e+09 -185.941635
+lights 89 str2062 113 254 edff5c3333d7f173
+frame 89 str2062 114 114 0 254 91f7e3878a60e1c4 notes -
+camera 89 str2062 114 671.658264 288.779358 -263.262177 0.12860781 1818.89587 2057.07617 -1875.30823 0.916118264 777.666626 332.706726 -777.292786 0.379720032 -240732.172 -395282.094 2.1478825e+09 -186.998093
+lights 89 str2062 114 254 b4763e0eb85ca0f8
+frame 89 str2062 115 115 0 253 d6fa1f045084e127 notes -
+camera 89 str2062 115 667.030457 283.525452 -258.491241 0.126277134 1820.83215 2057.90381 -1876.19861 0.916553259 777.11853 332.105804 -776.744934 0.379452407 -243247.812 -397567.375 2.14788454e+09 -188.052933
+lights 89 str2062 115 253 6cc52bcd34bb6ed9
+frame 89 str2062 116 116 0 219 0fdf0226d705513c notes -
+camera 89 str2062 116 -1995.83875 -1713.88757 1627.43237 -0.795026898 -708.00238 -1268.21118 1204.23767 -0.588289499 302.712891 -410.412201 -302.567352 0.147809029 -364815.781 31001.6914 2.14755328e+09 -26.1974945
+lights 89 str2062 116 219 70ff1eac46727566
+frame 89 str2062 117 117 0 219 612c6b4a7d0f1048 notes -
+camera 89 str2062 117 -1995.83875 -1713.88757 1627.43237 -0.795026898 -708.00238 -1268.21118 1204.23767 -0.588289499 302.712891 -410.412201 -302.567352 0.147809029 -364815.781 31001.6914 2.14755328e+09 -26.1974945
+lights 89 str2062 117 219 52b92259198373ec
+frame 89 str2062 118 118 0 219 eb51a692735558d4 notes -
+camera 89 str2062 118 -1995.83875 -1713.88757 1627.43237 -0.795026898 -708.00238 -1268.21118 1204.23767 -0.588289499 302.712891 -410.412201 -302.567352 0.147809029 -364815.781 31001.6914 2.14755328e+09 -26.1974945
+lights 89 str2062 118 219 6abcf6adfc062881
+frame 89 str2062 119 119 0 219 f26b84e7d13336d9 notes -
+camera 89 str2062 119 -1995.83875 -1713.88757 1627.43237 -0.795026898 -708.00238 -1268.21118 1204.23767 -0.588289499 302.712891 -410.412201 -302.567352 0.147809029 -364815.781 31001.6914 2.14755328e+09 -26.1974945
+lights 89 str2062 119 219 c9098c1617e82801
+frame 89 str2062 120 120 0 245 02abbe1a23694c17 notes -
+camera 89 str2062 120 -1995.83875 -1713.88757 1627.43237 -0.795026898 -708.00238 -1268.21118 1204.23767 -0.588289499 302.712891 -410.412201 -302.567352 0.147809029 -364815.781 31001.6914 2.14755328e+09 -26.1974945
+lights 89 str2062 120 245 131591f0a28b4b7a

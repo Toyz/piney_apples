@@ -457,7 +457,7 @@ impl StoryArea {
             .iter()
             .map(|b| b.file.map(|stem| SceneFile::read(env.archive, stem).map(Rc::new)).transpose())
             .collect::<Result<_>>()?;
-        let lights = TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: None };
+        let lights = TownLights { volume: env.volume, ..TownLights::default() };
         let hits = event_hits(env.volume, env.def_se);
         let core = AreaCore {
             file: file.clone(),
@@ -549,9 +549,9 @@ impl StoryArea {
             Some(l) => {
                 let names = l.table.iter().map(|n| cx.name(n).into_owned());
                 let (ambient, lights, _) = light_group(&file, &cx.name(l.anim), names, l.skip_missing)?;
-                TownLights { ambient, lights, fog: block.fog }
+                TownLights { ambient, lights, fog: block.fog, volume, objects: Vec::new() }
             }
-            None => TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: block.fog },
+            None => TownLights { fog: block.fog, volume, ..TownLights::default() },
         };
         if let Some(at) = block.start.of(&file, area_prev)? {
             self.core.start = at;
@@ -714,6 +714,9 @@ impl StoryArea {
         let block = self.block_def();
         let steps = if awake { block.order } else { block.asleep.unwrap_or(block.order) };
         self.frame.clear();
+        // The group as this frame's characters see it: they draw before
+        // the area steps its objects' anms.
+        self.core.lights.objects = self.systems.object_lights();
         let mut events = Vec::new();
         self.systems.run_rand(steps, &mut self.core, v, &mut self.frame, &mut events, cc);
     }
@@ -871,7 +874,7 @@ pub fn light_group<S: AsRef<str>>(
     anim: &str,
     names: impl IntoIterator<Item = S>,
     skip_missing: bool,
-) -> Result<(glam::Vec3, Vec<crate::town::Light>, Vec<u32>)> {
+) -> Result<(V4, Vec<crate::town::Light>, Vec<u32>)> {
     let ai = file.anim(anim).ok_or_else(|| Error::NotFound(anim.into()))?;
     let (ambient, records) = crate::town::anim_lights(file, ai)?;
     let (mut group, mut objects) = (Vec::new(), Vec::new());
@@ -884,9 +887,9 @@ pub fn light_group<S: AsRef<str>>(
             return Err(Error::NotFound(name.into()));
         };
         objects.push(obj);
-        group.extend(records.iter().find(|l| l.object == obj).map(|l| l.at(256)));
+        group.extend(records.iter().find(|l| l.object == obj).map(|l| l.at(256, &piney_data::vu0::UNIT)));
     }
-    Ok((ambient.unwrap_or(glam::Vec3::ZERO), group, objects))
+    Ok((ambient.unwrap_or([0; 4]), group, objects))
 }
 
 #[cfg(test)]

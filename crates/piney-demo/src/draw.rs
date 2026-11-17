@@ -7,7 +7,7 @@
 //! light the icons (`MDL_xdt_ico_*`). See docs/engine/title.md ("The 3D
 //! draw").
 
-use glam::{Mat3, Mat4, Vec3};
+use glam::{Mat4, Vec3};
 use piney_desktop::anm::{
     Anm, Ctx, FOG_BLEND_F, Instance, MIN_TRANSPARENCY, OPAQUE_TRANSPARENCY, model_state, sort_key,
 };
@@ -26,27 +26,28 @@ pub const MTYPE_LIT: u16 = 1;
 /// The title's `ccOmniLight`: world position (`Init` 0x00406378..0x00406388,
 /// -8500 = 0xc604d000, 6500 = 0x45cb2000).
 pub const OMNI_POS: [f32; 3] = [-8500.0, 0.0, 6500.0];
-/// Its colour times intensity, before VU1 doubles it.
-pub const OMNI_COLOUR: [f32; 3] = [1.0, 1.0, 1.0];
 /// The slot `SetLightMatrix` sorts a lone priority-1 light into.
 pub const OMNI_SLOT: usize = 2;
 /// `ccDefAmbientColor` (0x002f7340).
 pub const AMBIENT: [f32; 3] = [0.35, 0.35, 0.35];
-/// `mc_SetMatrix`'s `loi 2.0` on the light colours.
-pub const VU_LIGHT_SCALE: f32 = 2.0;
 
-/// What VU1 lights a lit model with, for the object at `world`.
+/// What VU1 lights a lit model with, for the object at `world`: the
+/// title's light, `ccLight(4, 1)` after `ccOmniLight::Init`,
+/// `ccSetColor(0xffffff, 1)`, the unit matrix moved to its place, through
+/// the game's light group ([`piney_data::light::light_regs`]). With no
+/// fall-off no `sqrt` is taken, so every disc's code lights it alike.
 pub fn omni_lights(world: Mat4) -> Lights {
-    let obj = world.w_axis.truncate();
-    // CheckRange: normal = normalize(checkPos - lightPos); the matrix then
-    // takes its negation: toward the light.
-    let toward = (Vec3::from(OMNI_POS) - obj).normalize_or_zero();
-    // Row i of lightNormal x lwMatrix is W^T l_i; VU1 renormalises it.
-    let dir = (Mat3::from_mat4(world).transpose() * toward).normalize_or_zero();
-    let mut l = Lights { dirs: [[0.0; 3]; 3], colours: [[0.0; 3]; 3], ambient: AMBIENT };
-    l.dirs[OMNI_SLOT] = dir.into();
-    l.colours[OMNI_SLOT] = (Vec3::from(OMNI_COLOUR) * VU_LIGHT_SCALE).into();
-    l
+    use piney_data::light::{self, Falloff, Light};
+    use piney_data::vu0::{ONE, UNIT, trans_matrix};
+    let [x, y, z] = OMNI_POS.map(f32::to_bits);
+    let pos = trans_matrix(&UNIT, [x, y, z, ONE])[3];
+    let omni = Light { priority: 1, ..Light::omni(pos, light::colour_of(0x00ff_ffff, ONE), ONE, Falloff::default()) };
+    let [r, g, b] = AMBIENT.map(f32::to_bits);
+    let w = world.to_cols_array().map(f32::to_bits);
+    let world: [[u32; 4]; 4] = std::array::from_fn(|r| std::array::from_fn(|c| w[4 * r + c]));
+    let regs = light::light_regs(piney_data::volume::Volume::Inf, &[omni], [r, g, b, 0], &world);
+    let f = |v: [u32; 3]| v.map(f32::from_bits);
+    Lights { dirs: regs.dirs.map(f), colours: regs.colours.map(f), ambient: f(regs.ambient) }
 }
 
 /// `ccAnm::Draw` of `anm` (an animation of `file`) on the title's layer.
@@ -142,6 +143,8 @@ fn draw_instance(ctx: &mut Ctx, view: &View, file: &SceneFile, inst: &Instance, 
 
 #[cfg(test)]
 mod tests {
+    use glam::Mat3;
+
     use super::*;
 
     #[test]
@@ -153,7 +156,8 @@ mod tests {
         let d = Vec3::from(l.dirs[OMNI_SLOT]);
         let toward = Vec3::from(OMNI_POS).normalize();
         assert!((Mat3::from_mat4(world) * d - toward).length() < 1e-5);
-        assert_eq!(l.colours[OMNI_SLOT], [2.0; 3]);
+        let white = piney_data::light::colour_of(0x00ff_ffff, 0x3f80_0000).map(f32::from_bits);
+        assert_eq!(l.colours[OMNI_SLOT], [white[0] * 2.0; 3]);
         assert_eq!(l.colours[0], [0.0; 3]);
     }
 }

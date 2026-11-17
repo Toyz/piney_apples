@@ -10,8 +10,9 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use glam::{Mat3, Mat4, Vec3};
+use glam::Mat4;
 use piney_data::archive::Archive;
+use piney_data::light::light_regs;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -21,7 +22,7 @@ use crate::chara::body::Body;
 use crate::chara::motion::PLAYER_ANIM_TBL;
 use crate::chara::pose::Play;
 use crate::ee::{ONE, V4};
-use crate::town::{Light, TownLights};
+use crate::town::{Light, LightKind, TownLights};
 
 /// Kite's file (`charTbl[0].ccsname`) and his clump.
 pub const BODY: &str = "ctu1body";
@@ -35,11 +36,9 @@ pub const HANDS: [(&str, &str); 2] = [("OBJ_t0 r hand", "MDL_cwdhsw02r"), ("OBJ_
 pub const CLUT: &str = "CLT_ctu1body";
 pub const CLUT_EARLY: &str = "CLT_ctu1bodyc1";
 
-/// `mc_SetMatrix`'s doubling of the light colours.
-pub const VU_LIGHT_SCALE: f32 = 2.0;
 /// `WORLD_MAN::SleepDistantLight`: the main light's intensity on shaded
 /// ground (`hitAttribute` bit 0x40000).
-pub const SHADE: f32 = 0.3;
+pub use piney_data::light::SHADE;
 
 /// Kite's model files, read once.
 pub struct Kite {
@@ -189,95 +188,27 @@ impl Kite {
 
 pub use crate::chara::body::root;
 
-/// `CheckRange` of one light at `at`: (the direction it travels, colour
-/// times intensity), or None when it does not reach (`ccOmniLight::
-/// CheckRange` 0x00139830, `ccDirectLight::CheckRange` 0x00139330,
-/// `ccDistantLight::CheckRange` 0x00139170).
-fn check_range(l: &Light, at: Vec3, shaded: bool) -> Option<(Vec3, Vec3)> {
-    let intensity = if l.kind == 1 && shaded { SHADE } else { l.intensity };
-    if intensity <= 1.0 / 128.0 {
-        return None;
-    }
-    match l.kind {
-        4 => {
-            let d = at - l.pos;
-            let f = if l.far_end == 0.0 {
-                intensity
-            } else if d.length_squared() <= l.far_end * l.far_end {
-                let dist = d.length();
-                if dist <= l.far_start {
-                    intensity
-                } else {
-                    let f = intensity * (l.far_end - dist) / (l.far_end - l.far_start);
-                    if f <= 1.0 / 128.0 {
-                        return None;
-                    }
-                    f
-                }
-            } else {
-                return None;
-            };
-            Some((d.normalize_or_zero(), l.colour * f))
-        }
-        // A beam down the light's -z: `at` in the light's own space (its
-        // matrix inverted), nothing behind it or past the beam's end, full
-        // to its start and to the first radius, falling off linearly to the
-        // end and to the second radius.
-        // The beam is round, so only its axis matters: the depth along it
-        // and the square of the distance from it.
-        2 => {
-            let d = at - l.pos;
-            let axis = l.dir.normalize_or_zero();
-            let z = axis.dot(d);
-            if z < 0.0 || (l.far_end != 0.0 && z > l.far_end) {
-                return None;
-            }
-            let r2 = (d - axis * z).length_squared();
-            let [r0, r1] = l.radius;
-            if r2 > r1 * r1 {
-                return None;
-            }
-            let mut f = if l.far_end == 0.0 || z <= l.far_start {
-                intensity
-            } else {
-                intensity * (l.far_end - z) / (l.far_end - l.far_start)
-            };
-            let r = r2.sqrt();
-            if r > r0 {
-                f = f * (r1 - r) / (r1 - r0);
-            }
-            if f <= 1.0 / 128.0 {
-                return None;
-            }
-            Some((l.dir, l.colour * f))
-        }
-        _ => Some((l.dir, l.colour * intensity)),
-    }
-}
-
-/// `ccDrawEnv::SetLightMatrix` for a lit model at `world`: the first three
-/// lights of the group that reach its position fill slots 2, 1, 0 (the
-/// group runs in descending priority: omni lights before the distant one);
-/// directions toward each light in model space, colours doubled as VU1
-/// does, the town's ambient.
+/// The lights a lit model with world matrix `world` is drawn with, as VU1
+/// holds them after `mc_SetMatrix`: `ccModel::Draw`'s `SetLightMatrix` at
+/// the model's place, `ccSetMatrixPacket`'s product with its matrix and
+/// VU1's renormalising and doubling, every op the game's
+/// ([`piney_data::light::light_regs`]). On shaded ground the distant light
+/// is at `SleepDistantLight`'s 0.3.
 pub fn light_matrix(town: &TownLights, world: Mat4, shaded: bool) -> Lights {
-    let at = world.w_axis.truncate();
-    let mut order: Vec<&Light> = town.lights.iter().collect();
-    order.sort_by_key(|l| -i32::from(l.priority));
-    let mut out = Lights { dirs: [[0.0; 3]; 3], colours: [[0.0; 3]; 3], ambient: town.ambient.into() };
-    let w = Mat3::from_mat4(world).transpose();
-    let mut used = 0;
-    for l in order {
-        if used == 3 {
-            break;
-        }
-        let Some((normal, colour)) = check_range(l, at, shaded) else { continue };
-        let slot = 2 - used;
-        out.dirs[slot] = (w * -normal.normalize_or_zero()).normalize_or_zero().into();
-        out.colours[slot] = (colour * VU_LIGHT_SCALE).into();
-        used += 1;
-    }
-    out
+    let w = world.to_cols_array().map(f32::to_bits);
+    let world: [V4; 4] = std::array::from_fn(|r| std::array::from_fn(|c| w[4 * r + c]));
+    let shade = |l: &Light| match l.kind {
+        LightKind::Distant { .. } if shaded => Light { intensity: SHADE, ..*l },
+        _ => *l,
+    };
+    let regs = if shaded || !town.objects.is_empty() {
+        let lights: Vec<Light> = town.objects.iter().chain(&town.lights).map(shade).collect();
+        light_regs(town.volume, &lights, town.ambient, &world)
+    } else {
+        light_regs(town.volume, &town.lights, town.ambient, &world)
+    };
+    let f = |v: [u32; 3]| v.map(f32::from_bits);
+    Lights { dirs: regs.dirs.map(f), colours: regs.colours.map(f), ambient: f(regs.ambient) }
 }
 
 #[cfg(test)]

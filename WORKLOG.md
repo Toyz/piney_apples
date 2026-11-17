@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-610 entries: audio 50, battle 169, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 133, save 16, script 64, test 267, tooling 65, ui 111, video 18, volumes 111, world 194. 167 entries still have open questions - [listed below](#still-open).
+611 entries: audio 50, battle 169, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 134, save 16, script 64, test 268, tooling 65, ui 111, video 19, volumes 112, world 195. 168 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -622,9 +622,11 @@ The [reference](docs/README.md) says what is true now.
 | 608 | [ccThMother's unplugged pause on every volume, the Outbreak icon static proven unwritten over the whole disc, exact floats in the field UI harnesses](worklog/0608-ccthmother-s-unplugged-pause-on-every-volume-the-outbreak.md) | 2026-11-16 | ui, engine, volumes, tooling, test |
 | 609 | [The desktop, the top page and the eemu harness on the later discs](worklog/0609-the-desktop-the-top-page-and-the-eemu-harness-on-the-later.md) | 2026-11-16 | ui, volumes, tooling, test |
 | 610 | [The later discs' last harnesses, and gcmn's statics as the overlay loads](worklog/0610-the-later-discs-last-harnesses-and-gcmn-s-statics-as-the.md) | 2026-11-17 | battle, ui, audio, world, volumes, tooling, test |
+| 611 | [The light group to the bit on every disc](worklog/0611-the-light-group-to-the-bit-on-every-disc.md) | 2026-11-17 | render, world, video, volumes, test |
 
 ## Still open
 
+- [611. The light group to the bit on every disc](worklog/0611-the-light-group-to-the-bit-on-every-disc.md) - nothing of this work.
 - [610. The later discs' last harnesses, and gcmn's statics as the overlay loads](worklog/0610-the-later-discs-last-harnesses-and-gcmn-s-statics-as-the.md) (3 questions) - test_lights_rs compares the light group within 1e-4 for directions and 1e-5 for colours.
 - [609. The desktop, the top page and the eemu harness on the later discs](worklog/0609-the-desktop-the-top-page-and-the-eemu-harness-on-the-later.md) (2 questions) - test_toppage_rs checks the game's scene after Log in against the table it reads from the code, but it does not compare...
 - [608. ccThMother's unplugged pause on every volume, the Outbreak icon static proven unwritten over the whole disc, exact floats in the field UI harnesses](worklog/0608-ccthmother-s-unplugged-pause-on-every-volume-the-outbreak.md) (3 questions) - Why Quarantine's Data screen differs in test_desktop_data_rs's random pads 2-4.

@@ -367,7 +367,7 @@ impl Stream {
         // archive instead.
         let pcm_track = matches!(volume, piney_data::volume::Volume::Out | piney_data::volume::Volume::Qua)
             .then_some(u8::from(opts.english));
-        let mut loaded = Loaded { files: resident, pcm_track };
+        let mut loaded = Loaded { files: resident, pcm_track, volume };
         for e in &files.preload {
             let m = member(&members, e)?;
             loaded.files.push(StreamFile::read(&archive, &m.stem())?);

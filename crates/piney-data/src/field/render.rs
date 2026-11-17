@@ -307,8 +307,12 @@ impl Light {
     /// `sceVu0RotMatrix` of the rotation in radians (`DecodeF_DistantLight`:
     /// degrees * pi / 180).
     pub fn dirc(&self) -> [u32; 4] {
-        let rad = self.rotation.map(|d| ee::div(ee::mul(PI, d), DEG180));
-        vu_apply(&rot_matrix(rad), LIGHT_VECTOR)
+        vu_apply(&self.matrix(), LIGHT_VECTOR)
+    }
+
+    /// The light's matrix: `sceVu0RotMatrix` of the rotation in radians.
+    pub fn matrix(&self) -> Mat4 {
+        rot_matrix(self.rotation.map(|d| ee::div(ee::mul(PI, d), DEG180)))
     }
 
     /// The direction `Lambert` (gcmn 0x005af2d0) lights along: lightVector

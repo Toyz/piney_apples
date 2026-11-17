@@ -10,6 +10,8 @@
 //! lake's sky and fireflies, type 32's leaves) are the dungeon type's
 //! systems ([`def::DungeonDef`]).
 
+pub use piney_data::vu0::invers;
+use piney_data::vu0::{mul_matrix, trans_matrix};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -37,7 +39,7 @@ use crate::systems::{
     BuildCx, Carried, CarriedMut, DrawCx, Drawn, FieldCx, Joined, MapEvent, MapView, RoomAt, RoomPart, Statics,
     Systems, paint,
 };
-use crate::town::{Light, TownLights};
+use crate::town::{Light, LightKind, TownLights};
 use def::{DungeonDef, RoomStep};
 
 /// `WORLD_MAN` bounds in `GO(2)`: 0..60000 both ways.
@@ -726,22 +728,6 @@ impl crate::area::AreaMap for DungeonArea {
     }
 }
 
-/// `sceVu0InversMatrix` (main 0x001107b0): the transposed rotation and the
-/// translation taken back through it, `-(r0 t.x + r1 t.y + r2 t.z)` as VU0
-/// multiply-adds, w kept.
-pub fn invers(m: &[V4; 4]) -> [V4; 4] {
-    let t = m[3];
-    let rows: [V4; 3] = std::array::from_fn(|i| [m[0][i], m[1][i], m[2][i], 0]);
-    let mut out = [rows[0], rows[1], rows[2], [0, 0, 0, t[3]]];
-    for k in 0..3 {
-        let acc = ee::mul(rows[0][k], t[0]);
-        let acc = ee::add(acc, ee::mul(rows[1][k], t[1]));
-        let v = ee::add(acc, ee::mul(rows[2][k], t[2]));
-        out[3][k] = ee::sub(0, v);
-    }
-    out
-}
-
 /// [`DungeonArea::pose`] over any scene file: every object controller of
 /// `play`'s animation at its time, in the chunk's order, with its world
 /// matrix (`ccCoord::_SetLWMatrix` up the parents, `sceVu0MulMatrix`'s
@@ -1024,25 +1010,19 @@ impl DungeonArea {
 
         let heights: Rc<dyn crate::hit::Heights> = Rc::new(Heights);
         let hits = Hits { volume, area: 2, bounds: Some(BOUNDS), heights: Some(heights), ..Hits::default() };
-        let amb = ambient_bits(&fog).map(f32::from_bits);
-        // The constructor's distant light (0x005b8c10): grey 0.7, turned
-        // by (-0.8, 0, -0.6) (SetMatrix_RotZYX), in the light group.
+        let [r, g, b] = ambient_bits(&fog);
+        // The constructor's distant light (0x005b8c10): `ccLight(1, 0)`,
+        // priority 0, grey 0.7 copied in, intensity 1 (`Init`), turned by
+        // (-0.8, 0, -0.6) (`SetMatrix_RotZYX`, no parent), in the group.
         let rot = piney_data::anim::rot_bits([0xbf4c_cccd, 0, 0xbf19_999a]);
-        let dir = draw::mat(&rot).transform_vector3(Vec3::new(0.0, 0.0, -1.0));
+        let grey = 0x3f33_3333;
+        let light = Light { priority: 0, ..Light::distant(&rot, [grey, grey, grey, grey], ONE) };
         let lights = TownLights {
-            ambient: Vec3::from(amb),
-            lights: vec![Light {
-                kind: 1,
-                pos: Vec3::ZERO,
-                dir,
-                colour: Vec3::splat(f32::from_bits(0x3f33_3333)),
-                intensity: 1.0,
-                far_start: 0.0,
-                far_end: 0.0,
-                radius: [0.0; 2],
-                priority: -1,
-            }],
+            ambient: [r, g, b, 0],
+            lights: vec![light],
             fog: Some(room_fog_params(&fog)),
+            volume,
+            objects: Vec::new(),
         };
         // The type's systems, as the constructor makes them (no draws of
         // fieldrand): WORLD_MAN's weather row and hack flag the lakes' sky
@@ -1389,35 +1369,43 @@ impl DungeonArea {
     }
 
     /// An event room's light group (`SetRoom`'s cases at 0x005c2288 and on):
-    /// its `LGT_` object stood at `750 (x + 4, y + 4, 0)` of the row's map
-    /// cell and added (`AddGrp`), and the ambient the anm's (`GetAmbient`,
-    /// `SetAmbient`); types 26 and 35 add no light and leave the ambient as
-    /// the last room set it. The light is the Anime chunk's record at the
-    /// frame with its place replaced by that one (for every Infection
-    /// room a direct light, a white beam down -z of radius 500 or 850);
-    /// that the light has no parent to move it is not checked.
+    /// the anm's `LGT_` (`SetAnm` makes the room's anm its parent, so it
+    /// stands under the room's root), added (`AddGrp`), and the ambient the
+    /// anm's (`GetAmbient`, `SetAmbient`); types 26 and 35 add no light and
+    /// leave the ambient. The case steps the anm once, then
+    /// `SetMatrix_PosRotZYX(light, 750 (x + 4, y + 4, 0), rot)`; the tail's
+    /// `_AnimateForward` (0x005c3734) puts the record's place back when its
+    /// step sets a pose, as every room's but `se3_3`'s does.
     fn event_room_lights(&mut self, er: special::EventRoom, row: &dungeon::RoomData) {
         let Some(room) = &self.room else { return };
         let Some(spccs) = &self.rooms.spccs else { return };
-        let Ok((ambient, lights)) = crate::town::anim_lights(&spccs.file, room.play.anim) else { return };
+        let file = &spccs.file;
+        let Ok((ambient, lights)) = crate::town::anim_lights(file, room.play.anim) else { return };
         let Some(name) = er.light else { return };
-        let obj = spccs.file.ccs.find_object(name);
-        let at = Vec3::new(750.0 * (row.x + 4) as f32, 750.0 * (row.y + 4) as f32, 0.0);
+        let obj = file.ccs.find_object(name);
+        let k750 = |c: i32| ee::mul(ee::from_int(c + 4), 0x443b_8000);
         if let Some(l) = lights.iter().find(|l| Some(l.object) == obj) {
-            let mut light = l.at(room.play.time);
-            // SetMatrix_PosRotZYX after the anm's steps: the place replaces
-            // the record's; the rotation (stack left over) turns a beam
-            // down -z about z only.
-            if light.kind != 1 {
-                light.pos = at;
+            let mut light = l.at(room.play.posed, &room.root);
+            let Some(mut case) = Play::new(file, er.anm) else { return };
+            case.forward(file);
+            if file.anims[case.anim].forward(case.time, case.frame_spd).pose_at.is_none() {
+                // The place stands. `rot` is SetRoom's sp+192: x and y
+                // written by its earlier callees (a return address, 0: zero
+                // to VU0), z 0 through GotoNextRoom's door and the caller's
+                // older word otherwise, which turns the beam about its own
+                // axis only; `se3_3`'s stands 12000 off the room's centre.
+                let local = trans_matrix(&UNIT, [k750(row.x), k750(row.y), 0, ONE]);
+                let lw = mul_matrix(&room.root, &local);
+                match &mut light.kind {
+                    LightKind::Direct { matrix, .. } | LightKind::Spot { matrix, .. } => *matrix = lw,
+                    LightKind::Omni { pos, .. } => *pos = lw[3],
+                    LightKind::Distant { .. } => {}
+                }
             }
             self.core.lights.lights.push(light);
         }
-        // GetAmbient: each byte of the chunk's packed ambient over 255 in
-        // the EE's division.
         if let Some(a) = ambient {
-            let c = |v: f32| f32::from_bits(ee::div(ee::from_int((v * 255.0).round() as i32), 0x437f_0000));
-            self.core.lights.ambient = Vec3::new(c(a.x), c(a.y), c(a.z));
+            self.core.lights.ambient = a;
         }
     }
 

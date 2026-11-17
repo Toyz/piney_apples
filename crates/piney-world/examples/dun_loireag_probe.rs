@@ -61,16 +61,26 @@ fn state(town: &Town) -> String {
     let objects =
         list((0..9).filter_map(|r| objects_.object(r).map(|(time, root)| format!("[{r}, {}, {time}]", mat(&root)))));
     let lights = list(t.core.lights.lights.iter().map(|l| {
-        let v3 = |v: glam::Vec3| list(v.to_array().map(f32::to_bits));
+        use piney_world::town::LightKind;
+        let v3 = |v: [u32; 4]| list([v[0], v[1], v[2]]);
+        let light_vector = |m: &[[u32; 4]; 4]| piney_data::vu0::apply(m, piney_data::light::LIGHT_VECTOR);
+        let (pos, dir, far) = match &l.kind {
+            LightKind::Distant { dir } => ([0; 4], *dir, Default::default()),
+            LightKind::Omni { pos, far } => (*pos, [0; 4], *far),
+            LightKind::Direct { matrix, far, .. } | LightKind::Spot { matrix, far, .. } => {
+                (matrix[3], light_vector(matrix), *far)
+            }
+        };
+        let far: piney_world::town::Falloff = far;
         format!(
             "[{}, {}, {}, {}, {}, {}, {}]",
-            l.kind,
+            l.kind.number(),
             v3(l.colour),
-            l.intensity.to_bits(),
-            v3(l.pos),
-            v3(l.dir),
-            l.far_start.to_bits(),
-            l.far_end.to_bits()
+            l.intensity,
+            v3(pos),
+            v3(dir),
+            far.start,
+            far.end
         )
     }));
     let f = &t.def.fog;

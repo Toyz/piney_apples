@@ -7,9 +7,7 @@
 
 pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
 pub use piney_data::libm::{atan2f, cosf, dsqrt_on, fabsf, fmodf, neg, sinf, sqrtf, sqrtf_on, tanf};
-
-/// A float as bits.
-pub type F = u32;
+pub use piney_data::vu0::{F, V4, apply, cross, dot, normalize, vadd, vscale, vscale_xyz, vsub};
 
 /// `sqrt(dx dx + dy dy)` in double (`mula`, `madd` in singles, then
 /// `fptodp`, `sqrt`, `dptofp`): the ground distance the statics, objects,
@@ -17,8 +15,6 @@ pub type F = u32;
 pub fn ground_dist(volume: piney_data::volume::Volume, dx: F, dy: F) -> F {
     dsqrt_on(volume, add(mul(dx, dx), mul(dy, dy)))
 }
-/// A `sceVu0FVECTOR`: x, y, z, w as bits.
-pub type V4 = [F; 4];
 
 pub const ZERO: F = 0;
 pub const ONE: F = 0x3f80_0000;
@@ -56,61 +52,6 @@ pub fn eq(a: F, b: F) -> bool {
     cmp(a, b) == std::cmp::Ordering::Equal
 }
 
-/// `sceVu0AddVector` (0x00110888): every lane.
-pub fn vadd(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|i| add(a[i], b[i]))
-}
-
-/// `sceVu0SubVector` (0x001108a0): every lane.
-pub fn vsub(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|i| sub(a[i], b[i]))
-}
-
-/// `sceVu0ScaleVector` (0x001108d0): every lane times `s`.
-pub fn vscale(a: V4, s: F) -> V4 {
-    a.map(|x| mul(x, s))
-}
-
-/// `sceVu0ScaleVectorXYZ` (0x00111200): x, y, z times `s`, w kept.
-pub fn vscale_xyz(a: V4, s: F) -> V4 {
-    [mul(a[0], s), mul(a[1], s), mul(a[2], s), a[3]]
-}
-
-/// `sceVu0InnerProduct` (0x00110700): `vmul.xyz`, then x + y, then + z.
-pub fn dot(a: V4, b: V4) -> F {
-    add(add(mul(a[0], b[0]), mul(a[1], b[1])), mul(a[2], b[2]))
-}
-
-/// `sceVu0Normalize` (0x00110728): Q = sqrt(x x + y y + z z), then 1 / Q,
-/// x, y, z times that; w 0.
-pub fn normalize(a: V4) -> V4 {
-    let q = sqrt(dot(a, a));
-    let r = div(ONE, add(0, q));
-    [mul(a[0], r), mul(a[1], r), mul(a[2], r), 0]
-}
-
-/// `sceVu0OuterProduct` (0x001106e0): `vopmula` then `vopmsub`, each
-/// product rounded; w 0.
-pub fn cross(a: V4, b: V4) -> V4 {
-    [
-        sub(mul(a[1], b[2]), mul(b[1], a[2])),
-        sub(mul(a[2], b[0]), mul(b[2], a[0])),
-        sub(mul(a[0], b[1]), mul(b[0], a[1])),
-        0,
-    ]
-}
-
-/// `sceVu0ApplyMatrix` (0x00110668): the stored columns `m` times `v`,
-/// ((c0 x + c1 y) + c2 z) + c3 w.
-pub fn apply(m: &[V4; 4], v: V4) -> V4 {
-    std::array::from_fn(|i| {
-        let acc = mul(m[0][i], v[0]);
-        let acc = add(acc, mul(m[1][i], v[1]));
-        let acc = add(acc, mul(m[2][i], v[2]));
-        add(acc, mul(m[3][i], v[3]))
-    })
-}
-
 /// `sceVu0RotTransPers(out, m, v, 0)`: [`apply`], x, y and z times
 /// `Q = 1 / w`, then `vftoi4` (fixed point with 4 fraction bits) of all
 /// four.
@@ -146,15 +87,5 @@ mod tests {
         assert_eq!(rad2deg(neg(PI)), -32768);
         assert_eq!(deg2rad(-32768), neg(PI));
         assert_eq!(f(deg2rad(16384)), std::f32::consts::FRAC_PI_2);
-    }
-
-    #[test]
-    fn vectors() {
-        let a = [k(1.0), k(2.0), k(3.0), ONE];
-        let b = [k(4.0), k(5.0), k(6.0), ONE];
-        assert_eq!(f(dot(a, b)), 32.0);
-        assert_eq!(cross(a, b).map(f), [-3.0, 6.0, -3.0, 0.0]);
-        let n = normalize([k(3.0), k(4.0), 0, 0]);
-        assert!((f(n[0]) - 0.6).abs() < 1e-6 && (f(n[1]) - 0.8).abs() < 1e-6);
     }
 }

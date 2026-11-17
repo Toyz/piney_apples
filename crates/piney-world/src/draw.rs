@@ -261,7 +261,15 @@ pub fn cast_shadows(layers: &mut Layers, file: &SceneFile, objects: impl IntoIte
 /// view sysLayer's (`world_screen` as the camera left it, near 8, far
 /// 2^20, the whole frame).
 pub fn go_shadows(lights: &crate::town::TownLights, world_screen: &[V4; 4]) -> piney_desktop::shadow::Shadows {
-    let dir = lights.lights.iter().find(|l| l.kind == 1).map_or(Vec3::new(0.0, 0.0, -1.0), |l| l.dir);
+    let f = f32::from_bits;
+    let dir = lights
+        .lights
+        .iter()
+        .find_map(|l| match l.kind {
+            crate::town::LightKind::Distant { dir } => Some(Vec3::new(f(dir[0]), f(dir[1]), f(dir[2]))),
+            _ => None,
+        })
+        .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
     let (ox, oy) = (XYOFFSET_X as f32 / 16.0, XYOFFSET_Y as f32 / 16.0);
     let (w, h) = (f32::from(piney_draw::SCREEN_WIDTH), f32::from(piney_draw::SCREEN_HEIGHT));
     let view = piney_desktop::shadow::ShadowView {

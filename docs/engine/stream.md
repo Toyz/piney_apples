@@ -276,13 +276,21 @@ clips triangles nearer than that instead of dropping them).
 **Light** (`ccModel::Draw` for mtype bit 0 calls `ccDrawEnv::SetLightMatrix`
 0x00105900 with the object's position): each light in group order (above:
 the omni lights before the distant ones) is asked `CheckRange`; the first
-three that answer fill slots 2, 1, 0. An empty slot's normal comes out as
-(-1, 0, 0), its colour 0. Omni (0x00139830): nothing at intensity 1/128 or below; `d =
-pos - light`; full intensity when `farDownEnd` is 0 or `|d| <= start`,
-`intensity (end - |d|) / (end - start)` up to `end`, nothing past it; normal
-`d / |d|`. Distant (0x00139170): the light's matrix times `(0, 0, -1)`,
-colour times intensity. `sceVu0NormalLightMatrix` negates and normalises;
-VU1 doubles the colours ([render](render.md)); the ambient is the scene's.
+three that answer fill slots 2, 1, 0. The frame records leave each
+`ccLight` as `DecodeF_OmniLight` (0x0014f6a0: the unit matrix moved to the
+place, `ccSetColor(colour, 1)`, intensity, fall-off and its square by
+`mul.s`), `DecodeF_DistantLight` (0x0014ef80: `SetMatrix_RotZYX` of
+`(pi deg) / 180`, the colour, the intensity with flag 0x20),
+`DecodeF_DirectLight` (0x0014f130) and `DecodeF_SpotLight` (0x0014f3b0):
+place, rotation (`SetMatrix_PosRotZYX`), colour, intensity, then two radii
+(the second squared) or two angles (each `(pi deg / 180) / 2`, kept as its
+`tanf`), then the beam's start and end. Infection's and Mutation's str0090
+and str0110 and Outbreak's str1070 carry direct lights, Quarantine's
+str2062 the four discs' only spot lights. `CheckRange`, the normal light
+matrix and VU1's doubling are the light group's
+([field-game](field-game.md), every op the game's); the ambient is the
+scene's. `piney_stream::draw::lights` hands the group to
+`piney_data::light`.
 
 **Morph** (an Obj2's modifier, an `MPH_` morpher, whose targets and weights
 the `F_Morpher` records set): `ccModel::Draw` calls the modifier's
@@ -1341,7 +1349,8 @@ and writes `crates/piney-stream/tests/stream_fixture.txt`;
 | `ccStreamInit` + `RequestStrPlay` (`searchPreLoad` native) | 134 streams x 2 languages | the header, the `ccsTbl`, the files read whole, in order |
 | `WaitEnd` | 180 cases: mode, `DESKTOP_FLG`, flags, pushes | `canselFlag` |
 | `DecodeSetup` + `InitScene` on the files | streams 0, 106, 2, 15 (`str0580`), 6 and 18 (`str9102` over the desktop's `str8000e`, `str8001e` and `str8800e`) | every node in `Draw`'s order, its layer and parent |
-| `DecodeFrameSection`, `SetView`, `ccStreamDrawLayerList::Draw` (`ccModel::Draw` hooked) per frame | 410 + 397 frames, stream 2's first 200, stream 15's first 420, stream 6's first 60 and stream 18's 350 | the frame, the end, the notes; each object drawn (up to 273 a frame in stream 18): name, transparency and `lwMatrix` bit for bit; `world_screen` bit for bit (`SetMatrix_PosRotXYZDebug` and `SetView` in VU0's and the EE's arithmetic, `piney_desktop::camera`) and `SetLightMatrix` (worst 5e-7) |
+| `DecodeFrameSection`, `SetView`, `ccStreamDrawLayerList::Draw` (`ccModel::Draw` hooked) per frame | 410 + 397 frames, stream 2's first 200, stream 15's first 420, stream 6's first 60 and stream 18's 350 | the frame, the end, the notes; each object drawn (up to 273 a frame in stream 18): name, transparency and `lwMatrix` bit for bit; `world_screen` bit for bit (`SetMatrix_PosRotXYZDebug` and `SetView` in VU0's and the EE's arithmetic, `piney_desktop::camera`) and `SetLightMatrix` bit for bit |
+| the same on each disc's stream with direct or spot lights (`test_stream_rs.py lights`, `stream_lights_*.txt`) | str0090's first 300 frames (Infection, Mutation), str1070's 300 (Outbreak), str2062's 120 (Quarantine) | `SetLightMatrix` at every object drawn, bit for bit (an FNV-1a of each frame's); 1200, 1200, 14223 and 22043 objects reached by a beam or a cone |
 
 `tools/test_stream_rs.py gatehack` writes
 `crates/piney-stream/tests/gate_hack_fixture.txt`: `RequestStrPlayGH` run

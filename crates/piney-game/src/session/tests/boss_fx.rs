@@ -941,7 +941,7 @@ fn gorre_brothers_model_shots() {
         }
     }
     let arena = arena.expect("the fight");
-    let white = piney_world::town::TownLights { ambient: glam::Vec3::splat(1.0), lights: Vec::new(), fog: None };
+    let white = piney_world::town::TownLights { ambient: [f32::to_bits(1.0); 4], ..Default::default() };
     let file = std::rc::Rc::new(piney_desktop::assets::SceneFile::read(&s.archive, "x51").unwrap());
     let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap();
     let f = |x: f32| x.to_bits();

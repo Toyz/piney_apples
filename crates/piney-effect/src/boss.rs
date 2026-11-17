@@ -752,21 +752,14 @@ impl BossEffects {
     }
 
     /// [`BossEffects::lights`] as the characters are lit by them:
-    /// `ccLight(4, 1)` after `ccOmniLight::Init` (intensity 1), priority 1.
+    /// `ccLight(4, 1)` after `ccOmniLight::Init` (intensity 1, no start),
+    /// priority 1, the fall-off's square as its constructor worked it out.
     pub fn omni_lights(&self) -> Vec<piney_world::town::Light> {
-        let f = |v: u32| f32::from_bits(v);
         self.lights()
             .into_iter()
-            .map(|(p, c, far)| piney_world::town::Light {
-                kind: 4,
-                pos: glam::Vec3::new(f(p[0]), f(p[1]), f(p[2])),
-                dir: glam::Vec3::ZERO,
-                colour: glam::Vec3::new(f(c[0]), f(c[1]), f(c[2])),
-                intensity: 1.0,
-                far_start: 0.0,
-                far_end: f(far),
-                radius: [0.0; 2],
-                priority: 1,
+            .map(|(p, c, far)| {
+                let far = piney_world::town::Falloff::new(0, far);
+                piney_world::town::Light { priority: 1, ..piney_world::town::Light::omni(p, c, ONE, far) }
             })
             .collect()
     }
@@ -1180,39 +1173,7 @@ pub(crate) fn explode2(cx: &mut Cx, t: &Tables, pos: V4) {
     crate::dust::enemy_eff_dust(cx, pos, 10, 0x40a0_0000, life, tex);
 }
 
-/// `ccSetColor(out, color, s)` (OUT main 0x00136f90). With no alpha byte
-/// its r, g, b over 255 (`ITOF0`, times 1/255, or s/255), w 0. With one,
-/// an HSV colour: hue the low byte (sixths of 256), saturation and value
-/// the next two over 255 (value times s), turned to r, g, b by the hue's
-/// sector; w kept.
-pub(crate) fn set_color(out: &mut [F; 4], color: u32, s: F) {
-    const INV255: F = 0x3b80_8081;
-    let byte = |k: u32| ee::from_int(((color >> (8 * k)) & 0xff) as i32);
-    if color >> 24 == 0 {
-        let k = if ee::eq(ONE, s) { INV255 } else { ee::div(s, 0x437f_0000) };
-        *out = [ee::mul(byte(0), k), ee::mul(byte(1), k), ee::mul(byte(2), k), 0];
-        return;
-    }
-    let h6 = (color & 0xff) as i32 * 6;
-    let scale = ee::div(s, 0x437f_0000);
-    let frac = ee::mul(ee::from_int(h6 & 0xff), 0x3b80_0000);
-    let v = ee::mul(byte(2), scale);
-    let sat = ee::mul(byte(1), INV255);
-    let sf = ee::mul(sat, frac);
-    let p = ee::mul(v, ee::sub(ONE, sat));
-    let q = ee::mul(v, ee::sub(ONE, sf));
-    let t = ee::mul(v, ee::sub(ee::add(ONE, sf), sat));
-    let rgb = match h6 >> 8 {
-        0 => [v, t, p],
-        1 => [q, v, p],
-        2 => [p, v, t],
-        3 => [p, q, v],
-        4 => [t, p, v],
-        5 => [v, p, q],
-        _ => return,
-    };
-    out[..3].copy_from_slice(&rgb);
-}
+pub(crate) use piney_data::light::set_color;
 
 /// A float to the unsigned colour `ccBossEffLight::Draw` hands on:
 /// Infection's and Mutation's `fptoui` (0x00129d08: 0 below 1, a negative

@@ -4224,36 +4224,18 @@ fn room_clear(
 /// 0x7fff, 1.0)`, a fire's orange (each byte over 255, red the low one).
 /// `symMain` sets the intensity each frame.
 fn symbol_light(p: V4, intensity: F) -> crate::town::Light {
-    crate::town::Light {
-        kind: 4,
-        pos: glam::Vec3::new(ee::f(p[0]), ee::f(p[1]), ee::f(p[2])),
-        dir: glam::Vec3::ZERO,
-        colour: glam::Vec3::new(1.0, 127.0 / 255.0, 0.0),
-        intensity: ee::f(intensity),
-        far_start: 0.0,
-        far_end: 1000.0,
-        radius: [0.0; 2],
-        priority: 1,
-    }
+    let far = crate::town::Falloff { start: 0, end: 0x447a_0000, end2: 0x4974_2400 };
+    let colour = piney_data::light::colour_of(0x7fff, ONE);
+    crate::town::Light { priority: 1, ..crate::town::Light::omni([p[0], p[1], p[2], ONE], colour, intensity, far) }
 }
 
 /// A spring's or the rays' `ccOmniLight` (`ccLight(4, 1)`) as its frame
 /// left it: at its matrix's place, `ccSetColor`'s RGB (red the low byte,
 /// each over 255), its intensity and fall-off.
 fn omni_light(o: &piney_battle::prim::OmniLight) -> crate::town::Light {
-    let p = o.matrix[3];
-    let rgb = |k: u32| ((o.rgb >> (8 * k)) & 0xff) as f32 / 255.0;
-    crate::town::Light {
-        kind: 4,
-        pos: glam::Vec3::new(ee::f(p[0]), ee::f(p[1]), ee::f(p[2])),
-        dir: glam::Vec3::ZERO,
-        colour: glam::Vec3::new(rgb(0), rgb(1), rgb(2)),
-        intensity: ee::f(o.intensity),
-        far_start: ee::f(o.far_start),
-        far_end: ee::f(o.far_end),
-        radius: [0.0; 2],
-        priority: 1,
-    }
+    let far = crate::town::Falloff { start: o.far_start, end: o.far_end, end2: o.far_end2 };
+    let colour = piney_data::light::colour_of(o.rgb, ONE);
+    crate::town::Light { priority: 1, ..crate::town::Light::omni(o.matrix[3], colour, o.intensity, far) }
 }
 
 #[cfg(test)]
@@ -4268,15 +4250,11 @@ mod symbol_light_tests {
     #[test]
     fn a_symbol_lights_only_near_it() {
         let at = |d: f32| {
-            let town = TownLights {
-                ambient: glam::Vec3::ZERO,
-                lights: vec![symbol_light([0, 0, ee::k(d), ONE], ONE)],
-                fog: None,
-            };
+            let town = TownLights { lights: vec![symbol_light([0, 0, ee::k(d), ONE], ONE)], ..TownLights::default() };
             light_matrix(&town, glam::Mat4::IDENTITY, false).colours[2]
         };
         let near = at(500.0);
-        assert!((near[0] - 1.0).abs() < 1e-5 && (near[1] - 127.0 / 255.0).abs() < 1e-5 && near[2] == 0.0, "{near:?}");
+        assert!((near[0] - 1.0).abs() < 1e-5 && (near[1] - 127.0 / 255.0).abs() < 2e-7 && near[2] == 0.0, "{near:?}");
         assert_eq!(at(1000.0), [0.0; 3]);
         assert_eq!(at(2500.0), [0.0; 3]);
     }

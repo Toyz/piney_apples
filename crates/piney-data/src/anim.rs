@@ -206,7 +206,7 @@ const SIN: [u32; 4] = [0x362e_9c14, 0xb94f_b21f, 0x3c08_873e, 0xbe2a_aaa4];
 /// segments, a hold before the first key when it is not at frame 0 and a
 /// hold after the last.
 #[derive(Clone, Debug)]
-struct Keyed<const N: usize> {
+pub(crate) struct Keyed<const N: usize> {
     base: [u32; N],
     segs: Vec<(u32, [u32; N])>,
 }
@@ -250,14 +250,14 @@ impl<const N: usize> Keyed<N> {
 }
 
 #[derive(Clone, Debug)]
-enum Ctrl<const N: usize> {
+pub(crate) enum Ctrl<const N: usize> {
     None,
     Const([u32; N]),
     Keyed(Keyed<N>),
 }
 
 impl<const N: usize> Ctrl<N> {
-    fn at(&self, time: Ticks, default: [u32; N]) -> [u32; N] {
+    pub(crate) fn at(&self, time: Ticks, default: [u32; N]) -> [u32; N] {
         match self {
             Ctrl::None => default,
             Ctrl::Const(v) => *v,
@@ -418,13 +418,13 @@ fn axis_matrix(axis: Option<DVec3>, angle: f64) -> DMat3 {
 /// A keyed rotation: the first key's matrix and, per segment, a duration and
 /// the turn from one key's orientation to the next.
 #[derive(Clone, Debug)]
-struct RotKeyed {
+pub(crate) struct RotKeyed {
     base: DMat3,
     segs: Vec<(u32, Option<DVec3>, f64)>,
 }
 
 impl RotKeyed {
-    fn new(keys: &[(u32, [u32; 3])], frames: u32) -> Self {
+    pub(crate) fn new(keys: &[(u32, [u32; 3])], frames: u32) -> Self {
         let mats: Vec<DMat3> = keys.iter().map(|(_, v)| bits_dmat3(&rot_bits(key_radians(*v)))).collect();
         let mut t = keys[0].0 << 8;
         let mut segs = Vec::with_capacity(keys.len() + 1);
@@ -450,7 +450,7 @@ impl RotKeyed {
         RotKeyed { base: mats[0], segs }
     }
 
-    fn at(&self, time: Ticks) -> DMat3 {
+    pub(crate) fn at(&self, time: Ticks) -> DMat3 {
         let mut w = self.base;
         if self.segs.is_empty() {
             return w;
@@ -710,7 +710,7 @@ pub struct Animation {
     pub other: Vec<(u16, u32)>,
 }
 
-fn read_ctrl<const N: usize>(d: &[u8], q: &mut usize, kind: u32, frames: u32) -> Result<Ctrl<N>> {
+pub(crate) fn read_ctrl<const N: usize>(d: &[u8], q: &mut usize, kind: u32, frames: u32) -> Result<Ctrl<N>> {
     let vals = |at: usize| -> Result<[u32; N]> {
         let mut v = [0; N];
         for (k, x) in v.iter_mut().enumerate() {
@@ -733,7 +733,7 @@ fn read_ctrl<const N: usize>(d: &[u8], q: &mut usize, kind: u32, frames: u32) ->
     }
 }
 
-fn read_keys<const N: usize>(d: &[u8], q: &mut usize) -> Result<Vec<(u32, [u32; N])>> {
+pub(crate) fn read_keys<const N: usize>(d: &[u8], q: &mut usize) -> Result<Vec<(u32, [u32; N])>> {
     let n = d.u32_at(*q)? as usize;
     if n == 0 {
         return format_err(format!("keyed controller without keys at 0x{:x}", *q));

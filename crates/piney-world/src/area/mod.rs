@@ -59,7 +59,7 @@ impl AreaCore {
     ) -> Result<AreaCore> {
         let file = Rc::new(SceneFile::read(archive, stem)?);
         let anim = file.anim(light_anim).ok_or_else(|| Error::NotFound(light_anim.into()))?;
-        let lights = TownLights { fog: Some(fog), ..crate::town::read_lights(&file, anim, lights)? };
+        let lights = TownLights { fog: Some(fog), ..crate::town::read_lights(&file, anim, lights, tables)? };
         let hits = Hits::new(tables, HitModel::read(tables, &file.ccs)?);
         Ok(AreaCore { file, hits, lights, field_rand: None, start: [0; 4], written: Vec::new() })
     }

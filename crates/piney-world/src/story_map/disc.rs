@@ -722,6 +722,14 @@ mod tests {
         let objects = a.systems().get::<StaticObjects>().unwrap();
         assert_eq!((objects.len(), objects[0].pass), (1, DrawPass::Obj));
         assert_eq!(a.core.lights.lights.len(), 1);
+        // The disc's own omni light (`ANM_se1_6ob1a`'s `LGT_omn01`): the
+        // STATICOBJECT's `SetLightEnv(1)` puts it in the group, 100 below
+        // the disc, full to 600 and nothing past 1200.
+        let disc_light: Vec<_> = objects.lights().collect();
+        assert_eq!(disc_light.len(), 1);
+        let crate::town::LightKind::Omni { pos, far } = disc_light[0].kind else { panic!("{disc_light:?}") };
+        let place = ee::apply(&objects[0].root, [0, 0, ee::k(-100.0), ONE]);
+        assert_eq!((pos, far.start, far.end), (place, ee::k(600.0), ee::k(1200.0)));
         assert_eq!(disc(&a).cnt, 2);
         assert!(disc(&a).play.is_some() && disc(&a).dummy.is_some());
         assert!(!a.core.hits.models.is_empty(), "the disc's Hit chunk");

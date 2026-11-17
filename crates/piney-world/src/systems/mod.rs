@@ -1070,6 +1070,12 @@ impl Systems {
         self.all.iter().find_map(T::of)
     }
 
+    /// The lights every `STATICOBJECT` table's anms hold in the group, in
+    /// the systems' order ([`statics::StaticObjects::lights`]).
+    pub fn object_lights(&self) -> Vec<crate::town::Light> {
+        self.all.iter().filter_map(statics::StaticObjects::of).flat_map(statics::StaticObjects::lights).collect()
+    }
+
     pub fn get_mut<T: SystemKind>(&mut self) -> Option<&mut T> {
         self.all.iter_mut().find_map(T::of_mut)
     }

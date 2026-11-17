@@ -178,12 +178,24 @@ played by code that reads those itself, not by `ccAnm`'s pose:
 - **Cameras.** The streams' scenes (`piney-stream`'s `scene.rs`) and the
   desktop's and the title's clips (`piney-desktop`'s `anm.rs`, its
   `camera`).
-- **Ambient and lights.** F_Ambient and the distant (0x0603), direct
-  (0x0605) and omni (0x0609) light controllers come through `piney-world`'s
-  `town::anim_lights`. It serves the towns' light tables, the Chaos Gate,
-  the story maps (`evarea`, `evarea_b0`) and the dungeons' special rooms.
-  The fields take frame 0's ambient and distant light
-  (`piney-data`'s `field/render.rs`).
+- **Ambient and lights.** F_Ambient (`ccAnm::GetAmbient`: each byte
+  over 255) and the distant (0x0603), direct (0x0605), spot (0x0607) and
+  omni (0x0609) light records come through `piney_data::light::
+  anim_lights` (`town::anim_lights` in piney-world). By flag: bits 0-2
+  position, 3-5 rotation, 6-8 colour, 9-11 intensity, 12-14 and 15-17 the
+  fall-off's or the beam's start and end, 18-20 and 21-23 a direct
+  light's two radii or a spot light's two half angles in degrees, as
+  `SetAnmCtrlWork` (main 0x00150670) reads them; the floats and the place
+  as `ccAnmCtrlFloat_Set` and `FVec3_Set` (above), a colour by
+  `ccAnmCtrlColor_Set` (0x001461e0: `ccSetColor` of a constant, or
+  between keys `ccSetBlendColor`, each colour by its share). They serve
+  the towns' light tables, the Chaos Gate, the story maps (`evarea`,
+  `evarea_b0`) and the dungeons' special rooms; every light animation of
+  the four discs' `DATA.BIN` is checked word for word against the game's
+  `ccAnm` (`tools/test_lights_rs.py anims`, [the light
+  group](field-game.md)). Lia Fail's `LGT_fspot01` is the only spot light
+  record, and no light table names it. The fields take frame 0's ambient
+  and distant light (`piney-data`'s `field/render.rs`).
 
 ## Frame speed
 
@@ -344,15 +356,6 @@ the same flag logic. The `index` check passes on all four volumes.
 
 ## Unknown
 
-- The spot light controller (0x0607) is not evaluated; no file of
-  Infection's rooms uses one. The direct light's (0x0605) is: flags bits
-  0-2 position, 3-5 rotation, 6-8 colour, 9-11 intensity, 12-14 and 15-17
-  the beam's start and end (`+0x144`, `+0x148`), 18-20 and 21-23 its radii
-  (`+0x14c`, `+0x150`; `+0x154` the second squared), as `SetAnmCtrlWork`
-  (main 0x00150670) reads them. Infection's event rooms each have one
-  (`LGT_se1_3lig1` and the like: flags 0x240041, (0, 0, 2500), white,
-  radii 498 and 500, `se2_2`'s 800 and 850); `ccDirectLight::CheckRange`
-  is in [dungeon.md](dungeon.md#event-rooms).
 - F_Obj's flag byte (+0xa2) is not modelled. Its effect-object branch
   (0xe00) is, for the streams ([stream.md](stream.md#effect-nodes)). Neither is whether a pose F_Obj left survives into the next
   clip when that clip does not drive the object (the port starts every

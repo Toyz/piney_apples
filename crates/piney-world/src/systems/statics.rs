@@ -17,7 +17,7 @@ use crate::chara::pose::Play;
 use crate::draw;
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::UNIT;
-use crate::town::{dummy_bits, pos_rot_zyx};
+use crate::town::{AnimLight, Light, dummy_bits, pos_rot_zyx};
 
 /// The layer each draw pass's rows go on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -276,12 +276,14 @@ pub struct Object {
 }
 
 /// The `STATICOBJECT`s of a table over their file: those whose row names
-/// an animation.
+/// an animation; and the light records of their animations, by object,
+/// with each light as its anm's last step left it.
 #[derive(Clone)]
 pub struct StaticObjects {
     def: &'static ObjectsDef,
     file: Rc<SceneFile>,
     objects: Vec<Object>,
+    lights: Vec<(usize, AnimLight, Light)>,
 }
 
 impl StaticObjects {
@@ -300,7 +302,17 @@ impl StaticObjects {
             let root = pos_rot_zyx(pos, rot);
             objects.push(Object { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() });
         }
-        Ok(StaticObjects { def, file: file.clone(), objects })
+        // The constructor's `SetLightEnv(1)` before `SetAnm` (gcmn
+        // 0x005cfc54): the records' lights go in the draw environment's
+        // group, the anm their parent, as `SetAnm` leaves them.
+        let mut lights = Vec::new();
+        for (k, o) in objects.iter().enumerate() {
+            for a in crate::town::anim_lights(file, o.play.anim)?.1 {
+                let l = a.at(o.play.posed, &o.root);
+                lights.push((k, a, l));
+            }
+        }
+        Ok(StaticObjects { def, file: file.clone(), objects, lights })
     }
 
     /// Every object, in row order.
@@ -339,15 +351,24 @@ impl StaticObjects {
     /// animation steps. The rows of those to be drawn, in order.
     pub fn step_pass(&mut self, pass: DrawPass, eye: V4, volume: Volume) -> Vec<usize> {
         let mut out = Vec::new();
-        for o in self.objects.iter_mut().filter(|o| o.pass == pass) {
+        for (k, o) in self.objects.iter_mut().enumerate().filter(|(_, o)| o.pass == pass) {
             let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             let d = ee::ground_dist(volume, dx, dy);
             if ee::lt(d, o.clip) || ee::eq(o.clip, 0) {
                 o.play.forward(&self.file);
+                // `_AnimateForward`'s SetAnmCtrlWork moves its lights.
+                for (_, a, l) in self.lights.iter_mut().filter(|(j, ..)| *j == k) {
+                    *l = a.at(o.play.posed, &o.root);
+                }
                 out.push(o.row);
             }
         }
         out
+    }
+
+    /// The lights the objects' anms hold in the group, in their order.
+    pub fn lights(&self) -> impl Iterator<Item = Light> + '_ {
+        self.lights.iter().map(|(_, _, l)| *l)
     }
 
     /// An object as drawn on `layer` with `fog`.

@@ -397,24 +397,17 @@ impl FieldArea {
         let ground_model = file.ccs.find_object(scene.ground_model);
         let cover_models = scene.covers.iter().map(|c| file.ccs.find_object(c.mesh)).collect();
 
+        // WORLD::Init's light: the background's distant light at frame 1
+        // under its anm (`GetSubstAdrsF`, `AddGrp`), the anm's ambient.
         let l = &scene.light;
-        let amb = l.ambient_rgb().map(f32::from_bits);
-        let col = l.colour_rgb().map(f32::from_bits);
-        let dir = l.dirc();
+        let [r, g, b] = l.ambient_rgb();
+        let matrix = piney_data::vu0::mul_matrix(&piney_data::vu0::UNIT, &l.matrix());
         let lights = TownLights {
-            ambient: Vec3::from(amb),
-            lights: vec![Light {
-                kind: 1,
-                pos: Vec3::ZERO,
-                dir: Vec3::new(ee::f(dir[0]), ee::f(dir[1]), ee::f(dir[2])),
-                colour: Vec3::from(col),
-                intensity: 1.0,
-                far_start: 0.0,
-                far_end: 0.0,
-                radius: [0.0; 2],
-                priority: -1,
-            }],
+            ambient: [r, g, b, 0],
+            lights: vec![Light::distant(&matrix, piney_data::light::colour_of(l.colour, ONE), ONE)],
             fog: Some(fog_params(&scene.background.fog)),
+            volume,
+            objects: Vec::new(),
         };
 
         let heights: Rc<dyn crate::hit::Heights> = Rc::new(Heights(field.clone()));

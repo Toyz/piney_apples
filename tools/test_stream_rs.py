@@ -71,6 +71,7 @@ at a file already in memory, and the threads, CD and GS calls hooked:
     and strSeInit between tools/sound_ee.py's steps; what reaches the IOP.
 
     python3 tools/test_stream_rs.py fixture    write crates/piney-stream/tests/stream_fixture.txt
+    python3 tools/test_stream_rs.py lights     write crates/piney-stream/tests/stream_lights_<disc>.txt
     PINEY_VOLUME=mutation python3 tools/test_stream_rs.py tables
                                                write .../tests/stream_tables_mut.txt (_out, _qua)
     python3 tools/test_stream_rs.py effects    write crates/piney-stream/tests/str0001_fixture.txt
@@ -491,9 +492,11 @@ def word(name):
     return name.replace("%", "%25").replace(" ", "%20")
 
 
-def run_scene(g, num, stems, frames, datas=None):
+def run_scene(g, num, stems, frames, datas=None, every_light=False):
     """Stream `num`'s files `stems` (their bytes `datas`, else read by
-    name with member) decoded and drawn, `frames` of the last."""
+    name with member) decoded and drawn, `frames` of the last; the light
+    at the first object drawn, or with `every_light` an FNV-1a 64 of the
+    light matrix and colours at each (in the draw's order)."""
     m = g.m
     out = []
     # The texture uploads' GS packets and DMA (str0580e's textures; the
@@ -598,12 +601,14 @@ def run_scene(g, num, stems, frames, datas=None):
         g.call("SetView__6ccViewFRC5ccCamPA4_f", (view, cam, 0))
         m.mem[env + 0x30:env + 0x40] = m.mem[ccs + 0x140:ccs + 0x150]
         g.call("Draw__21ccStreamDrawLayerListFv", (dl,))
-        if drawn and m.load(env + 0x80, 4):
-            nm, obj = drawn[0][0], drawn[0][3]
+        hl = 0xCBF29CE484222325
+        for nm, _, _, obj in (drawn if every_light else drawn[:1]) if m.load(env + 0x80, 4) else ():
             m.mem[ln:ln + 64] = bytes(64)
             m.mem[lc:lc + 64] = bytes(64)
             g.call("SetLightMatrix__9ccDrawEnvFPA4_fPA4_fPf", (env, ln, lc, obj + 48))
-            lights.append((nm, [g.f32(ln + 4 * k) for k in range(16)], [g.f32(lc + 4 * k) for k in range(16)]))
+            if not lights and not every_light:
+                lights.append((nm, [g.f32(ln + 4 * k) for k in range(16)], [g.f32(lc + 4 * k) for k in range(16)]))
+            hl = fnv(bytes(m.mem[ln:ln + 64]) + bytes(m.mem[lc:lc + 64]), hl)
         now, state = m.load(ccs + 0x164, 4), struct.unpack_from("<H", m.mem, ccs + 0x17e)[0]
         h = 0xCBF29CE484222325
         for nm, tp, lw, _ in drawn:
@@ -618,6 +623,8 @@ def run_scene(g, num, stems, frames, datas=None):
             out.append(f"eff {num} {stem} {k} {len(effs)} {he:016x}")
         for nm, lnv, lcv in lights:
             out.append(f"light {num} {stem} {k} {word(nm)} " + " ".join(f"{x:.9g}" for x in lnv + lcv))
+        if every_light and drawn and m.load(env + 0x80, 4):
+            out.append(f"lights {num} {stem} {k} {len(drawn)} {hl:016x}")
         if state & 0x10 or (frames is not None and k >= frames):
             break
         g.call("DecodeFrameSection__8ccStreamFv", (ccs,))
@@ -1731,6 +1738,81 @@ def fixture():
     print(f"{FIXTURE}: {len(lines)} lines")
 
 
+# The streams whose scenes carry direct (F_DirectLight) and spot
+# (F_SpotLight) lights, each disc's: (stem, frames). Infection's and
+# Mutation's str0090 has a direct light; Outbreak's str1070 (by its
+# table); Quarantine's str2062 the only spot lights of the four discs.
+LIGHT_SCENES = {"infection": ("str0090", 300), "mutation": ("str0090", 300), "outbreak": ("str1070", 300),
+                "quarantine": ("str2062", 120)}
+LIGHTS_FIXTURE = os.path.join(ROOT, "crates", "piney-stream", "tests", f"stream_lights_{volume.NAME[:3]}.txt")
+
+
+def stream_files(g, stem):
+    """Stream `stem`'s number and the files it reads (its preloads, then
+    the scene), inflated as ReadThread reads them: sector lsn(archive) +
+    ceil(header ofs / 2048) + ceil(file ofs / 2048), the file's size, then
+    gzip; the English voice. The lookup is `tables`' (ccStreamInit and
+    RequestStrPlay natively), whose STREAMDATA records give each file's
+    place in the header's archive."""
+    import gzip
+    import iso as isomod
+    disc = isomod.Iso(ISO)
+    arcs = english_archives()
+    m = g.m
+    loads = []
+    tscb = g.malloc(m, 0x54)
+    m.store(tscb + 0x18, 4, 1)
+    hooks = {"StInit__6ccCdvdFv": 0, "ccStartThread__FPFPv_vii": tscb, "WaitEnd__16ccStreamLoadPlayFv": 0,
+             "ccDeleteThread__FP6ccTscb": 0, "__dt__8ccStreamFv": 0,
+             "ccLoadStreamOnMemDelete__FP18ccStreamLoadOnmTbl": 0, "Init__7ccLayerFsP6ccView": 0,
+             "__ct__16ccDrawPacketCtrlFv": 0, "__dt__7ccLayerFv": 0}
+    for name, v in hooks.items():
+        m.hooks[g.sym(name)] = (lambda v: lambda mm, *a: v)(v)
+    m.hooks[g.sym("ccBreathThread__Fi")] = lambda mm, *a: m.store(tscb + 0x18, 4, 1) or 0
+    m.hooks[g.sym("ccLoadStreamOnMem__16ccStreamLoadPlayFP10STREAMDATAPi")] = \
+        lambda mm, this, sd, *a: loads.append(sd) or 0
+    m.store(g.sym("ccCd"), 4, g.malloc(m, 0x200))
+    m.store(g.sym("ccSnd"), 4, g.malloc(m, 0x200))
+    m.store(SAVE + 0x842c, 1, 1)
+    mark = g.heap
+    try:
+        for num in range(STREAMS):
+            del loads[:]
+            g.heap = mark
+            slp = g.call("ccStreamInit__Fi", (num,))
+            sd = m.load(slp + 0x1f8, 4)
+            g.call("RequestStrPlay__16ccStreamLoadPlayFi", (slp, 0))
+            hofs, htype = struct.unpack_from("<i", m.mem, sd + 4)[0], struct.unpack_from("<h", m.mem, sd + 12)[0]
+            scenes = [slp + 0x40 + 24 * i for i in range(struct.unpack_from("<h", m.mem, slp + 0x1c0)[0])]
+            if htype not in arcs or not any(g.cstr(m.load(t, 4)) == stem for t in scenes):
+                continue
+            e = disc.find(arcs[htype])
+            read = lambda ofs, size: gzip.decompress(  # noqa: E731
+                disc.read(e.lba + (hofs + 2047) // 2048 + (ofs + 2047) // 2048, size))
+            files = [(g.cstr(m.load(a, 4)), read(*struct.unpack_from("<ii", m.mem, a + 4))) for a in loads]
+            t = next(t for t in scenes if g.cstr(m.load(t, 4)) == stem)
+            files.append((stem, read(*struct.unpack_from("<ii", m.mem, t + 16))))
+            return num, files
+    finally:
+        for name in list(hooks) + ["ccBreathThread__Fi", "ccLoadStreamOnMem__16ccStreamLoadPlayFP10STREAMDATAPi"]:
+            del m.hooks[g.sym(name)]
+    raise KeyError("no stream plays %s on %s" % (stem, volume.NAME))
+
+
+def lights_fixture():
+    """`run_scene` on the disc's stream with direct or spot lights: its
+    draw list, frames and `SetLightMatrix` at every object drawn."""
+    stem, frames = LIGHT_SCENES[volume.NAME]
+    num, files = stream_files(Game(), stem)
+    lines = ["# tools/test_stream_rs.py lights: the game's stream code run in eemu (stream_fixture.txt's lines).",
+             "# scene NUM STEM ...; draw ...; frame ...; camera ...;",
+             "# lights NUM STEM STEP DRAWN FNV1A-64(lightNormal, lightColor words at each object drawn, in order)"]
+    lines += run_scene(Game(), num, [n for n, _ in files], frames, [d for _, d in files], every_light=True)
+    with open(LIGHTS_FIXTURE, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"{LIGHTS_FIXTURE}: {sum(l.startswith('lights ') for l in lines)} frames lit, {len(lines)} lines")
+
+
 def tables_fixture():
     """`tables` on a later volume (PINEY_VOLUME): ccStreamInit and
     RequestStrPlay for each of its streams, both voices."""
@@ -1749,6 +1831,8 @@ if __name__ == "__main__":
         fixture()
     elif len(sys.argv) > 1 and sys.argv[1] == "tables":
         tables_fixture()
+    elif len(sys.argv) > 1 and sys.argv[1] == "lights":
+        lights_fixture()
     elif len(sys.argv) > 1 and sys.argv[1] == "effects":
         effects(sys.argv[2] if len(sys.argv) > 2 else "str0001")
     elif len(sys.argv) > 1 and sys.argv[1] == "cameras":

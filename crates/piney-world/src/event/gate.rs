@@ -10,7 +10,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -93,30 +93,19 @@ impl Anm {
         Ok(())
     }
 
-    /// `_AnimateForward(frameSpd)`, the light following (under `root`).
-    fn forward(&mut self, file: &SceneFile, root: Mat4) -> bool {
+    /// `_AnimateForward(frameSpd)`, the light following (`SetAnmCtrlWork`
+    /// under the anm's `root`, its parent).
+    fn forward(&mut self, file: &SceneFile, root: &[V4; 4]) -> bool {
         let ended = self.play.forward(file);
         if let Some(l) = self.lights.first() {
-            let mut light = l.at(self.play.posed);
-            light.pos = root.transform_point3(light.pos);
-            self.light = light;
+            self.light = l.at(self.play.posed, root);
         }
         ended
     }
 }
 
 /// `ccOmniLight::Init` (0x001397e0): black, intensity 1, no fall-off.
-const BLACK: Light = Light {
-    kind: 4,
-    pos: Vec3::ZERO,
-    dir: Vec3::ZERO,
-    colour: Vec3::ZERO,
-    intensity: 1.0,
-    far_start: 0.0,
-    far_end: 0.0,
-    radius: [0.0; 2],
-    priority: 0,
-};
+const BLACK: Light = Light::BLACK;
 
 /// A Root Town's Chaos Gate.
 pub struct Gate {
@@ -244,8 +233,8 @@ impl Gate {
         // Outbreak on, OUT gcmn 0x0046a524).
         if ee::lt(ee::dsqrt_on(volume, d2), NEAR) {
             f.near = true;
-            let (file, root) = (self.file.clone(), draw::mat(&self.root));
-            self.body.forward(&file, root);
+            let (file, root) = (self.file.clone(), self.root);
+            self.body.forward(&file, &root);
             self.ring_at_body = self.ring.light;
             // ccChar::Draw: +0x90 is 1, so `hide` starts set only in the
             // eye view (which skips the near-camera fade).
@@ -256,7 +245,7 @@ impl Gate {
             self.transparency = c.transparency;
             f.drawn = c.drawn;
             if self.state != 0 {
-                self.ended = self.ring.forward(&file, root);
+                self.ended = self.ring.forward(&file, &root);
                 f.ring = true;
             }
         }
@@ -381,11 +370,15 @@ mod tests {
         assert_eq!((g.transparency, g.times()), (ONE, (256, 0)));
         let l = g.lights();
         let light = l[0];
-        assert_eq!((light.kind, light.far_start, light.far_end, light.intensity), (4, 400.0, 500.0, 1.0));
-        assert!((light.pos - Vec3::new(0.0, 6300.0, 766.819)).length() < 0.01, "{:?}", light.pos);
-        assert!((light.colour - Vec3::new(110.0, 137.0, 214.0) / 255.0).length() < 0.001);
+        let crate::town::LightKind::Omni { pos, far } = light.kind else { panic!("{light:?}") };
+        assert_eq!((far.start, far.end, light.intensity), (ee::k(400.0), ee::k(500.0), ONE));
+        let p = pos.map(ee::f);
+        assert!(p[0].abs() < 0.01 && (p[1] - 6300.0).abs() < 0.01 && (p[2] - 766.819).abs() < 0.01, "{p:?}");
+        let c = light.colour.map(ee::f);
+        let want = [110.0, 137.0, 214.0].map(|x: f32| x / 255.0);
+        assert!((0..3).all(|k| (c[k] - want[k]).abs() < 0.001), "{c:?}");
         // The circle's light: black until the circle steps.
-        assert_eq!(l[1].colour, Vec3::ZERO);
+        assert_eq!(l[1].colour, [0; 4]);
         // Far from Kite it neither steps nor draws.
         let far = [0, 0x4480_0000, 0, ONE];
         assert!(!g.step(piney_data::volume::Volume::Inf, far, cam, 1512, false).near);

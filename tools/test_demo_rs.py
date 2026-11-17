@@ -1388,7 +1388,7 @@ class DemoAgainstGame(unittest.TestCase):
     def test_icon_lighting(self):
         import ccs
         import ccsmodel
-        from eemu import f_to_py
+        from eemu import f_from_py as F
         models = {m.obj: m for m in ccsmodel.models(ccs.Ccs(ccs.load(TITLE)))}
         objs = ask(["lit 0 20"])[0]
         self.assertGreater(len(objs), 0)
@@ -1398,18 +1398,15 @@ class DemoAgainstGame(unittest.TestCase):
             for md in e["mmats"]:
                 mm = model.mmats[md["index"]]
                 regs, got = self.vu_light(e["world"], model, mm, md["alpha"])
-                # mc_SetMatrix's registers: vf05-07 the model-space
-                # directions (one light per lane), vf09-11 the colours
-                # (doubled), vf12 the ambient.
+                # mc_SetMatrix's registers, word for word: vf05-07 the
+                # model-space directions (one light per lane, the empty
+                # slots too), vf09-11 the colours (doubled), vf12 the
+                # ambient.
+                bits = [[F(x) for x in v] for v in e["dirs"]]
                 for i in range(3):
-                    d = [f_to_py(regs[r][i]) for r in (5, 6, 7)] if e["colours"][i] != [0, 0, 0] else None
-                    if d is not None:
-                        for a, b in zip(d, e["dirs"][i]):
-                            self.assertAlmostEqual(a, b, delta=2e-6, msg=f"{e['label']} light {i} dir")
-                    for a, b in zip([f_to_py(x) for x in regs[9 + i][:3]], e["colours"][i]):
-                        self.assertAlmostEqual(a, b, delta=1e-6, msg=f"{e['label']} light {i} colour")
-                for a, b in zip([f_to_py(x) for x in regs[12][:3]], e["ambient"]):
-                    self.assertAlmostEqual(a, b, delta=1e-6, msg=f"{e['label']} ambient")
+                    self.assertEqual([regs[r][i] for r in (5, 6, 7)], bits[i], f"{e['label']} light {i} dir")
+                    self.assertEqual(regs[9 + i][:3], [F(x) for x in e["colours"][i]], f"{e['label']} light {i} colour")
+                self.assertEqual(regs[12][:3], [F(x) for x in e["ambient"]], f"{e['label']} ambient")
                 for i, (g, q) in enumerate(zip(got, md["colours"])):
                     vertices += 1
                     port = [int(x) for x in q]

@@ -138,7 +138,9 @@ primitive with PRIM.FGE (a `ccEff` sprite) carries its one F and FOGCOL
 as `DrawState::fog`; both renderers put it through the same fog stage.
 
 Light colours are doubled in `mc_SetMatrix` (`loi 2.0`) and light directions
-renormalised there. In the `lit` line `c_i` are the colours as the matrix
+renormalised there (each lane's squares by `mula`, `madda`, `madd`, times
+`ERSQRT`); the port's `Lights` are those registers word for word
+(`piney_data::light`, [the light group](field-game.md)). In the `lit` line `c_i` are the colours as the matrix
 packet holds them (VU memory 12-14), before that doubling: VU1 computes
 `sum 2 c_i max(0, l_i . n) + 128 ambient` on the stored normal `n`, whose
 length is 64, so the doubling and the 64 make the 128 (checked against

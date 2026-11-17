@@ -179,38 +179,82 @@ fn main() {
                     pri
                 );
             }
-            // `lights ...`: the slots SetLightMatrix fills (above).
-            Some("lights") => {
-                use glam::Vec3;
-                let f = |i: usize| f32::from_bits(n(i));
-                let count = n(1) as usize;
-                let lights = (0..count)
-                    .map(|k| {
-                        let b = 2 + 16 * k;
-                        piney_world::town::Light {
-                            kind: n(b) as i16,
-                            priority: n(b + 1) as i32 as i8,
-                            pos: Vec3::new(f(b + 2), f(b + 3), f(b + 4)),
-                            dir: Vec3::new(f(b + 5), f(b + 6), f(b + 7)),
-                            colour: Vec3::new(f(b + 8), f(b + 9), f(b + 10)),
-                            intensity: f(b + 11),
-                            far_start: f(b + 12),
-                            far_end: f(b + 13),
-                            radius: [f(b + 14), f(b + 15)],
+            // `animlights STEM ANIM TIME`: every light record of the file's
+            // animation as SetAnmCtrlWork leaves it at TIME (1/256 frames)
+            // under a unit anm: [name, kind, priority, colour[3],
+            // intensity, payload..., ambient[3]] (a distant light's
+            // direction; an omni light's place and fall-off; a direct or
+            // spot light's lwMatrix, fall-off, radii or tangents).
+            Some("animlights") => {
+                use piney_data::light::Kind;
+                let file = SceneFile::read(&archive, w[1]).unwrap();
+                let ai = file.anim(w[2]).unwrap();
+                let (ambient, records) = piney_world::town::anim_lights(&file, ai).unwrap();
+                let a = ambient.unwrap_or([0; 4]);
+                let rows: Vec<String> = records
+                    .iter()
+                    .map(|r| {
+                        let l = r.at(w[3].parse().unwrap(), &piney_data::vu0::UNIT);
+                        let mut v = vec![u32::from(l.kind.number() as u16), l.priority as u8 as u32];
+                        v.extend(&l.colour[..3]);
+                        v.push(l.intensity);
+                        match l.kind {
+                            Kind::Distant { dir } => v.extend(&dir[..3]),
+                            Kind::Omni { pos, far } => v.extend([pos[0], pos[1], pos[2], far.start, far.end, far.end2]),
+                            Kind::Direct { matrix, far, radius } => {
+                                v.extend(matrix.as_flattened());
+                                v.extend([far.start, far.end, radius.start, radius.end, radius.end2]);
+                            }
+                            Kind::Spot { matrix, far, cone } => {
+                                v.extend(matrix.as_flattened());
+                                v.extend([far.start, far.end, cone[0], cone[1]]);
+                            }
                         }
+                        format!("[\"{}\", {}]", file.ccs.object_name(r.object).unwrap_or("?"), list(&v))
                     })
                     .collect();
-                let at = 2 + 16 * count;
-                let group = piney_world::town::TownLights { ambient: Vec3::ZERO, lights, fog: None };
-                let world = glam::Mat4::from_translation(Vec3::new(f(at), f(at + 1), f(at + 2)));
+                println!("{{\"lights\": [{}], \"ambient\": {}}}", rows.join(", "), list(&a[..3]));
+            }
+            // `lights COUNT (KIND PRIORITY MATRIX[16] COLOUR[4] INTENSITY
+            // START END END2 R0 R1 R1SQ TAN0 TAN1)* AMBIENT[4] WORLD[16]`:
+            // each light as its ccLight holds it (the matrix its lwMatrix;
+            // a distant light's direction lightVector through it, an omni
+            // light's place its translation), then the registers VU1 has
+            // after mc_SetMatrix for a lit model with lwMatrix WORLD.
+            Some("lights") => {
+                use piney_data::light::{Falloff, Kind, Light};
+                let count = n(1) as usize;
+                let v4 = |at: usize| [n(at), n(at + 1), n(at + 2), n(at + 3)];
+                let m4 = |at: usize| [v4(at), v4(at + 4), v4(at + 8), v4(at + 12)];
+                const WORDS: usize = 31;
+                let lights: Vec<Light> = (0..count)
+                    .map(|k| {
+                        let b = 2 + WORDS * k;
+                        let matrix = m4(b + 2);
+                        let (colour, intensity) = (v4(b + 18), n(b + 22));
+                        let far = Falloff { start: n(b + 23), end: n(b + 24), end2: n(b + 25) };
+                        let radius = Falloff { start: n(b + 26), end: n(b + 27), end2: n(b + 28) };
+                        let kind = match n(b) {
+                            1 => Light::distant(&matrix, colour, intensity).kind,
+                            2 => Kind::Direct { matrix, far, radius },
+                            3 => Kind::Spot { matrix, far, cone: [n(b + 29), n(b + 30)] },
+                            _ => Kind::Omni { pos: matrix[3], far },
+                        };
+                        Light { kind, colour, intensity, priority: n(b + 1) as i32 as i8 }
+                    })
+                    .collect();
+                let at = 2 + WORDS * count;
+                let group =
+                    piney_world::town::TownLights { ambient: v4(at), lights, fog: None, volume, objects: Vec::new() };
+                let world: [u32; 16] = std::array::from_fn(|i| n(at + 4 + i));
+                let world = glam::Mat4::from_cols_array(&world.map(f32::from_bits));
                 let l = piney_world::chara::kite::light_matrix(&group, world, false);
-                let bits = |v: &[[f32; 3]; 3], k: f32| {
-                    list(&v.iter().flatten().map(|x| (x / k).to_bits()).collect::<Vec<_>>())
-                };
+                let flat = |v: &[[f32; 3]]| list(&v.iter().flatten().map(|x| x.to_bits()).collect::<Vec<_>>());
                 println!(
-                    "{{\"dirs\": {}, \"colours\": {}}}",
-                    bits(&l.dirs, 1.0),
-                    bits(&l.colours, piney_world::chara::kite::VU_LIGHT_SCALE)
+                    "{{\"dirs\": {}, \"colours\": {}, \"ambient\": {}}}",
+                    flat(&l.dirs),
+                    flat(&l.colours),
+                    list(&l.ambient.map(f32::to_bits))
                 );
             }
             // `dirc AX AY BX BY`: ccGetDirc's heading from A to B as RAD2DEG.

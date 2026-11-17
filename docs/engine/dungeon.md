@@ -499,13 +499,16 @@ out `SetDoor(level, 15)`: `CloseStart` runs only after `CloseDoor` shut the
 party in its room, so no cell of no room is under the player then.
 
 **Light.** The constructor puts one distant light in `cc3d`'s group
-(0x005b8c10): grey (0.7, 0.7, 0.7), turned by `SetMatrix_RotZYX((-0.8, 0,
--0.6))`, also `WORLD_MAN::SetLightDirection`'s. `SetRoom`'s `SetAmbient`
+(0x005b8c10): `ccLight(1, 0)`, so priority 0 where `ccCreateLight` gives
+a distant light -1 (the room lights' `ccLight(4, 1)` still go before it,
+an event room's direct light after it), grey (0.7, 0.7, 0.7) copied in,
+intensity 1, turned by `SetMatrix_RotZYX((-0.8, 0, -0.6))`, also
+`WORLD_MAN::SetLightDirection`'s. `SetRoom`'s `SetAmbient`
 gives lit models the row's ambient / 255. `SetLight` (0x005c4560) adds an
 omni light for each of the room's glows ("The dressing"). The rooms are
 unlit; a lit model (Kite) takes the ambient and, as `ccChar::Draw` picks
 lights, those omni lights near him and the distant light (the port's
-`chara::light_matrix` over the group).
+`chara::kite::light_matrix` over the group).
 
 ## The dressing
 
@@ -801,7 +804,7 @@ reaches leaves its file there. The rooms by type:
 ```
 SetLightEnv(1); SetAnm(the type's anm of spccs); _AnimateForward
 light (+0x370) = GetSubstAdrsF(the type's LGT_): SetMatrix_PosRotZYX(it,
-    (750 (row.x + 4), 750 (row.y + 4), 0), a rotation left uninitialised)
+    (750 (row.x + 4), 750 (row.y + 4), 0), sp+192: see below)
 GetAmbient (the chunk's packed +36 bytes, each / 255.0); AddGrp(light); SetAmbient
 SetFog(32767, 65536, 0, 100, 0)
 rotate[f][i] = 0 (26: pi)
@@ -815,13 +818,31 @@ The lights: `LGT_se1_3lig1` for 25 and 28, `LGT_se2_2lig1`,
 32 also makes `ANM_se4_2lea` at the centre and twenty `LEAF` objects
 (+0xd38bc, +0xd38c0; below). The next `SetRoom` takes the light
 out of the group (`DelGrp`). The port draws the event room's lit models
-(`SetLightEnv(1)`) with that group: the light as the chunk's record at the
-frame, its place replaced by the row's.
+(`SetLightEnv(1)`) with that group.
+
+Where the light stands: `SetAnm` (main 0x001518a0) makes the room's anm
+the light's parent, and the tail's `SetMatrix((pos, 0), (0, 0, rotate))`
+places that anm, so the light is under the room's root. The tail's
+`_AnimateForward` (0x005c3734) runs `SetAnmCtrlWork` again when its step
+sets a pose, which puts the record's place (0, 0, 2500) back over the
+row's: the beam stands 2500 above the room's centre. Every room's anm
+does so but `se3_3`'s (type 31, area 77; its two frames already shown),
+whose light keeps `(750 (x + 4), 750 (y + 4), 0)` = (12000, 6750) from
+the centre, 5500 outside the room past its radius of 500: no character
+reaches it. Its rotation is SetRoom's sp+192, which no instruction of
+`SetRoom` writes before the call: x and y are what its earlier callees
+left (a return address, then 0; zero to VU0), and z is 0 through
+`GotoNextRoom`'s door (its own callees write it) and the caller's older
+word through `RoomSelect`, `GO`, `Generate`, `SetItemBox` or `ShowMap`;
+any z turns the beam about its own axis only. The four discs' EditDungeon
+rows (25 at areas 23 and 25, 29, 30, 31, 32) are the same, and
+`tools/test_dungeon_rt.py` compares the light the port puts in the group
+(its lwMatrix, colour, intensity, beam and radii) word for word with the
+game's `_SetLWMatrix` after every event room's `SetRoom` and every door
+into one.
 
 Each of these lights is a direct light (animation.md): white, intensity
-1, the record's place (0, 0, 2500) replaced by `(750 (x + 4), 750 (y +
-4), 0)`. That is a quarter of the way into the 16-cell room from its
-corner, not its centre `750 (x + 8)`. `ccDirectLight::CheckRange` (main
+1. `ccDirectLight::CheckRange` (main
 0x00139330) lights a point in a round beam down the light's -z: the point
 taken into the light's space (its matrix inverted), nothing behind it
 (`-z` below 0) or past the beam's end (`+0x148`, when not 0); full to the

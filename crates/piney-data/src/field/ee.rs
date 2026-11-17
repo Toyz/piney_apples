@@ -97,6 +97,21 @@ pub fn sqrt(v: u32) -> u32 {
     round(0, root, (e - BIAS - t) / 2)
 }
 
+/// `rsqrt.s` (and VU1's `ERSQRT` as `tools/vu.py` runs it, with `a` 1):
+/// `a / sqrt(b)` rounded once, as eemu's `f_rsqrt`: `floor(A / sqrt(B)) =
+/// isqrt(A * A / B)`. The numerator's `2^120` and the denominator's `2^t`
+/// cancel exactly, so the quotient fits in 128 bits.
+pub fn rsqrt(a: u32, b: u32) -> u32 {
+    let (sa, ea, ma) = unpack(a);
+    let (_, eb, mb) = unpack(b);
+    if mb == 0 {
+        return sa << 31 | FMAX;
+    }
+    let t = 60 + ((eb - BIAS - 60) & 1);
+    let q = ((u128::from(ma) * u128::from(ma)) << (120 - t)) / u128::from(mb);
+    round(sa, q.isqrt(), ea - BIAS - 60 - (eb - BIAS - t) / 2)
+}
+
 /// `__ieee754_sqrtf` (`INF SLUS_202.67:0x00124ab0`): newlib's bit-by-bit
 /// square root, rounding to nearest; exponent 0 comes back unchanged, a
 /// negative number gives [`FMAX`] (the EE's 0/0).

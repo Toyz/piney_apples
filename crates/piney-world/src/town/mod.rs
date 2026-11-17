@@ -29,10 +29,11 @@ pub mod pc;
 #[doc(alias = "ROOTTOWN06")]
 pub mod relic_city;
 
+pub use piney_data::light::{AnimLight, Falloff, Kind as LightKind, Light};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::classes::TownGameClass;
@@ -74,42 +75,26 @@ impl FogParams {
     }
 }
 
-/// A light of the town's group.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Light {
-    /// 1 distant, 2 direct, 4 omni (`ccLight.type`).
-    pub kind: i16,
-    /// Omni and direct: position. Distant and direct: the direction it
-    /// travels (`lwMatrix` times (0, 0, -1)).
-    pub pos: Vec3,
-    pub dir: Vec3,
-    /// Colour 0..1 before the intensity.
-    pub colour: Vec3,
-    pub intensity: f32,
-    /// Omni fall-off: full to `far_start`, nothing past `far_end`. Direct:
-    /// the same along its beam (`+0x144`, `+0x148`; 0 for no end).
-    pub far_start: f32,
-    pub far_end: f32,
-    /// Direct: the beam's radius, full to the first (`+0x14c`), nothing
-    /// past the second (`+0x150`).
-    pub radius: [f32; 2],
-    /// `ccLight.priority`: distant -1, omni and direct 0 (`ccCreateLight`).
-    pub priority: i8,
-}
-
-/// The lights and ambient `ROOTTOWN01` sets up from `ANM_sr1town1a`: its
-/// controllers at frame 1 (`SetAnm` then one `_AnimateForward`, never
-/// again).
-#[derive(Clone, Debug, PartialEq)]
+/// The light group a draw environment holds (`ccDrawEnv`'s group at +0x80,
+/// its ambient at +0x30) and the fog it draws with.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct TownLights {
-    pub ambient: Vec3,
-    /// In `town00Light`'s order (the group keeps descending priority).
+    /// The ambient (`SetAmbient`; w unused).
+    pub ambient: V4,
+    /// In the order added (`town00Light`'s for a town); `AddGrp` keeps the
+    /// group in descending priority.
     pub lights: Vec<Light>,
+    /// The lights the area's `STATICOBJECT`s' anms put in the group, added
+    /// before [`TownLights::lights`] (`SetLightEnv(1)` then `SetAnm`), as
+    /// their last step left them.
+    pub objects: Vec<Light>,
     /// The draw environment's fog (`cc3d->SetFog`'s arguments), which VU1
     /// puts on every model drawn with PRIM.FGE (`SetFogSw` on: the
     /// characters, a town's buildings) by each vertex's depth, and the
     /// effects' sprites take at their centre; None, none.
     pub fog: Option<FogParams>,
+    /// The disc whose code lights the group (its `CheckRange`s' `sqrt`).
+    pub volume: Volume,
 }
 
 impl TownLights {
@@ -119,236 +104,28 @@ impl TownLights {
     }
 }
 
-/// Little-endian reads that fail on short data.
-struct Words<'a>(&'a [u8]);
-
-impl Words<'_> {
-    fn u32_at(&self, at: usize) -> Result<u32> {
-        self.0
-            .get(at..at + 4)
-            .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
-            .ok_or_else(|| Error::Format(format!("short read at 0x{at:x}")))
-    }
+/// An Anime chunk's ambient (`ccAnm::GetAmbient` of the last 0x0601
+/// record at or before frame 1) and its light records
+/// ([`piney_data::light::anim_lights`]).
+pub fn anim_lights(file: &SceneFile, anim: usize) -> Result<(Option<V4>, Vec<AnimLight>)> {
+    let (packed, lights) = piney_data::light::anim_lights(&file.ccs.data, file.anims[anim].offset)?;
+    Ok((packed.map(piney_data::light::ambient), lights))
 }
 
-/// One controller of an Anime chunk's light record, as
-/// `ccAnmChunk::ConvLCNum2ALCNum` (0x00144e90) reads it: kind 0 absent (the
-/// default), 1 one value, 2 keyed (`u32 n`, then n x (u32 frame, value)).
-#[derive(Clone, Debug, PartialEq)]
-enum LightCtrl<const N: usize> {
-    None,
-    Const([u32; N]),
-    Keyed(Vec<(u32, [u32; N])>),
-}
-
-impl<const N: usize> LightCtrl<N> {
-    fn read(d: &Words, q: &mut usize, kind: u32) -> Result<Self> {
-        let vals = |at: usize| -> Result<[u32; N]> {
-            let mut v = [0; N];
-            for (k, x) in v.iter_mut().enumerate() {
-                *x = d.u32_at(at + 4 * k)?;
-            }
-            Ok(v)
-        };
-        Ok(match kind {
-            0 => LightCtrl::None,
-            1 => {
-                let v = vals(*q)?;
-                *q += 4 * N;
-                LightCtrl::Const(v)
-            }
-            2 => {
-                let n = d.u32_at(*q)? as usize;
-                *q += 4;
-                let mut keys = Vec::with_capacity(n);
-                for _ in 0..n {
-                    keys.push((d.u32_at(*q)?, vals(*q + 4)?));
-                    *q += 4 + 4 * N;
-                }
-                LightCtrl::Keyed(keys)
-            }
-            k => return Err(Error::Format(format!("light controller kind {k} at 0x{:x}", *q))),
-        })
-    }
-
-    /// The keys around `time` (1/256 frames) and how far between them.
-    fn span(&self, time: u32) -> Option<([u32; N], [u32; N], f32)> {
-        match self {
-            LightCtrl::None => None,
-            LightCtrl::Const(v) => Some((*v, *v, 0.0)),
-            LightCtrl::Keyed(k) => {
-                let t = time as f32 / 256.0;
-                let i = k.iter().rposition(|(f, _)| (*f as f32) <= t).unwrap_or(0);
-                let (f0, v0) = k[i];
-                match k.get(i + 1) {
-                    Some(&(f1, v1)) if f1 > f0 => Some((v0, v1, ((t - f0 as f32) / (f1 - f0) as f32).clamp(0.0, 1.0))),
-                    _ => Some((v0, v0, 0.0)),
-                }
-            }
-        }
-    }
-
-    /// Floats: linear between keys (`ccAnmCtrlFloat_Set`, `FVec3_Set`).
-    fn floats(&self, time: u32, default: [f32; N]) -> [f32; N] {
-        match self.span(time) {
-            None => default,
-            Some((a, b, t)) => std::array::from_fn(|k| {
-                let (a, b) = (f32::from_bits(a[k]), f32::from_bits(b[k]));
-                a + (b - a) * t
-            }),
-        }
-    }
-}
-
-impl LightCtrl<1> {
-    /// A colour (`ccAnmCtrlColor_Set`: `ccSetBlendColor` of the two keys,
-    /// each channel over 255).
-    fn colour(&self, time: u32) -> Vec3 {
-        let col = |c: u32| Vec3::new((c & 0xff) as f32, ((c >> 8) & 0xff) as f32, ((c >> 16) & 0xff) as f32) / 255.0;
-        match self.span(time) {
-            None => Vec3::ONE,
-            Some((a, b, t)) => col(a[0]) * (1.0 - t) + col(b[0]) * t,
-        }
-    }
-}
-
-/// A light record of an Anime chunk: 0x0603 a distant light (flags: bits
-/// 3-5 rotation in degrees, 6-8 colour, 9-11 intensity), 0x0605 a direct
-/// light (bits 0-2 position, 3-5 rotation, 6-8 colour, 9-11 intensity,
-/// 12-14 and 15-17 the beam's start and end, 18-20 and 21-23 its radii) or
-/// 0x0609 an omni (bits 0-2 position, 6-8 colour, 9-11 intensity, 12-14
-/// far start, 15-17 far end); `SetAnmCtrlWork` (0x00150670) defaults an
-/// absent intensity to 1 and the other floats to 0.
-#[derive(Clone, Debug, PartialEq)]
-pub struct AnimLight {
-    /// The LGT_ object.
-    pub object: u32,
-    /// 1 distant, 2 direct, 4 omni.
-    kind: i16,
-    pos: LightCtrl<3>,
-    rot: LightCtrl<3>,
-    colour: LightCtrl<1>,
-    intensity: LightCtrl<1>,
-    far_start: LightCtrl<1>,
-    far_end: LightCtrl<1>,
-    radius: [LightCtrl<1>; 2],
-}
-
-impl AnimLight {
-    /// The light at `time` in the animation's own space.
-    pub fn at(&self, time: u32) -> Light {
-        let [intensity] = self.intensity.floats(time, [1.0]);
-        let colour = self.colour.colour(time);
-        let rot = match &self.rot {
-            LightCtrl::None => [0; 3],
-            LightCtrl::Const(v) => piney_data::anim::const_radians(*v),
-            LightCtrl::Keyed(_) => {
-                let r = self.rot.floats(time, [0.0; 3]);
-                piney_data::anim::const_radians(r.map(f32::to_bits))
-            }
-        };
-        // lightVector (main 0x002fb100) turned by the light's matrix.
-        let dir = draw::mat(&piney_data::anim::rot_bits(rot)).transform_vector3(Vec3::new(0.0, 0.0, -1.0));
-        let [far_start] = self.far_start.floats(time, [0.0]);
-        let [far_end] = self.far_end.floats(time, [0.0]);
-        let radius = self.radius.each_ref().map(|r| r.floats(time, [0.0])[0]);
-        let pos = Vec3::from(self.pos.floats(time, [0.0; 3]));
-        match self.kind {
-            1 => Light {
-                kind: 1,
-                pos: Vec3::ZERO,
-                dir,
-                colour,
-                intensity,
-                far_start: 0.0,
-                far_end: 0.0,
-                radius: [0.0; 2],
-                priority: -1,
-            },
-            2 => Light { kind: 2, pos, dir, colour, intensity, far_start, far_end, radius, priority: 0 },
-            _ => Light {
-                kind: 4,
-                pos,
-                dir: Vec3::ZERO,
-                colour,
-                intensity,
-                far_start,
-                far_end,
-                radius: [0.0; 2],
-                priority: 0,
-            },
-        }
-    }
-}
-
-/// An Anime chunk's ambient (0x0601 records: the last at or before frame
-/// 1) and its light records.
-pub fn anim_lights(file: &SceneFile, anim: usize) -> Result<(Option<Vec3>, Vec<AnimLight>)> {
-    let d = Words(&file.ccs.data);
-    let off = file.anims[anim].offset;
-    let words = d.u32_at(off + 16)? as usize;
-    let (mut p, end) = (off + 20, off + 20 + 4 * words);
-    let mut frame = 0u32;
-    let mut ambient = None;
-    let mut lights: Vec<AnimLight> = Vec::new();
-    let col = |c: u32| Vec3::new((c & 0xff) as f32, ((c >> 8) & 0xff) as f32, ((c >> 16) & 0xff) as f32) / 255.0;
-    while p < end {
-        let kind = d.u32_at(p)? as u16;
-        let n = d.u32_at(p + 4)? as usize;
-        let mut q = p + 8;
-        match kind {
-            0xff01 => frame = d.u32_at(q)?,
-            0x0601 if frame <= 1 => ambient = Some(col(d.u32_at(q)?)),
-            0x0603 | 0x0605 | 0x0609 => {
-                let object = d.u32_at(q)?;
-                let flags = d.u32_at(q + 4)?;
-                q += 8;
-                let kind = match kind {
-                    0x0603 => 1,
-                    0x0605 => 2,
-                    _ => 4,
-                };
-                let field = |shift: u32| (flags >> shift) & 7;
-                let pos = if kind == 1 { LightCtrl::None } else { LightCtrl::read(&d, &mut q, field(0))? };
-                let rot = if kind == 4 { LightCtrl::None } else { LightCtrl::read(&d, &mut q, field(3))? };
-                let colour = LightCtrl::read(&d, &mut q, field(6))?;
-                let intensity = LightCtrl::read(&d, &mut q, field(9))?;
-                let (far_start, far_end) = if kind == 1 {
-                    (LightCtrl::None, LightCtrl::None)
-                } else {
-                    (LightCtrl::read(&d, &mut q, field(12))?, LightCtrl::read(&d, &mut q, field(15))?)
-                };
-                let radius = if kind == 2 {
-                    [LightCtrl::read(&d, &mut q, field(18))?, LightCtrl::read(&d, &mut q, field(21))?]
-                } else {
-                    [LightCtrl::None, LightCtrl::None]
-                };
-                if q > p + 8 + 4 * n {
-                    return Err(Error::Format(format!("light record at 0x{p:x} overruns")));
-                }
-                lights.retain(|l| l.object != object);
-                lights.push(AnimLight { object, kind, pos, rot, colour, intensity, far_start, far_end, radius });
-            }
-            _ => {}
-        }
-        p += 8 + 4 * n;
-    }
-    Ok((ambient, lights))
-}
-
-/// An Anime chunk's lights at frame 1 in the order of the class's light
-/// table (`town00Light`, `town02Light`: the distant light, then the
-/// omnis), and its ambient.
-pub(crate) fn read_lights(file: &SceneFile, anim: usize, table: &[(i32, &str)]) -> Result<TownLights> {
+/// An Anime chunk's lights at frame 1 (`SetAnm` then one `_AnimateForward`,
+/// under the anm's unit matrix) in the order of the class's light table
+/// (`town00Light`, `town02Light`: the distant light, then the omnis), and
+/// its ambient, lit by `volume`'s code.
+pub(crate) fn read_lights(file: &SceneFile, anim: usize, table: &[(i32, &str)], volume: Volume) -> Result<TownLights> {
     let (ambient, lights) = anim_lights(file, anim)?;
     let mut out = Vec::new();
     for (_, name) in table {
         let obj = file.ccs.find_object(name).ok_or_else(|| Error::NotFound((*name).into()))?;
         if let Some(l) = lights.iter().find(|l| l.object == obj) {
-            out.push(l.at(256));
+            out.push(l.at(256, &piney_data::vu0::UNIT));
         }
     }
-    Ok(TownLights { ambient: ambient.unwrap_or(Vec3::ZERO), lights: out, fog: None })
+    Ok(TownLights { ambient: ambient.unwrap_or([0; 4]), lights: out, fog: None, volume, objects: Vec::new() })
 }
 
 /// A clump's models as `ccClump::Draw` draws them: each node's own
@@ -696,6 +473,7 @@ impl Town {
         // The towns' tables are Infection's on every disc; the collision
         // takes the disc's square root.
         core.hits.volume = env.volume;
+        core.lights.volume = env.volume;
         let file = core.file.clone();
         let mut cx = BuildCx {
             archive: env.archive,
@@ -758,6 +536,9 @@ impl Town {
     /// The town's `Draw` for this frame: its def's steps in order.
     pub fn step(&mut self, v: &MapView) {
         self.frame.clear();
+        // The group as this frame's characters see it: they draw (49, 50,
+        // 64) before the town (96) steps its objects' anms.
+        self.core.lights.objects = self.systems.object_lights();
         self.systems.run(self.def.order, &mut self.core, v, &mut self.frame, &mut self.events);
         self.rows = self.systems.rows(&self.core.file);
     }
@@ -1031,14 +812,22 @@ pub(crate) mod tests {
         let Some(archive) = archive() else { return };
         let t = Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
         let l = &t.core.lights;
-        assert_eq!(l.ambient, Vec3::new(113.0, 113.0, 120.0) / 255.0);
+        assert_eq!(l.ambient, piney_data::light::ambient(0x0078_7171));
         assert_eq!(l.lights.len(), 6);
-        assert_eq!((l.lights[0].kind, l.lights[0].intensity, l.lights[0].priority), (1, 1.0, -1));
-        let omni: Vec<(Vec3, f32, f32, f32)> =
-            l.lights[1..].iter().map(|o| (o.pos, o.intensity, o.far_start, o.far_end)).collect();
-        assert_eq!(omni[0], (Vec3::new(2400.0, -2300.0, 0.0), 1.0, 600.0, 800.0));
-        assert_eq!(omni[4], (Vec3::new(-800.0, 3600.0, 300.0), 1.0, 600.0, 800.0));
-        assert_eq!(l.lights[1].colour, Vec3::new(250.0, 218.0, 148.0) / 255.0);
+        let sun = &l.lights[0];
+        assert!(matches!(sun.kind, LightKind::Distant { .. }) && sun.intensity == ONE && sun.priority == -1);
+        let omni: Vec<([f32; 3], F, f32, f32)> = l.lights[1..]
+            .iter()
+            .map(|o| match o.kind {
+                LightKind::Omni { pos, far } => {
+                    ([0, 1, 2].map(|k| ee::f(pos[k])), o.intensity, ee::f(far.start), ee::f(far.end))
+                }
+                _ => panic!("{o:?}"),
+            })
+            .collect();
+        assert_eq!(omni[0], ([2400.0, -2300.0, 0.0], ONE, 600.0, 800.0));
+        assert_eq!(omni[4], ([-800.0, 3600.0, 300.0], ONE, 600.0, 800.0));
+        assert_eq!(l.lights[1].colour, piney_data::light::colour_of(0x0094_dafa, ONE));
     }
 
     /// The Aura shrine's light (`LGT_se1_3lig1` of `ANM_se1_3_1a`, record
@@ -1053,18 +842,21 @@ pub(crate) mod tests {
         let ai = file.anim("ANM_se1_3_1a").unwrap();
         let obj = file.ccs.find_object("LGT_se1_3lig1").unwrap();
         let (_, lights) = anim_lights(&file, ai).unwrap();
-        let l = lights.iter().find(|l| l.object == obj).unwrap().at(256);
-        assert_eq!((l.kind, l.priority, l.intensity, l.radius), (2, 0, 1.0, [498.0, 500.0]));
-        assert_eq!((l.pos, l.dir, l.colour), (Vec3::new(0.0, 0.0, 2500.0), Vec3::NEG_Z, Vec3::ONE));
-        let lit = |at: Vec3| {
-            let group = TownLights { ambient: Vec3::ZERO, lights: vec![l], fog: None };
-            crate::chara::kite::light_matrix(&group, glam::Mat4::from_translation(at), false).colours[2][0]
+        let l = lights.iter().find(|l| l.object == obj).unwrap().at(256, &piney_data::vu0::UNIT);
+        let LightKind::Direct { matrix, radius, .. } = l.kind else { panic!("{l:?}") };
+        assert_eq!((l.priority, l.intensity, ee::f(radius.start), ee::f(radius.end)), (0, ONE, 498.0, 500.0));
+        assert_eq!(matrix[3].map(ee::f), [0.0, 0.0, 2500.0, 1.0]);
+        assert_eq!(l.colour, piney_data::light::colour_of(0x00ff_ffff, ONE));
+        let lit = |at: [f32; 3]| {
+            let group = TownLights { lights: vec![l], ..TownLights::default() };
+            let world = glam::Mat4::from_translation(at.into());
+            crate::chara::kite::light_matrix(&group, world, false).colours[2][0]
         };
-        let full = lit(Vec3::ZERO);
+        let full = lit([0.0; 3]);
         assert!(full > 0.0);
-        assert!((lit(Vec3::new(0.0, 499.0, 0.0)) - full / 2.0).abs() < 1e-3);
-        assert_eq!(lit(Vec3::new(501.0, 0.0, 0.0)), 0.0);
-        assert_eq!(lit(Vec3::new(0.0, 0.0, 2600.0)), 0.0);
+        assert!((lit([0.0, 499.0, 0.0]) - full / 2.0).abs() < 1e-3);
+        assert_eq!(lit([501.0, 0.0, 0.0]), 0.0);
+        assert_eq!(lit([0.0, 0.0, 2600.0]), 0.0);
     }
 
     /// Issue #75: the ending's book (`ANM_book_anm2`, Quarantine's

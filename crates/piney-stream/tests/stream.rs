@@ -3,14 +3,13 @@
 //! in `tools/eemu.py` on streams 0, 106, 2, 15's first scene, 6 and 18 (over
 //! the desktop's resident `str8000e`, `str8001e` and `str8800e`). Bit for
 //! bit: the tables and file lists, the skip rule, the draw list, and per frame
-//! the frame number, the end, the notes and every object drawn. To a
-//! tolerance: the view's `world_screen` (glam's against VU0's) and the lights.
-//! Skipped without the disc image (PINEY_ISO points elsewhere).
+//! the frame number, the end, the notes, every object drawn, `world_screen`
+//! and `SetLightMatrix`'s light matrix and colours; on each disc a stream with
+//! direct or spot lights (`stream_lights_*.txt`). Skipped without the disc.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use glam::Vec3;
 use piney_data::iso::Iso;
 use piney_data::volume::Volume;
 use piney_desktop::view::View;
@@ -163,7 +162,7 @@ fn scene(
     let members: Vec<load::Member> =
         files.preload.iter().chain(&files.scenes).map(|e| load::read(iso, &d, e).unwrap()).collect();
     let archive = load::archive(&members.iter().collect::<Vec<_>>()).unwrap();
-    let mut loaded = Loaded::default();
+    let mut loaded = Loaded { volume, ..Loaded::default() };
     if !resident.is_empty() {
         let data = piney_data::archive::Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap();
         loaded.files.extend(resident.iter().map(|stem| StreamFile::read(&data, stem).unwrap()));
@@ -185,134 +184,189 @@ fn scenes_play_as_the_game_plays_them() {
     let mut iso = Iso::open(p).unwrap();
     let volume = iso.volume().unwrap();
     let fx = fixture();
-    let mut groups: Vec<usize> = Vec::new();
-    for f in fx.iter().filter(|f| f[0] == "scene") {
-        groups.push(f[1].parse().unwrap());
-    }
-    let (mut frames, mut worst_light) = (0, 0f64);
+    let groups: Vec<usize> = fx.iter().filter(|f| f[0] == "scene").map(|f| f[1].parse().unwrap()).collect();
+    let (mut frames, mut lit) = (0, 0);
     for &num in &groups {
-        let lines: Vec<&Vec<String>> =
-            fx.iter().filter(|f| f[0] != "table" && f[0] != "skip" && f[1] == num.to_string()).collect();
-        let head = lines.iter().find(|f| f[0] == "scene").unwrap();
-        let resident = lines.iter().find(|f| f[0] == "resident").map_or(&[][..], |f| &f[2..]);
-        let (loaded, mut sc) = scene(&mut iso, volume, num, &head[2], resident);
-        let file = &loaded.files[sc.file];
-        let name = |obj: u32| file.index_name(obj).unwrap_or_else(|| "?".to_string());
-        // A name as the fixture's lines write it, one word.
-        let word = |n: String| n.replace('%', "%25").replace(' ', "%20");
-        // The draw list.
-        assert_eq!(sc.frame_end.to_string(), head[4], "stream {num} frameEnd");
-        let want: Vec<(String, String, String)> =
-            lines.iter().filter(|f| f[0] == "draw").map(|f| (f[3].clone(), f[4].clone(), f[5].clone())).collect();
-        let got: Vec<(String, String, String)> = sc
-            .walk()
-            .map(|(l, i)| {
-                let n = &sc.nodes[i];
-                (l.to_string(), word(name(n.obj)), n.parent.map_or("-".to_string(), |p| word(name(sc.nodes[p].obj))))
+        let (f, l) = play(&mut iso, volume, &fx, num);
+        (frames, lit) = (frames + f, lit + l);
+    }
+    eprintln!("{frames} frames, {lit} lit; world_screen and the light matrix bit for bit");
+    assert_eq!(groups, vec![0, 106, 2, 15, 6, 18]);
+}
+
+/// Each disc's stream with direct or spot lights (`stream_lights_*.txt`,
+/// `tools/test_stream_rs.py lights`: Infection's and Mutation's str0090,
+/// Outbreak's str1070, Quarantine's str2062, its spot lights the only ones
+/// on the four discs) played as the game plays it, the light matrix at the
+/// first object drawn bit for bit; some frames lit by a beam or a cone.
+#[test]
+fn direct_and_spot_lights_on_every_disc() {
+    let fixtures = [
+        ("infection", include_str!("stream_lights_inf.txt")),
+        ("mutation", include_str!("stream_lights_mut.txt")),
+        ("outbreak", include_str!("stream_lights_out.txt")),
+        ("quarantine", include_str!("stream_lights_qua.txt")),
+    ];
+    for (name, text) in fixtures {
+        let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{name}/{name}.iso"));
+        if !p.exists() {
+            eprintln!("{name}.iso not present; skipped");
+            continue;
+        }
+        let mut iso = Iso::open(p).unwrap();
+        let volume = iso.volume().unwrap();
+        let fx: Vec<Vec<String>> = text
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.is_empty())
+            .map(|l| l.split_whitespace().map(str::to_string).collect())
+            .collect();
+        let num = fx.iter().find(|f| f[0] == "scene").unwrap()[1].parse().unwrap();
+        let (frames, lit) = play(&mut iso, volume, &fx, num);
+        eprintln!(
+            "{name}: stream {num}, {frames} frames, {lit} lit, {} objects reached by a beam or cone",
+            BEAMS.take()
+        );
+        assert!(lit > 100, "{name}");
+    }
+}
+
+/// Whether `l` is a direct or spot light whose light reaches `at`.
+fn beam(l: &piney_stream::scene::Light, volume: Volume, at: [u32; 4]) -> bool {
+    use piney_data::light::Kind;
+    matches!(l.light.kind, Kind::Direct { .. } | Kind::Spot { .. })
+        && l.light.check_range(volume, at).is_some_and(|(_, c)| c != [0; 4])
+}
+
+thread_local! {
+    /// The objects drawn that a direct or spot light reached.
+    static BEAMS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Stream `num`'s lines of fixture `fx` against the port on `volume`'s
+/// disc: the draw list, then per frame the frame, the end, the notes,
+/// every object drawn, `world_screen`, the effects and the light matrix,
+/// all bit for bit. (frames, lit frames).
+fn play(iso: &mut Iso, volume: Volume, fx: &[Vec<String>], num: usize) -> (usize, usize) {
+    let (mut frames, mut lit) = (0, 0);
+    let lines: Vec<&Vec<String>> =
+        fx.iter().filter(|f| f[0] != "table" && f[0] != "skip" && f[1] == num.to_string()).collect();
+    let head = lines.iter().find(|f| f[0] == "scene").unwrap();
+    let resident = lines.iter().find(|f| f[0] == "resident").map_or(&[][..], |f| &f[2..]);
+    let (loaded, mut sc) = scene(iso, volume, num, &head[2], resident);
+    let file = &loaded.files[sc.file];
+    let name = |obj: u32| file.index_name(obj).unwrap_or_else(|| "?".to_string());
+    // A name as the fixture's lines write it, one word.
+    let word = |n: String| n.replace('%', "%25").replace(' ', "%20");
+    // The draw list.
+    assert_eq!(sc.frame_end.to_string(), head[4], "stream {num} frameEnd");
+    let want: Vec<(String, String, String)> =
+        lines.iter().filter(|f| f[0] == "draw").map(|f| (f[3].clone(), f[4].clone(), f[5].clone())).collect();
+    let got: Vec<(String, String, String)> = sc
+        .walk()
+        .map(|(l, i)| {
+            let n = &sc.nodes[i];
+            (l.to_string(), word(name(n.obj)), n.parent.map_or("-".to_string(), |p| word(name(sc.nodes[p].obj))))
+        })
+        .collect();
+    assert_eq!(got, want, "stream {num} draw list");
+    // The frames.
+    let by_step: HashMap<(&str, u32), &Vec<String>> =
+        lines.iter().filter(|f| f.len() > 3).map(|f| ((f[0].as_str(), f[3].parse().unwrap_or(0)), *f)).collect();
+    sc.decode(&loaded);
+    let mut notes = std::mem::take(&mut sc.notes);
+    let mut k = 1u32;
+    while let Some(f) = by_step.get(&("frame", k)) {
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        let mut drawn = 0;
+        let mut first = None;
+        let mut hl = 0xcbf2_9ce4_8422_2325u64;
+        for (_, i) in sc.walk() {
+            let Some(tp) = sc.visible(i) else { continue };
+            let w = sc.world(i);
+            first.get_or_insert(w);
+            let (normals, colours) = draw::light_matrix(&sc, w[3]);
+            for x in normals.iter().chain(&colours).flatten() {
+                hl = fnv(hl, &x.to_le_bytes());
+            }
+            if sc.lights.iter().any(|l| beam(l, volume, w[3])) {
+                BEAMS.set(BEAMS.get() + 1);
+            }
+            h = fnv(h, name(sc.nodes[i].obj).as_bytes());
+            h = fnv(h, &tp.to_bits().to_le_bytes());
+            for c in w {
+                for x in c {
+                    h = fnv(h, &x.to_le_bytes());
+                }
+            }
+            drawn += 1;
+        }
+        let note_text: Vec<String> =
+            notes.iter().rev().map(|n| format!("{}:{:x}:{}", n.frame, n.event, n.param)).collect();
+        let note_text = if note_text.is_empty() { "-".to_string() } else { note_text.join(" ") };
+        let got = format!("{} {:x} {} {:016x} notes {}", sc.frame_now, sc.state & 0x14, drawn, h, note_text);
+        assert_eq!(got, f[4..].join(" "), "stream {num} step {k}");
+        // The effect nodes that draw: pattern, place, scale, turn and
+        // transparency, hashed in sorted order.
+        let mut effs: Vec<Vec<u8>> = sc
+            .effs
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.pattern != piney_stream::scene::PATTERN_STOP)
+            .map(|(j, e)| {
+                let w = sc.eff_world(j);
+                let mut b = e.pattern.to_le_bytes().to_vec();
+                for x in [w[3][0], w[3][1], w[3][2], e.scale[0], e.scale[1], e.rotate, e.transparency] {
+                    b.extend(x.to_le_bytes());
+                }
+                b
             })
             .collect();
-        assert_eq!(got, want, "stream {num} draw list");
-        // The frames.
-        let by_step: HashMap<(&str, u32), &Vec<String>> =
-            lines.iter().filter(|f| f.len() > 3).map(|f| ((f[0].as_str(), f[3].parse().unwrap_or(0)), *f)).collect();
-        sc.decode(&loaded);
-        let mut notes = std::mem::take(&mut sc.notes);
-        let mut k = 1u32;
-        while let Some(f) = by_step.get(&("frame", k)) {
-            let mut h = 0xcbf2_9ce4_8422_2325u64;
-            let mut drawn = 0;
-            let mut first = None;
-            for (_, i) in sc.walk() {
-                let Some(tp) = sc.visible(i) else { continue };
-                let w = sc.world(i);
-                first.get_or_insert(w);
-                h = fnv(h, name(sc.nodes[i].obj).as_bytes());
-                h = fnv(h, &tp.to_bits().to_le_bytes());
-                for c in w {
-                    for x in c {
-                        h = fnv(h, &x.to_le_bytes());
-                    }
+        effs.sort();
+        match by_step.get(&("eff", k)) {
+            Some(l) => {
+                let mut he = 0xcbf2_9ce4_8422_2325u64;
+                for e in &effs {
+                    he = fnv(he, e);
                 }
-                drawn += 1;
+                assert_eq!(format!("{} {:016x}", effs.len(), he), l[4..].join(" "), "stream {num} step {k} effects");
             }
-            let note_text: Vec<String> =
-                notes.iter().rev().map(|n| format!("{}:{:x}:{}", n.frame, n.event, n.param)).collect();
-            let note_text = if note_text.is_empty() { "-".to_string() } else { note_text.join(" ") };
-            let got = format!("{} {:x} {} {:016x} notes {}", sc.frame_now, sc.state & 0x14, drawn, h, note_text);
-            assert_eq!(got, f[4..].join(" "), "stream {num} step {k}");
-            // The effect nodes that draw: pattern, place, scale, turn and
-            // transparency, hashed in sorted order.
-            let mut effs: Vec<Vec<u8>> = sc
-                .effs
-                .iter()
-                .enumerate()
-                .filter(|(_, e)| e.pattern != piney_stream::scene::PATTERN_STOP)
-                .map(|(j, e)| {
-                    let w = sc.eff_world(j);
-                    let mut b = e.pattern.to_le_bytes().to_vec();
-                    for x in [w[3][0], w[3][1], w[3][2], e.scale[0], e.scale[1], e.rotate, e.transparency] {
-                        b.extend(x.to_le_bytes());
-                    }
-                    b
-                })
-                .collect();
-            effs.sort();
-            match by_step.get(&("eff", k)) {
-                Some(l) => {
-                    let mut he = 0xcbf2_9ce4_8422_2325u64;
-                    for e in &effs {
-                        he = fnv(he, e);
-                    }
-                    assert_eq!(
-                        format!("{} {:016x}", effs.len(), he),
-                        l[4..].join(" "),
-                        "stream {num} step {k} effects"
-                    );
-                }
-                None => {
-                    assert!(effs.is_empty(), "stream {num} step {k}: {} effects the game does not draw", effs.len())
-                }
+            None => {
+                assert!(effs.is_empty(), "stream {num} step {k}: {} effects the game does not draw", effs.len())
             }
-            // The camera: SetMatrix_PosRotXYZDebug and SetView in VU0's
-            // arithmetic, bit for bit (the fixture's %.9g reads back exact).
-            let c = by_step[&("camera", k)];
-            let view = View::new(piney_desktop::camera::default_projection(), sc.view_camera());
-            let got: Vec<u32> = view.world_screen_bits().concat();
-            let want: Vec<u32> = c[4..20].iter().map(|x| x.parse::<f32>().unwrap().to_bits()).collect();
-            assert_eq!(got, want, "stream {num} step {k} world_screen");
-            // The light at the first object drawn.
-            if let Some(l) = by_step.get(&("light", k)) {
-                let v: Vec<f64> = l[5..].iter().map(|x| x.parse().unwrap()).collect();
-                let at = first.map(|w| piney_stream::scene::to_mat4(&w).w_axis.truncate()).unwrap_or(Vec3::ZERO);
-                for (slot, s) in draw::light_slots(&sc, at).iter().enumerate() {
-                    let Some((toward, colour)) = s else { continue };
-                    for c in 0..3 {
-                        let e = (f64::from(toward[c]) - v[4 * c + slot]).abs();
-                        let ec = (f64::from(colour[c]) - v[16 + 4 * slot + c]).abs();
-                        worst_light = worst_light.max(e).max(ec);
-                        assert!(
-                            e < 1e-4 && ec < 1e-5,
-                            "stream {num} step {k} light slot {slot}: toward {toward:?} colour {colour:?} vs {:?}",
-                            (v[slot], v[4 + slot], v[8 + slot], &v[16 + 4 * slot..19 + 4 * slot])
-                        );
-                    }
-                }
-                for c in 0..3 {
-                    assert!((f64::from(sc.ambient[c]) - v[28 + c]).abs() < 1e-6, "stream {num} step {k} ambient");
-                }
-            }
-            frames += 1;
-            if sc.ended() {
-                break;
-            }
-            sc.decode(&loaded);
-            notes = std::mem::take(&mut sc.notes);
-            k += 1;
         }
-        assert!(!by_step.contains_key(&("frame", k + 1)), "stream {num}: the port ended at step {k}");
+        // The camera: SetMatrix_PosRotXYZDebug and SetView in VU0's
+        // arithmetic, bit for bit (the fixture's %.9g reads back exact).
+        let c = by_step[&("camera", k)];
+        let view = View::new(piney_desktop::camera::default_projection(), sc.view_camera());
+        let got: Vec<u32> = view.world_screen_bits().concat();
+        let want: Vec<u32> = c[4..20].iter().map(|x| x.parse::<f32>().unwrap().to_bits()).collect();
+        assert_eq!(got, want, "stream {num} step {k} world_screen");
+        // The light at the first object drawn: SetLightMatrix's light
+        // matrix (normalised, transposed) and colours, word for word.
+        if let Some(l) = by_step.get(&("light", k)) {
+            let want: Vec<u32> = l[5..].iter().map(|x| x.parse::<f32>().unwrap().to_bits()).collect();
+            let at = first.map_or([0, 0, 0, 0x3f80_0000], |w| w[3]);
+            let (normals, colours) = draw::light_matrix(&sc, at);
+            let got: Vec<u32> = normals.iter().chain(&colours).flatten().copied().collect();
+            lit += 1;
+            assert_eq!(got, want, "stream {num} step {k} light matrix and colours");
+        }
+        // Every object drawn's (a lights fixture's).
+        if let Some(l) = by_step.get(&("lights", k)) {
+            lit += 1;
+            assert_eq!(format!("{drawn} {hl:016x}"), l[4..].join(" "), "stream {num} step {k} lights");
+        }
+        frames += 1;
+        if sc.ended() {
+            break;
+        }
+        sc.decode(&loaded);
+        notes = std::mem::take(&mut sc.notes);
+        k += 1;
     }
-    eprintln!("{frames} frames; world_screen bit for bit, worst light error {worst_light:.2e}");
-    assert_eq!(groups, vec![0, 106, 2, 15, 6, 18]);
+    assert!(!by_step.contains_key(&("frame", k + 1)), "stream {num}: the port ended at step {k}");
+
+    (frames, lit)
 }
 
 /// Stream 2's ribbons are morphed (`ccMorpher`, `F_Morpher`): at frame 822

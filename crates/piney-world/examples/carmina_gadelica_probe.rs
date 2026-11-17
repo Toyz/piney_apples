@@ -66,7 +66,7 @@ fn state(t: &Town) -> String {
         let pos = [m.pos[0], m.pos[1], m.pos[2]];
         Some(format!("[{r}, {}, {}, {}]", pass(table.rows[r].pass), name(m.model), list(pos)))
     }));
-    let lights = list(t.core.lights.lights.iter().map(|l| l.kind));
+    let lights = list(t.core.lights.lights.iter().map(|l| l.kind.number()));
     let f = &t.def.fog;
     let fog = format!(
         "[{}, {}, {}, {}, {}]",

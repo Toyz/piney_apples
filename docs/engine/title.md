@@ -685,7 +685,7 @@ ambient (`ccAnmChunk::ambient` stays 0x80000000, so `ccAnm::Draw` leaves
 the env's) or a light, and `title1` has no light chunk.
 
 Checked (eemu): the port's `Lights` equal VU1's registers after
-`mc_SetMatrix`, and every icon vertex's RGBA from `mc_DrawTriL` equals
+`mc_SetMatrix` word for word (the empty slots too), and every icon vertex's RGBA from `mc_DrawTriL` equals
 `min(128, 128 (ambient + sum c_i/2 max(0, dir_i . n)))` of the port's
 `Lights` (`c_i` the doubled colours `Lights` carries).
 

@@ -5,7 +5,6 @@
 
 use std::rc::Rc;
 
-use glam::Vec3;
 use piney_data::Result;
 
 use super::sparks::fieldrand;
@@ -13,7 +12,7 @@ use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, Room
 use crate::dungeon::Rooms;
 use crate::ee::{self, F, ONE, V4};
 use crate::sprite::{EffSprite, EffState};
-use crate::town::Light;
+use crate::town::{Falloff, Light};
 
 /// `roomlight[32]`: `SetLight` checks the count before each dummy, and
 /// `DrawEff` walks the 32.
@@ -22,11 +21,9 @@ const ROOM_LIGHTS: usize = 32;
 const LIGHT_M0: &str = "OBJ_o_light_m0*";
 const LIGHT_S0: &str = "OBJ_o_light_s0*";
 const ALTAR: &str = "OBJ_o_altar_l0*";
-/// Every omni light's fall-off (`farDownStart` 100, `farDownEnd` 250),
-/// `ccSetColor`'s 1 / 255 (0x3b808081), and a pattern's 4096.
-const FAR_START: f32 = 100.0;
-const FAR_END: f32 = 250.0;
-const BY_255: F = 0x3b80_8081;
+/// Every omni light's fall-off (`farDownStart` 100, `farDownEnd` 250 and
+/// its square 62500, stored as constants), and a pattern's 4096.
+const FAR: Falloff = Falloff { start: 0x42c8_0000, end: 0x437a_0000, end2: 0x4774_2400 };
 const K4096: F = 0x4580_0000;
 
 /// One `ROOMLIGHT` as its case makes it: the glow at `at` (a vector the
@@ -91,19 +88,11 @@ impl RoomLights {
         let t = lw[3];
         let pos = ee::vadd(ee::apply(lw, [g.at[0], g.at[1], g.at[2], 0]), t);
         let pat = fieldrand(cx.rng, self.rooms.pat_num(g.eff)) as u16;
-        let byte = |k: u32| ee::mul(ee::from_int(((g.colour >> (8 * k)) & 0xff) as i32), BY_255);
-        let colour = Vec3::new(ee::f(byte(0)), ee::f(byte(1)), ee::f(byte(2)));
-        cx.lights.lights.push(Light {
-            kind: 4,
-            pos: Vec3::new(ee::f(t[0]), ee::f(t[1]), ee::f(t[2])),
-            dir: Vec3::ZERO,
-            colour,
-            intensity: 1.0,
-            far_start: FAR_START,
-            far_end: FAR_END,
-            radius: [0.0; 2],
-            priority: 1,
-        });
+        // `ccLight(4, 1)`, `ccSetColor(colour, 1)`, the fall-off and its
+        // square as constants, `UnitMatrix` then `TransMatrix` to the place.
+        let colour = piney_data::light::colour_of(g.colour, ONE);
+        let place = piney_data::vu0::trans_matrix(&piney_data::vu0::UNIT, t)[3];
+        cx.lights.lights.push(Light { priority: 1, ..Light::omni(place, colour, ONE, FAR) });
         let light = cx.lights.lights.len() - 1;
         let (eff2, pat2) = match g.eff2 {
             Some(e) => (Some((e, pos)), fieldrand(cx.rng, self.rooms.pat_num(e)) as u16),
@@ -145,7 +134,7 @@ impl MapSystem for RoomLights {
             let t = p.and_then(|p| p.get(usize::from(rl.pat))).copied().unwrap_or(4096);
             let tr = ee::mul(ONE, ee::div(ee::from_int(i32::from(t)), K4096));
             if let Some(l) = cx.core.lights.lights.get_mut(rl.light) {
-                l.intensity = ee::f(tr);
+                l.intensity = tr;
             }
             rl.pat += 1;
             if usize::from(rl.pat) >= p.map_or(0, Vec::len) {

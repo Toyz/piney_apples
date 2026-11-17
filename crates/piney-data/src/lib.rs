@@ -2,10 +2,10 @@
 //! `docs/` and the Python tools under `tools/` that established them: the
 //! image ([`iso`], [`archive`] for `DATA.BIN` and the streams), CCSF scenes
 //! ([`ccs`], [`texture`], [`model`], [`scene`], [`anim`]), the game's maths
-//! ([`libm`]), the Chaos Gate words and areas ([`area`]), dungeons and fields
-//! ([`dungeon`], [`field`]), town statics ([`statics`]), the save ([`save`])
-//! and which disc it is ([`volume`]). The tables read from each volume's
-//! executable are generated into the build by `piney-gen`.
+//! ([`libm`], [`vu0`]) and light group ([`light`]), the Chaos Gate words and
+//! areas ([`area`]), dungeons and fields ([`dungeon`], [`field`]), town
+//! statics ([`statics`]), the save ([`save`]) and the disc ([`volume`]); the
+//! executables' tables are generated into the build by `piney-gen`.
 // A library reports through its caller, never on stdout.
 #![deny(clippy::print_stdout)]
 #![forbid(unsafe_code)]
@@ -20,6 +20,7 @@ pub mod exe;
 pub mod field;
 pub mod iso;
 pub mod libm;
+pub mod light;
 pub mod model;
 pub mod pack;
 pub mod ps2card;
@@ -33,6 +34,7 @@ pub mod store;
 pub mod tables;
 pub mod texture;
 pub mod volume;
+pub mod vu0;
 pub mod world;
 
 use std::fmt;

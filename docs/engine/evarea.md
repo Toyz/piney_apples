@@ -722,7 +722,9 @@ pieces and no disc.
 **The constructor** (MUT gcmn 0x0041d200):
 
 1. The models of `EA_MODELTABLEB8` (one, `MDL_se1_6flo1`, the floor) and
-   the objects of `EA_OBJTABLEB8` (one, the disc `ANM_se1_6ob1a`).
+   the objects of `EA_OBJTABLEB8` (one, the disc `ANM_se1_6ob1a`, whose
+   omni light `LGT_omn01` joins the group as the `STATICOBJECT` makes it:
+   [field-game](field-game.md), the light group).
 2. `bg[0..3]`: `CMP_se1_6bac1`, `clo1_1`, `clo1_2`, `moo1` on `bgLayer`
    0-3, fog off. `SetFog(6000, 20000, 0, 90, 0)`, `bgColor` 0. One light,
    `LGT_se1_6lig1` of `eventareaB8Light`, from `ANM_se1_6bg1a`.
