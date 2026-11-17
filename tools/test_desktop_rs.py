@@ -399,10 +399,7 @@ class DesktopAgainstGame(unittest.TestCase):
             states = [rng.choice([1, 2, 3, 4, 5, 6, 0]) for _ in order]
             cases.append((trial % 2, order, states))
         got = ask([f"inbox {par} {' '.join(map(str, o))} ; {' '.join(map(str, st))}" for par, o, st in cases])
-        insert = next(va for va in range(inf_va(0x00409800), inf_va(0x00409a20), 4)
-                      if self.p.u32(va) >> 26 == 3
-                      and "insert" in (self.p.name_at((self.p.u32(va) & 0x3ffffff) << 2) or ""))
-        insert = (self.p.u32(insert) & 0x3ffffff) << 2
+        [insert] = volume.vector_inserts("AddMailList__16MailList_controlFv", "desktop")
         bad = 0
         for (parody, order, states), g in zip(cases, got):
             m = self.machine()
@@ -431,7 +428,7 @@ class DesktopAgainstGame(unittest.TestCase):
                 mm.store(vec + 4, 4, len(items))
                 return pos
             m.hooks[insert] = ins
-            ret = m.call(inf_va(0x00409800), [THIS])
+            ret = m.call(volume.span("AddMailList__16MailList_controlFv", "desktop")[0], [THIS])
             tbl = self.p.symbol_named("MailTblp" if parody else "MailTbl").value
             size = m.load(THIS + at(0xd8), 4)
             want = {"ret": ret,
@@ -595,8 +592,7 @@ class DesktopAgainstGame(unittest.TestCase):
         cases = [[0, 0, 0], [0xffffffff, 0xffffffff, 0xffffffff], [1 << 31, 1 << 16, 0]]
         cases += [[rng.getrandbits(32), rng.getrandbits(32), rng.getrandbits(32)] for _ in range(40)]
         got = ask([f"walls {' '.join(map(str, c))}" for c in cases])
-        insert = self.p.symbol_named("insert__t11__vector_pod2ZUiZQ2t3std9allocator1ZUiFPUiUiRCUi")
-        insert = insert.value if insert else None
+        [insert] = volume.vector_inserts("AddWallList__13Acces_controlFv", "desktop")
         wall_tbl = self.p.symbol_named("WallTbl").value
         for c, g in zip(cases, got):
             m = self.machine()
@@ -617,11 +613,7 @@ class DesktopAgainstGame(unittest.TestCase):
                     mm.store(dat + 4 * k, 4, v)
                 mm.store(vec + 4, 4, len(items))
                 return pos
-            target = next((self.p.u32(va) & 0x3ffffff) << 2 for va in range(self.ACC_ADD_WALL_LIST,
-                                                                             self.ACC_ADD_WALL_LIST + 540, 4)
-                          if self.p.u32(va) >> 26 == 3 and "insert" in (self.p.name_at(
-                              (self.p.u32(va) & 0x3ffffff) << 2) or ""))
-            m.hooks[insert or target] = ins
+            m.hooks[insert] = ins
             m.call(self.ACC_ADD_WALL_LIST, [THIS])
             size = m.load(THIS + 4, 4)
             want = [(m.load(data + 4 * k, 4) - wall_tbl) // 0x18 for k in range(size)]
@@ -710,11 +702,9 @@ class DesktopAgainstGame(unittest.TestCase):
                     mm.store(dat + 4 * k, 4, v)
                 mm.store(vec + 4, 4, len(items))
                 return pos
-            for fn in (self.AUD_ADD_WAVE, self.AUD_ADD_STR):
-                for va in range(fn, fn + 444, 4):
-                    w = self.p.u32(va)
-                    if w >> 26 == 3 and "insert" in (self.p.name_at((w & 0x3ffffff) << 2) or ""):
-                        m.hooks[(w & 0x3ffffff) << 2] = ins
+            for fn in ("AddWaveList__13Audio_controlFv", "AddStrList__13Audio_controlFv"):
+                for at in volume.vector_inserts(fn, "desktop"):
+                    m.hooks[at] = ins
             m.call(self.AUD_ADD_WAVE, [THIS])
             m.call(self.AUD_ADD_STR, [THIS])
             waves = [(m.load(vecs[0] + 4 * k, 4) - wave) // 0x18 for k in range(m.load(THIS + 4, 4))]

@@ -517,7 +517,10 @@ impl Data {
                     self.temp_pn = 0;
                 }
             }
-            if k.push & (k.ok | k.cancel) != 0 {
+            // Quarantine's takes only decide (QUA desktop.prg 0x003128f8);
+            // the others' decide or cancel (OUT 0x0041fff4, 0x00420000).
+            let close = if self.save_sys.volume == Volume::Qua { k.ok } else { k.ok | k.cancel };
+            if k.push & close != 0 {
                 se(x, Se::OPEN);
                 self.save_sys.next_proccess(0);
                 self.alpha = 0;

@@ -151,7 +151,14 @@ ChangeRequest(6, 7)                                         ccSetupGameCtrl next
 `ChangeArea(a, n)`'s other cases: 1 a field `ChangeScene(1, -2, n, -1, -1,
 -1)`, 2 a dungeon `(2, -2, -2, n, 0, 0)`, anything else `(0, 0, -1, -1, -1,
 -1)`; `ChangeScene` sets only the members given as -1 or more.
-`@1489` (0x00306dc0) is `{0, 1, 2, 3, 4, 0, 1, 2}`. `sf` 8 does nothing
+`@1489` (0x00306dc0) is `{0, 1, 2, 3, 4, 0, 1, 2}`. From Mutation on
+there is no such table on the disc (its 32 bytes are in no executable or
+overlay): `ChangeScene` copies the town into the server unconditionally
+(MUT 0x0016756c, OUT 0x001667bc, QUA 0x0016664c), so a town of -1 or 5 on
+would differ from Infection's. None is ever passed: every `scene`
+instruction in the four discs' scripts gives town -2 or 0-4, the menus'
+`ChangeArea(0, n)` towns are 0-4, and `lastTown` is written only by
+`ChangeScene` from those, so the server is the town on every disc. `sf` 8 does nothing
 more; `sf` 7 turns the font and layer flips off (`fontOffFlip`,
 `OffFlipExcept`) and calls `ccSleepNoSleepThread(1, 1)`, which by its name
 puts the tasks to sleep, so the page's last picture holds.

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-608 entries: audio 49, battle 168, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 133, save 16, script 64, test 265, tooling 63, ui 109, video 18, volumes 109, world 193. 165 entries still have open questions - [listed below](#still-open).
+609 entries: audio 49, battle 168, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 133, save 16, script 64, test 266, tooling 64, ui 110, video 18, volumes 110, world 193. 166 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -620,9 +620,11 @@ The [reference](docs/README.md) says what is true now.
 | 606 | [The later volumes' positioned sounds: a program below 0 and a step on a ground with no row are silent from Mutation on, and test_sound3d's probe pinned to Infection's tables](worklog/0606-the-later-volumes-positioned-sounds-a-program-below-0-and-a.md) | 2026-11-16 | audio, volumes, test |
 | 607 | [The field UI on the later discs: the carried names put Outbreak's menu handlers four over, and ten behaviours of Mutation, Outbreak and Quarantine](worklog/0607-the-field-ui-on-the-later-discs-the-carried-names-put.md) | 2026-11-16 | ui, volumes, tooling, test |
 | 608 | [ccThMother's unplugged pause on every volume, the Outbreak icon static proven unwritten over the whole disc, exact floats in the field UI harnesses](worklog/0608-ccthmother-s-unplugged-pause-on-every-volume-the-outbreak.md) | 2026-11-16 | ui, engine, volumes, tooling, test |
+| 609 | [The desktop, the top page and the eemu harness on the later discs](worklog/0609-the-desktop-the-top-page-and-the-eemu-harness-on-the-later.md) | 2026-11-16 | ui, volumes, tooling, test |
 
 ## Still open
 
+- [609. The desktop, the top page and the eemu harness on the later discs](worklog/0609-the-desktop-the-top-page-and-the-eemu-harness-on-the-later.md) (2 questions) - test_toppage_rs checks the game's scene after Log in against the table it reads from the code, but it does not compare...
 - [608. ccThMother's unplugged pause on every volume, the Outbreak icon static proven unwritten over the whole disc, exact floats in the field UI harnesses](worklog/0608-ccthmother-s-unplugged-pause-on-every-volume-the-outbreak.md) (3 questions) - Why Quarantine's Data screen differs in test_desktop_data_rs's random pads 2-4.
 - [607. The field UI on the later discs: the carried names put Outbreak's menu handlers four over, and ten behaviours of Mutation, Outbreak and Quarantine](worklog/0607-the-field-ui-on-the-later-discs-the-carried-names-put.md) (2 questions) - why test_desktop_savemenu_rs still fails twice on Quarantine (the overwrite's menu does not close; no scenario reaches...
 - [602. A camera system, leg 5: Tarvos's phantom's first view is its target's heap address, the full checks, the battle pins recorded anew](worklog/0602-a-camera-system-leg-5-tarvos-s-phantom-s-first-view-is-its.md) - $s1's upper half in the boss thread when the phantom is made (the view's z and w): what the kernel's StartThread put in...

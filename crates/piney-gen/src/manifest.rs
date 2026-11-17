@@ -366,6 +366,22 @@ fn skill_help_rows() -> CountFn {
     Rc::new(|c| Ok(if c.volume >= Vol::Out { 4 } else { 3 }))
 }
 
+/// `CheckName`'s forbidden names: its loop's bound (the `slti` before the
+/// `bnez` back), 21 on Infection and 24 from Mutation (MUT desktop.prg
+/// 0x0042bf90).
+fn forbidden_names() -> CountFn {
+    Rc::new(|c| {
+        let f = find(c, 0x0041_8DB0, DESKTOP)?;
+        (f..f + 0x400)
+            .step_by(4)
+            .find_map(|a| {
+                let (w, next) = (c.p.u32(a).ok()?, c.p.u32(a + 4).ok()?);
+                (w >> 26 == 0x0a && next >> 16 == 0x1440 && next & 0x8000 != 0).then_some((w & 0xffff) as usize)
+            })
+            .ok_or_else(|| format!("CheckName at 0x{f:08x}: no loop bound"))
+    })
+}
+
 fn later(inf: usize, later: usize) -> CountFn {
     Rc::new(move |c| Ok(if c.volume == Vol::Inf { inf } else { later }))
 }
@@ -1322,7 +1338,13 @@ fn nameentry() -> Group {
                 "`NameInfoBlock`: per name, lines 1 and 2 are its labels (`#G` on the one being entered).",
             ),
             e("menu", 0x0042_C6B0, array(ptr(cstr()), 4), DESKTOP, "`MenuBlockE`: the menu row per `CurAct`."),
-            e("forbidden", 0x0042_C6C0, array(ptr(cstr()), 21), DESKTOP, "`@2319`: the character names refused."),
+            e(
+                "forbidden",
+                0x0042_C6C0,
+                array_by(ptr(cstr()), forbidden_names()),
+                DESKTOP,
+                "`@2319`: the character names refused (from Mutation on also tsukasa, subaru and sora).",
+            ),
             e(
                 "hira_block",
                 0x0042_C760,
@@ -1337,6 +1359,20 @@ fn nameentry() -> Group {
                 DESKTOP,
                 "`EigoBlock` (`char[][14]`): the English grid, 18 rows of five two-byte cells.",
             ),
+            derived(
+                "eigo_before",
+                array_stride(fixed_text(14), 3, 14),
+                DESKTOP,
+                "The three rows before `EigoBlock` that `SetBufBlock` copies with the cursor off its top (rows -3 to -1): the volume's own bytes there, `@2319`'s last pointers from Outbreak on.",
+            )
+            .after("eigo_block", -42),
+            derived(
+                "eigo_past",
+                array_stride(fixed_text(14), 3, 14),
+                DESKTOP,
+                "The three rows past `EigoBlock`'s end that `SetBufBlock` copies with the cursor off its foot (rows 18 to 20).",
+            )
+            .after("eigo_block", 18 * 14),
             e("default_game_name", 0x0046_10C8, cstr(), DESKTOP, "`@1389`: the default character name."),
             e("face_dashes", 0x0037_2C70, cstr(), MAIN, "`@2275`: the face panel's HP and SP before a name."),
             e(

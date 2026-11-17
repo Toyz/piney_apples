@@ -49,6 +49,7 @@ import functools
 import os
 import random
 import shutil
+import struct
 import subprocess
 import sys
 import unittest
@@ -69,7 +70,27 @@ EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "ta
 CCSYS, SAVEDATA, EVENTMNG, GAME, DTMENU, SCFADEDEF = (inf_va(0x003788e0), inf_va(0x003789d8), inf_va(0x00378a94), inf_va(0x003789cc),
                                                       inf_va(0x003789d0), inf_va(0x00378968))
 LAYER_ACTIVE, CMNDTARGET, TP_FLAG, TP_CNTR = inf_va(0x003788d8), inf_va(0x00378c64), inf_va(0x00378e1c), inf_va(0x00378e20)
-SERVER_TBL = inf_va(0x00306dc0)
+
+
+def server_table():
+    """`ccGame::ChangeScene`'s server of each town: the 8 ints its first
+    `lui`/`addiu` builds (Infection's `@1489`, main 0x00306dc0, copied to
+    the stack); None from Mutation on, whose ChangeScene has no table and
+    sets the server to the town itself (MUT main 0x0016756c)."""
+    p = volume.program(ELF, "toppage")
+    start, end = volume.span("ChangeScene__6ccGameFiiiiii", "toppage")
+    hi = {}
+    for a in range(start, end, 4):
+        w = p.u32(a)
+        if w >> 26 == 0x0F:
+            hi[(w >> 16) & 31] = (w & 0xFFFF) << 16
+        elif w >> 26 == 0x09 and (w >> 21) & 31 in hi:
+            at = (hi[(w >> 21) & 31] + ((w & 0xFFFF) ^ 0x8000) - 0x8000) & 0xFFFFFFFF
+            return [struct.unpack("<i", p.read(at + 4 * i, 4))[0] for i in range(8)]
+    return None
+
+
+SERVER_TBL = server_table()
 # Scratch memory.
 SYS, SAVE, EV, GAMEOBJ, DTM, FADE, LAYER, VIEW, HEAP = (0x01800000, 0x01810000, 0x01830000, 0x01831000,
                                                         0x01832000, 0x01833000, 0x01834000, 0x01835000,
@@ -147,7 +168,7 @@ class Game:
         self.fwd = []
         self.menu_type = -1
         self.labels = {}
-        self.servers = [m.load(SERVER_TBL + 4 * i, 4, True) for i in range(8)]
+        self.servers = SERVER_TBL
         h = {}
         for name in HOOKED:
             sym = p.symbol_named(name)
@@ -463,7 +484,11 @@ class TopPageAgainstGame(unittest.TestCase):
                 if r[0] == "area":
                     area, town = r[1], r[2]
                     s = g.scene()
-                    server = self.servers(g)[town] if 0 <= town < 8 else s["server"]
+                    servers = self.servers(g)
+                    if servers is None:
+                        server = town
+                    else:
+                        server = servers[town] if 0 <= town < 8 else s["server"]
                     exp = {"area": area, "area_prev": -1, "server": server, "town": town, "field": -1,
                            "dungeon": -1, "floor": -1, "block": -1}
                     if s != exp:

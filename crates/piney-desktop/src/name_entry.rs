@@ -148,8 +148,9 @@ fn padded(head: &[u8], n: usize) -> [u8; 20] {
     b
 }
 
-/// The entry's texts, alike on the four volumes
-/// (`piney_data::tables::nameentry`), as the Shift-JIS it draws.
+/// The entry's texts (`piney_data::tables::nameentry`), as the Shift-JIS it
+/// draws: alike on the four volumes but for the names refused and the
+/// bytes round the English grid.
 #[derive(Clone, Debug)]
 struct Texts {
     /// `InfoMsg[0..5]`, lines 0 and 1 (`ccKanjiStrSeparate`).
@@ -170,12 +171,16 @@ struct Texts {
     /// `MenuBlockE[CurAct]`.
     menu: [Vec<u8>; 4],
     forbidden: Vec<Vec<u8>>,
+    /// `EigoBlock`'s rows as `SetBufBlock` reaches them, -3 to 20 (the
+    /// cursor's x 0-14 and y -1-6): the three before the table, its 18,
+    /// the three past its end, the volume's bytes there.
+    eigo: Vec<Vec<u8>>,
     default_game: Vec<u8>,
     dashes: Vec<u8>,
 }
 
 impl Texts {
-    fn new() -> Texts {
+    fn new(volume: Volume) -> Texts {
         let e = |s: &str| encode(s);
         let lines = |l: &[&str], k: usize| l.get(k).map_or_else(Vec::new, |s| encode(s));
         let lines4 = |l: &[&str]| [lines(l, 0), lines(l, 1), lines(l, 2), lines(l, 3)];
@@ -197,16 +202,21 @@ impl Texts {
             no: e(ne::shared().no),
             labels: [0, 1, 2].map(|i| [lines(ne::shared().name_info[i], 1), lines(ne::shared().name_info[i], 2)]),
             menu: [0, 1, 2, 3].map(|i| e(ne::shared().menu[i])),
-            forbidden: ne::shared().forbidden.iter().map(|s| e(s)).collect(),
+            forbidden: ne::of(volume).forbidden.iter().map(|s| e(s)).collect(),
+            eigo: [ne::of(volume).eigo_before, ne::shared().eigo_block, ne::of(volume).eigo_past]
+                .concat()
+                .iter()
+                .map(|s| Texts::row(&[s], 0))
+                .collect(),
             default_game: e(ne::shared().default_game_name),
             dashes: e(ne::shared().face_dashes),
         }
     }
 
     /// Row `no` of a grid (`char[][14]`): the 14 bytes `SetBufBlock`
-    /// copies, its text then NULs. A row past the table reads as NULs:
-    /// the game reads the tables' neighbours there, which the cursor never
-    /// reaches with anything but NULs to show.
+    /// copies, its text then NULs. Past `HiraBlock`'s one row the game
+    /// reads its neighbours, which start with a NUL in every row from -3
+    /// to 20 on the two discs that reach it (Infection, Mutation).
     fn row(grid: &[&str], no: i32) -> Vec<u8> {
         let mut r = usize::try_from(no).ok().and_then(|i| grid.get(i)).map_or_else(Vec::new, |s| encode(s));
         r.resize(ROW_BYTES, 0);
@@ -263,6 +273,8 @@ impl Default for Alphas {
 /// DWARF), as `Init` (0x004195b0) leaves them.
 #[derive(Clone, Debug)]
 pub struct Logic {
+    /// The disc, for the grid the start pages lead to.
+    pub volume: Volume,
     /// +0x230 `m_MainAct`, +0x232 `m_TempMainAct`, +0x1e0 `ReserveACT`.
     pub main_act: i16,
     pub temp_main_act: i16,
@@ -340,9 +352,10 @@ pub struct Logic {
 }
 
 impl Logic {
-    fn new(default_game: &[u8]) -> Logic {
+    fn new(volume: Volume, default_game: &[u8]) -> Logic {
         let sur = padded(b"", USER_MAX as usize);
         Logic {
+            volume,
             main_act: 0,
             temp_main_act: 0,
             reserve: -1,
@@ -449,7 +462,7 @@ impl Logic {
         self.name_sel_set();
         if self.all_lock == 0 {
             self.judgment(t);
-            self.set_buf_block();
+            self.set_buf_block(t);
             self.sel_name(t);
         }
         self.all_tlans();
@@ -483,7 +496,10 @@ impl Logic {
         if end == 2 {
             if self.info_count >= 2 {
                 self.tlans = 2;
-                self.main_act = 2;
+                // Infection and Mutation go to SetHira, whose PlayHira
+                // sends NowMode 2 on to SetEigo; from Outbreak straight to
+                // SetEigo (desktop.prg OUT 0x0042a708, QUA 0x0031b0e8).
+                self.main_act = if self.volume >= Volume::Out { 6 } else { 2 };
                 self.win_act = 1;
                 self.cur_act = 0;
                 self.set_max(GRID_MAX.0, GRID_MAX.1);
@@ -879,20 +895,19 @@ impl Logic {
 
     /// `SetBufBlock` (0x00418f10): the row under the cursor into
     /// `m_Blockbuf`, and on the grid `CutInBlock` round its cell.
-    fn set_buf_block(&mut self) {
-        let base = match self.main_act {
+    fn set_buf_block(&mut self, t: &Texts) {
+        self.blockbuf = match self.main_act {
             3 => {
                 self.no = self.x / 5 + self.y + 5 * (self.x / 5);
-                ne::shared().hira_block
+                Texts::row(ne::shared().hira_block, self.no)
             }
             7 => {
                 self.no = self.x / 5 + 3 * self.y;
-                ne::shared().eigo_block
+                usize::try_from(self.no + 3).ok().and_then(|i| t.eigo.get(i)).cloned().unwrap_or_default()
             }
             // The kana, symbol and kanji grids are not reached.
             _ => return,
         };
-        self.blockbuf = Texts::row(base, self.no);
         if self.cur_act == 0 {
             self.cut_in_block(self.x % 5);
         }
@@ -1297,11 +1312,11 @@ impl NameEntry {
     /// As [`NameEntry::new`] for a volume.
     pub fn of(volume: Volume, archive: &Archive, _state: &SaveState) -> Result<NameEntry> {
         let fonts = read_fonts(volume, archive)?;
-        let texts = Texts::new();
+        let texts = Texts::new(volume);
         let win = WindowTexture::read(archive).ok_or_else(|| Error::NotFound("xwindow::TEX_xwindo00".into()))?;
         let (face_tex, face_h) = texture(archive, FACE_FILE, ne::of(volume).face_tex)?;
         let (font_tex, font_h) = texture(archive, FONT_FILE, FONT_TEX)?;
-        let logic = Logic::new(&texts.default_game);
+        let logic = Logic::new(volume, &texts.default_game);
         let mut windows = Spr::new("Windows", LAYER, win.tex.clone(), win.tex_h, 300);
         windows.grid(grid::TYPE_1);
         let mut waku = Spr::new("WinWaku", LAYER, win.tex.clone(), win.tex_h, 300);
@@ -1958,7 +1973,7 @@ mod tests {
 
     #[test]
     fn repeat_waits_then_steps() {
-        let mut l = Logic::new(b"Kite");
+        let mut l = Logic::new(Volume::Inf, b"Kite");
         let held = Keys { push: 0, unpush: 0, repeat: 0x1000, ok: 0x40, cancel: 0x20 };
         let fired: Vec<usize> = (1..60).filter(|_| l.rep(&held, 0x1000)).collect();
         assert_eq!(fired, vec![30, 37, 44, 51, 58]);

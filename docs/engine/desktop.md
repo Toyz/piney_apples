@@ -620,7 +620,7 @@ reads that card's index; cancel leaves.
 
 **Waiting** (`SlotStateData` 0x00410a00) follows the result: 0 back to the
 card slots, 2 read again, 1 the list. A message waits for OK or cancel
-(se 4, `NextProccess(0)`); "Formatted" and "Save data created." play
+(se 4, `NextProccess(0)`), on Quarantine for OK only (QUA 0x003128f8); "Formatted" and "Save data created." play
 se 74 once. A question shows the YES / NO window.
 
 **The list** (`Slot_control` 0x00410c50), while the result is 4 or 25:
@@ -722,8 +722,8 @@ The US build keeps `NowMode` at 2, the English grid, and reaches:
 
 | MainAct | does |
 | --- | --- |
-| 0, 1 | pages 0 and 1 (`InfoMsg`); a decide (se 18) fades the page out, `InfoCount` + 1, and the next page fades in; after page 1, the grid (`m_Max` (14, 5)) |
-| 2, 3 | `SetHira`, `PlayHira`: two frames of the kana grid, empty here, then `ReserveACT` 6 |
+| 0, 1 | pages 0 and 1 (`InfoMsg`); a decide (se 18) fades the page out, `InfoCount` + 1, and the next page fades in; after page 1, the grid (`m_Max` (14, 5)): MainAct 2 on Infection and Mutation, 6 from Outbreak on (OUT 0x0042a708, QUA 0x0031b0e8) |
+| 2, 3 | `SetHira`, `PlayHira` (Infection and Mutation): two frames of the kana grid, empty here, then `ReserveACT` 6 |
 | 6, 7 | `SetEigo`, the grid |
 | 14 | `SetNameTwo`, after the user name's Enter: `TrueSurName`, then the character name (`NameAct` 2, `StrMaxNum` 14) |
 | 16, 17 | `SetNameThree`, `PlayNameThree`: the dialog; YES goes on, NO or cancel goes back to Enter |
@@ -744,7 +744,12 @@ YES and down NO (se 17); a decide is se 18, cancel se 19.
 
 The grid is `EigoBlock` (0x0042c7e0): 18 rows of seven two-byte cells,
 three blocks of five across and six rows down; row `NO = X / 5 + 3 Y`, cell
-`X mod 5`. `CutInBlock` (0x00419390) shows the row as `prefix #G cell #W
+`X mod 5`. With the cursor off the grid (Y -1 or 6, on its way to the
+menu row) `SetBufBlock` still copies row `NO`, -3 to -1 or 18 to 20, from
+the bytes round the table into `m_Blockbuf` (not drawn, as only rows 0-17
+are): NULs on Infection and Mutation, the last pointers of the forbidden
+names' table from Outbreak on ("G", "", "G" on Outbreak; "6", 0x90 0x76
+"6", "6" on Quarantine), NULs past the end on every disc. `CutInBlock` (0x00419390) shows the row as `prefix #G cell #W
 rest` and copies the cell into `m_cbuf`. `SelName`: a decide puts the cell
 at `NameNum` (at `StrMaxNum` the cursor goes to Enter); cancel puts a `_`
 back; Default sets the user name to 18 `_`, or the character name to
@@ -753,7 +758,9 @@ characters, the character name 14; `NameNum` is
 `StrMaxNum - strlen(strstr(name, "_"))`. `JudgmentProcess` (0x00418960):
 Enter with nothing entered gives `Err` 1; `CheckName` (0x00418db0)
 lowercases, drops spaces and looks at 19 characters: nothing left is `Err`
-1, a character name equal to one of the 21 at 0x0042c6c0 is `Err` 3; an
+1, a character name equal to one of the 21 at 0x0042c6c0 is `Err` 3
+(24 from Mutation on: tsukasa, subaru and sora added, the loop's bound at
+MUT 0x0042bf90); an
 accepted user name fades the grid in again, an accepted character name
 fades out to the dialog; One Back on the user name is `Err` 2, on the
 character name it goes back to the user name. `AllTlans` (0x00415830)

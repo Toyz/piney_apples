@@ -55,7 +55,6 @@ import weakref
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS)
 import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
-from volume import va as inf_va  # noqa: E402
 
 ROOT = os.path.dirname(TOOLS)
 ELF = volume.ELF
@@ -712,11 +711,12 @@ def w_demo(plain, vu):
                     m.store(td.SYS + o, 4, rng.choice(bits) if rng.random() < 0.4 else 0)
                 t.calls, t.se = [], []
                 m.call(td.FN["movecur"], [td.THIS])
-        for script in ([0x00160360, 20, 20, 5, 2164260863], [0x00160240, 50, 2164260863],
-                       [0x00160400, 20, 0, 2147483648]):
+        for script in (["EntryFlash3__8ccScFadeFiiiiffff", 20, 20, 5, 2164260863],
+                       ["EntryFlash__8ccScFadeFiiffff", 50, 2164260863],
+                       ["EntryFade__8ccScFadeFiiiffff", 20, 0, 2147483648]):
             m = t.machine()
             m.store(td.FADE, 0x98, 0)
-            m.call(script[0], [td.FADE] + script[1:])
+            m.call(t.p.symbol_named(script[0]).value, [td.FADE] + script[1:])
             for _ in range(25):
                 t.send_packet(m)
         sym = lambda n: t.p.symbol_named(n).value  # noqa: E731
@@ -734,7 +734,7 @@ def w_demo(plain, vu):
     import test_anim
     with patched(test_anim, "machine_class", lambda: vu):
         # The icons' light through ccSetMatrixPacket (then VU1 in tools/vu.py).
-        lit = [model for model in ccsmodel.models(ccs.Ccs(ccs.load(td.TITLE1)))
+        lit = [model for model in ccsmodel.models(ccs.Ccs(ccs.load(td.TITLE)))
                if model.mmats and model.mmats[0].positions]
         for k, model in enumerate(lit[:4]):
             world = [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 10.0 * k, 20.0, -30.0 * k, 1.0]
@@ -790,7 +790,14 @@ def w_stream(vu0):
     with patched(ts, "machine_class", lambda: vu0):
         ts.skips(ts.Game())
         ts.tables(ts.Game())
-        ts.run_scene(ts.Game(), 106, ["str6100"], 2)
+        try:
+            num, stems, datas = 106, ["str6100"], [ts.member("str6100")]
+        except KeyError:
+            # Outbreak's and Quarantine's archives name no member: the
+            # first stream from 106 on that plays there, by its tables.
+            num, stem, data = ts.scene_by_table(ts.Game())
+            stems, datas = [stem], [data]
+        ts.run_scene(ts.Game(), num, stems, 2, datas)
 
 
 def w_toppage(ee):
@@ -1026,7 +1033,7 @@ def fuzz_instructions(fl, program, n, seed):
         for _ in range(n):
             randomise((py, rs), rng)
             w = rand_word(rng)
-            pc = rng.choice((0x00100000, inf_va(0x00400800), rng.randrange(1 << 25) & ~3, 0xFFFFFFFC, 0x1FFFFFC))
+            pc = rng.choice((0x00100000, program.overlay_space[0], rng.randrange(1 << 25) & ~3, 0xFFFFFFFC, 0x1FFFFFC))
             try:
                 ret = ls.exec(pc, w)
                 kind = "annul" if ret is eemu.ANNUL else "jump" if ret is not None else "next"

@@ -34,12 +34,16 @@ pub struct NameEntry {
     pub name_info: &'static [&'static [&'static str]],
     /// `MenuBlockE`: the menu row per `CurAct`. Alike on every volume.
     pub menu: &'static [&'static str],
-    /// `@2319`: the character names refused. Alike on every volume.
+    /// `@2319`: the character names refused (from Mutation on also tsukasa, subaru and sora).
     pub forbidden: &'static [&'static str],
     /// `HiraBlock` (`char[][14]`): the kana grid, one empty row in the US builds. Alike on every volume.
     pub hira_block: &'static [&'static str],
     /// `EigoBlock` (`char[][14]`): the English grid, 18 rows of five two-byte cells. Alike on every volume.
     pub eigo_block: &'static [&'static str],
+    /// The three rows before `EigoBlock` that `SetBufBlock` copies with the cursor off its top (rows -3 to -1): the volume's own bytes there, `@2319`'s last pointers from Outbreak on.
+    pub eigo_before: &'static [&'static str],
+    /// The three rows past `EigoBlock`'s end that `SetBufBlock` copies with the cursor off its foot (rows 18 to 20). Alike on every volume.
+    pub eigo_past: &'static [&'static str],
     /// `@1389`: the default character name. Alike on every volume.
     pub default_game_name: &'static str,
     /// `@2275`: the face panel's HP and SP before a name. Alike on every volume.
@@ -67,6 +71,8 @@ impl crate::store::Load for NameEntry {
             forbidden: crate::store::Load::load(r),
             hira_block: crate::store::Load::load(r),
             eigo_block: crate::store::Load::load(r),
+            eigo_before: crate::store::Load::load(r),
+            eigo_past: crate::store::Load::load(r),
             default_game_name: crate::store::Load::load(r),
             face_dashes: crate::store::Load::load(r),
             face_tex: crate::store::Load::load(r),

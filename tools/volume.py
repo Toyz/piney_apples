@@ -176,6 +176,34 @@ def found(name, caller, nth, overlay="gcmn"):
     return at
 
 
+def vector_inserts(caller, overlay="gcmn"):
+    """The `vector_pod<Ui>::insert`s the volume's `caller` calls: by name,
+    or by code where Outbreak's and Quarantine's desktop overlay holds its
+    own copy, stripped (OUT 0x00414260): it reports "vector::insert length
+    error" before its first `jr $ra`."""
+    import struct
+    p = program(ELF, overlay)
+    start, end = span(caller, overlay)
+
+    def is_insert(t):
+        if "insert" in (p.name_at(t) or ""):
+            return True
+        hi = {}
+        for a in range(t, t + 0x400, 4):
+            w = struct.unpack("<I", p.read(a, 4))[0]
+            if w == 0x03E00008:                                 # jr $ra
+                return False
+            if w >> 26 == 0x0F:                                 # lui
+                hi[(w >> 16) & 31] = (w & 0xFFFF) << 16
+            elif w >> 26 == 0x09 and (w >> 21) & 31 in hi:      # addiu on a lui
+                at = (hi[(w >> 21) & 31] + ((w & 0xFFFF) ^ 0x8000) - 0x8000) & 0xFFFFFFFF
+                if p.mapped(at) and p.cstr(at, 32).startswith(b"vector::insert length error"):
+                    return True
+        return False
+    calls = (struct.unpack("<I", p.read(a, 4))[0] for a in range(start, end, 4))
+    return sorted({(w & 0x03FFFFFF) << 2 for w in calls if w >> 26 == 3 and is_insert((w & 0x03FFFFFF) << 2)})
+
+
 def number():
     """The disc's `volumeNum` (1-4), as the executable holds it."""
     import struct

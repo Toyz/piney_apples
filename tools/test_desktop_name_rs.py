@@ -37,6 +37,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 from volume import va  # noqa: E402  # Infection's addresses on PINEY_VOLUME's disc
 inf_va = functools.partial(va, overlay='desktop')  # this overlay's globals
 
@@ -369,6 +370,17 @@ class NameEntryAgainstGame(unittest.TestCase):
         d.type(b"bal Mung")
         d.menu(3)                           # a forbidden name: Err 3
         self.assertEqual(d.st()["Err"], 3)
+        if volume.NAME != "infection":
+            # From Mutation on three more (CheckName's loop to 24, MUT
+            # desktop.prg 0x0042bf90).
+            typed = 8
+            for name in (b"Tsukasa", b"su Baru", b"Sora"):
+                for _ in range(typed):
+                    d.press(CANCEL)
+                d.type(name)
+                d.menu(3)
+                self.assertEqual(d.st()["Err"], 3, name)
+                typed = len(name)
         d.press(LEFT)
         d.menu(2)
         d.wait_ready()                      # One Back to the user name

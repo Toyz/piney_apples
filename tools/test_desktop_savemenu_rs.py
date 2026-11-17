@@ -331,12 +331,19 @@ WAIT = ". . . . . ."
 YES = "u o"
 
 
+# The overwrite's clear flags: the save's own and one past it, which warns.
+# A flag past 4 makes CheckRightInfo refuse the whole index (QUA main
+# 0x00170dbc, every disc alike), so Quarantine's warning takes a save
+# whose own flag is 3 and a record of 4.
+OWN = min(VOL, 3)
+
+
 def scenarios():
     out = []
     recs = [(0, record(level=1, name=b"Kite", playtime=HMS(0, 0, 0))),
-            (1, record(level=20, clear=VOL, name=b"Orca", playtime=HMS(999, 59, 59))),
+            (1, record(level=20, clear=OWN, name=b"Orca", playtime=HMS(999, 59, 59))),
             (2, record(level=99, parody=1, name=b"Balmung", playtime=HMS(12, 5, 9))),
-            (3, record(level=5, clear=VOL + 1, name=b"ABCDEFGHIJKLMNOPQ", playtime=HMS(1, 0, 0)))]
+            (3, record(level=5, clear=OWN + 1, name=b"ABCDEFGHIJKLMNOPQ", playtime=HMS(1, 0, 0)))]
     # Card slot 1 with no save directory: "Create new save data?" YES,
     # created, the file list; the second file, "Create new data?" YES,
     # "Data saved."; the same file again, "Data already exists." cancelled;
@@ -355,10 +362,11 @@ def scenarios():
     out.append(Scenario("cancel").keys("x"))
     out.append(Scenario("the Cancel row").keys("d . o"))
     # A prepared card: the list of records (clear data, parody, a long
-    # name); the fourth file (clear data past the volume's): the warning
+    # name); the fourth file (clear data past the save's own): the warning
     # and NO; the second
     # (the save's own clear flag): "Data already exists." YES, saved.
     s = Scenario("overwrite").card(0).prepared(0, recs).save(0x8400, struct.pack("<i", HMS(20, 1, 2, 3)))
+    s.save(0x842a, bytes([OWN]))
     s.keys(f"o {WAIT} o {WAIT} . d . d . d o {WAIT} o {WAIT} o {WAIT} u o {WAIT} {YES} {WAIT} o {WAIT} x {WAIT} x")
     out.append(s)
     s = Scenario("overwrite, rate 2", rate=2).card(0).prepared(0, recs)

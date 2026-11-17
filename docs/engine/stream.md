@@ -77,7 +77,12 @@ The header's `type` indexes `ccCd`'s file records (`ccCdInit` 0x00159620):
 takes the record 0xb4 bytes on, `STRCMNE.BIN` and `STR1E.BIN` (the same files
 with English voices; their tables' offsets differ). Types 2 to 5 are the
 later volumes' archives: streams 21-105 and 120-132 do not play on this
-disc. 35 do: 0-20, 47, 106-119, 133 (19, 47 and 133 are `strdummy`).
+disc. Each later `ccCdInit` lists its own (OUT 0x00158654 on): type `t`'s
+English record is STRCMNE.BIN's plus 0x24 `t` (ccCd +0x108 on Infection,
++0x12c on Mutation, +0x150 on Outbreak and Quarantine), 0 STRCMNE, 1
+STR1E, 2 STR2E, 3 STR3E, 4 STR4E (Quarantine only), 5 STRSUBE; Outbreak
+and Quarantine hold no Japanese archive, and their gzip members are all
+named `tmp.ccs`, so only the tables find a file in them. 35 do: 0-20, 47, 106-119, 133 (19, 47 and 133 are `strdummy`).
 
 | file `type` | meaning |
 | ---: | --- |

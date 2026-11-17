@@ -438,13 +438,62 @@ def member(name):
     raise KeyError(name)
 
 
+def english_archives():
+    """The English stream archive of each header `type`, as the volume's
+    ccCdInit lists them: each `sceCdSearchFile` fills a 0x24-byte record of
+    ccCd (`addiu $a0, $v0, at`), and STRCMNE.BIN's is type 0's (INF ccCd
+    +0x108, OUT +0x150; OUT 0x00158654)."""
+    p = volume.program(ELF)
+    start, end = volume.span("ccCdInit__Fv")
+    at, hi, recs = None, {}, {}
+    for a in range(start, end, 4):
+        w = p.u32(a)
+        if w >> 26 == 0x09 and (w >> 21) & 31 == 2 and (w >> 16) & 31 == 4:
+            at = w & 0xFFFF
+        elif w >> 26 == 0x0F:
+            hi[(w >> 16) & 31] = (w & 0xFFFF) << 16
+        elif w >> 26 == 0x09 and (w >> 16) & 31 == 5 and 5 in hi:
+            name = p.cstr((hi[5] + ((w & 0xFFFF) ^ 0x8000) - 0x8000) & 0xFFFFFFFF).decode()
+            recs[at] = name.strip("\\").split(";")[0].replace("\\", "/")
+    base = next(r for r, n in recs.items() if n == "STREAM/STRCMNE.BIN")
+    return {(r - base) // 0x24: n for r, n in recs.items() if r >= base and n.endswith("E.BIN")}
+
+
+def scene_by_table(g, first=106):
+    """From stream `first` on, the first whose header's archive is on the
+    disc: (its number, its first scene's stem, the scene inflated), read as
+    ReadThread reads it (sector lsn(archive) + ceil(header ofs / 2048) +
+    ceil(file ofs / 2048), the file's size, then gzip), with the English
+    voice. For Outbreak and Quarantine, whose archives name every member
+    `tmp.ccs`."""
+    import gzip
+    import iso as isomod
+    disc = isomod.Iso(ISO)
+    arcs = english_archives()
+    for line in tables(g):
+        row = line.split()
+        num, english, htype = int(row[1]), int(row[2]), int(row[6])
+        if num < first or english != 1 or htype not in arcs:
+            continue
+        hofs = int(row[4])
+        for sc in row[row.index("scenes") + 1:row.index("preload")]:
+            stem, typ, _flag, _gz, ofs, size = sc.split(":")
+            if typ in ("-1", "1"):
+                e = disc.find(arcs[htype])
+                lba = e.lba + (hofs + 2047) // 2048 + (int(ofs) + 2047) // 2048
+                return num, stem, gzip.decompress(disc.read(lba, int(size)))
+    raise KeyError("no stream from %d on plays on %s" % (first, volume.NAME))
+
+
 def word(name):
     """An object name as one word of a fixture line: '%' and ' ' escaped
     (Kite's bones in str0580 are "EXT_t0 r belt3" and the like)."""
     return name.replace("%", "%25").replace(" ", "%20")
 
 
-def run_scene(g, num, stems, frames):
+def run_scene(g, num, stems, frames, datas=None):
+    """Stream `num`'s files `stems` (their bytes `datas`, else read by
+    name with member) decoded and drawn, `frames` of the last."""
     m = g.m
     out = []
     # The texture uploads' GS packets and DMA (str0580e's textures; the
@@ -453,7 +502,7 @@ def run_scene(g, num, stems, frames):
                  "sceDmaReset", "sceDmaPutEnv", "sceDmaSend", "sceDmaSendN", "sceDmaSendI", "sceDmaSync",
                  "sceDmaWatch", "sceDmaPause", "sceDmaRestart"):
         m.hooks[g.sym(name)] = lambda mm, *a: 0
-    datas = [member(s) for s in stems]
+    datas = datas or [member(s) for s in stems]
     at = DATA
     streams = []
     for s, data in zip(stems, datas):
