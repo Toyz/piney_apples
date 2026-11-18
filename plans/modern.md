@@ -78,6 +78,14 @@ game depends only on the cores; which backend runs is a setting.
    blur and other feedback, water and heat haze sampling the scene colour,
    the game-over squeeze, fades, the deflicker filter, shadows. Each pass
    names its inputs and outputs; no ad-hoc copies.
+
+   Where VU0 and VU1 land. VU0 maths whose results the game reads back
+   (hit and collision matrices, the camera, anything in game state) stays
+   in the core, on the shared EE/VU0 ops, in both renderers. VU1's
+   programs and the VU0 maths that only feed the picture (the light
+   matrix, the shadow volume's build, skin palettes) become GPU passes in
+   Modern. Classic keeps the exact Rust ports, which stay the reference
+   Modern's passes are checked against.
 5. **Resolution and aspect.** Draw at the window's resolution and any
    aspect ratio: widescreen with the field of view widened, the HUD
    anchored to its corners (the HUD scale already moves that way); MSAA
