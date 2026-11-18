@@ -6,7 +6,8 @@
 use std::collections::HashMap;
 
 use glam::Mat4;
-use piney_data::anim::Ticks;
+use piney_data::anim::{Ticks, vu_mul};
+use piney_data::vu0::{self, M4};
 use piney_desktop::assets::SceneFile;
 
 /// One object of a `ccAnm` ([`Play::instances`]).
@@ -79,38 +80,40 @@ impl Play {
     /// nodes), each of those at rest (the identity) under its Obj parent,
     /// and `root` over those whose parent is outside the set.
     pub fn worlds(&self, file: &SceneFile, root: Mat4, extra: &[u32]) -> HashMap<u32, Mat4> {
-        let a = &file.anims[self.anim];
-        let locals = a.locals_at(self.posed);
+        let locals: HashMap<u32, M4> =
+            file.anims[self.anim].locals_at(self.posed).into_iter().map(|(o, m)| (o, vu0::of_mat4(m))).collect();
         let sc = &file.scene;
         let mut set: Vec<u32> = locals.keys().copied().collect();
         set.extend(extra.iter().copied());
-        let mut out: HashMap<u32, Mat4> = self.instances(file, root).into_iter().map(|i| (i.object, i.world)).collect();
+        let mut out: HashMap<u32, M4> =
+            self.instances(file, root).into_iter().map(|i| (i.object, vu0::of_mat4(i.world))).collect();
+        let root = vu0::of_mat4(root);
         fn w(
             sc: &piney_data::scene::Scene,
-            locals: &HashMap<u32, Mat4>,
+            locals: &HashMap<u32, M4>,
             set: &[u32],
-            root: Mat4,
-            cache: &mut HashMap<u32, Mat4>,
+            root: &M4,
+            cache: &mut HashMap<u32, M4>,
             obj: u32,
             depth: u32,
-        ) -> Mat4 {
+        ) -> M4 {
             if let Some(m) = cache.get(&obj) {
                 return *m;
             }
-            let local = locals.get(&obj).copied().unwrap_or(Mat4::IDENTITY);
+            let local = locals.get(&obj).unwrap_or(&vu0::UNIT);
             let parent = sc.ext_parent.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
             let m = if parent != 0 && parent != obj && depth < 64 && set.contains(&parent) {
-                w(sc, locals, set, root, cache, parent, depth + 1) * local
+                vu_mul(&w(sc, locals, set, root, cache, parent, depth + 1), local)
             } else {
-                root * local
+                vu_mul(root, local)
             };
             cache.insert(obj, m);
             m
         }
         for &o in &set {
-            w(sc, &locals, &set, root, &mut out, o, 0);
+            w(sc, &locals, &set, &root, &mut out, o, 0);
         }
-        out
+        out.into_iter().map(|(o, m)| (o, vu0::to_mat4(&m))).collect()
     }
 
     /// The objects `ccAnm::SetAnm` (main 0x00150f50) makes and `ccAnm::Draw`
@@ -118,8 +121,10 @@ impl Play {
     /// [`piney_data::anim::Animation::objects`] (the clump's node for the
     /// last entry naming it, a new one for each other, so every ExtObj copy
     /// of a piece draws it again). Each hangs from the entry its chunk names
-    /// as parent, or from `root` when the index has none (0x00151a24). A
-    /// clump node no entry names is not drawn.
+    /// as parent, or from `root` when the index has none (0x00151a24), each
+    /// world matrix `ccCoord::_SetLWMatrix`'s product (`sceVu0MulMatrix`,
+    /// main 0x00138380) of the parent's and its local one. A clump node no
+    /// entry names is not drawn.
     pub fn instances(&self, file: &SceneFile, root: Mat4) -> Vec<Instance> {
         let a = &file.anims[self.anim];
         let sc = &file.scene;
@@ -133,21 +138,22 @@ impl Play {
                 index.get(&p).copied().filter(|_| p != 0 && p != o)
             })
             .collect();
-        let locals: Vec<Mat4> = poses.iter().map(|p| p.as_ref().map_or(Mat4::IDENTITY, |p| p.matrix())).collect();
+        let locals: Vec<M4> = poses.iter().map(|p| p.as_ref().map_or(vu0::UNIT, |p| p.bits())).collect();
+        let root = vu0::of_mat4(root);
         fn world(
             k: usize,
             parents: &[Option<usize>],
-            locals: &[Mat4],
-            root: Mat4,
-            out: &mut [Option<Mat4>],
+            locals: &[M4],
+            root: &M4,
+            out: &mut [Option<M4>],
             depth: u32,
-        ) -> Mat4 {
+        ) -> M4 {
             if let Some(m) = out[k] {
                 return m;
             }
             let m = match parents[k] {
-                Some(p) if depth < 64 => world(p, parents, locals, root, out, depth + 1) * locals[k],
-                _ => root * locals[k],
+                Some(p) if depth < 64 => vu_mul(&world(p, parents, locals, root, out, depth + 1), &locals[k]),
+                _ => vu_mul(root, &locals[k]),
             };
             out[k] = Some(m);
             m
@@ -160,7 +166,7 @@ impl Play {
             .map(|(k, (&(entry, object), pose))| Instance {
                 entry,
                 object,
-                world: world(k, &parents, &locals, root, &mut worlds, 0),
+                world: vu0::to_mat4(&world(k, &parents, &locals, &root, &mut worlds, 0)),
                 alpha: pose.as_ref().map_or(1.0, |p| p.alpha),
             })
             .collect()

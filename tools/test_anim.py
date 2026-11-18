@@ -14,11 +14,9 @@ in memory; everything else is the game's code.
   object controller's work, and ccAnm::ResetAnmCtrlWork + SetAnmCtrlWork
   evaluate it at a time. SetAnmCtrlWork's scratch keeps the position,
   rotation matrix, scale matrix and float it composed; anim.py must give the
-  same position, scale and transparency bit for bit, the same single-value
-  rotation matrix bit for bit, and keyed rotations to within 1e-5 plus
-  1e-7 per key passed, per matrix element (the game goes through sinf,
-  cosf, a double atan2 and float matrix products that anim.py does in
-  double, and its running matrix drifts a little at every key). Material
+  same position, scale, transparency and rotation matrix (all 16 words,
+  single-value and keyed: m2a, a2m, sinf, cosf, the double atan2 and the
+  VU0 products in the game's own arithmetic) bit for bit. Material
   records' texture offsets, and what they write into a ccMaterial, bit for
   bit. Stepping to a time in several calls must give what one call does.
 - Playback: ccAnm::_AnimateForward over a whole animation, with its own
@@ -35,7 +33,9 @@ in memory; everything else is the game's code.
   passed_notes. A second NoteProcess must hand on the same notes.
 
     python3 tools/test_anim.py                  the unit tests
-    python3 tools/test_anim.py bulk N [SEED]    N random animations, with counts
+    python3 tools/test_anim.py bulk N [SEED [TRACKS]]
+                                                N random animations (at most
+                                                TRACKS tracks each, 12), with counts
     python3 tools/test_anim.py notes [N] [SEED] N random animations with F_Note
                                                 records (all by default), with counts
     python3 tools/test_anim.py fixture          expectations for the Rust test
@@ -62,9 +62,6 @@ M32 = 0xFFFFFFFF
 M64 = (1 << 64) - 1
 M128 = (1 << 128) - 1
 ONE = 0x3F800000
-# Keyed rotations: the game's running matrix picks up float error at every
-# key it multiplies in; anim.py works in double.
-ROT_TOLERANCE, ROT_PER_KEY = 1e-5, 1e-7
 
 SYS, RB, CHUNK, DATAPTR, NUM = 0x01000000, 0x01000400, 0x01000800, 0x01000840, 0x01000844
 TBL, ANM, STREAM, IDX = 0x01001000, 0x01003000, 0x01003400, 0x01004000
@@ -531,7 +528,6 @@ def check_controllers(g, c, off, a, rng, times=6, max_tracks=12, counts=None):
     """Compare every (sampled) object track at random times; returns a list of
     failures and fills counts."""
     import anim
-    from eemu import f_to_py
     counts = counts if counts is not None else collections.Counter()
     table = g.load(c.data, off)
     ctrls = {obj: ctrl for obj, ctrl in table if ctrl and g.m.load(ctrl, 2) == 0x0102}
@@ -560,15 +556,11 @@ def check_controllers(g, c, off, a, rng, times=6, max_tracks=12, counts=None):
                 bad.append(("transparency",) + where)
             if isinstance(tr.rot, anim.RotConst):
                 counts["single-value rotations"] += 1
-                if [rot[4 * k + r] for k in range(3) for r in range(3)] != \
-                        [tr.rot.bits[k][r] for k in range(3) for r in range(3)]:
-                    bad.append(("rotation bits",) + where)
             elif isinstance(tr.rot, anim.RotKeyed):
                 counts["keyed rotations"] += 1
-                d = max(abs(f_to_py(rot[4 * k + r]) - pose.rot[r][k]) for r in range(3) for k in range(3))
-                counts["worst keyed rotation 1e-9"] = max(counts["worst keyed rotation 1e-9"], int(d * 1e9))
-                if d > ROT_TOLERANCE + ROT_PER_KEY * tr.rot.passed(min(t, last)):
-                    bad.append(("rotation", d) + where)
+                counts["keyed rotation segments passed"] += tr.rot.passed(min(t, last))
+            if rot != [w for row in pose.rot_bits for w in row]:
+                bad.append(("rotation bits",) + where)
         # several steps land where one does
         g.reset(work)
         prev = 0
@@ -613,8 +605,6 @@ def check_controllers(g, c, off, a, rng, times=6, max_tracks=12, counts=None):
 def check_playback(g, c, scene, off, a, speed, steps, counts=None):
     """_AnimateForward `steps` times at `speed`; compares the frame counter,
     the return value, object matrices and morpher targets each step."""
-    import anim
-    from eemu import f_to_py
     counts = counts if counts is not None else collections.Counter()
     name = lambda o: c.objects[o][0] if o < len(c.objects) else ""       # noqa: E731
     table = g.load(c.data, off)
@@ -639,14 +629,8 @@ def check_playback(g, c, scene, off, a, speed, steps, counts=None):
                 continue
             mat = struct.unpack_from("<16I", g.m.mem, coord + 64)
             counts["object matrices"] += 1
-            if list(mat[12:15]) != pose.pos:
-                bad.append(("matrix position", name(tr.object), step.pose_at))
-            want = pose.matrix()
-            d = max(abs(f_to_py(mat[4 * k + r]) - want[r][k]) for r in range(3) for k in range(3))
-            scale = max(1.0, *(abs(f_to_py(s)) for s in pose.scale))
-            keys = tr.rot.passed(step.pose_at) if isinstance(tr.rot, anim.RotKeyed) else 0
-            if d > (ROT_TOLERANCE + ROT_PER_KEY * keys) * scale:
-                bad.append(("matrix", name(tr.object), step.pose_at, d))
+            if list(mat) != [w for row in pose.bits() for w in row]:
+                bad.append(("matrix", name(tr.object), step.pose_at))
         want = a.morph_weights(step.pose_at >> 8)
         for mph, addr in morphers.items():
             n = g.m.load(addr + 16, 2)
@@ -921,7 +905,7 @@ class AnimTest(unittest.TestCase):
 
 # bulk and fixture ---------------------------------------------------------------------------
 
-def bulk(n, seed):
+def bulk(n, seed, max_tracks=12):
     import anim
     import ccs
     import ccsmodel
@@ -948,7 +932,7 @@ def bulk(n, seed):
         c = member(name)
         scene = ccsmodel.Scene(c)
         a = anim.Animation(c, off, scene.ext)
-        bad = check_controllers(g, c, off, a, rng, counts=counts)
+        bad = check_controllers(g, c, off, a, rng, max_tracks=max_tracks, counts=counts)
         counts["animations"] += 1
         if bad:
             fails += 1
@@ -1003,7 +987,8 @@ def fixture():
     import anim
     rng = random.Random(11)
     print("# tools/test_anim.py fixture: anim.py's values, checked against the game by the same tool.")
-    print("# pose MEMBER ANIME OBJECT TARGET TICKS pos.xyz scale.xyz alpha (float bits) rot 3x3 rows")
+    print("# pose MEMBER ANIME OBJECT TARGET TICKS pos.xyz scale.xyz alpha, then the local matrix's 16 words "
+          "(stored rows), all float bits")
     print("# morph MEMBER ANIME MORPHER FRAME TARGET:WEIGHT...")
     print("# blend MEMBER ANIME MORPHER FRAME MMAT FNV1A-64 of the blended s16 positions")
     print("# forward MEMBER ANIME SPEED STEPS times ... (0x80000000 | time when the step ended)")
@@ -1018,8 +1003,8 @@ def fixture():
             for t in sorted({0, 1, last} | {rng.randint(0, last) for _ in range(3)}):
                 p = tr.at(t)
                 vals = " ".join(f"{v:08x}" for v in p.pos + p.scale + [p.alpha])
-                rot = " ".join(f"{x:.9g}" for row in p.rot for x in row)
-                print(f"pose {fname} {anm} {tr.object} {tr.target} {t} {vals} {rot}")
+                local = " ".join(f"{w:08x}" for row in p.bits() for w in row)
+                print(f"pose {fname} {anm} {tr.object} {tr.target} {t} {vals} {local}")
         for mat, _, _ in a.materials:
             for t in sorted({0, 1, last} | {rng.randint(0, last) for _ in range(4)}):
                 (_, u, v), = [x for x in a.uv(t) if x[0] == mat][:1]
@@ -1059,7 +1044,8 @@ def fixture():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "bulk":
         sys.exit(bulk(int(sys.argv[2]) if len(sys.argv) > 2 else 20,
-                      int(sys.argv[3]) if len(sys.argv) > 3 else 1))
+                      int(sys.argv[3]) if len(sys.argv) > 3 else 1,
+                      int(sys.argv[4]) if len(sys.argv) > 4 else 12))
     if len(sys.argv) > 1 and sys.argv[1] == "notes":
         sys.exit(notes_bulk(int(sys.argv[2]) if len(sys.argv) > 2 else None,
                             int(sys.argv[3]) if len(sys.argv) > 3 else 1))

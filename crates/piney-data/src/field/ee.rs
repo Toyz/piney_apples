@@ -148,6 +148,18 @@ pub fn from_int(i: i32) -> u32 {
     round(u32::from(i < 0), u128::from(i.unsigned_abs()), 0)
 }
 
+/// A u32 to float as the compiled code does it: `cvt.s.w`, halving (the
+/// low bit kept as a sticky bit) and doubling when the top bit is set.
+pub fn from_u32(x: u32) -> u32 {
+    match i32::try_from(x) {
+        Ok(i) => from_int(i),
+        Err(_) => {
+            let h = from_int((x >> 1 | x & 1) as i32);
+            add(h, h)
+        }
+    }
+}
+
 /// `cvt.w.s`: truncate toward zero, saturating at the int range.
 pub fn to_int(v: u32) -> i32 {
     let (s, e, m) = unpack(v);
@@ -194,6 +206,24 @@ pub fn lt(a: u32, b: u32) -> bool {
 /// `a <= b`.
 pub fn le(a: u32, b: u32) -> bool {
     cmp(a, b) != Ordering::Greater
+}
+
+/// `c.eq.s`: exact values, both zeros equal.
+pub fn eq(a: u32, b: u32) -> bool {
+    cmp(a, b) == Ordering::Equal
+}
+
+/// `c.lt.s` against zero.
+pub fn negative(a: u32) -> bool {
+    key(a) < 0
+}
+
+/// The value as a double: exponent 255 stays a finite number, exponent 0
+/// is +0.
+pub fn to_f64(v: u32) -> f64 {
+    let (s, e, m) = unpack(v);
+    let x = m as f64 * f64::from(e - BIAS).exp2();
+    if s == 1 && m != 0 { -x } else { x }
 }
 
 /// An `f32` constant's bits, for the constants the code loads with lui/ori.

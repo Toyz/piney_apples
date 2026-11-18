@@ -57,10 +57,13 @@ beside crates/piney-world/examples/dungeon_probe.rs doing the same.
 Stubbed in the interpreter: operator new (a bump allocator), the
 semaphores, ccDrawEnv::SetFog / SetAmbient (recorded), ccLightGrp::DelGrp
 and AddGrp (recorded). ccCheckActiveObject sees an empty
-entry list, as the port assumes (no enemies): doors stand open. Pieces
-posed by a keyed rotation (the doors that swing) are compared to 1e-5 /
-0.05 and counted apart: piney_data::anim interpolates those in double
-precision.
+entry list, as the port assumes (no enemies): doors stand open. Every
+hit model is compared word for word, the doors' leaves posed by a keyed
+rotation too (piney_data::anim runs m2a, a2m and the double atan2 as the
+game does). Nothing is skipped: test_dungeons walks the lakes and the story
+areas with branches of their own as well (walk_cases), and the one row the
+door path cannot build, area 67's roomless type 34, sits in a dungeon play
+never builds (test_area_67_dungeon_is_never_built proves it from the code).
 
 Skipped when the disc is not extracted or cargo is missing.
 """
@@ -150,12 +153,6 @@ def fb(x):
 
 def bf(b):
     return struct.unpack("<f", struct.pack("<I", b & M32))[0]
-
-
-def ordered(b):
-    """A float's bits as an integer ordered like the floats."""
-    b &= M32
-    return -(b & 0x7FFFFFFF) if b & 0x80000000 else b
 
 
 def build():
@@ -975,6 +972,19 @@ def cases():
     return out
 
 
+def walk_cases():
+    """test_dungeons' walk over the dungeons the other tests set apart: two
+    lakes (field type 4, dungeon type 8) and the story areas whose
+    GotoNextRoom has branches of its own, their plain rooms (the event rooms
+    are test_special_rooms')."""
+    rng = random.Random(6)
+    out = [((2898712818, 1158677336, 1446943725), 4, 0, 3, 7, 2, 0, 0, 0),
+           ((1249418419, 1660063002, 287017642), 4, 0, 3, 7, 2, 0, 0, 1)]
+    for field, code in SPECIAL_DUNGEONS:
+        out.append(((rng.getrandbits(32), rng.getrandbits(32), rng.getrandbits(32)), 1, 0, 3, 7, 2, field, code, 0))
+    return out
+
+
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),
                      "needs the extracted disc and cargo")
 class DungeonAgainstGame(unittest.TestCase):
@@ -993,28 +1003,26 @@ class DungeonAgainstGame(unittest.TestCase):
     def count(self, k, n=1):
         self.counts[k] = self.counts.get(k, 0) + n
 
-    def same_hits(self, mine, game, what, tol=0.05):
+    def plain(self, info):
+        """cases() makes no lake and no story area with branches of its
+        own: those have tests of their own (test_lake_*, test_special_rooms)
+        and test_dungeons' walk_cases()."""
+        self.assertNotIn("error", info)
+        self.assertLess(info["dtype"], 8)
+        self.assertNotIn(info["event"], SPECIAL_EVENTS)
+
+    def same_hits(self, mine, game, what):
         """The same owners in the same order, each with the same type, rm
-        and im; a piece posed by a keyed rotation (a door's swinging leaf)
-        may differ in the last bits (piney_data::anim interpolates keyed
-        rotations in double precision, the game in its own arithmetic):
-        within 1e-5 in the rotation and 0.05 in the translation, counted
-        apart, with the largest difference in ULPs."""
+        and im, every word; a door's swinging leaf (a keyed rotation) too."""
         self.assertEqual([h[0] for h in mine], [h[0] for h in game], what + ": owners")
         for a, b in zip(mine, game):
             self.assertEqual(a[1], b[1], f"{what}: {a[0]} type")
-            if a[2:] == b[2:]:
-                self.count("hit models exact")
-                continue
-            for u, v in zip(a[2:], b[2:]):
-                for k, (x, y) in enumerate(zip(u, v)):
-                    tol_ = tol if k >= 12 else 1e-5
-                    self.assertLessEqual(abs(bf(x) - bf(y)), tol_, f"{what}: {a[0]} word {k}")
-            ulps = max(abs(ordered(x) - ordered(y)) for u, v in zip(a[2:], b[2:]) for x, y in zip(u, v))
-            self.count("hit models near (keyed rotation)")
-            self.counts["largest ULP difference"] = max(self.counts.get("largest ULP difference", 0), ulps)
+            for m, (u, v) in enumerate(zip(a[2:], b[2:])):
+                bad = [k for k, (x, y) in enumerate(zip(u, v)) if x != y]
+                self.assertFalse(bad, f"{what}: {a[0]} matrix {m} words {bad}: {u} != {v}")
+            self.count("hit models exact")
 
-    def same_dress(self, mine, game, what):
+    def same_dress(self, mine, game, what, machine=None):
         """The dressing SetRoom stood in the room, piece by piece, to the bit,
         and fieldrand after it; each spark's palette as ccEff::ChangeClut
         left it (the port asks for (new, old); the game changes it only
@@ -1024,7 +1032,7 @@ class DungeonAgainstGame(unittest.TestCase):
         for key in ("water", "objects", "anmobj", "anmobj2", "sparks", "lights", "fireflies", "rng"):
             self.assertEqual(mine[key], g[key], f"{what}: dressing {key}")
         if cluts:
-            own = self.game.own_clut("EFF_o_spark_s0_")
+            own = (machine or self.game).own_clut("EFF_o_spark_s0_")
             expect = want[0] if want and own == want[1] else own
             self.assertEqual(cluts, [expect] * len(cluts), f"{what}: the sparks' palette")
             if expect != own:
@@ -1035,22 +1043,22 @@ class DungeonAgainstGame(unittest.TestCase):
             self.count("dressing water")
 
     def test_dungeons(self):
-        g, p = self.game, self.probe
+        p = self.probe
         rng = random.Random(7)
-        for seeds, ft, weather, lmax, rmax, hack, field, code, server in cases():
+        own = [False] * len(cases()) + [True] * len(walk_cases())
+        for fresh, (seeds, ft, weather, lmax, rmax, hack, field, code, server) in zip(own, cases() + walk_cases()):
+            # Each walk case decodes its files into a game of its own, as
+            # test_special_rooms does (a second spccs or lake file decoded
+            # over the first in one machine reads a bad pointer).
+            g = Game() if fresh else self.game
             what = f"field {field} type {ft} dungeon {code} server {server} seeds {seeds}"
             info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} {ft} {weather} {lmax} {rmax} {hack} {field} "
                          f"{code} {server}")
-            if "error" in info:
-                self.count("skipped (port error)")
-                print(what, info["error"], file=sys.stderr)
-                continue
-            if info["dtype"] >= 8 or info["event"] in SPECIAL_EVENTS:
-                self.count("skipped (lake or special area)")
-                continue
+            self.assertNotIn("error", info, what)
             g.make(info, seeds, ft, weather, lmax, rmax, field, code, server)
             self.count("dungeons")
-            self.count(f"dungeons of type {info['dtype']} ({'story' if info['event'] else 'random'})")
+            kind = "lake" if info["dtype"] >= 8 else "story" if info["event"] else "random"
+            self.count(f"dungeons of type {info['dtype']} ({kind})")
             # Generate: every floor's rooms, stairs and startpos.
             floors = g.floors()
             for f, (mine, game) in enumerate(zip(info["floors"], floors)):
@@ -1059,14 +1067,18 @@ class DungeonAgainstGame(unittest.TestCase):
                 for i, (a, b) in enumerate(zip(mine["rooms"], game["rooms"])):
                     if not a[4]:
                         continue
-                    self.assertEqual(a[:4], b, f"{what} floor {f} room {i}")
+                    # An event room's Anime chunk is its own scene file's
+                    # (test_special_rooms compares it).
+                    event_room = info["event"] and g.room_type(f, i) >= 25
+                    self.assertEqual(a[:3] if event_room else a[:4], b[:3] if event_room else b,
+                                     f"{what} floor {f} room {i}")
                     self.count("rooms made")
             self.assertEqual(info["position"], g.rvec(WM + 0x20), what + ": GetStartPosition")
             fog, amb = g.fogs[-2], g.fogs[-1]
             self.assertEqual(fog, (info["near"], info["far"], 0, info["max"], info["fog"]), what + ": SetFog")
             self.assertEqual(list(amb), info["ambient"], what + ": SetAmbient")
             self.same_hits(info["hits"], g.hit_list(), what + ": SetRoom(0, 0)")
-            self.same_dress(info["dress"], g.dress(), what + ": SetRoom(0, 0)")
+            self.same_dress(info["dress"], g.dress(), what + ": SetRoom(0, 0)", g)
             # SetAllGim's slots, story rooms' CheckEntryItemBox and
             # CheckEntryCircle with them.
             gims = g.gims()
@@ -1088,7 +1100,7 @@ class DungeonAgainstGame(unittest.TestCase):
                     doors = g.set_room(f, i)
                     self.assertEqual(mine["doors"], doors, f"{what} room {f}/{i}: doors")
                     self.same_hits(mine["hits"], g.hit_list(), f"{what} room {f}/{i}")
-                    self.same_dress(mine["dress"], g.dress(), f"{what} room {f}/{i}")
+                    self.same_dress(mine["dress"], g.dress(), f"{what} room {f}/{i}", g)
                     self.count("SetRoom")
                     self.assertEqual(p.ask(f"info {f} {i}")["info"], g.room_2d_pos(f, i),
                                      f"{what} room {f}/{i}: GetRoom2DPos")
@@ -1328,16 +1340,15 @@ class DungeonAgainstGame(unittest.TestCase):
                         self.count("lake DrawBG frames")
 
     def test_draw_eff(self):
-        """DUNGEON::DrawEff over the rooms with sparks or glows of the random
-        dungeons of types 0-3, 70 frames each: the sparks' moves (SNOW::Move,
+        """DUNGEON::DrawEff over the rooms with sparks or glows of cases()'
+        random and story dungeons, 70 frames each: the sparks' moves (SNOW::Move,
         fieldrand), their fading, the glows' patterns and places, each room
         light's intensity, every frame."""
         g, p = self.game, self.probe
         for seeds, ft, weather, lmax, rmax, hack, field, code, server in cases():
             info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} {ft} {weather} {lmax} {rmax} {hack} {field} "
                          f"{code} {server}")
-            if "error" in info or info["dtype"] >= 8 or info["event"]:
-                continue
+            self.plain(info)
             g.make(info, seeds, ft, weather, lmax, rmax, field, code, server)
             rooms = 0
             for f, fl in enumerate(info["floors"]):
@@ -1367,8 +1378,7 @@ class DungeonAgainstGame(unittest.TestCase):
         for seeds, ft, weather, lmax, rmax, hack, field, code, server in cases():
             info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} {ft} {weather} {lmax} {rmax} {hack} {field} "
                          f"{code} {server}")
-            if "error" in info or info["dtype"] >= 8 or info["event"] in SPECIAL_EVENTS:
-                continue
+            self.plain(info)
             g.make(info, seeds, ft, weather, lmax, rmax, field, code, server)
             story = {}
             if info["event"]:
@@ -1412,10 +1422,7 @@ class DungeonAgainstGame(unittest.TestCase):
             seeds = (rng.getrandbits(32), rng.getrandbits(32), rng.getrandbits(32))
             what = f"area {field} dungeon {code}"
             info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} 1 0 3 7 2 {field} {code} 0")
-            if "error" in info:
-                self.count("special dungeons skipped (port error)")
-                print(what, info["error"], file=sys.stderr)
-                continue
+            self.assertNotIn("error", info, what)
             g.make(info, seeds, 1, 0, 3, 7, field, code, 0)
             self.count("special dungeons")
             # MakeRoom: an event room's animIdx names the table row's model;
@@ -1461,12 +1468,14 @@ class DungeonAgainstGame(unittest.TestCase):
                 ways = [c for c in self.cells(g, f) if c[3] and c[4] == s]
                 if not ways:
                     self.count("event rows no door leads to")
-                # A row with no room (types 16-24 and 34) that the area's
-                # branch does not take: the game's SetRoom reads through
-                # its null anm (docs/engine/dungeon.md, "Event rooms").
+                # A row with no room (types 16-24 and 34) that no branch
+                # takes, where SetRoom would read through its null anm:
+                # only area 67's, whose dungeon play never builds
+                # (test_area_67_dungeon_is_never_built).
                 ty = g.room_type(f, s)
                 if (16 <= ty <= 24 or ty == 34) and field not in LEAVE_AREAS:
-                    self.count("roomless rows walked into by the door path (skipped)")
+                    self.assertEqual((field, f, s, ty), (67, 2, 3, 34), what)
+                    self.count("roomless rows behind a door, area 67's (never built)")
                     continue
                 for banned in (False, True):
                     if banned:
@@ -1517,6 +1526,37 @@ class DungeonAgainstGame(unittest.TestCase):
                 self.same_hits(mine["hits"], g.hit_list(), where + ": the room built")
                 self.count("RoomSelect into an event room")
 
+    def test_area_67_dungeon_is_never_built(self):
+        """Area 67's dungeon, the one with a roomless row behind a door that
+        no branch takes, is never built in play. Only WORLD_MAN::GO(2) makes
+        a dungeon, for eventAreaNumber, which is 67 only after GO(1) on
+        field 67: the words of the Chaos Gate and of the events' `area` find
+        area 66 first (the two share words and server). And from field 67
+        nothing goes to area 2: Enter returns at once (66 asks ChangeArea(2,
+        0)), GoField acts only in a dungeon, and no event script has a
+        `scene` into area 2."""
+        import areas
+        import evscript
+        g = Game()
+        g.m.store(WM + 8, 4, 1)
+        for field, want in ((67, []), (66, [("area", 2, 0)])):
+            g.m.store(GAME + 0x24, 4, field)
+            g.changes = []
+            g.call("Enter__9WORLD_MANFPf", WM, ARGS)
+            self.assertEqual(g.changes, want, f"WORLD_MAN::Enter on field {field}")
+        rows = {e["code"]: e for e in areas.Data(ELF).events}
+        keys = ("wordA", "wordB", "wordC", "server")
+        self.assertEqual([rows[67][k] for k in keys], [rows[66][k] for k in keys])
+        ids = [g.m.load(g.call("GetWordParamFromEvCode__9WORLD_MANFii", WM, 67, k) + 4, 4) for k in range(3)]
+        g.m.store(GAME + 0x1C, 4, rows[67]["server"])
+        self.assertEqual(g.call("ccCheckEventAreaNum__Fiii", *ids), 66, "67's words")
+        ev = evscript.Events(ELF)
+        scenes = [i.args for n in ev.names for b in ev.script(n).blocks for i in b.ops
+                  if i.kind == "op" and ev.ops.row(i.code)[0] == "scene"]
+        self.assertGreater(len(scenes), 20)
+        self.assertEqual([a for a in scenes if a[0] == 2], [], "a scene into a dungeon")
+        self.count("event scripts' scenes, none into a dungeon", len(scenes))
+
     def test_leaves(self):
         """Type 32's tree and leaves (area 101's event room): SetRoom's
         twenty LEAFs (timer, spin and place from fieldrand, the tilt from
@@ -1528,9 +1568,7 @@ class DungeonAgainstGame(unittest.TestCase):
             g = Game()
             seeds = (rng.getrandbits(32), rng.getrandbits(32), rng.getrandbits(32))
             info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} 1 0 3 7 2 {field} {code} 0")
-            if "error" in info:
-                self.count("leaf dungeons skipped (port error)")
-                continue
+            self.assertNotIn("error", info, f"area {field}")
             g.make(info, seeds, 1, 0, 3, 7, field, code, 0)
             rooms = [(f, i) for f in range(10) for i in range(15) if g.room_type(f, i) == 32
                      and f < len(info["floors"]) and info["floors"][f]["rooms"][i][4]]
@@ -1574,8 +1612,7 @@ class DungeonAgainstGame(unittest.TestCase):
         for seeds, ft, weather, lmax, rmax, hack, field, code, server in cases():
             info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} {ft} {weather} {lmax} {rmax} {hack} {field} "
                          f"{code} {server}")
-            if "error" in info or info["dtype"] >= 8 or info["event"] in SPECIAL_EVENTS:
-                continue
+            self.plain(info)
             g.make(info, seeds, ft, weather, lmax, rmax, field, code, server)
             self.count(f"door dungeons of type {info['dtype']}")
             rooms = [(f, i) for f, fl in enumerate(info["floors"]) for i, r in enumerate(fl["rooms"]) if r[4]]
@@ -1661,8 +1698,7 @@ class DungeonAgainstGame(unittest.TestCase):
         for seeds, ft, weather, lmax, rmax, hack, field, code, server in cases():
             info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} {ft} {weather} {lmax} {rmax} {hack} {field} "
                          f"{code} {server}")
-            if "error" in info or info["event"] in SPECIAL_EVENTS:
-                continue
+            self.plain(info)
             g.make(info, seeds, ft, weather, lmax, rmax, field, code, server)
             rooms = [(f, i) for f, fl in enumerate(info["floors"]) for i, r in enumerate(fl["rooms"]) if r[4]]
             rng.shuffle(rooms)

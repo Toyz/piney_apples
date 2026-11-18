@@ -280,7 +280,7 @@ player until one of these turns out wrong.
 - [[111]] RoomSelect's bgColor 0 and GS words not modelled — the change's fade covers them
 - [[111]] SimGenerateCode's moves of seed and randcnt left aside — docs/engine/field-walk.md Unknown — answered by [[473]] (`AreaCode::field_rand` at the gate menu's looks, SetGenerateCode and instruction 118; `randcnt` is read by nothing but its own increments)
 - [[112]] fieldrand's seed on arrival not carried across scenes (the arena's firefly bobbing) — phase only — answered by [[473]] (the arena draws on from the scene before)
-- [[114]] area 67's type-34 row behind a door with no branch would crash the game; whether the story reaches it — not known
+- [[114]] area 67's type-34 row behind a door with no branch would crash the game; whether the story reaches it — answered by [[612]] (never: only GO(2) builds a dungeon, eventAreaNumber is 67 only on field 67, whose Enter does nothing, and no script's `scene` goes to area 2; test_area_67_dungeon_is_never_built)
 - [[115]] fieldrand's seed on arrival not carried from the dungeon — same as [[112]] — answered by [[473]]
 - [[132]] ccEntryEventMng's second argument to ccSetRtownPC (the port uses -1) — answered by [[393]]: -1
 - [[132]] the event NPC classes step outside the entry control's NPC turn, so their effects start a frame late — docs/engine/field-game.md Unknown
@@ -1240,7 +1240,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/dungeon.md: what ccObj::Duplicate(0x2008)/(0x2000) copy of the water's object — research (duplicates [[157]])
 - docs/engine/dungeon.md: whether a room's dummies can make more than 32 room lights — research (none checked comes near)
 - docs/engine/dungeon.md: the warps (warpPoint) — research; a lake's way between its dungeons not run against the game — answered by [[379]] (test_lake_stairs)
-- docs/engine/dungeon.md: a keyed rotation's last bits (double precision interpolation) — research (rounding)
+- docs/engine/dungeon.md: a keyed rotation's last bits (double precision interpolation) — research (rounding) — answered by [[612]] (m2a, a2m, sinf, cosf and the double atan2 as the game runs them; every hit model compared word for word)
 - docs/engine/dungeon.md: why DecodeSetup reads a bad pointer decoding sd9 after sd4 — research (duplicates [[161]])
 - docs/engine/dungeon.md: what the save bit at +0x5ec8 bit 62 means — answered (stale; [[220]] (eventFlag[314] done); ishack stays research ([[25]]))
 - docs/engine/dungeon.md: story-dungeon room models (MakeRoom(ROOMDATA *)) — answered (stale; [[114]], crates/piney-data/src/dungeon/special.rs)

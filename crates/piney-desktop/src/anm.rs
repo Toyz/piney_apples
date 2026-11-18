@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 use glam::{Mat4, Vec3};
 use piney_data::anim::Ticks;
+use piney_data::vu0;
 use piney_draw::{
     AlphaFail, AlphaTest, Blend, Cmd, Compare, Depth, DrawState, Filter, Fog, Frame, MmatDraw, ModelDraw, Scissor,
     TexFunc, TexParams, Wrap, ZTest,
@@ -431,15 +432,17 @@ impl Anm {
                 l.2 = on;
             }
         }
-        fn world(sc: &piney_data::scene::Scene, l: &Locals, o: u32, d: u32) -> Mat4 {
-            let m = l.get(&o).map_or(Mat4::IDENTITY, |x| x.0);
+        // `_SetLWMatrix`'s products in VU0's arithmetic, from the ccAnm's
+        // matrix down. A parent the animation does not name is not in its
+        // index: the object hangs from the ccAnm itself.
+        let root = vu0::of_mat4(self.root);
+        fn world(sc: &piney_data::scene::Scene, l: &Locals, root: &vu0::M4, o: u32, d: u32) -> vu0::M4 {
+            let m = l.get(&o).map_or(vu0::UNIT, |x| vu0::of_mat4(x.0));
             let parent = sc.ext_parent.get(&o).or_else(|| sc.parent.get(&o)).copied().unwrap_or(0);
-            // A parent the animation does not name is not in its index:
-            // the object hangs from the ccAnm itself.
             if parent != 0 && parent != o && d < 64 && l.contains_key(&parent) {
-                world(sc, l, parent, d + 1) * m
+                vu0::mul_matrix(&world(sc, l, root, parent, d + 1), &m)
             } else {
-                m
+                vu0::mul_matrix(root, &m)
             }
         }
         let mut out = Vec::new();
@@ -450,7 +453,8 @@ impl Anm {
             if !disp {
                 continue;
             }
-            out.push(Instance { object: target, model, world: self.root * world(sc, &locals, obj, 0), alpha: tp });
+            let world = vu0::to_mat4(&world(sc, &locals, &root, obj, 0));
+            out.push(Instance { object: target, model, world, alpha: tp });
         }
         out
     }
@@ -463,14 +467,15 @@ impl Anm {
         let sc = &file.scene;
         let locals: Locals =
             a.controllers_at(self.posed).into_iter().map(|(o, p)| (o, (p.matrix(), p.alpha, true))).collect();
+        let root = vu0::of_mat4(self.root);
         let mut out = Vec::new();
         for (&obj, &(m, tp, _)) in &locals {
             let parent = sc.ext_parent.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
-            let world = match locals.get(&parent) {
-                Some(p) if parent != obj => p.0 * m,
-                _ => m,
+            let above = match locals.get(&parent) {
+                Some(p) if parent != obj => vu0::mul_matrix(&root, &vu0::of_mat4(p.0)),
+                _ => root,
             };
-            out.push((obj, self.root * world, tp));
+            out.push((obj, vu0::to_mat4(&vu0::mul_matrix(&above, &vu0::of_mat4(m))), tp));
         }
         out
     }

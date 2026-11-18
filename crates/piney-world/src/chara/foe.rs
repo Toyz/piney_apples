@@ -19,9 +19,11 @@ use piney_battle::geom::M4;
 use piney_battle::param::cond;
 use piney_battle::races::boss_anm_name;
 use piney_battle::tables::Tables;
+use piney_data::anim::vu_mul;
 use piney_data::archive::Archive;
 use piney_data::tables::types::GimmickTable;
 use piney_data::volume::Volume;
+use piney_data::vu0;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -187,40 +189,43 @@ impl Model {
     /// parent).
     pub fn worlds(&self, play: &Play, root: Mat4) -> HashMap<u32, Mat4> {
         let file = &self.body.file;
-        let locals = file.anims[play.anim].locals_at(play.posed);
+        let locals: HashMap<u32, M4> =
+            file.anims[play.anim].locals_at(play.posed).into_iter().map(|(o, m)| (o, vu0::of_mat4(m))).collect();
         let parents = self.parents(play);
         let sc = &file.scene;
         let mut set: Vec<u32> = locals.keys().copied().collect();
         set.extend(self.body.nodes.iter().copied());
-        let mut out: HashMap<u32, Mat4> = play.instances(file, root).into_iter().map(|i| (i.object, i.world)).collect();
+        let mut out: HashMap<u32, M4> =
+            play.instances(file, root).into_iter().map(|i| (i.object, vu0::of_mat4(i.world))).collect();
         #[allow(clippy::too_many_arguments)]
         fn w(
             sc: &piney_data::scene::Scene,
-            locals: &HashMap<u32, Mat4>,
+            locals: &HashMap<u32, M4>,
             parents: &HashMap<u32, u32>,
             set: &[u32],
-            root: Mat4,
-            cache: &mut HashMap<u32, Mat4>,
+            root: &M4,
+            cache: &mut HashMap<u32, M4>,
             obj: u32,
             depth: u32,
-        ) -> Mat4 {
+        ) -> M4 {
             if let Some(m) = cache.get(&obj) {
                 return *m;
             }
-            let local = locals.get(&obj).copied().unwrap_or(Mat4::IDENTITY);
+            let local = locals.get(&obj).unwrap_or(&vu0::UNIT);
             let parent = parents.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
             let m = if parent != 0 && parent != obj && depth < 64 && set.contains(&parent) {
-                w(sc, locals, parents, set, root, cache, parent, depth + 1) * local
+                vu_mul(&w(sc, locals, parents, set, root, cache, parent, depth + 1), local)
             } else {
-                root * local
+                vu_mul(root, local)
             };
             cache.insert(obj, m);
             m
         }
+        let root = vu0::of_mat4(root);
         for &o in &set {
-            w(sc, &locals, &parents, &set, root, &mut out, o, 0);
+            w(sc, &locals, &parents, &set, &root, &mut out, o, 0);
         }
-        out
+        out.into_iter().map(|(o, m)| (o, vu0::to_mat4(&m))).collect()
     }
 
     /// [`Body::node_alphas`] of the model's body.
@@ -290,7 +295,8 @@ impl Model {
                 file,
                 model,
                 world,
-                alpha: alpha * inst.alpha,
+                // ccObj::Draw: the anm's transparency times the node's (mul.s).
+                alpha: ee::f(ee::mul(alpha.to_bits(), inst.alpha.to_bits())),
                 rows: &rows,
                 lights: lights.filter(|_| lit).map(|l| l(world)),
                 nodes: if info.mtype & 6 != 0 { &node_mats } else { &[] },

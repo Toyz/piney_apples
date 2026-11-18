@@ -3,7 +3,7 @@ title: Dungeon generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x00597d84 ccPlayer::ccPlayer (the lake's arrival), 0x005c1440 DUNGEON::SetClutList, 0x005c17b0 DUNGEON::ChangeClut; INF SLUS_202.67:0x0013aad0 ccModel::ChangeClut, 0x00152d00 ccAnm::ChangeClut; INF gcmn.prg:0x005c12a0 DUNGEON::Generate, 0x005c0110 MakeFloor, 0x005b6840 FOOT::FOOT, 0x005b7330 FOOT::Move, 0x005b78c0 FOOT::CheckDirection, 0x005ba1d0 DUNGEON::MakeRoom, 0x005bb340 SetAllGim, 0x005be020 MakeRealMap, 0x005bcbb0 DUNGEON::MakeRoom(ROOMDATA *), 0x005b7c00 DUNGEON::DUNGEON, 0x005c1ca0 SetRoom, 0x005c3a50 ClearRoom, 0x005c1980 DeleteRoom, 0x005c7c30 SetDoor, 0x005cd3d0 MoveDoor, 0x005c9e10 GotoNextRoom, 0x005ce930 DUNGEON::Draw, 0x005cf030 DUNGEON::GetHeight, 0x005cf040 GetStartPosition, 0x005c4560 SetLight, 0x0042e010 ccCheckActiveObject, 0x00571da0 initHitCheck, 0x005c8820 DUNGEON::OpenDoor, 0x005c8f50 CloseDoor, 0x005c8800 CloseDoor2, 0x005cf080 GetRoom2DPos, 0x005b6720 GetEditDungeonPtr; INF SLUS_202.67:0x001382f0 ccCoord::SetMatrix_PosRotZYX, 0x00110a30 sceVu0RotMatrixZ, 0x00139330 ccDirectLight::CheckRange, 0x001392d0 ccDirectLight::Init, 0x001389b0 ccCreateLight, 0x00105820 ccDrawEnv::SetFog, 0x0019f4b0 WORLD_MAN::SetDungeonTexClut, 0x0019cf50 SetDungeonTypeFromField, 0x0019c460 fieldrand, 0x0019f8e0 WORLD_MAN::GO, 0x0019dda0 WORLD_MAN::Enter, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a10c0 WORLD_MAN::GetHeight, 0x001a4070 WORLD_MAN::SetPrevRoom, 0x00151f30 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153760 ccModelHit::HitEnable, 0x001107b0 sceVu0InversMatrix, 0x0014cb80 ccStream::Decode_ExtObj, 0x001b3620 ccEvent::SetEventPoint, 0x001b3590 ccEvent::SetEventPos, 0x001a22b0 WORLD_MAN::Get2DMapPtr, 0x001b218c open_door, 0x001b21cc close_door, 0x0019dca0 WORLD_MAN::RoomSelect, 0x001b0948 room, 0x001b097c room_point; INF gcmn.prg:0x005c95c0 DUNGEON::RoomSelect, 0x005b61e0 DUNGEON::GetBanRoom; INF SLUS_202.67:0x0013cff0 ccClump::HitEnable, 0x0013d240 ccClump::SetHitMatrix, 0x001d9dd0 ccGetDist, 0x00178400 ccSaveData::CheckAreaBan; INF gcmn.prg:0x005c3f30 DUNGEON::SetWater, 0x005c70c0 SetObject, 0x005c6e80 EntryObject, 0x005c3ad0 SetAnmObject, 0x005ce1c0 DrawWater, 0x005cdee0 DrawEff, 0x005ce3d0 DUNGEON::DrawBG, 0x00503cf0 SNOW::SNOW(ccStream *, float *), 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x00502e20 calcPos3; INF SLUS_202.67:0x00151ce0 ccAnm::GetSubstAdrs, 0x00101ad0 ccMatchIndex, 0x00101e20 ccSubstSearchResult::SetTbl, 0x00138b60 ccSetColor, 0x00139060 ccLightGrp::AddGrp, 0x0013ba20 ccEff::Init, 0x0014bce0 ccStream::Decode_Model, 0x0013b5c0 ccObj::Init; MUT SLUS_205.62:0x001b6f70 WORLD_MAN::EntryGimmick
-worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391, 482, 483, 486, 492, 496, 497, 550, 557, 570
+worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391, 482, 483, 486, 492, 496, 497, 550, 557, 570, 612
 ---
 
 # Dungeon generation
@@ -94,6 +94,13 @@ matrix and the point `p` 150 down its y axis (`sceVu0ApplyMatrix` of
 - a magic circle: `atan2f(p.x, p.y)` of `p` itself, which overwrites the
   heading it first takes (0x005bb8a4);
 - the rest: `atan2f` of its x axis's y and x (0x005bbb74).
+
+The place is the dummy's, except for the special objects (`OBJ_0ps0*` to
+`OBJ_0ps3*`, only in the lakes' rooms). Each of those adds the dummy's turn
+of an offset of its own (`sceVu0ApplyMatrix` with w 0, then
+`sceVu0AddVector`, 0x005bc0b0, 0x005bc3c0, 0x005bc6c8, 0x005bc9d0):
+(0, -400, 0), (-200, -100, 150), (0, 0, 150) and (0, -150, 0). Until
+worklog 612 the port took the dummy's own place for them.
 
 In a story dungeon (an edit table) the box and the circle ask first.
 `CheckEntryItemBox` (0x005cf800) keeps no box where a `GIMMICKDATA` row
@@ -877,9 +884,24 @@ room's Anime chunk at `T(centre)`, stepped once: `OBJ_user_point`'s world
 translation, w 1. `SetRoom(level, next)` and `roomEnterFlag` 1 follow, and
 the answer is the room. `DUNGEON::RoomSelect` has the same stand for areas
 71 and 77 (types 30, 31). A roomless row (16-24, 34) that no branch takes
-cannot be walked into: `SetRoom` would read through its null anm. Of the
-dungeons checked, only area 67's has one behind a door (floor 2, room 3,
-type 34), and 67 has no branch.
+cannot be walked into: `SetRoom` would read through its null anm. Only
+area 67's dungeon has one behind a door (floor 2, room 3, type 34), and 67
+has no branch. Play never builds that dungeon, on any disc:
+- Only `WORLD_MAN::GO(2)` makes a dungeon (`new DUNGEON` when
+  `dungeon[d]` is null), for `eventAreaNumber`.
+- `eventAreaNumber` is 67 only after `GO(1)` on field 67, which area 66's
+  last door reaches (`ChangeArea(1, 67)`). Areas 66 and 67 share their
+  words and server (Theta), and `ccCheckEventAreaNum` (the Chaos Gate's
+  and the events' `area`) takes the first row, 66. The `area` cases 1-13
+  set only those numbers.
+- From field 67 nothing changes to area 2. `WORLD_MAN::Enter` returns at
+  once for 67 (INF main 0x0019de6c, MUT 0x001b2cb4, OUT 0x001a8b24, QUA
+  0x001b0334), where 66 asks `ChangeArea(2, 0)`. `GoField` acts only in a
+  dungeon. No event script on the four discs has a `scene` into area 2
+  (the 21 or 22 with area -2 keep the scene).
+
+`test_dungeon_rt.py`'s `test_area_67_dungeon_is_never_built` checks the
+three from each volume's code and scripts.
 
 `-255` goes to `WORLD_MAN::Enter`'s `ChangeArea(1, n)`
 ([above](#entering-and-walking-a-dungeon)). Area 27's is field 1, whose
@@ -1051,37 +1073,44 @@ game's own `ccStream::DecodeSetup` in eemu, fills `DUNGEON`, `WORLD_MAN` and
 `GotoNextRoom` and `Draw` beside `crates/piney-world/examples/dungeon_probe.rs`, on
 each volume's code (`PINEY_VOLUME`: a later volume's `DUNGEON` gets its
 `new[]` blocks and moved fields as its constructor does, `BLOCKS`/`D()`;
-`GO`'s way back is found by its code), over 24 dungeons: story area 14's (the one `--mode dungeon:14` enters), nine
-other story areas' (types 0-3 and, with flag 3, 5-7) and 14 random ones
-(types 0-4, servers 0 and 2):
+`GO`'s way back is found by its code), over 41 dungeons on Infection:
+story area 14's (the one `--mode dungeon:14` enters), nine other story
+areas' (types 0-3 and, with flag 3, 5-7), 14 random ones (types 0-4,
+servers 0 and 2), and in `walk_cases` two lakes (type 8, servers 0 and 1)
+and the 15 story dungeons whose areas `GotoNextRoom` has branches for
+(their plain rooms; the event rooms are `test_special_rooms`'). Every hit
+model is compared word for word, the doors' leaves posed by a keyed
+rotation too, and nothing is skipped (worklog 612):
 
-- 672 rooms: model, turn and centre, each floor's `UpRoom`, `DownRoom`
-  and both startpos, and `SetFog` / `SetAmbient`'s arguments;
-- the hit list of each of the 672 `SetRoom`s and of the room each
-  `GotoNextRoom` built: 297,909 hit models identical in owner, order, type,
-  `rm` and `im`, and 1,428 door leaves posed by a keyed rotation within
-  1e-5 (rotation) and 0.05 (translation), at most 32 ULPs (the port's
-  keyed rotations are interpolated in double precision);
-- each `SetRoom`'s dressing, to the bit: the water (its anm and matrix, 6),
+- 1,165 rooms: model, turn and centre (an event room's place and turn),
+  each floor's `UpRoom`, `DownRoom` and both startpos, and `SetFog` /
+  `SetAmbient`'s arguments;
+- the hit list of each of the 1,157 `SetRoom`s and of the room each
+  `GotoNextRoom` built (2,081,550 hit models identical over the whole
+  harness: owner, order, type, `rm` and `im`);
+- each `SetRoom`'s dressing, to the bit: the water (its anm and matrix, 19),
   the sparks (base, place, step, `life`, `cnt`, the `ccEff`'s place and
-  transparency, and its palette: 738, 291 of them changed), the room
+  transparency, and its palette: 1,857, 291 of them changed), the room
   lights (the glows' names, places and patterns, the omni light's place,
-  colour and intensity: 1,183), the walls (40) and animated objects (134)
-  by anm and matrix, and `fieldrand`'s seed and count after it, story
-  dungeons' included;
-- every dungeon's `gimPos` after `Generate` (773 slots, and the 15 story
-  dungeons of `test_special_rooms`): place, heading, floor, room and type
-  (worklog 496);
-- 26,880 `ccLandHitCheck`s in game.area 2 (8,807 on a floor): height,
-  count, nearest contact, distance, attribute and
-  `checkHitResultAttlibute` (undefined without a result with ground bits);
-- 2,016 `GetHeight`s;
-- 2,384 `GotoNextRoom`s from door cells and 128 from stairs rooms: the
+  colour and intensity: 2,061), the walls (50) and animated objects (162)
+  by anm and matrix, and `fieldrand`'s seed and count after it;
+- every dungeon's `gimPos` after `Generate` (1,260 slots): place, heading,
+  floor, room and type (worklog 496; the lakes' special objects' offsets,
+  worklog 612);
+- 46,280 `ccLandHitCheck`s in game.area 2: height, count, nearest
+  contact, distance, attribute and `checkHitResultAttlibute` (undefined
+  without a result with ground bits);
+- 3,471 `GetHeight`s;
+- 4,100 `GotoNextRoom`s from door cells and 233 from stairs rooms: the
   answer and `WORLD_MAN.position`;
-- 9,536 `DUNGEON::Draw`s before and after each door's `GotoNextRoom`, at
+- 16,400 `DUNGEON::Draw`s before and after each door's `GotoNextRoom`, at
   the spot the player left, the spot he arrives at and random points (the
   map, minimap, layers and door sounds stubbed): the cell's room, and
   whether `ccAnm::Draw` was given the room and how many doors.
+
+Mutation, Outbreak and Quarantine run the same, with area 125's fifteen
+floors too (42 dungeons; 2,564,771 hit models on Mutation). 0 mismatches
+on all four.
 
 Beside them, `KiteInDungeon` runs `cameraMain` and `ccPlayer::Main` over a
 room the real `SetRoom` registered (`tools/test_world_rs.py`'s set-up, area
@@ -1090,14 +1119,14 @@ start and other rooms, walking into walls and through two doors (three
 `WORLD_MAN::Enter`s), every scheme and the eye view. 0 mismatches in all.
 No entity is in any room (open doors).
 
-`test_lake_dressing` runs four lake dungeons (type 8, `sd4`), which
-`test_dungeons` leaves out: `Generate`'s rooms and `fieldrand`, then every
+`test_lake_dressing` runs four lake dungeons (type 8, `sd4`):
+`Generate`'s rooms and `fieldrand`, then every
 room's `SetRoom` (34): the hit list (3,081 hit models identical) and the
 dressing, 18 statues and flowers and 3 waters. `test_draw_eff` runs
-`DrawEff` 70 frames in 60 rooms with sparks or glows of the random
-dungeons (`ccEff::Draw` recorded): every frame's glows and sparks (name,
-place, pattern, transparency), each room light's intensity and
-`fieldrand`, 4,200 frames. 0 mismatches. `piney-game`'s
+`DrawEff` 70 frames in 79 rooms with sparks or glows of the random and
+story dungeons (`ccEff::Draw` recorded): every frame's glows and sparks
+(name, place, pattern, transparency), each room light's intensity and
+`fieldrand`, 5,530 frames. 0 mismatches. `piney-game`'s
 `delta_and_theta_rooms_are_dressed` walks Kite through 28 rooms of two Δ
 and two Θ random dungeons (types 0-3): each room's omni lights beside the
 distant light, one a glow, and the glows' patterns running on.
@@ -1122,10 +1151,9 @@ played out busy, then cleared). After every step the door words, the
 doors and the whole hit list (owner, order, type, `rm`, `im`), and each
 `MoveDoor`'s sounds (how many, where): 75 rooms with doors, 12,846
 `MoveDoor`s (6,309 opening, 3,405 while a door closes), 44 `OpenDoor`s,
-35 `CloseDoor`s, 72 `CloseDoor2`s, 332 door sounds; 1,590,176 hit models
-identical and 4,594 posed by a keyed rotation within 1e-5 and 0.05 (the
-largest difference 8,192 ULPs). `test_dungeons` also compares
-`GetRoom2DPos` for all 672 rooms. `EventDataAgainstGame` runs
+35 `CloseDoor`s, 72 `CloseDoor2`s, 332 door sounds; every hit model
+identical, the swinging leaves included. `test_dungeons` also compares
+`GetRoom2DPos` for all 1,157 rooms set. `EventDataAgainstGame` runs
 `SetEventData` for every area with an `EditDungeon` entry, ten of them in
 a field, and four without, `$f20` random: 102 cases, 204
 `SetEventPoint`s, 254 `SetEventPos`es (recorded in order) and 10 warp
@@ -1136,8 +1164,7 @@ states. 0 mismatches.
 over the same dungeons, eight rooms of each and room 0 of floor 0: 208
 rooms, 202 of them placing the party in front of a way in and 6 at the
 centre. It compares the position, `level`, `roomEnterFlag` and the room's
-whole hit list (18,969 hit models identical, 60 within the keyed-rotation
-tolerance), and checks that the game's `mapHideFlag` is 2 and its map
+whole hit list (every hit model identical), and checks that the game's `mapHideFlag` is 2 and its map
 status 3. 0 mismatches. `piney-game`'s `story_4_item_add_and_room` runs
 `room 0 4` through the area host in story 4's dungeon: the scene changes
 to room 4 and Kite arrives where `RoomSelect` put him.
@@ -1159,9 +1186,11 @@ and 108), each in a game of its own with its `spccs` decoded:
   or `ChangeScene` it asks for;
 - `RoomSelect` into the 8 event rooms.
 
-The totals are 1,616 hit models identical and 24 within the keyed-rotation
-tolerance (at most 5 ULPs), with 0 mismatches. The walks skip area 67's
-roomless row, which the game cannot build. `piney-game`'s
+Every hit model is identical, 0 mismatches. Area 67's roomless row is
+the one row behind a door no branch takes; its dungeon is never built in
+play (above), which `test_area_67_dungeon_is_never_built` checks from
+each volume's `Enter`, `ccCheckEventAreaNum` and every event script's
+`scene` (120 on Infection, none into area 2). `piney-game`'s
 `event_25_opens_in_area_23s_shrine` puts `--mode story:25` in area 23's
 dungeon, with event 25's earlier blocks marked played, and walks Kite down
 to floor 2 and into the shrine. There it checks the arrival at
@@ -1318,8 +1347,6 @@ scene's menu](field-ui.md#a-new-scenes-menu)), Kite's idle count every
   several runs past `roomlight[32]` into `door[]`); none of the rooms
   checked comes near.
 - The warps (`warpPoint`, filled by `WORLD_MAN::EntryGimmick`).
-- A keyed rotation's last bits (the doors that swing): the port's
-  interpolation (`piney_data::anim`) is in double precision.
 
 - Why the interpreter's `DecodeSetup` reads a bad pointer (0x7c7c7b84)
   when `sd9` is decoded a second time after `sd4` (`test_lake_night` runs

@@ -2,8 +2,8 @@
 //! against the game's own code. The fixture (`anim_fixture.txt`, from `python3
 //! tools/test_anim.py fixture`) holds only numbers; the animations and models
 //! come from the disc (skipped when it is not extracted; set PINEY_ISO to point
-//! at it elsewhere). Everything must match exactly but rotation matrices, to
-//! 1e-6 per element (anim.py prints them as doubles, the port rounds to f32).
+//! at it elsewhere). Everything must match exactly, keyed rotations and the local matrices
+//! included.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -74,7 +74,6 @@ fn animations_match_the_reference() {
     };
     let mut files: HashMap<String, File> = HashMap::new();
     let mut counts: HashMap<&str, usize> = HashMap::new();
-    let mut worst_rot = 0f64;
     for line in include_str!("anim_fixture.txt").lines() {
         if line.starts_with('#') || line.is_empty() {
             continue;
@@ -93,14 +92,8 @@ fn animations_match_the_reference() {
                 let got = [p.pos.x, p.pos.y, p.pos.z, p.scale.x, p.scale.y, p.scale.z, p.alpha].map(f32::to_bits);
                 let want: Vec<u32> = f[6..13].iter().map(|s| hex(s)).collect();
                 assert_eq!(got.to_vec(), want, "{line}");
-                for r in 0..3 {
-                    for c in 0..3 {
-                        let want: f64 = f[13 + 3 * r + c].parse().unwrap();
-                        let d = (p.rot.col(c)[r] as f64 - want).abs();
-                        worst_rot = worst_rot.max(d);
-                        assert!(d <= 1e-6, "{line}: rot[{r}][{c}] = {}", p.rot.col(c)[r]);
-                    }
-                }
+                let want: Vec<u32> = f[13..29].iter().map(|s| hex(s)).collect();
+                assert_eq!(p.bits().concat(), want, "{line}: the local matrix");
             }
             "morph" => {
                 let (morpher, frame): (u32, u32) = (f[3].parse().unwrap(), f[4].parse().unwrap());
@@ -173,7 +166,7 @@ fn animations_match_the_reference() {
             k => panic!("unknown fixture line {k}"),
         }
     }
-    eprintln!("{counts:?}, worst rotation difference {worst_rot:.2e}");
+    eprintln!("{counts:?}");
     assert!(counts["pose"] > 300 && counts["morph"] > 10 && counts["blend"] >= 4 && counts["forward"] > 10);
     assert!(counts["uv"] >= 10);
     assert!(counts["notes"] >= 300 && counts["note"] >= 100);
@@ -279,7 +272,7 @@ fn f_obj_records_pose_the_body() {
         f32::from_bits(m[2][1]),
         f32::from_bits(m[2][2]),
     ]);
-    assert!((p.rot - want).to_cols_array().iter().all(|d| d.abs() < 1e-4), "{:?} vs {want:?}", p.rot);
+    assert_eq!(p.rot, want);
     // Between frames the pose holds; past the end, the last frame's.
     assert_eq!(a.obj_poses_at((3 << 8) + 200)[0].1, p);
     assert_eq!(a.obj_poses_at(1 << 20)[0].1, at(30));

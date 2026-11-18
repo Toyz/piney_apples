@@ -1,9 +1,9 @@
 ---
 title: Animation playback
 status: partial
-volumes: INF
-covers: INF SLUS_202.67:0x00150670 ccAnm::SetAnmCtrlWork (its 0x0605 case), 0x0014e950 ccStream::DecodeF_Obj, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x00144e90 ccAnmChunk::ConvLCNum2ALCNum, 0x00144d00 ConvALCNum_FsetMatCtrl, 0x00146be0 ccAnmCtrlFVec3_SetCtrl, 0x00146890 ccAnmCtrlFVec3_Set, 0x00146530 ccAnmCtrlFloat_Set, 0x00146660 ccAnmCtrlFloat_SetCtrl, 0x001470c0 ccAnmCtrlRot_SetCtrl, 0x00146f30 ccAnmCtrlRot_Set, 0x00150670 SetAnmCtrlWork, 0x00152270 ccAnm::_AnimateForward, 0x0014e6e0 DecodeF_Morpher, 0x0013af10 ccMorpher::Modify, 0x001109b8 _sceVu0ecossin, 0x0014e1b0 ccStream::DecodeFrameChunk, 0x0014f830 ccStream::DecodeF_Note, 0x00147ff0 ccAnmNote::DelAll, 0x00152210 ccAnm::NoteProcess, 0x00150f50 ccAnm::SetAnm, 0x0014fc80 ccAnm::ccAnm, 0x00152400 ccAnm::_AnimateFrame, 0x00378904 funcDefaultNoteProcess, 0x001494c0 ccStream::PlaySceneMain, 0x001474b0 ccStream::MakeAnimeIndex, 0x0014fe10 ccAnm::DeleteAnmIndex, 0x001524d0 ccAnm::Draw
-worklog: 32, 363, 365
+volumes: INF, MUT, OUT, QUA
+covers: INF SLUS_202.67:0x00150670 ccAnm::SetAnmCtrlWork (its 0x0605 case), 0x00105be0 EigenVector, 0x00105e00 EigenVec2Mat, 0x00105ec0 m2a, 0x00105f80 a2m, 0x00146e30 ccAnmCtrlRot_Init, 0x00122b00 __ieee754_atan2, 0x001269d0 atan, 0x0014e950 ccStream::DecodeF_Obj, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x00144e90 ccAnmChunk::ConvLCNum2ALCNum, 0x00144d00 ConvALCNum_FsetMatCtrl, 0x00146be0 ccAnmCtrlFVec3_SetCtrl, 0x00146890 ccAnmCtrlFVec3_Set, 0x00146530 ccAnmCtrlFloat_Set, 0x00146660 ccAnmCtrlFloat_SetCtrl, 0x001470c0 ccAnmCtrlRot_SetCtrl, 0x00146f30 ccAnmCtrlRot_Set, 0x00150670 SetAnmCtrlWork, 0x00152270 ccAnm::_AnimateForward, 0x0014e6e0 DecodeF_Morpher, 0x0013af10 ccMorpher::Modify, 0x001109b8 _sceVu0ecossin, 0x0014e1b0 ccStream::DecodeFrameChunk, 0x0014f830 ccStream::DecodeF_Note, 0x00147ff0 ccAnmNote::DelAll, 0x00152210 ccAnm::NoteProcess, 0x00150f50 ccAnm::SetAnm, 0x0014fc80 ccAnm::ccAnm, 0x00152400 ccAnm::_AnimateFrame, 0x00378904 funcDefaultNoteProcess, 0x001494c0 ccStream::PlaySceneMain, 0x001474b0 ccStream::MakeAnimeIndex, 0x0014fe10 ccAnm::DeleteAnmIndex, 0x001524d0 ccAnm::Draw
+worklog: 32, 363, 365, 612
 ---
 
 # Animation playback
@@ -72,17 +72,46 @@ target time, not on the steps taken to reach it.
 ## Rotations
 
 Rotations are not interpolated as Euler angles
-(`ccAnmCtrlRot_SetCtrl` 0x001470c0, `_Set` 0x00146f30):
+(`ccAnmCtrlRot_SetCtrl` 0x001470c0, `_Set` 0x00146f30). All of it runs in
+the EE's single precision and VU0's macro mode, except one double `atan2`:
 - **Keys.** Each key's degrees are quantised to 1/65536 of a turn,
-  `s16(int(deg * 182.044))`, wrapping. The key's matrix is
+  `s16(int(deg * 182.044))`, wrapping. Infection and Mutation truncate
+  through `fptosi`, Outbreak and Quarantine through `cvt.w.s` (OUT
+  0x00145c04). The two agree for every key on the four discs: none is past
+  ±1,800 degrees or has exponent 255. The key's matrix is
   `sceVu0RotMatrix`, i.e. Rx·Ry·Rz.
-- **Segments.** Each segment stores the step between keys, `R_i · R_{i-1}ᵀ`,
-  as an axis and an angle (`m2a` 0x00105ec0, via atan2, so at most half a
-  turn).
-- **Playback.** A running matrix starts at the first key. Each passed step
-  multiplies on the left, and the current segment adds
-  `axis_angle(axis, angle · t / dur)`. That is a constant-speed turn about
-  one axis between key orientations, the short way round.
+- **Segments.** Each segment stores the step between keys,
+  `sceVu0MulMatrix(R_i, R_{i-1}ᵀ)`, as an axis and an angle (`m2a`
+  0x00105ec0), in a 32-byte record with its duration.
+- **`EigenVector`** (0x00105be0) takes the stored rows of `m − I` (`sub.s`
+  on the diagonal). For each row `i` and column `j` it forms the cofactor
+  `(i+1, j+1)·(i+2, j+2) − (i+1, j+2)·(i+2, j+1)` (`mula.s`, `msub.s`). Its
+  `fabs` runs through `fptodp`, `fabs` and `dptofp`, which only clears the
+  sign. The row of the first strictly largest cofactor wins. The axis is
+  `sceVu0Normalize(sceVu0OuterProduct(row i+1, row i+2))`, and row `i+1`
+  (w 1) goes back too. Below 0x2d2febff (about 1e-11) it answers −1, and
+  `m2a` stores zeros: no turn.
+- **`EigenVec2Mat`** (0x00105e00) builds the frame `F` whose stored columns
+  are the axis, that row and their cross product, each normalised again.
+- **The angle** is `atan2(L[1][2], L[1][1])` of `L = F · (m · Fᵀ)` (two
+  `sceVu0MulMatrix`). The call is newlib's double `atan2`
+  (`__ieee754_atan2` 0x00122b00, `atan` 0x001269d0) between `fptodp` and
+  `dptofp`. Its soft-float steps (`dpadd`, `dpsub`, `dpmul`, `dpdiv`) round
+  to nearest as IEEE doubles do, so the result is that of one f64 per
+  step, rounded to a float. The angle is at most half a turn.
+- **`a2m`** (0x00105f80) turns (axis, angle) back into a matrix from
+  `sinf` and `cosf` of the angle (newlib's float routines). The cross terms
+  are `sceVu0ScaleVector(aa, s)`, negated by `neg.s` on one side of the
+  diagonal. The outer rows are `(aa · aa[r]) · (1 − c)`, added last to
+  `c` or the cross term. Row 3 and the w lanes stay the unit matrix's.
+- **Playback.** `ccAnmCtrlRot_Init` copies the first key's matrix into
+  the work. Each call adds its step to the time held in the work. While a
+  segment is strictly shorter than that time, `_Set` multiplies its whole
+  turn on the left (`sceVu0MulMatrix(a2m(turn), W)`) and takes its
+  duration off. Then it returns `a2m(axis, angle · frac) · W`, where
+  `frac = u32tof(t) / u32tof(dur)` as for the floats (`div.s`, truncated).
+  The running matrix depends only on the segments passed, so many small
+  steps give what one large step does.
 - **Final hold.** The hold after the last key reuses the last step with the
   wrapped duration `(last − N) · 256`, so the pose creeps by
   `angle · t / 2^32`, too little to see. The port keeps it.
@@ -92,14 +121,24 @@ Rotations are not interpolated as Euler angles
 `sceVu0RotMatrix` takes its cosine from a polynomial (`_sceVu0ecossin`
 0x001109b8, coefficients at 0x002f7520) and its sine as `sqrt(1 − cos²)`,
 which is off by up to about 5e-4 near 0. That is the game's error, and the
-port keeps it. The port computes keyed rotations in double: they match the
-game to 1e-5 per matrix element plus 1e-7 per key passed, the game's
-running matrix drifting in float. Every other value (positions, scales,
-transparencies, texture offsets, single-value rotations, morph weights and
-blends) matches bit for bit, as far as eemu models the EE and VU0.
+port keeps it.
+
+All of these routines are the same on the four volumes. Mutation's are
+Infection's at other addresses. Outbreak's and Quarantine's are recompiled
+with the same operations and order (`m2a` OUT 0x001061b0, `a2m` 0x00106270,
+`EigenVector` 0x00105ec0, `_Set` 0x00145930). The port is
+`piney_data::anim` (`m2a`, `a2m`, `eigen_vector`, `RotKeyed`), with the
+double `atan`/`atan2` in `piney_data::libm`. Each segment keeps the running
+matrix it starts from, so a pose costs one `a2m` and one product. Every
+value matches bit for bit, as far as eemu models the EE and VU0: positions,
+scales, transparencies, texture offsets, rotations (single-value and
+keyed, all 16 words), the local matrices, and morph weights and blends.
 
 The local matrix is `T(position) · R · S(scale)` (`SetAnmCtrlWork`
-0x00150670). The pose goes to the object in `ccAnmIndex.subst`; ExtObj
+0x00150670): `sceVu0MulMatrix(R, S)`, then `sceVu0TransMatrix` adds the
+position (`Pose::bits`, which `Pose::matrix` reads). The rotation's w lanes
+and fourth row only add zeros there, so its 3x3 decides every word. The
+pose goes to the object in `ccAnmIndex.subst`; ExtObj
 targets are followed (`ccGetExternalIndex` 0x00101a50), and each record is its
 own instance.
 
@@ -344,7 +383,13 @@ use, are that entry's.
 
 The port is `Animation::objects` and `Play::instances`; `Play::worlds`,
 `foe::Model::worlds` and `Body::node_alphas` give a named node its entry's
-pose. The desktop's anm (`piney_desktop::anm`) and the effects'
+pose. Each world matrix is `ccCoord::_SetLWMatrix`'s product (main
+0x00138380, `sceVu0MulMatrix`) of the parent's and the local one, in VU0's
+arithmetic from the anm's own matrix down (`body::root` is
+`SetMatrix_PosRotZYX`, 0x001382f0: `sceVu0RotMatrix`, then
+`sceVu0TransMatrix`), and a node's transparency the anm's times its own by
+`mul.s`. `tools/test_foe_rs.py` and `tools/test_world_rs.py` compare every
+word of the nodes' and the hands' matrices. The desktop's anm (`piney_desktop::anm`) and the effects'
 (`piney_effect::nodes::anm`) already drew by entry. `tools/test_foe_rs.py`
 checks the index against the game's `ConvLCNum2ALCNum` (`index`), and
 nodes named through several copies (`ecx1`, `ecc1`, `eus1`, `evb1`)

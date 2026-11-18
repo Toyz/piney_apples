@@ -90,8 +90,7 @@ pub fn anm(assets: &Assets, obj: ObjRef, play: &Play, matrix: &M4, alpha: F) -> 
     let mut locals: HashMap<u32, (M4, F)> = HashMap::new();
     let mut order = Vec::new();
     for (o, pose) in file.anims[play.anim].controllers_at(play.posed) {
-        let m = pose.matrix().to_cols_array_2d().map(|c| c.map(f32::to_bits));
-        if locals.insert(o, (m, pose.alpha.to_bits())).is_none() {
+        if locals.insert(o, (pose.bits(), pose.alpha.to_bits())).is_none() {
             order.push(o);
         }
     }

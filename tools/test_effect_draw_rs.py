@@ -650,8 +650,8 @@ class ModelsAgainstGame(unittest.TestCase):
     at random matrices (both of
     ccCoord's SetMatrix orders), transparencies (at and around 1/128 too)
     and animation times: the models in order, their transparency bit for
-    bit, a clump node's lwMatrix bit for bit (up to the sign of zero) and an
-    animated object's within the animation port's accuracy."""
+    bit, and every clump node's and animated object's lwMatrix bit for bit
+    (up to the sign of zero)."""
 
     CASES = int(os.environ.get("MODEL_CASES", "10"))
 
@@ -736,7 +736,6 @@ class ModelsAgainstGame(unittest.TestCase):
         answers = ask(lines)
         self.assertEqual(len(answers), len(want))
         bad, counts = [], collections.Counter()
-        worst = 0.0
         for (kind, stem, name, game), port, line in zip(want, answers, lines):
             counts[kind + "s"] += 1
             if stem == "xmagcir":
@@ -751,17 +750,10 @@ class ModelsAgainstGame(unittest.TestCase):
                 continue
             for g, p in zip(game, port):
                 counts[kind + " models"] += 1
-                if kind == "clump":
-                    if [x & 0x7FFFFFFF if x & 0x7FFFFFFF == 0 else x for x in g[2]] != \
-                       [x & 0x7FFFFFFF if x & 0x7FFFFFFF == 0 else x for x in p[2]]:
-                        bad.append((line, "lwMatrix", g, p))
-                else:
-                    d = max(abs(f32(a) - f32(b)) / max(1.0, abs(f32(a))) for a, b in zip(g[2], p[2]))
-                    worst = max(worst, d)
-                    if d > 1e-4:
-                        bad.append((line, "lwMatrix", d, g, p))
-        print(f"\nmodels: {dict(counts)}; worst animated lwMatrix difference {worst:.2e} (relative); "
-              f"{len(bad)} mismatches", file=sys.stderr)
+                if [x & 0x7FFFFFFF if x & 0x7FFFFFFF == 0 else x for x in g[2]] != \
+                   [x & 0x7FFFFFFF if x & 0x7FFFFFFF == 0 else x for x in p[2]]:
+                    bad.append((line, "lwMatrix", g, p))
+        print(f"\nmodels: {dict(counts)}; {len(bad)} mismatches", file=sys.stderr)
         self.assertFalse(bad, bad[:3])
 
 

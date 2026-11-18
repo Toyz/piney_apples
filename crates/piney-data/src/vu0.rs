@@ -17,6 +17,16 @@ pub const ONE: F = 0x3f80_0000;
 /// `sceVu0UnitMatrix` (main 0x00110990).
 pub const UNIT: M4 = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
 
+/// A matrix's float bits as stored rows (each a column of the maths).
+pub fn of_mat4(m: glam::Mat4) -> M4 {
+    m.to_cols_array_2d().map(|c| c.map(f32::to_bits))
+}
+
+/// Stored rows of float bits as a matrix, the bits kept.
+pub fn to_mat4(m: &M4) -> glam::Mat4 {
+    glam::Mat4::from_cols_array_2d(&m.map(|c| c.map(f32::from_bits)))
+}
+
 /// `sceVu0MulMatrix` (main 0x00110698): each stored row of `b` through
 /// `a`'s rows, ((a0 x + a1 y) + a2 z) + a3 w.
 pub use crate::anim::vu_mul as mul_matrix;

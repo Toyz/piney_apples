@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -344,7 +344,7 @@ impl Body {
                 file,
                 model,
                 world,
-                alpha: if k.is_some() { arms } else { alpha * inst.alpha },
+                alpha: if k.is_some() { arms } else { ee::f(ee::mul(alpha.to_bits(), inst.alpha.to_bits())) },
                 rows: &rows,
                 lights: lit.then(|| light_matrix(lights, world, shaded)),
                 nodes: match clump_mats.iter().find(|(o, _)| k.is_none() && *o == inst.object) {
@@ -443,13 +443,10 @@ impl Body {
     }
 }
 
-/// `ccCoord::SetMatrix_PosRotZYX(pos, dirc)`: T(pos) Rx Ry Rz.
+/// `ccCoord::SetMatrix_PosRotZYX(pos, dirc)` (main 0x001382f0): T(pos) Rx
+/// Ry Rz, `sceVu0RotMatrix` then `sceVu0TransMatrix`, to the bit.
 pub fn root(pos: V4, dirc: V4) -> Mat4 {
-    let p = Vec3::new(ee::f(pos[0]), ee::f(pos[1]), ee::f(pos[2]));
-    Mat4::from_translation(p)
-        * Mat4::from_rotation_x(ee::f(dirc[0]))
-        * Mat4::from_rotation_y(ee::f(dirc[1]))
-        * Mat4::from_rotation_z(ee::f(dirc[2]))
+    piney_data::vu0::to_mat4(&crate::town::pos_rot_zyx(pos, [dirc[0], dirc[1], dirc[2]]))
 }
 
 #[cfg(test)]

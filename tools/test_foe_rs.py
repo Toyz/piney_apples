@@ -55,6 +55,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eemu  # noqa: E402
 import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 from volume import va as inf_va  # noqa: E402
 
@@ -78,10 +79,9 @@ LOOK_ROWS = [67, 130, 151, 185, 189, 219, 268, 66, 129, 131, 154, 155, 156, 157,
 # The field-14 rows, then rows whose clips name a node through several
 # ExtObj copies (ecx1, ecc1, eus1, evb1).
 POSE_ROWS = [67, 130, 151, 185, 189, 219, 268, 79, 80, 246, 271]
-# Matrix elements: the game's VU0 products truncate, the port's f32 ones
-# round, and its keyed rotations come from tools/anim.py's double arithmetic
-# (test_world_rs.py's KiteWeapons bounds, over as many nodes).
-ROT_TOL, POS_TOL, ALPHA_TOL = 1e-4, 1e-2, 1e-6
+# Every node's world matrix (all 16 words) and transparency must match the
+# game's to the bit: piney_data::anim's poses and the VU0 products of
+# Play::instances and foe::Model::worlds are the game's arithmetic.
 
 
 def fb(x):
@@ -413,12 +413,10 @@ def compare_nodes(game, port, names, what):
             continue
         pm, ptp = p
         d_rot = max(abs(f32(mat[k]) - f32(pm[k])) for k in range(12) if k % 4 != 3)
-        # Positions to within a few of their own float steps as well.
-        d_pos = max(abs(f32(mat[k]) - f32(pm[k])) - 1e-6 * abs(f32(mat[k])) for k in (12, 13, 14))
+        d_pos = max(abs(f32(mat[k]) - f32(pm[k])) for k in (12, 13, 14))
         d_tp = abs(f32(tp) - f32(ptp))
-        exact = [mat[k] for k in (3, 7, 11, 15)] == [pm[k] for k in (3, 7, 11, 15)]
         worst = [max(worst[0], d_rot), max(worst[1], d_pos), max(worst[2], d_tp)]
-        if d_rot > ROT_TOL or d_pos > POS_TOL or d_tp > ALPHA_TOL or not exact:
+        if list(mat) != list(pm) or tp != ptp:
             bad += 1
             FAILS.append((what, names[node], d_rot, d_pos, d_tp))
             if first is None:
@@ -477,8 +475,9 @@ def tally(games, port):
             bad += 1
             first = first or f"{what}: {p['error']}"
             continue
-        # The port's node transparency times the anm's, as ccObj::Draw takes it.
-        pnodes = [(nm, mat, fb(f32(tp) * f32(alpha))) for nm, mat, tp in p["nodes"]]
+        # The port's node transparency times the anm's, as ccObj::Draw takes
+        # it (mul.s).
+        pnodes = [(nm, mat, eemu.f_mul(tp, alpha)) for nm, mat, tp in p["nodes"]]
         b, w, f = compare_nodes(drawn, pnodes, names, what)
         bad += b
         nodes += len(drawn)

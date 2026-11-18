@@ -953,11 +953,8 @@ class WeaponAgainstGame(unittest.TestCase):
     # a few that are not a town's.
     CASES = [(2, 256, 40), (3, 256, 24), (4, 256, 24), (5, 0x1B8, 24), (6, 0x11A, 24), (6, 256, 12), (0, 256, 12),
              (1, 0x200, 12), (7, 256, 8), (14, 0x180, 10), (20, 0x300, 10)]
-    # Matrix elements: the game's VU0 products truncate, the port's f32 ones
-    # round, and its keyed rotations come out of tools/anim.py's double
-    # arithmetic (test_anim.py's 1e-5 per element); over the ten nodes from
-    # the anm to a hand that stays within these.
-    ROT_TOL, POS_TOL = 1e-4, 1e-2
+    # Every word of each hand's matrix must be the game's: the poses, the
+    # anm's root and the products down to the hand are its arithmetic.
 
     @classmethod
     def setUpClass(cls):
@@ -992,9 +989,8 @@ class WeaponAgainstGame(unittest.TestCase):
             for (model, want, _), port in zip(drawn, g["worlds"]):
                 d_rot = max(abs(f32(want[k]) - f32(port[k])) for k in range(16) if k % 4 != 3 and k < 12)
                 d_pos = max(abs(f32(want[k]) - f32(port[k])) for k in (12, 13, 14))
-                exact = [want[k] for k in (3, 7, 11, 15)] == [port[k] for k in (3, 7, 11, 15)]
                 worst = [max(worst[0], d_rot), max(worst[1], d_pos)]
-                if d_rot > self.ROT_TOL or d_pos > self.POS_TOL or not exact:
+                if list(want) != list(port):
                     bad += 1
                     if bad < 5:
                         print("weapon act %d posed %d %s: rotation %.3g position %.3g\n game %s\n port %s" % (

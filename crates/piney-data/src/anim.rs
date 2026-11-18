@@ -1,18 +1,21 @@
-//! Anime chunks (0x0700) evaluated at any time, the way `ccAnm` plays them:
-//! controllers absent, single or keyed, keyed values linear in EE single
-//! precision (`ccAnmCtrlFVec3_Set` 0x00146890), keyed rotations turned about
-//! one axis between quantised keys (`ccAnmCtrlRot_SetCtrl` 0x001470c0), the
-//! local matrix `T * R * S` (`ccAnm::SetAnmCtrlWork` 0x00150670), playback
+//! Anime chunks (0x0700) evaluated at any time, the way `ccAnm` plays them,
+//! in the game's own arithmetic: controllers absent, single or keyed, keyed
+//! values linear (`ccAnmCtrlFVec3_Set` 0x00146890), keyed rotations turned
+//! about one axis between quantised keys (`ccAnmCtrlRot_SetCtrl` 0x001470c0,
+//! `m2a`, `a2m`), the local matrix `T * R * S` (`ccAnm::SetAnmCtrlWork`
+//! 0x00150670), playback
 //! ([`Animation::forward`]), morphs ([`morph`]) and notes
 //! ([`Animation::passed_notes`]). The model is `docs/engine/animation.md`;
 //! `tests/anim.rs` holds the port to `tools/anim.py`, checked against the game.
 
 use std::collections::HashMap;
 
-use glam::{DMat3, DVec3, Mat3, Mat4, Vec3, Vec4};
+use glam::{Mat3, Mat4, Vec3};
 
 use crate::ccs::{self, Ccs};
+use crate::libm;
 use crate::scene::{Anime, Scene, Transform};
+use crate::vu0::{self, M4, V4};
 use crate::{Bytes, Result, format_err};
 
 /// Time in 1/256 frames, as `ccAnm` counts it (frameNow * 256 + frameCnt).
@@ -33,158 +36,9 @@ const F_OBJ: u16 = 0x0101;
 const MORPHER: u16 = 0x1900;
 const END_LOOP: u32 = 0xffff_fffe;
 
-/// The EE's single-precision arithmetic on raw bit patterns, as tools/eemu.py
-/// models it: no denormals (exponent 0 is zero), no infinities (exponent 255
-/// is a number), overflow to +-0x7fffffff, and results truncated towards zero.
-pub mod ee {
-    const FMAX: u32 = 0x7fff_ffff;
-
-    fn unpack(v: u32) -> (u32, i32, u64) {
-        let e = (v >> 23 & 0xff) as i32;
-        (v >> 31, e, if e != 0 { (v & 0x7f_ffff | 0x80_0000) as u64 } else { 0 })
-    }
-
-    /// The exact value n * 2^e2 (n >= 0), truncated to a float.
-    fn round(sign: u32, n: u128, e2: i32) -> u32 {
-        if n == 0 {
-            return sign << 31;
-        }
-        let len = 128 - n.leading_zeros() as i32;
-        let m = if len >= 24 { n >> (len - 24) } else { n << (24 - len) } as u32;
-        let exp = e2 + len - 24 + 150;
-        if exp > 255 {
-            sign << 31 | FMAX
-        } else if exp < 1 {
-            sign << 31
-        } else {
-            sign << 31 | (exp as u32) << 23 | (m & 0x7f_ffff)
-        }
-    }
-
-    fn value(v: u32) -> (i128, i32) {
-        let (s, e, m) = unpack(v);
-        (if s != 0 { -(m as i128) } else { m as i128 }, e - 150)
-    }
-
-    pub fn add(a: u32, b: u32) -> u32 {
-        let (mut na, mut ea) = value(a);
-        let (mut nb, mut eb) = value(b);
-        if na == 0 && nb == 0 {
-            return a & b & 0x8000_0000;
-        }
-        if na == 0 {
-            return round((nb < 0) as u32, nb.unsigned_abs(), eb);
-        }
-        if nb == 0 {
-            return round((na < 0) as u32, na.unsigned_abs(), ea);
-        }
-        // More than 60 bits apart, the smaller operand can only step the
-        // truncated sum down by its sign; a unit in its place does the same.
-        if ea - eb > 60 {
-            nb = nb.signum();
-            eb = ea - 60;
-        } else if eb - ea > 60 {
-            na = na.signum();
-            ea = eb - 60;
-        }
-        let e = ea.min(eb);
-        let n = (na << (ea - e)) + (nb << (eb - e));
-        round((n < 0) as u32, n.unsigned_abs(), e)
-    }
-
-    pub fn sub(a: u32, b: u32) -> u32 {
-        add(a, b ^ 0x8000_0000)
-    }
-
-    pub fn mul(a: u32, b: u32) -> u32 {
-        let (sa, ea, ma) = unpack(a);
-        let (sb, eb, mb) = unpack(b);
-        round(sa ^ sb, (ma * mb) as u128, ea + eb - 300)
-    }
-
-    pub fn div(a: u32, b: u32) -> u32 {
-        let (sa, ea, ma) = unpack(a);
-        let (sb, eb, mb) = unpack(b);
-        if mb == 0 {
-            return (sa ^ sb) << 31 | FMAX;
-        }
-        round(sa ^ sb, ((ma as u128) << 60) / mb as u128, ea - eb - 60)
-    }
-
-    /// sqrt of the magnitude, as the EE's sqrt.s and VU0's vsqrt take it.
-    pub fn sqrt(v: u32) -> u32 {
-        let (_, e, m) = unpack(v);
-        let t = 60 + ((e - 150 - 60) & 1);
-        let n = (m as u128) << t;
-        let mut r = (n as f64).sqrt() as u128;
-        while r * r > n {
-            r -= 1;
-        }
-        while (r + 1) * (r + 1) <= n {
-            r += 1;
-        }
-        round(0, r, (e - 150 - t) / 2)
-    }
-
-    /// cvt.s.w
-    pub fn from_int(i: i32) -> u32 {
-        round((i < 0) as u32, i.unsigned_abs() as u128, 0)
-    }
-
-    /// cvt.w.s (and fptosi): truncate, saturating.
-    pub fn to_int(v: u32) -> i32 {
-        let (n, e) = value(v);
-        let a = n.unsigned_abs();
-        let mag = if a == 0 {
-            0
-        } else if e >= 0 {
-            if e > 40 { u128::MAX >> 1 } else { a << e }
-        } else if -e >= 100 {
-            0
-        } else {
-            a >> -e
-        };
-        if n < 0 {
-            if mag > 0x8000_0000 { i32::MIN } else { (mag as i64).wrapping_neg() as i32 }
-        } else if mag > 0x7fff_ffff {
-            i32::MAX
-        } else {
-            mag as i32
-        }
-    }
-
-    /// c.eq.s: exact values, both zeros equal.
-    pub fn eq(a: u32, b: u32) -> bool {
-        let ((na, ea), (nb, eb)) = (value(a), value(b));
-        if na == 0 || nb == 0 {
-            return na == nb;
-        }
-        let e = ea.min(eb);
-        (ea - e) < 100 && (eb - e) < 100 && (na << (ea - e)) == (nb << (eb - e))
-    }
-
-    /// c.lt.s against zero.
-    pub fn negative(a: u32) -> bool {
-        value(a).0 < 0
-    }
-
-    /// The value as a double (exponent 255 stays a finite number).
-    pub fn to_f64(v: u32) -> f64 {
-        let (n, e) = value(v);
-        n as f64 * (e as f64).exp2()
-    }
-
-    /// A u32 to float the way the compiled code does it: cvt.s.w, halving and
-    /// doubling when the top bit is set.
-    pub fn from_u32(x: u32) -> u32 {
-        if x < 0x8000_0000 {
-            from_int(x as i32)
-        } else {
-            let h = from_int((x >> 1 | x & 1) as i32);
-            add(h, h)
-        }
-    }
-}
+/// The EE's single-precision arithmetic on raw bit patterns
+/// ([`crate::field::ee`]), under the name the animation code has used.
+pub use crate::field::ee;
 
 const ONE: u32 = 0x3f80_0000;
 const PI: u32 = 0x4049_0fdb;
@@ -354,12 +208,10 @@ fn bits_mat3(m: &[[u32; 4]; 4]) -> Mat3 {
     Mat3::from_cols(col(0), col(1), col(2))
 }
 
-fn bits_dmat3(m: &[[u32; 4]; 4]) -> DMat3 {
-    let col = |c: usize| DVec3::new(ee::to_f64(m[c][0]), ee::to_f64(m[c][1]), ee::to_f64(m[c][2]));
-    DMat3::from_cols(col(0), col(1), col(2))
-}
-
-/// A key's degrees quantised to s16 turns, in radians (bits).
+/// A key's degrees quantised to s16 turns, in radians (bits). Infection
+/// and Mutation truncate through `fptosi`, Outbreak and Quarantine through
+/// `cvt.w.s` (OUT 0x00145c04); the two agree for every key on the four
+/// discs (all within +-1800 degrees, none with exponent 255).
 fn key_radians(deg: [u32; 3]) -> [u32; 3] {
     deg.map(|d| ee::mul(FROM_S16, ee::from_int(ee::to_int(ee::mul(TO_S16, d)) as i16 as i32)))
 }
@@ -370,102 +222,148 @@ pub fn const_radians(deg: [u32; 3]) -> [u32; 3] {
     deg.map(|d| ee::div(ee::mul(PI, d), DEG180))
 }
 
-fn normalize(v: DVec3) -> DVec3 {
-    let n = v.length();
-    if n != 0.0 { v / n } else { DVec3::ZERO }
-}
-
-/// `m2a` (0x00105ec0): the axis `EigenVector` finds and the angle about it;
-/// None where `EigenVector` gives up (the game stores zeros: no turn).
-fn axis_angle(m: DMat3) -> Option<(DVec3, f64)> {
-    // EigenVector works on the stored rows, which are the columns here.
-    let a = m - DMat3::IDENTITY;
-    let col = [a.x_axis, a.y_axis, a.z_axis];
-    let (mut best, mut row) = (-1.0f64, 0usize);
+/// `EigenVector` (main 0x00105be0) on the stored rows of `m - I`: the row
+/// `i` whose cofactor `(i+1, j+1)(i+2, j+2) - (i+1, j+2)(i+2, j+1)` has
+/// the largest magnitude (`mula.s`/`msub.s`, its `fabs` through doubles,
+/// so the sign bit cleared), the next row `w` (w lane 1) and the
+/// normalised cross product of the two rows after it, the axis. None
+/// where the largest cofactor is below [`EIGEN_MIN`].
+fn eigen_vector(m: &M4) -> Option<(V4, V4)> {
+    let mut a = *m;
+    for (i, row) in a.iter_mut().enumerate().take(3) {
+        row[i] = ee::sub(row[i], ONE);
+    }
+    let mut best = (0xbf80_0000, 0);
     for i in 0..3 {
         for j in 0..3 {
             let (r1, r2, c1, c2) = ((i + 1) % 3, (i + 2) % 3, (j + 1) % 3, (j + 2) % 3);
-            let cof = (col[r1][c1] * col[r2][c2] - col[r1][c2] * col[r2][c1]).abs();
-            if cof > best {
-                best = cof;
-                row = i;
+            let cof = ee::sub(ee::mul(a[r1][c1], a[r2][c2]), ee::mul(a[r1][c2], a[r2][c1])) & 0x7fff_ffff;
+            if !ee::le(cof, best.0) {
+                best = (cof, i);
             }
         }
     }
-    let u = normalize(col[(row + 1) % 3].cross(col[(row + 2) % 3]));
-    if best < ee::to_f64(EIGEN_MIN) {
-        return None;
+    let row = |k: usize| [a[k][0], a[k][1], a[k][2], ONE];
+    let (w, v) = (row((best.1 + 1) % 3), row((best.1 + 2) % 3));
+    let axis = vu0::normalize(vu0::cross(w, v));
+    (!ee::lt(best.0, EIGEN_MIN)).then_some((axis, w))
+}
+
+/// `EigenVec2Mat` (0x00105e00): the frame whose stored columns are the
+/// axis, `w` and their cross product, each normalised again.
+fn eigen_frame(axis: V4, w: V4) -> M4 {
+    let (a, b) = (vu0::normalize(axis), vu0::normalize(w));
+    let c = vu0::normalize(vu0::cross(a, b));
+    let mut f = vu0::UNIT;
+    for (r, row) in f.iter_mut().enumerate().take(3) {
+        row[..3].copy_from_slice(&[a[r], b[r], c[r]]);
     }
-    let w = normalize(col[(row + 1) % 3]);
-    let x = normalize(u.cross(w));
-    let f = DMat3::from_cols(u, w, x).transpose();
-    let local = f * (m * f.transpose());
-    Some((u, local.y_axis.z.atan2(local.y_axis.y)))
+    f
 }
 
-/// `a2m` (0x00105f80): c I + s [u]x + (1 - c) u u^T.
-fn axis_matrix(axis: Option<DVec3>, angle: f64) -> DMat3 {
-    let Some(DVec3 { x, y, z }) = axis else { return DMat3::IDENTITY };
-    let (s, c) = angle.sin_cos();
-    let t = 1.0 - c;
-    DMat3::from_cols(
-        DVec3::new(c + t * x * x, t * x * y + s * z, t * x * z - s * y),
-        DVec3::new(t * x * y - s * z, c + t * y * y, t * y * z + s * x),
-        DVec3::new(t * x * z + s * y, t * y * z - s * x, c + t * z * z),
-    )
+/// `m2a` (0x00105ec0): a turn as (axis, angle). The angle is the double
+/// `atan2` of the turn seen in [`eigen_frame`] (`F * (m * F^T)`, its
+/// stored row 1's z over y), back to a float; all zeros (no turn) where
+/// [`eigen_vector`] gives up.
+fn m2a(m: &M4) -> V4 {
+    let Some((axis, w)) = eigen_vector(m) else { return [0; 4] };
+    let f = eigen_frame(axis, w);
+    let local = vu_mul(&f, &vu_mul(m, &vu0::transpose(&f)));
+    let wide = |x: u32| f64::from(f32::from_bits(x));
+    let angle = libm::atan2(wide(local[1][2]), wide(local[1][1])) as f32;
+    [axis[0], axis[1], axis[2], angle.to_bits()]
 }
 
-/// A keyed rotation: the first key's matrix and, per segment, a duration and
-/// the turn from one key's orientation to the next.
+/// `a2m` (0x00105f80): `c I + s [u]x + (1 - c) u u^T` from `sinf` and
+/// `cosf` of the angle, each lane as the code forms it: the cross terms
+/// `sceVu0ScaleVector(aa, s)`, negated by `neg.s` below the diagonal's
+/// other side, the outer rows `(aa * aa[r]) * (1 - c)`, added last.
+fn a2m(aa: V4) -> M4 {
+    let s = vu0::vscale(aa, libm::sinf(aa[3]));
+    let c = libm::cosf(aa[3]);
+    let t = ee::sub(ONE, c);
+    let mut out = vu0::UNIT;
+    for (r, row) in out.iter_mut().enumerate().take(3) {
+        let outer = vu0::vscale(vu0::vscale(aa, aa[r]), t);
+        for k in 0..3 {
+            let turn = match (r + 3 - k) % 3 {
+                0 => c,
+                1 => libm::neg(s[3 - r - k]),
+                _ => s[3 - r - k],
+            };
+            row[k] = ee::add(turn, outer[k]);
+        }
+    }
+    out
+}
+
+/// One segment of a keyed rotation (`ccAnmCtrlRot_SetCtrl`'s 32-byte
+/// record): its duration, its turn as [`m2a`] stored it, and the running
+/// matrix `ccAnmCtrlRot_Set` holds on reaching it.
+#[derive(Clone, Debug)]
+struct RotSeg {
+    dur: u32,
+    turn: V4,
+    start: M4,
+}
+
+/// A keyed rotation (`ccAnmCtrlRot_SetCtrl` 0x001470c0, `_Set`
+/// 0x00146f30): from the first key's matrix, each passed segment's whole
+/// turn multiplied on the left (`sceVu0MulMatrix`), then the current one's
+/// turn scaled by the time into it. The running matrix depends only on the
+/// segments passed, so each segment keeps the one it starts from.
 #[derive(Clone, Debug)]
 pub(crate) struct RotKeyed {
-    base: DMat3,
-    segs: Vec<(u32, Option<DVec3>, f64)>,
+    base: M4,
+    segs: Vec<RotSeg>,
 }
 
 impl RotKeyed {
     pub(crate) fn new(keys: &[(u32, [u32; 3])], frames: u32) -> Self {
-        let mats: Vec<DMat3> = keys.iter().map(|(_, v)| bits_dmat3(&rot_bits(key_radians(*v)))).collect();
+        let mats: Vec<M4> = keys.iter().map(|(_, v)| rot_bits(key_radians(*v))).collect();
         let mut t = keys[0].0 << 8;
-        let mut segs = Vec::with_capacity(keys.len() + 1);
+        let mut turns = Vec::with_capacity(keys.len() + 1);
         if t != 0 {
-            segs.push((t, None, 0.0));
+            turns.push((t, [0; 4]));
         }
-        let mut aa: (Option<DVec3>, f64) = (None, 0.0);
-        for i in 1..keys.len() {
-            let t_new = keys[i].0 << 8;
-            aa = match axis_angle(mats[i] * mats[i - 1].transpose()) {
-                Some((u, a)) => (Some(u), a),
-                None => (None, 0.0),
-            };
-            segs.push((t_new.wrapping_sub(t), aa.0, aa.1));
-            t = t_new;
+        let mut last = [0; 4];
+        for (pair, &(frame, _)) in mats.windows(2).zip(&keys[1..]) {
+            last = m2a(&vu_mul(&pair[1], &vu0::transpose(&pair[0])));
+            turns.push(((frame << 8).wrapping_sub(t), last));
+            t = frame << 8;
         }
-        // The final hold repeats the last turn over (last - N) * 256, wrapped:
-        // a creep of angle * t / 2^32.
+        // The final hold repeats the last turn over (last - N) * 256,
+        // wrapped: a creep of angle * t / 2^32.
         let end = frames << 8;
         if t < end {
-            segs.push((t.wrapping_sub(end), aa.0, aa.1));
+            turns.push((t.wrapping_sub(end), last));
         }
+        let segs = turns
+            .into_iter()
+            .scan(mats[0], |w, (dur, turn)| {
+                let start = *w;
+                *w = vu_mul(&a2m(turn), w);
+                Some(RotSeg { dur, turn, start })
+            })
+            .collect();
         RotKeyed { base: mats[0], segs }
     }
 
-    pub(crate) fn at(&self, time: Ticks) -> DMat3 {
-        let mut w = self.base;
-        if self.segs.is_empty() {
-            return w;
-        }
+    /// The matrix `ccAnmCtrlRot_Set` leaves at `time`: segments are passed
+    /// while strictly shorter than the time left.
+    pub(crate) fn at(&self, time: Ticks) -> M4 {
         let mut t = time;
         let mut i = 0;
-        while i + 1 < self.segs.len() && self.segs[i].0 < t {
-            let (dur, axis, angle) = self.segs[i];
-            w = axis_matrix(axis, angle) * w;
-            t = t.wrapping_sub(dur);
+        while i + 1 < self.segs.len() && self.segs[i].dur < t {
+            t = t.wrapping_sub(self.segs[i].dur);
             i += 1;
         }
-        let (dur, axis, angle) = self.segs[i];
-        let frac = if dur != 0 { ee::to_f64(ee::div(ee::from_u32(t), ee::from_u32(dur))) } else { 0.0 };
-        axis_matrix(axis, angle * frac) * w
+        let Some(seg) = self.segs.get(i) else { return self.base };
+        // 0/0 only at time 0 before a zero-length first segment, which the
+        // game never evaluates.
+        let frac = if seg.dur != 0 { ee::div(ee::from_u32(t), ee::from_u32(seg.dur)) } else { 0 };
+        let [x, y, z, angle] = seg.turn;
+        vu_mul(&a2m([x, y, z, ee::mul(angle, frac)]), &seg.start)
     }
 }
 
@@ -491,14 +389,23 @@ pub struct Pose {
 }
 
 impl Pose {
-    /// T(pos) * R * S(scale).
+    /// The local matrix as `ccAnm::SetAnmCtrlWork` (main 0x00150670) builds
+    /// it, stored rows of float bits: the rotation times the scale
+    /// (`sceVu0MulMatrix`), then the position added (`sceVu0TransMatrix`).
+    /// The rotation's w lanes and fourth row only add zeros there, so its
+    /// 3x3 decides every word.
+    pub fn bits(&self) -> M4 {
+        let col = |v: Vec3| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), 0];
+        let r = self.rot;
+        let rot = [col(r.x_axis), col(r.y_axis), col(r.z_axis), [0, 0, 0, ONE]];
+        let s = self.scale.to_array().map(f32::to_bits);
+        let scale = [[s[0], 0, 0, 0], [0, s[1], 0, 0], [0, 0, s[2], 0], [0, 0, 0, ONE]];
+        vu0::trans_matrix(&vu_mul(&rot, &scale), [self.pos.x, self.pos.y, self.pos.z, 0f32].map(f32::to_bits))
+    }
+
+    /// T(pos) * R * S(scale): [`Pose::bits`] as a matrix.
     pub fn matrix(&self) -> Mat4 {
-        Mat4::from_cols(
-            (self.rot.x_axis * self.scale.x).extend(0.0),
-            (self.rot.y_axis * self.scale.y).extend(0.0),
-            (self.rot.z_axis * self.scale.z).extend(0.0),
-            Vec4::new(self.pos.x, self.pos.y, self.pos.z, 1.0),
-        )
+        vu0::to_mat4(&self.bits())
     }
 
     /// The same pose as position, X-Y-Z Euler degrees and scale, for
@@ -545,7 +452,7 @@ impl Track {
         let rot = match &self.rot {
             RotCtrl::None => Mat3::IDENTITY,
             RotCtrl::Const(m) => *m,
-            RotCtrl::Keyed(k) => k.at(time).as_mat3(),
+            RotCtrl::Keyed(k) => bits_mat3(&k.at(time)),
         };
         let v = |b: [u32; 3]| Vec3::new(f32::from_bits(b[0]), f32::from_bits(b[1]), f32::from_bits(b[2]));
         Pose { pos: v(pos), rot, scale: v(scale), alpha: f32::from_bits(self.alpha.at(time, [ONE])[0]) }
@@ -1153,9 +1060,9 @@ mod tests {
         // 0 to 90 degrees about z: halfway is 45 degrees about z
         let key = |deg: f32| [0, 0, deg.to_bits()];
         let r = RotKeyed::new(&[(0, key(0.0)), (2, key(90.0))], 3);
-        let m = r.at(1 << 8);
-        assert!((m.x_axis.x - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-4, "{m:?}");
-        assert!((m.x_axis.y - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-4, "{m:?}");
+        let m = bits_mat3(&r.at(1 << 8));
+        assert!((m.x_axis.x - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4, "{m:?}");
+        assert!((m.x_axis.y - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4, "{m:?}");
     }
 
     #[test]

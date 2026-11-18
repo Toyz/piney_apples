@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-611 entries: audio 50, battle 169, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 134, save 16, script 64, test 268, tooling 65, ui 111, video 19, volumes 112, world 195. 168 entries still have open questions - [listed below](#still-open).
+612 entries: audio 50, battle 169, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 135, save 16, script 64, test 269, tooling 65, ui 111, video 19, volumes 113, world 196. 168 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -623,11 +623,12 @@ The [reference](docs/README.md) says what is true now.
 | 609 | [The desktop, the top page and the eemu harness on the later discs](worklog/0609-the-desktop-the-top-page-and-the-eemu-harness-on-the-later.md) | 2026-11-16 | ui, volumes, tooling, test |
 | 610 | [The later discs' last harnesses, and gcmn's statics as the overlay loads](worklog/0610-the-later-discs-last-harnesses-and-gcmn-s-statics-as-the.md) | 2026-11-17 | battle, ui, audio, world, volumes, tooling, test |
 | 611 | [The light group to the bit on every disc](worklog/0611-the-light-group-to-the-bit-on-every-disc.md) | 2026-11-17 | render, world, video, volumes, test |
+| 612 | [Keyed rotations and the dungeon checks to the bit](worklog/0612-keyed-rotations-and-the-dungeon-checks-to-the-bit.md) | 2026-11-17 | render, world, test, volumes |
 
 ## Still open
 
 - [611. The light group to the bit on every disc](worklog/0611-the-light-group-to-the-bit-on-every-disc.md) - nothing of this work.
-- [610. The later discs' last harnesses, and gcmn's statics as the overlay loads](worklog/0610-the-later-discs-last-harnesses-and-gcmn-s-statics-as-the.md) (3 questions) - test_lights_rs compares the light group within 1e-4 for directions and 1e-5 for colours.
+- [610. The later discs' last harnesses, and gcmn's statics as the overlay loads](worklog/0610-the-later-discs-last-harnesses-and-gcmn-s-statics-as-the.md) (2 questions) - test_lights_rs compares the light group within 1e-4 for directions and 1e-5 for colours.
 - [609. The desktop, the top page and the eemu harness on the later discs](worklog/0609-the-desktop-the-top-page-and-the-eemu-harness-on-the-later.md) (2 questions) - test_toppage_rs checks the game's scene after Log in against the table it reads from the code, but it does not compare...
 - [608. ccThMother's unplugged pause on every volume, the Outbreak icon static proven unwritten over the whole disc, exact floats in the field UI harnesses](worklog/0608-ccthmother-s-unplugged-pause-on-every-volume-the-outbreak.md) (3 questions) - Why Quarantine's Data screen differs in test_desktop_data_rs's random pads 2-4.
 - [607. The field UI on the later discs: the carried names put Outbreak's menu handlers four over, and ten behaviours of Mutation, Outbreak and Quarantine](worklog/0607-the-field-ui-on-the-later-discs-the-carried-names-put.md) (2 questions) - why test_desktop_savemenu_rs still fails twice on Quarantine (the overwrite's menu does not close; no scenario reaches...
@@ -790,7 +791,7 @@ The [reference](docs/README.md) says what is true now.
 - [288. Open questions after the triage: menus, the desktop and the text](worklog/0288-open-questions-after-the-triage-menus-the-desktop-and-the.md) (49 questions) - (volumes) #94: the later volumes' staff rolls (stfroll2-4) are not tried; GAPS.md lists Quarantine's staff roll as its...
 - [287. Open questions after the triage: the event scripts and their hosts](worklog/0287-open-questions-after-the-triage-the-event-scripts-and-their.md) (23 questions) - #11: which story areas Infection itself can reach; derivable from the scripts' gate_add (docs/engine/events.md, ops 89...
 - [286. Open questions after the triage: battle](worklog/0286-open-questions-after-the-triage-battle.md) (50 questions) - (volumes) #21: whether ccRegisterDifficultyEnemy matches on the other volumes; read on all four (#275), never run in...
-- [285. Open questions after the triage: towns, fields and dungeons](worklog/0285-open-questions-after-the-triage-towns-fields-and-dungeons.md) (54 questions) - (volumes) #206: where Mutation's and Outbreak's idolItemList44 is; neither candidate reads like Infection's.
+- [285. Open questions after the triage: towns, fields and dungeons](worklog/0285-open-questions-after-the-triage-towns-fields-and-dungeons.md) (53 questions) - (volumes) #206: where Mutation's and Outbreak's idolItemList44 is; neither candidate reads like Infection's.
 - [284. Open questions after the triage: the effects and the streams' effect tasks](worklog/0284-open-questions-after-the-triage-the-effects-and-the-streams.md) (51 questions) - (volumes) #280, #281: Outbreak's and Quarantine's sqrt.s in the distance fade and their one-ulp float differences...
 - [283. Open questions after the triage: the draw path](worklog/0283-open-questions-after-the-triage-the-draw-path.md) (56 questions) - #17: the DMA order of the matrix, material and model packets (docs/engine/render.md Unknown).
 - [282. Open questions after the triage: the disc, the formats, the engine core and the tools](worklog/0282-open-questions-after-the-triage-the-disc-the-formats-the.md) (43 questions) - #4: the EE encodings the game never uses (the debug and performance-counter moves, rsqrt.s, max.s/min.s, vrnext/vrget...

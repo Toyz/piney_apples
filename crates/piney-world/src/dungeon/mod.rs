@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::dungeon::{self, DOWN, Dummies, FogRow, NO_ROOM, RealMap, RoomSize, Rotation, Tables, UP, special};
@@ -743,7 +743,7 @@ pub fn pose_in(file: &SceneFile, play: &Play, root: &[V4; 4], over: Option<(u32,
         .zip(&poses)
         .map(|(t, p)| match over {
             Some((o, l)) if o == t.object => (t.object, t.target, l),
-            _ => (t.object, t.target, local_bits(p)),
+            _ => (t.object, t.target, p.bits()),
         })
         .collect();
     let locals: HashMap<u32, [V4; 4]> = ctrls.iter().map(|&(o, _, l)| (o, l)).collect();
@@ -779,22 +779,6 @@ pub fn pose_in(file: &SceneFile, play: &Play, root: &[V4; 4], over: Option<(u32,
             world: world(sc, &locals, root, &mut cache, o, 0),
         })
         .collect()
-}
-
-/// A controller's local matrix as `ccAnm::SetAnmCtrlWork` (main 0x00150670)
-/// builds it: the rotation times the scale (`sceVu0MulMatrix`), then the
-/// position added (`sceVu0TransMatrix`).
-pub fn local_bits(pose: &piney_data::anim::Pose) -> [V4; 4] {
-    let r = pose.rot;
-    let col = |v: Vec3| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), 0];
-    let rot = [col(r.x_axis), col(r.y_axis), col(r.z_axis), [0, 0, 0, ONE]];
-    let s = pose.scale;
-    let scale = [[s.x.to_bits(), 0, 0, 0], [0, s.y.to_bits(), 0, 0], [0, 0, s.z.to_bits(), 0], [0, 0, 0, ONE]];
-    let mut m = piney_data::anim::vu_mul(&rot, &scale);
-    for (k, p) in [pose.pos.x, pose.pos.y, pose.pos.z].into_iter().enumerate() {
-        m[3][k] = ee::add(m[3][k], p.to_bits());
-    }
-    m
 }
 
 /// `SetRoom`'s `SetAmbient(row / 255)` (0x005c347c), divided in EE single
@@ -2374,6 +2358,23 @@ impl crate::hit::Heights for Heights {
 /// fountain the statue 2, `OBJ_0ps0*`-`OBJ_0ps3*` the special objects 3-6).
 const GIM_KINDS: [i8; 8] = [0, 1, 2, 2, 3, 4, 5, 6];
 
+/// A `gimPos` slot's place: the dummy's, and for the special objects
+/// (only the lakes' rooms have them) that plus the dummy's turn of an
+/// offset of its own, `sceVu0ApplyMatrix` (w 0) then `sceVu0AddVector`
+/// (gcmn 0x005bc0b0, 0x005bc3c0, 0x005bc6c8, 0x005bc9d0): kind 3 (0, -400,
+/// 0), 4 (-200, -100, 150), 5 (0, 0, 150), 6 (0, -150, 0).
+fn gim_place(kind: i8, w: &[V4; 4]) -> V4 {
+    let offset = match kind {
+        3 => [0.0, -400.0, 0.0],
+        4 => [-200.0, -100.0, 150.0],
+        5 => [0.0, 0.0, 150.0],
+        6 => [0.0, -150.0, 0.0],
+        _ => return w[3],
+    };
+    let [x, y, z] = offset.map(ee::k);
+    ee::vadd(w[3], ee::apply(w, [x, y, z, 0]))
+}
+
 /// A `gimPos` slot's heading as `SetAllGim` turns it, from the dummy's
 /// world matrix `w`. `p` is the point 150 down its y axis:
 /// - a box: `atan2` in doubles of (x, -y) of `p` less the dummy's place
@@ -2454,7 +2455,7 @@ impl DungeonArea {
                     }
                     let heading = gim_heading(GIM_KINDS[k], &w);
                     out.push(piney_battle::entry::GimSlot {
-                        pos: w[3],
+                        pos: gim_place(GIM_KINDS[k], &w),
                         dirc: [0, 0, heading, 0],
                         floor: f as i8,
                         block: i as i8,

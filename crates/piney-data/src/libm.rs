@@ -508,6 +508,143 @@ pub fn fmodf(x: u32, y: u32) -> u32 {
     out as u32 | sx
 }
 
+// The double functions --------------------------------------------------------
+//
+// The EE has no double FPU: `atan` and `__ieee754_atan2` run on the soft
+// float routines (`dpadd`, `dpsub`, `dpmul`, `dpdiv`, `dpcmp`), which round
+// to nearest as IEEE does, so each step here is one f64 operation. Around
+// them `fptodp` widens exactly and `dptofp` rounds to nearest (`f64::from`,
+// `as f32`). The bodies are the same on all four volumes.
+
+/// The high and low words of a double, as the code splits them.
+fn words(x: f64) -> (i32, u32) {
+    let b = x.to_bits();
+    ((b >> 32) as i32, b as u32)
+}
+
+/// `atan` (0x001269d0, double), with `atanhi` (0x00349cc0), `atanlo`
+/// (0x00349ce0) and `aT` (0x00349d00).
+pub fn atan(x: f64) -> f64 {
+    const ATANHI: [u64; 4] =
+        [0x3fdd_ac67_0561_bb4f, 0x3fe9_21fb_5444_2d18, 0x3fef_730b_d281_f69b, 0x3ff9_21fb_5444_2d18];
+    const ATANLO: [u64; 4] =
+        [0x3c7a_2b7f_222f_65e2, 0x3c81_a626_3314_5c07, 0x3c70_0788_7af0_cbbd, 0x3c91_a626_3314_5c07];
+    const AT: [u64; 11] = [
+        0x3fd5_5555_5555_550d,
+        0xbfc9_9999_9998_ebc4,
+        0x3fc2_4924_9200_83ff,
+        0xbfbc_71c6_fe23_1671,
+        0x3fb7_45cd_c54c_206e,
+        0xbfb3_b0f2_af74_9a6d,
+        0x3fb1_0d66_a0d0_3d51,
+        0xbfad_de2d_52de_fd9a,
+        0x3fa9_7b4b_2476_0deb,
+        0xbfa2_b444_2c6a_6c2f,
+        0x3f90_ad3a_e322_da11,
+    ];
+    const HUGE: f64 = 1.0e300;
+    let (hi, lo, at) = (ATANHI.map(f64::from_bits), ATANLO.map(f64::from_bits), AT.map(f64::from_bits));
+    let (hx, lx) = words(x);
+    let ix = hx & 0x7fff_ffff;
+    if ix >= 0x4410_0000 {
+        // |x| >= 2^66, or a NaN.
+        if ix > 0x7ff0_0000 || (ix == 0x7ff0_0000 && lx != 0) {
+            return x + x;
+        }
+        return if hx > 0 { hi[3] + lo[3] } else { (0.0 - hi[3]) - lo[3] };
+    }
+    let (id, x) = if ix < 0x3fdc_0000 {
+        // |x| < 7/16; below 2^-29 huge + x > one returns x.
+        if ix < 0x3e20_0000 && HUGE + x > 1.0 {
+            return x;
+        }
+        (None, x)
+    } else {
+        let x = x.abs();
+        if ix < 0x3ff3_0000 {
+            if ix < 0x3fe6_0000 { (Some(0), (x + x - 1.0) / (x + 2.0)) } else { (Some(1), (x - 1.0) / (x + 1.0)) }
+        } else if ix < 0x4003_8000 {
+            (Some(2), (x - 1.5) / (x * 1.5 + 1.0))
+        } else {
+            (Some(3), -1.0 / x)
+        }
+    };
+    let z = x * x;
+    let w = z * z;
+    let s1 = z * (at[0] + w * (at[2] + w * (at[4] + w * (at[6] + w * (at[8] + w * at[10])))));
+    let s2 = w * (at[1] + w * (at[3] + w * (at[5] + w * (at[7] + w * at[9]))));
+    match id {
+        None => x - x * (s1 + s2),
+        Some(id) => {
+            let z = hi[id] - ((x * (s1 + s2) - lo[id]) - x);
+            if hx < 0 { 0.0 - z } else { z }
+        }
+    }
+}
+
+/// `atan2` (0x00127d88), which jumps to `__ieee754_atan2` (0x00122b00,
+/// double): the angle of (x, y), `y` first as in C. Its constants
+/// (0x00349428-0x003494a0) are pi, pi/2, pi/4, 3pi/4 and pi_lo, the sums
+/// with `tiny` folded.
+pub fn atan2(y: f64, x: f64) -> f64 {
+    const PI: f64 = f64::from_bits(0x4009_21fb_5444_2d18);
+    const PI_O_2: f64 = f64::from_bits(0x3ff9_21fb_5444_2d18);
+    const PI_O_4: f64 = f64::from_bits(0x3fe9_21fb_5444_2d18);
+    const PI3_O_4: f64 = f64::from_bits(0x4002_d97c_7f33_21d2);
+    const PI_LO: f64 = f64::from_bits(0x3ca1_a626_3314_5c07);
+    let (hx, lx) = words(x);
+    let (hy, ly) = words(y);
+    let (ix, iy) = (hx & 0x7fff_ffff, hy & 0x7fff_ffff);
+    let nan = |i: i32, l: u32| (i as u32 | (l | l.wrapping_neg()) >> 31) > 0x7ff0_0000;
+    if nan(ix, lx) || nan(iy, ly) {
+        return x + y;
+    }
+    if hx.wrapping_sub(0x3ff0_0000) as u32 | lx == 0 {
+        return atan(y);
+    }
+    let m = ((hy >> 31) & 1) | ((hx >> 30) & 2);
+    if iy as u32 | ly == 0 {
+        return match m {
+            0 | 1 => y,
+            2 => PI,
+            _ => -PI,
+        };
+    }
+    if ix as u32 | lx == 0 {
+        return if hy < 0 { -PI_O_2 } else { PI_O_2 };
+    }
+    if ix == 0x7ff0_0000 {
+        return match (iy == 0x7ff0_0000, m) {
+            (true, 0) => PI_O_4,
+            (true, 1) => -PI_O_4,
+            (true, 2) => PI3_O_4,
+            (true, _) => -PI3_O_4,
+            (false, 0) => 0.0,
+            (false, 1) => -0.0,
+            (false, 2) => PI,
+            (false, _) => -PI,
+        };
+    }
+    if iy == 0x7ff0_0000 {
+        return if hy < 0 { -PI_O_2 } else { PI_O_2 };
+    }
+    let k = (iy - ix) >> 20;
+    let z = if k > 60 {
+        // pi/2 + 0.5 pi_lo, folded.
+        PI_O_2
+    } else if hx < 0 && k < -60 {
+        0.0
+    } else {
+        atan((y / x).abs())
+    };
+    match m {
+        0 => z,
+        1 => -z,
+        2 => PI - (z - PI_LO),
+        _ => (z - PI_LO) - PI,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

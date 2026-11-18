@@ -9,8 +9,6 @@
 
 use std::cmp::Ordering;
 
-use glam::DMat3;
-
 use crate::anim::{Ctrl, RotKeyed, Ticks, const_radians, read_ctrl, read_keys, rot_bits};
 use crate::field::ee::{add, cmp, div, from_int, le, lt, mul, rsqrt, sub};
 use crate::libm::{neg, sqrtf_on, tanf};
@@ -390,7 +388,8 @@ impl Colour {
                 }
                 let (dur, next) = segs[i];
                 // 0/0 only past a last key at the chunk's end (as the floats).
-                let frac = if dur != 0 { div(crate::anim::ee::from_u32(t), crate::anim::ee::from_u32(dur)) } else { 0 };
+                let frac =
+                    if dur != 0 { div(crate::field::ee::from_u32(t), crate::field::ee::from_u32(dur)) } else { 0 };
                 blend_color(held, next, frac)
             }
         }
@@ -425,14 +424,9 @@ impl Rot {
             Rot::Unit => UNIT,
             Rot::Const(m) => *m,
             // No light of any disc turns by keys; the animations' own way.
-            Rot::Keyed(k) => dmat_bits(&k.at(time)),
+            Rot::Keyed(k) => k.at(time),
         }
     }
-}
-
-fn dmat_bits(m: &DMat3) -> M4 {
-    let col = |c: glam::DVec3| [(c.x as f32).to_bits(), (c.y as f32).to_bits(), (c.z as f32).to_bits(), 0];
-    [col(m.x_axis), col(m.y_axis), col(m.z_axis), [0, 0, 0, ONE]]
 }
 
 /// Which light record (`ccLightChunk.type`).
