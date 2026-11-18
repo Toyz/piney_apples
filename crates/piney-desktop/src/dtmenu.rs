@@ -211,14 +211,16 @@ impl SelectCursor {
     /// `DispSelectCursol(x, y, w, sn, a, 3)` (0x001b7910) at `ccSystem`'s
     /// frame `rate` (the bars' steps divided by 3 - rate, the wing's by
     /// (10 - k)(3 - rate) and 4.5 / rate): cells (grid, code, x, y, w, h,
-    /// grey, alpha).
+    /// grey, alpha). The places in the EE's arithmetic, in the code's order.
     fn disp(&mut self, x: f32, y: f32, w: i32, sn: i16, alpha: i16, rate: u32) -> Vec<Cell> {
+        use crate::eef::{add, div, from_int, mul, sub};
         let mut out = Vec::new();
         let rate = rate.clamp(1, 2);
-        let div = 3 - rate as i16;
+        let fade_div = 3 - rate as i16;
+        let rate_f = from_int(rate as i32);
         if self.sel == -2 {
-            self.wx = [x - 16.0; 6];
-            self.wy = [y - 18.0; 6];
+            self.wx = [sub(x, 16.0); 6];
+            self.wy = [sub(y, 18.0); 6];
         }
         if sn != self.sel {
             self.sel = sn;
@@ -230,9 +232,9 @@ impl SelectCursor {
                 }
             }
             self.a[self.idx] = 128;
-            self.w[self.idx] = ((w - 1) * 14) as f32;
-            self.x[self.idx] = x + 6.0;
-            self.y[self.idx] = y - 2.0;
+            self.w[self.idx] = from_int((w - 1) * 14);
+            self.x[self.idx] = add(6.0, x);
+            self.y[self.idx] = sub(y, 2.0);
         }
         for s in 0..12 {
             if self.a[s] == 0 {
@@ -242,11 +244,11 @@ impl SelectCursor {
                 if self.a[s] < 48 {
                     self.a[s] = 96;
                 } else {
-                    let step = ((32 - self.a[s]) / 16) / div;
+                    let step = ((32 - self.a[s]) / 16) / fade_div;
                     self.a[s] += if step >= 0 { -1 } else { step };
                 }
             } else {
-                let step = ((self.a[s] >> 3) / div).max(4);
+                let step = ((self.a[s] >> 3) / fade_div).max(4);
                 self.a[s] -= step;
                 if self.a[s] < 8 {
                     self.a[s] = 0;
@@ -262,7 +264,7 @@ impl SelectCursor {
             out.push(Cell {
                 grid: grid::BAR,
                 code: 1,
-                x: bx + 16.0,
+                x: add(16.0, bx),
                 y: by,
                 w: bw,
                 h: 20.0,
@@ -273,7 +275,7 @@ impl SelectCursor {
             out.push(Cell {
                 grid: grid::BAR,
                 code: 2,
-                x: bx + 16.0 + bw,
+                x: add(add(16.0, bx), bw),
                 y: by,
                 w: 16.0,
                 h: 20.0,
@@ -282,14 +284,14 @@ impl SelectCursor {
                 ctrl: 0,
             });
         }
-        let cur = f32::from(self.a[self.idx]);
-        let off = if cur > 96.0 { cur / 10.0 } else { cur / 12.0 - 4.0 };
-        let (tx, ty) = (x + (off - 16.0), y + (off - 18.0));
+        let cur = self.a[self.idx];
+        let off = if cur > 96 { div(from_int(cur.into()), 10.0) } else { sub(div(from_int(cur.into()), 12.0), 4.0) };
+        let (tx, ty) = (add(x, sub(off, 16.0)), add(y, sub(off, 18.0)));
         for k in (0..6).rev() {
             if k > 0 {
-                let d = (10 - k) as f32 * (3.0 - rate as f32);
-                self.wx[k] = self.wx[k - 1] + (tx - self.wx[k - 1]) / d;
-                self.wy[k] = self.wy[k - 1] + (ty - self.wy[k - 1]) / d;
+                let d = mul(sub(10.0, from_int(k as i32)), sub(3.0, rate_f));
+                self.wx[k] = add(self.wx[k - 1], div(sub(tx, self.wx[k - 1]), d));
+                self.wy[k] = add(self.wy[k - 1], div(sub(ty, self.wy[k - 1]), d));
                 let g = (128 - 8 * k) as u8;
                 let a = ((48 - 8 * k) as i16).min(alpha);
                 out.push(Cell {
@@ -304,9 +306,9 @@ impl SelectCursor {
                     ctrl: 0,
                 });
             } else {
-                let d = 4.5 / rate as f32;
-                self.wx[0] += (tx - self.wx[0]) / d;
-                self.wy[0] += (ty - self.wy[0]) / d;
+                let d = div(4.5, rate_f);
+                self.wx[0] = add(self.wx[0], div(sub(tx, self.wx[0]), d));
+                self.wy[0] = add(self.wy[0], div(sub(ty, self.wy[0]), d));
                 out.push(Cell {
                     grid: grid::TYPE_2,
                     code: 10,
@@ -1638,9 +1640,10 @@ fn square_cells(x: f32, y: f32, w: i32, h: i32, title: Option<&[u8]>, alpha: i16
     out
 }
 
-/// A trace record of one packet.
+/// A trace record of one packet, its place and size as float bits.
 #[cfg(feature = "trace")]
 fn pk(obj: &str, code: u8, x: f32, y: f32, w: f32, h: f32, rgba: [u8; 4]) -> String {
+    let [x, y, w, h] = [x, y, w, h].map(f32::to_bits);
     format!("[\"pk\",\"{obj}\",{code},{x},{y},{w},{h},[{},{},{},{}]]", rgba[0], rgba[1], rgba[2], rgba[3])
 }
 

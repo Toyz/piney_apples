@@ -7,7 +7,7 @@
 //! ([`Poly::front`]). A part behind the near plane is flattened onto it.
 
 use glam::{Mat4, Vec3, Vec4};
-use piney_data::shadow::ShadowMesh;
+use piney_data::shadow::{ShadowMesh, direction};
 use piney_draw::{Cmd, ShadowGroup, ShadowPass, ShadowPoly};
 
 /// What `ccShadowModel::Draw` takes from the model, the object, its view,
@@ -115,8 +115,8 @@ pub fn volume(mesh: &ShadowMesh, p: &Params) -> Vec<Poly> {
     let lit: Vec<bool> = mesh
         .normals
         .iter()
-        .map(|n| {
-            let n = Vec3::new(n[0] as f32, n[1] as f32, n[2] as f32) / 16_777_216.0;
+        .map(|&n| {
+            let n = Vec3::from_array(direction(n).map(f32::from_bits));
             (local.x * n.x + local.z * n.z) + local.y * n.y < 0.0
         })
         .collect();

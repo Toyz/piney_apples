@@ -5,9 +5,12 @@
 //! it), each triangle with its direction, and the edges between faces
 //! (`SetShadowWork2` 0x001403c0: open, dropped between coplanar faces, or a
 //! convex or concave join). A model with more concave joins than convex, 495
-//! directions or more, or no edges casts no shadow.
+//! directions or more, or no edges casts no shadow. The same on every disc
+//! (MUT 0x00140160, OUT 0x0013e8b0, QUA 0x0013e670), in VU0's arithmetic.
 
+use crate::field::ee;
 use crate::model::{Kind, Mmat};
+use crate::vu0::{self, ONE};
 
 /// VU1 has room for 494 directions (`DecodeShadowModel`'s check).
 pub const MAX_NORMALS: usize = 495;
@@ -29,7 +32,8 @@ pub struct Edge {
 pub struct ShadowMesh {
     /// The stored positions (`s16 * vertexScale / 4096`).
     pub positions: Vec<[i16; 3]>,
-    /// Each direction kept: the integer cross product of its first triangle.
+    /// Each direction kept: the integer cross product of its first triangle
+    /// ([`direction`] gives the floats VU1 is sent).
     pub normals: Vec<[i32; 3]>,
     /// Each triangle: its vertices and its direction.
     pub tris: Vec<([u32; 3], u16)>,
@@ -40,16 +44,22 @@ fn sub(a: [i16; 3], b: [i16; 3]) -> [i64; 3] {
     [0, 1, 2].map(|k| i64::from(a[k]) - i64::from(b[k]))
 }
 
-/// `sceVu0ITOF0Vector` then `sceVu0Normalize` of `(x, y, z)`.
-fn unit(n: [i32; 3]) -> [f32; 3] {
-    let v = n.map(|c| c as f32);
-    let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-    let q = 1.0 / len;
-    v.map(|c| c * q)
+/// `sceVu0ITOF0Vector` then `sceVu0Normalize` of `(x, y, z, 1)`.
+fn unit(n: [i32; 3]) -> vu0::V4 {
+    vu0::normalize([ee::from_int(n[0]), ee::from_int(n[1]), ee::from_int(n[2]), ONE])
 }
 
-fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+/// `c.le.s` against 0.99609375 (`lui 0x3f7f`): a cosine above it merges.
+const SAME: u32 = 0x3f7f_0000;
+/// 4096.0, `sceVu0DivVector`'s divisor (`lui 0x4580`).
+const F4096: u32 = 0x4580_0000;
+
+/// The direction the VIF stream carries for a kept integer one: `vitof12`
+/// (a `cvt.s.w` and a divide by 4096), then `sceVu0DivVector` by 4096 (Q =
+/// 1 / 4096 by `vdiv`, the lanes times Q by `vmulq`): x, y, z as float bits.
+pub fn direction(n: [i32; 3]) -> [u32; 3] {
+    let q = ee::div(ONE, F4096);
+    n.map(|c| ee::mul(ee::div(ee::from_int(c), F4096), q))
 }
 
 impl ShadowMesh {
@@ -71,7 +81,7 @@ impl ShadowMesh {
                 (d[0] * e[1]).wrapping_sub(d[1] * e[0]) as i32,
             ];
             let u = unit(n);
-            let face = match s.normals.iter().position(|&k| dot(u, unit(k)) > 0.996_093_75) {
+            let face = match s.normals.iter().position(|&k| ee::lt(SAME, vu0::dot(u, unit(k)))) {
                 Some(k) => k,
                 None => {
                     s.normals.push(n);

@@ -11,7 +11,7 @@ threads, loads and the message window are hooked and logged, and a breath
 ends a frame. The same pad scripts go through desktop_probe's `menu`
 command. Compared each frame: the menu's state (menu, menuNext, status,
 proccess, alpha), every packet of menuKanji, menuWindow, menuWindowA and
-menuMask (positions to 0.01), menuFont's strings, the sounds, the
+menuMask (places and sizes as float bits), menuFont's strings, the sounds, the
 information lines opened and changed, closes, and the requests (display
 offset, sound environment, vibration, camera scheme, the title's reset).
 The Controller's frames compare its picture's labelled boxes too: the
@@ -37,7 +37,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
 from volume import va  # noqa: E402
 inf_va = functools.partial(va, overlay='desktop')  # this overlay's globals
-from eemu import Machine, Stop, f_to_py  # noqa: E402
+from eemu import Machine, Stop, f_add, f_to_py  # noqa: E402
 from image import Program  # noqa: E402
 import test_save_init_rs  # noqa: E402
 
@@ -55,6 +55,21 @@ def sym(name):
     s = P.symbol_named(name)
     assert s is not None, name
     return s.value
+
+
+def advance(mm, this, text, newline=None):
+    """What MakePacketStr (main 0x0015aec4) leaves in the sprite's dx, dy
+    for an unturned sprite (ctrl & 2 clear): each glyph adds sx to dx
+    (add.s, 0x0015c070); a newline puts dx back where the string began and
+    adds sy to dy (0x0015b550). MakePacket is MakePacketStr of one code."""
+    assert not mm.load(this + 4, 4) & 2, "a turned sprite"
+    start = mm.load(this + 0x40, 4)
+    for c in text:
+        if c == newline:
+            mm.store(this + 0x40, 4, start)
+            mm.store(this + 0x44, 4, f_add(mm.load(this + 0x44, 4), mm.load(this + 0x4c, 4)))
+        else:
+            mm.store(this + 0x40, 4, f_add(mm.load(this + 0x40, 4), mm.load(this + 0x48, 4)))
 
 
 class BaseEmu:
@@ -97,7 +112,7 @@ class BaseEmu:
             return 0
         hook("Init__7ccLayerFsP6ccView", layer_init)
         hook("SetFrame__6ccViewFffffffff",
-             lambda mm, *a: self.ev("set_frame", args=[round(f_to_py(mm.f[12 + i]), 6) for i in range(8)]) or 0)
+             lambda mm, *a: self.ev("set_frame", args=[mm.f[12 + i] for i in range(8)]) or 0)
 
         def set_tex(mm, this, ccs, chunk, *a):
             self.ev("set_tex", ccs=self.cstr(ccs), chunk=self.cstr(chunk))
@@ -137,13 +152,13 @@ class BaseEmu:
         hook("Extract__7ccKanjiFPc", extract)
 
         def make_packet(mm, this, code, t, *a):
-            rd = lambda o: f_to_py(mm.load(this + o, 4))
+            rb = lambda o: mm.load(this + o, 4)
             ri = lambda o: mm.load(this + o, 4, True)
-            rec = dict(obj=hex(this), code=code, dx=rd(0x40), dy=rd(0x44), sx=rd(0x48), sy=rd(0x4c),
+            rec = dict(obj=hex(this), code=code, dx=rb(0x40), dy=rb(0x44), sx=rb(0x48), sy=rb(0x4c),
                        su=ri(0x50), sv=ri(0x54), wu=ri(0x58), wv=ri(0x5c), wi=ri(0x60),
                        rgba=[mm.load(this + 0x68 + 4 * i, 4) & 0xff for i in range(4)])
             self.ev("packet", **rec)
-            mm.store(this + 0x40, 4, struct.unpack("<I", struct.pack("<f", rd(0x40) + rd(0x48)))[0])
+            advance(mm, this, bytes([code]))
             return 0
         hook("MakePacket__8ccSpriteFii", make_packet)
         hook("SendPacket__8ccSpriteFv", lambda mm, this, *a: self.ev("send", obj=hex(this)) or 0)
@@ -226,10 +241,6 @@ SUBS = ("ControllerMenu__8ccDtMenuFv", "VibrationMenu__8ccDtMenuFv", "ScreenMenu
 SAVE_BASE = SAVE - 0x8000
 
 
-def fbits(x):
-    return struct.unpack("<I", struct.pack("<f", x))[0]
-
-
 class Emu(BaseEmu):
     def __init__(self, status=2, save=None, load_frames=3):
         super().__init__(status)
@@ -297,7 +308,7 @@ class Emu(BaseEmu):
                        sy=rd(0x4c), su=ri(0x50), sv=ri(0x54), wu=ri(0x58), wv=ri(0x5c), wi=ri(0x60),
                        rgba=[mm.load(this + 0x68 + 4 * i, 4) & 0xff for i in range(4)])
             self.ev("str", **rec)
-            mm.store(this + 0x40, 4, fbits(rd(0x40) + rd(0x48) * len(b)))
+            advance(mm, this, b, 0xfe if mode else 10)
             return 0
         hook("MakePacketStr__8ccSpriteFPci", make_str)
         parent_mp = h[sym("MakePacket__8ccSpriteFii")]
@@ -415,8 +426,8 @@ def port(script, frames, title_open=None):
 
 
 def same_pk(a, b):
-    return (a[0] == b[0] and a[1] == b[1] and a[6] == b[6]
-            and all(abs(x - y) < 0.01 for x, y in zip(a[2:6], b[2:6])))
+    """A packet's sprite, code, place and size (float bits) and colour."""
+    return tuple(a[:6]) == tuple(b[:6]) and list(a[6]) == list(b[6])
 
 
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),

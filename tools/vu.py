@@ -633,11 +633,13 @@ class Vu:
         self.top = 0
         self.kicks = []
 
-    def run(self, start, limit=100_000):
+    def run(self, start, limit=100_000, stop=None):
+        """From `start` to the pair after an E bit, or until the pc reaches
+        `stop` (that pair not run)."""
         import eemu
         self._e = eemu
         pc, branch, ending, steps = start, None, False, 0
-        while True:
+        while pc != stop:
             steps += 1
             if steps > limit:
                 raise RuntimeError(f"VU gave up at 0x{pc:03x}")

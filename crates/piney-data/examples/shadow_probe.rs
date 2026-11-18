@@ -4,13 +4,16 @@
 //! ```text
 //! request   N T  x y z (N times)  a b c (T times)
 //! answer    R                                  (refused)
-//!           NN x y z ... NT a b c face ... NE v0 v1 faceA faceB ...
+//!           NN x y z fx fy fz ... NT a b c face ... NE v0 v1 faceA faceB ...
 //! ```
+//!
+//! Each direction is its integer cross product and the floats VU1 is sent
+//! (`shadow::direction`, as bits).
 
 use std::io::{BufRead, Write};
 
 use piney_data::model::{Kind, Mmat};
-use piney_data::shadow::ShadowMesh;
+use piney_data::shadow::{ShadowMesh, direction};
 
 fn main() {
     let mut out = std::io::stdout().lock();
@@ -40,7 +43,8 @@ fn main() {
         };
         let mut w = format!("{}", s.normals.len());
         for n in &s.normals {
-            w += &format!(" {} {} {}", n[0], n[1], n[2]);
+            let f = direction(*n);
+            w += &format!(" {} {} {} {} {} {}", n[0], n[1], n[2], f[0], f[1], f[2]);
         }
         w += &format!(" {}", s.tris.len());
         for (v, f) in &s.tris {

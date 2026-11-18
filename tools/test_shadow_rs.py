@@ -13,10 +13,12 @@ mc_DrawShadow2 and the edges in batches of 24 for mc_DrawShadow3. This runs
 the game's function in eemu on every shadow mmat in DATA.BIN, its stream
 reader (ccRingBufferTh::ReadS32/ReadS16/ReadPadding) and the heap hooked,
 reads the stream back, and compares with the shadow_probe example: whether
-the model is refused, each direction (as the floats the stream carries),
-and each triangle and edge in order - its vertex positions and the
-directions on its sides (an open edge's second side is -1 - its face, which
-the stream carries as 529 - face).
+the model is refused, each direction (the float bits the stream carries,
+against the port's and against SetShadowNormal2's vitof12 and divide by
+4096 of the port's integer cross product), and each triangle and edge in
+order - its vertex positions and the directions on its sides (an open
+edge's second side is -1 - its face, which the stream carries as 529 -
+face).
 
 VolumeAgainstGame. ccShadowModel::Draw (0x001412b0) runs in eemu with a
 real ccView (SetFrame, a camera placed by ccCam::SetMatrix_PosTarget and
@@ -67,6 +69,7 @@ VOLUME = os.path.join(TARGET, "release", "examples", "shadow_volume_probe")
 CHUNK, INDEX, READER, MINMAX = 0x01800000, 0x01801000, 0x01802000, 0x01803000
 HEAP, HEAP_END = 0x01900000, 0x01F00000
 NORMALS = 0x212
+ONE, F4096 = 0x3F800000, 0x45800000
 DRAW2, DRAW3 = 0x5EF, 0x641
 
 
@@ -93,10 +96,8 @@ def shadow_mmats():
         for m in ccsmodel.models(c):
             if not m.mtype & 8:
                 continue
-            unit = m.scale * ccsmodel.POS_UNIT
             for s in m.mmats:
-                pos = [tuple(round(v / unit) for v in p) for p in s.positions]
-                out.append((mm.name, m.offset, pos, [tuple(t) for t in s.triangles], m.scale))
+                out.append((mm.name, m.offset, list(s.stored), [tuple(t) for t in s.triangles], m.scale))
     return out
 
 
@@ -208,6 +209,14 @@ def f32(b):
     return struct.unpack("<f", struct.pack("<I", b))[0]
 
 
+def direction(i):
+    """SetShadowNormal2's float for an integer cross product lane: vitof12
+    (cvt.s.w, a divide by 4096), then sceVu0DivVector by 4096 (vdiv's Q =
+    1 / 4096, vmulq), in the EE's arithmetic."""
+    from eemu import f_div, f_from_int, f_mul
+    return f_mul(f_div(f_from_int(i), F4096), f_div(ONE, F4096))
+
+
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(DATA) and shutil.which("cargo"),
                      "needs the extracted disc and cargo")
 class DecodeAgainstGame(unittest.TestCase):
@@ -237,8 +246,8 @@ class DecodeAgainstGame(unittest.TestCase):
             self.assertNotEqual(ans, "R", where)
             v = [int(x) for x in ans.split()]
             nn = v[0]
-            normals = [v[1 + 3 * i:4 + 3 * i] for i in range(nn)]
-            k = 1 + 3 * nn
+            normals = [v[1 + 6 * i:7 + 6 * i] for i in range(nn)]
+            k = 1 + 6 * nn
             nt = v[k]
             ptris = [v[k + 1 + 4 * i:k + 5 + 4 * i] for i in range(nt)]
             k += 1 + 4 * nt
@@ -248,9 +257,8 @@ class DecodeAgainstGame(unittest.TestCase):
             self.assertEqual(len(gn), nn, where)
             merged += len(tris) - nn
             for (x, y, z, w), n in zip(gn, normals):
-                for g, i in zip((x, y, z), n):
-                    want = float(i) / 4096.0 / 4096.0
-                    self.assertAlmostEqual(f32(g), want, delta=abs(want) * 1e-6 + 1e-12, msg=where)
+                self.assertEqual([x, y, z], [direction(i) for i in n[:3]], where)
+                self.assertEqual([x, y, z], n[3:], where)
                 self.assertEqual(w, 0, where)
             self.assertEqual(len(gt), nt, where)
             for (ps, face), t in zip(gt, ptris):

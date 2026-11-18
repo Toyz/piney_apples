@@ -2,8 +2,8 @@
 title: The CCSF Model chunk
 status: solid
 volumes: INF
-covers: INF SLUS_202.67:0x0014bce0 Decode_Model, 0x0014b890 Decode_Mmat01, 0x0014a600 Decode_Mmat02, 0x00140920 DecodeShadowModel, 0x0013a440 ccModel::Init, VU1 micro 0x063 mc_DrawTriFast, 0x00147c20 ccStream::CompleteChunk, 0x00151950 ccAnm::SetAnm, 0x0013f860 ccModel::DrawBoneType
-worklog: 10, 17, 244, 549, 558
+covers: INF SLUS_202.67:0x0014bce0 Decode_Model, 0x0014b890 Decode_Mmat01, 0x0014a600 Decode_Mmat02, 0x00140920 DecodeShadowModel, 0x0013a440 ccModel::Init, VU1 micro 0x063 mc_DrawTriFast, 0x00147c20 ccStream::CompleteChunk, 0x00151950 ccAnm::SetAnm, 0x0013f860 ccModel::DrawBoneType, VU1 micro 0x433 mc03b_DrawModel1
+worklog: 10, 17, 244, 549, 558, 613
 ---
 
 # The CCSF Model chunk
@@ -170,6 +170,28 @@ slots:
   `i` of that list.
 - `ccModel::DrawBoneType` (`0x0013f860`) poses slot `i` by entry `i`, with
   no null test.
+
+**The skin blend.** `Decode_Mmat02` turns each stored position into floats
+in the packet: `sceVu0ITOF4Vector` of the s16 triple, then
+`sceVu0ScaleVector` by `vertexScale / 256` (0x0014ad04; the divisor's
+`div.s` at 0x0014a68c), so not `s16 * vertexScale / 4096` to the bit when
+the product needs more than 24 bits. Each skin entry also carries its
+weight times 16 (0x0014ab74) and its slot's matrix address `20 + 4 *
+slot`. `DrawBoneType` sends slot `i`'s matrix to VU1 qword `20 + 4i` as
+`sceVu0InversMatrix2(model world) * node world` (0x0013fa24, `sceVu0MulMatrix`
+at 0x0013fa78). VU1's `mc03b_DrawModel1` (0x433) is the skin program: per
+vertex it starts at (0, 0, 0) and, for each entry (`0(vi11)`: x the weight,
+y the matrix address, z on the first entry the entry count; `1(vi11)` the
+position; `2(vi11)` the normal), adds the matrix times the position
+(`mulax`, `madday`, `maddaz`, `maddw` with w 1, each product rounded) times
+`itof12` of the weight (0x443-0x452); the blend lands two qwords past the
+vertex's first entry (`sq vf22, 2(vi04)`, 0x45d) before the second pass
+projects it. `mc03m` is the bone program: one matrix for the batch,
+multiplied into the screen matrix first, so a bone vertex never has a
+model-space position. `tools/ccsmodel.py`'s `skin_positions` is that
+blend in the game's arithmetic, and `tools/test_ccs.py` compares it with
+the microcode run in `tools/vu.py`, word for word, for every vertex of
+`MDL_cbalbody` posed at frame 0 of `ANM_cbu1nut0` on each disc.
 
 No bone or skin model's object is in no clump or in two on any volume
 (`tools/ccs.py survey`: 190 objects on Infection, 194 on each later volume,

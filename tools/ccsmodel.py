@@ -38,13 +38,15 @@ counted from each strip's start - for most models that faces the stored
 normals; some are authored the other way round.
 
 Skinned and bone vertices only mean something once clump nodes are posed:
---anime takes frame 0 of an Anime chunk (the controller layout ccAnmChunk::
-ConvLCNum2ALCNum reads), --frame takes frame N of the frame section (the F_Obj
-records ccStream::DecodeF_Obj reads). A node's local matrix is
-T(pos) * Rx * Ry * Rz * S(scale) (ccCoord::SetMatrix_PosRotZYXScale, and the
-same product in ccAnm::SetAnmCtrlWork), its world matrix its parent's (the Obj
-chunk's parent) times that. Rigid models are placed by their object's world
-matrix when a pose is given, and left in their own space otherwise.
+--anime takes frame 0 of an Anime chunk (tools/anim.py's Animation, the
+game's ccAnm in its own arithmetic), --frame takes frame N of the frame
+section (the F_Obj records ccStream::DecodeF_Obj reads: T(pos) *
+sceVu0RotMatrix(pi * deg / 180) * S(scale)). A node's world matrix is its
+parent's (the Obj chunk's parent) times its local one, sceVu0MulMatrix as
+_SetLWMatrix runs it; the matrices are float bits. A skin vertex is placed
+as VU1's mc03b_DrawModel1 blends it (skin_positions), a bone vertex as
+mc03m transforms it; rigid models are placed by their object's world matrix
+when a pose is given, and left in their own space otherwise.
 """
 
 import argparse
@@ -56,6 +58,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import ccs  # noqa: E402
+from eemu import f_add, f_div, f_from_int, f_mul, f_to_py  # noqa: E402
 
 POS_UNIT = 1 / 4096     # times vertexScale
 NORMAL_UNIT = 1 / 64
@@ -70,7 +73,7 @@ class Mmat:
     normal) in the slot's node space; slot is the clump node for "bone".
     """
     __slots__ = ("kind", "name", "material", "slot", "positions", "normals",
-                 "flags", "colours", "uvs", "weights", "triangles")
+                 "flags", "colours", "uvs", "weights", "triangles", "stored")
 
     def __init__(self, kind):
         self.kind = kind
@@ -78,6 +81,7 @@ class Mmat:
         self.positions = self.normals = self.flags = None
         self.colours = self.uvs = self.weights = None
         self.triangles = []
+        self.stored = None      # the s16 positions as stored; skin: [[(slot, weight word & 0x1ff, (x, y, z))]]
 
     @property
     def vertex_count(self):
@@ -111,11 +115,13 @@ def strip_triangles(flags):
 
 
 def _positions(d, q, n, unit):
-    out = []
+    """(positions, stored s16 triples, end)."""
+    out, raw = [], []
     for i in range(n):
         x, y, z = struct.unpack_from("<3h", d, q + 6 * i)
         out.append((x * unit, y * unit, z * unit))
-    return out, ccs._align4(q + 6 * n)
+        raw.append((x, y, z))
+    return out, raw, ccs._align4(q + 6 * n)
 
 
 def _normals(d, q, n):
@@ -170,24 +176,26 @@ def decode_model(c, p):
                 entries = []
                 for k in range(on):
                     x, y, z, w = struct.unpack_from("<3hH", d, q + 8 * k)
-                    entries.append(((x * unit, y * unit, z * unit), w))
+                    entries.append(((x * unit, y * unit, z * unit), w, (x, y, z)))
                 q += 8 * on
                 normals, flags, q = _normals(d, q, on)
-                mm.weights, mm.flags = [], []
-                vertex = []
-                for (pos, w), nrm, f in zip(entries, normals, flags):
+                mm.weights, mm.flags, mm.stored = [], [], []
+                vertex, raw = [], []
+                for (pos, w, xyz), nrm, f in zip(entries, normals, flags):
                     # Low 9 bits weight (256 = 1.0), bit 9 last entry of the
                     # vertex, top 6 bits the clump node (0x0014ab5c).
                     vertex.append((w >> 10, (w & 0x1FF) / 256, pos, nrm))
+                    raw.append((w >> 10, w & 0x1FF, xyz))
                     if w & 0x200:
                         mm.weights.append(vertex)
+                        mm.stored.append(raw)
                         mm.flags.append(f)
-                        vertex = []
+                        vertex, raw = [], []
                 mm.uvs, q = _uvs(d, q, len(mm.weights))
             else:
                 mm = Mmat("bone")
                 mm.slot = struct.unpack_from("<I", d, q)[0]
-                mm.positions, q = _positions(d, q + 4, vn, unit)
+                mm.positions, mm.stored, q = _positions(d, q + 4, vn, unit)
                 mm.normals, mm.flags, q = _normals(d, q, vn)
                 mm.uvs, q = _uvs(d, q, vn)
             mm.triangles = strip_triangles(mm.flags)
@@ -195,15 +203,15 @@ def decode_model(c, p):
             mm = Mmat("shadow")
             vnum, inum = struct.unpack_from("<ii", d, q)
             q += 8
-            mm.positions = []
+            mm.positions = mm.stored = []
             if vnum:
-                mm.positions, q = _positions(d, q, vnum, unit)
+                mm.positions, mm.stored, q = _positions(d, q, vnum, unit)
                 for k in range(int(inum / 3)):
                     mm.triangles.append(struct.unpack_from("<3i", d, q + 12 * k))
                 q += 12 * int(inum / 3)
         else:
             mm = Mmat("rigid")
-            mm.positions, q = _positions(d, q, vn, unit)
+            mm.positions, mm.stored, q = _positions(d, q, vn, unit)
             if not mtype & 0x40:
                 mm.normals, mm.flags, q = _normals(d, q, vn)
             if not mtype & 0x200:
@@ -300,53 +308,27 @@ class Scene:
         return None
 
     def anime_locals(self, anime_obj):
-        """{obj: (pos, rot_degrees, scale)} at frame 0 of an Anime chunk.
-
-        The chunk is u32 object, u32 frame count, u32 data words, then
-        sub-chunks like the frame section's. Obj controllers (0x0102) are
-        u32 object, u32 flags, then position, rotation (degrees) and scale
-        controllers picked by flag bits 0-2, 3-5, 6-8: 1 is one value, 2 a
-        u32 key count and (u32 frame, value) keys, which hold their first
-        value before the first key (ccAnmCtrlFVec3_SetCtrl 0x00146be0,
-        ccAnmCtrlRot_SetCtrl 0x001470c0)."""
-        d = self.c.data
-        off = self.anime[anime_obj]
-        words = struct.unpack_from("<I", d, off + 16)[0]
-        p, end = off + 20, off + 20 + 4 * words
+        """{obj: local matrix} at time 0 of an Anime chunk: SetAnmCtrlWork's
+        matrix of each object track (tools/anim.py's Pose.bits, the first
+        keys' values) as stored rows of float bits, the first record that
+        drives an object (through ExtObj chunks) winning."""
+        import anim
         out = {}
-        while p < end:
-            t, n = struct.unpack_from("<II", d, p)
-            if t & 0xFFFF == 0x0102:
-                obj, flags = struct.unpack_from("<II", d, p + 8)
-                q = p + 16
-                vals = []
-                for shift, default in ((0, (0.0, 0.0, 0.0)), (3, (0.0, 0.0, 0.0)),
-                                       (6, (1.0, 1.0, 1.0))):
-                    kind = flags >> shift & 7
-                    if kind == 1:
-                        vals.append(struct.unpack_from("<3f", d, q))
-                        q += 12
-                    elif kind == 2:
-                        keys = struct.unpack_from("<I", d, q)[0]
-                        vals.append(struct.unpack_from("<3f", d, q + 8))
-                        q += 4 + 16 * keys
-                    else:
-                        vals.append(default)
-                out.setdefault(self.ext.get(obj, obj), tuple(vals))
-            p += 8 + 4 * n
-        if p != end:
-            raise ValueError(f"anime sub-chunks overrun at 0x{p:x}")
+        for track, pose in anim.Animation(self.c, self.anime[anime_obj], self.ext).poses(0):
+            out.setdefault(track.target, pose.bits())
         return out
 
     def frame_locals(self, frame, source=None):
-        """{obj: (pos, rot_degrees, scale)} after the frame section's frames
-        0..frame (F_Obj records, CCSTRM_FSET_OBJ: myID, flag, t, r, s,
-        transparency, dispSW).
+        """{obj: local matrix} after the frame section's frames 0..frame
+        (F_Obj records, CCSTRM_FSET_OBJ: myID, flag, t, r, s, transparency,
+        dispSW), each as DecodeF_Obj sets it: T(t) * sceVu0RotMatrix(pi *
+        r / 180) * S(s), float bits.
 
         source is another Scene to take the frames from: a cutscene is a
         strNNNNe.tmp holding the models and a strNNNN.tmp holding the
         frames, whose ExtObj targets name objects in files marked '#' in its
         file table. Objects are matched on (name, source path)."""
+        import anim
         source = source or self
         d = source.c.data
         mine = {self.key(o): o for o in self.parent}
@@ -367,8 +349,8 @@ class Scene:
                     obj = mine.get(source.key(obj))
                     if obj is None:
                         continue
-                v = struct.unpack_from("<9f", d, off + 16)
-                out[obj] = (v[0:3], v[3:6], v[6:9])
+                v = list(struct.unpack_from("<9I", d, off + 16))
+                out[obj] = anim.Pose(v[0:3], anim.rot_bits(anim.const_radians(v[3:6])), v[6:9], ONE).bits()
         return out
 
     def key(self, obj):
@@ -376,17 +358,19 @@ class Scene:
         return name, self.c.files[f][1:]
 
     def world(self, locals_):
-        """{obj: 4x4 world matrix} for every object with a parent chain."""
+        """{obj: world matrix} for every object with a parent chain: its
+        parent's world times its local matrix (sceVu0MulMatrix), stored
+        rows of float bits; an object no pose names has the unit matrix."""
+        import anim
         cache = {}
 
         def w(obj):
             if obj in cache:
                 return cache[obj]
-            pos, rot, scale = locals_.get(obj, ((0, 0, 0), (0, 0, 0), (1, 1, 1)))
-            m = local_matrix(pos, rot, scale)
+            m = locals_.get(obj, IDENTITY)
             parent = self.parent.get(obj, 0)
             if parent and parent != obj:
-                m = matmul(w(parent), m)
+                m = anim.vu_mul(w(parent), m)
             cache[obj] = m
             return m
 
@@ -395,46 +379,62 @@ class Scene:
         return cache
 
 
-def local_matrix(pos, rot_degrees, scale):
-    rx, ry, rz = (math.radians(a) for a in rot_degrees)
-    m = matmul(rot_x(rx), matmul(rot_y(ry), rot_z(rz)))
-    m = matmul(m, [[scale[0], 0, 0, 0], [0, scale[1], 0, 0], [0, 0, scale[2], 0],
-                   [0, 0, 0, 1]])
-    for i in range(3):
-        m[i][3] = pos[i]
-    return m
+ONE = 0x3F800000
+F16, F256, F4096 = 0x41800000, 0x43800000, 0x45800000
+IDENTITY = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]]
 
 
-def rot_x(a):
-    c, s = math.cos(a), math.sin(a)
-    return [[1, 0, 0, 0], [0, c, -s, 0], [0, s, c, 0], [0, 0, 0, 1]]
+def float_bits(x):
+    return struct.unpack("<I", struct.pack("<f", x))[0]
 
 
-def rot_y(a):
-    c, s = math.cos(a), math.sin(a)
-    return [[c, 0, s, 0], [0, 1, 0, 0], [-s, 0, c, 0], [0, 0, 0, 1]]
+def vu_apply(m, p):
+    """A stored-row matrix times (x, y, z, 1) as VU1's mulax, madday, maddaz,
+    maddw run it: ((m0 x + m1 y) + m2 z) + m3 1, each product rounded (the
+    one column of tools/anim.py's vu_mul)."""
+    import anim
+    return anim.vu_mul(m, [list(p) + [ONE]])[0][:3]
 
 
-def rot_z(a):
-    c, s = math.cos(a), math.sin(a)
-    return [[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+def bone_floats(model, xyz):
+    """A bone or skin position as Decode_Mmat02 (0x0014ad04) puts it in the
+    packet: sceVu0ITOF4Vector of the s16 triple, sceVu0ScaleVector by
+    vertexScale / 256 (div.s at 0x0014a68c)."""
+    f = f_div(float_bits(model.scale), F256)
+    return [f_mul(f_div(f_from_int(c), F16), f) for c in xyz]
 
 
-def matmul(a, b):
-    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+def skin_positions(model, mm, slots):
+    """A skin mmat's vertices as VU1's mc03b_DrawModel1 blends them (0x443-
+    0x45d), float bits: per entry the slot's matrix times the position
+    (vu_apply), times the weight (itof12 of weight * 16, Decode_Mmat02
+    0x0014ab74), added to (0, 0, 0) in entry order. slots[i] is clump slot
+    i's matrix: ccModel::DrawBoneType gives VU1 inverse(model world) *
+    node world (0x0013fa24, 0x0013fa78)."""
+    out = []
+    for entries in mm.stored:
+        acc = [0, 0, 0]
+        for slot, weight, xyz in entries:
+            t = vu_apply(slots[slot], bone_floats(model, xyz))
+            w = f_div(f_from_int(weight * 16), F4096)
+            acc = [f_add(acc[k], f_mul(t[k], w)) for k in range(3)]
+        out.append(acc)
+    return out
 
 
 def apply(m, p, w=1.0):
-    return tuple(m[i][0] * p[0] + m[i][1] * p[1] + m[i][2] * p[2] + m[i][3] * w
-                 for i in range(3))
-
-
-IDENTITY = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    """A stored-row matrix of float bits on a point of floats (w 1) or a
+    direction (w 0), in doubles: the rigid models' placement."""
+    m = [[f_to_py(x) for x in col] for col in m]
+    return tuple(m[0][i] * p[0] + m[1][i] * p[1] + m[2][i] * p[2] + m[3][i] * w for i in range(3))
 
 
 def place(scene, model, world):
     """[(mmat, positions, normals)] with positions in world space when a pose
-    (world) is given; None for mmats that cannot be placed."""
+    (world) is given; None for mmats that cannot be placed. Bone and skin
+    positions are VU1's floats with the node world matrices as the slots'
+    (what the game draws when the model's own world is the unit matrix);
+    normals are turned by the same matrices, in doubles."""
     owner = scene.model_owner.get(model.obj)
     nodes = scene.clump_of(owner) if owner else None
     out = []
@@ -449,27 +449,23 @@ def place(scene, model, world):
             out.append((mm, None, None))
             continue
         # ccModel::DrawBoneType (0x0013f860): slot i is the i-th node of the
-        # model's clump; its matrix is inverse(model world) * node world, and
-        # the model world goes back on in the VU, so world = node world * p.
+        # model's clump.
+        slots = [world.get(n, IDENTITY) for n in nodes]
         if mm.kind == "bone":
-            m = world.get(nodes[mm.slot], IDENTITY) if mm.slot < len(nodes) else IDENTITY
-            out.append((mm, [apply(m, v) for v in mm.positions],
-                        [_unit(apply(m, n, 0.0)) for n in mm.normals]))
-            continue
-        pos, nrm = [], []
-        for entries in mm.weights:
-            acc = [0.0, 0.0, 0.0]
-            nacc = [0.0, 0.0, 0.0]
-            for slot, weight, p, n in entries:
-                m = world.get(nodes[slot], IDENTITY) if slot < len(nodes) else IDENTITY
-                wp = apply(m, p)
-                wn = apply(m, n, 0.0)
-                for i in range(3):
-                    acc[i] += weight * wp[i]
-                    nacc[i] += weight * wn[i]
-            pos.append(tuple(acc))
-            nrm.append(_unit(nacc))
-        out.append((mm, pos, nrm))
+            m = slots[mm.slot] if mm.slot < len(slots) else IDENTITY
+            pos = [vu_apply(m, bone_floats(model, v)) for v in mm.stored]
+            nrm = [_unit(apply(m, n, 0.0)) for n in mm.normals]
+        else:
+            slots += [IDENTITY] * (64 - len(slots))
+            pos = skin_positions(model, mm, slots)
+            nrm = []
+            for entries in mm.weights:
+                acc = [0.0, 0.0, 0.0]
+                for slot, weight, _p, n in entries:
+                    wn = apply(slots[slot], n, 0.0)
+                    acc = [acc[i] + weight * wn[i] for i in range(3)]
+                nrm.append(_unit(acc))
+        out.append((mm, [tuple(f_to_py(x) for x in v) for v in pos], nrm))
     return out
 
 
@@ -549,8 +545,8 @@ def _token(name):
 
 def check_model(model):
     """Problems a sane decode should not have: out-of-range indices, NaNs,
-    strips that do not open with two flag-1 vertices, skin weights that do
-    not sum to about 1."""
+    strips that do not open with two flag-1 vertices. (The skin weights'
+    sums, 256 = 1.0, are counted exactly by tools/test_ccs.py.)"""
     problems = []
     for k, mm in enumerate(model.mmats):
         n = mm.vertex_count
@@ -562,12 +558,6 @@ def check_model(model):
             problems.append(f"mmat {k}: NaN position")
         if mm.flags and n and mm.flags[:2] != [1, 1]:
             problems.append(f"mmat {k}: strip flags open {mm.flags[:2]}")
-        if mm.weights:
-            for entries in mm.weights:
-                total = sum(w for _, w, _, _ in entries)
-                if not 0.7 <= total <= 1.01:
-                    problems.append(f"mmat {k}: weights sum to {total}")
-                    break
     return problems
 
 

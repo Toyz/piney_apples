@@ -3,7 +3,7 @@ title: The model draw path and VU1 microcode
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x001dac80-0x001de790 VU1 microcode, 0x001de790-0x001dea80 VU0 microcode, 0x0013eab0 ccModel::Draw, 0x0013e350 ccSetMatrixPacket, 0x0013e6c0 ccSetMaterialPacket, 0x0013e130 ccSetModelPacket, 0x0013e9e0 _ccCheckBoundingBoxEx, 0x00108260 ccLayer::Init
-worklog: 10, 17, 244, 484
+worklog: 10, 17, 244, 484, 613
 ---
 
 # The model draw path and VU1 microcode
@@ -36,8 +36,8 @@ the byte address in micro memory; `>> 3` gives the micro address for `MSCAL`.
 | 0x154 | `mc_DrawTriL` - lit, wholly inside | `ccModel::Draw` |
 | 0x181 | `mc_DrawTriLC` - lit, partly inside, rejects | `ccModel::Draw` |
 | 0x40f | `mc03_SetParam` | `ccModel::DrawBoneType` |
-| 0x419 / 0x433 | `mc03b_DrawModel0` / `1` | `Decode_Mmat02` |
-| 0x4de / 0x4fa | `mc03m_DrawModel0` / `1` | `Decode_Mmat02` |
+| 0x419 / 0x433 | `mc03b_DrawModel0` / `1` - skin (a matrix per entry) | `Decode_Mmat02` |
+| 0x4de / 0x4fa | `mc03m_DrawModel0` / `1` - bone (one matrix a batch) | `Decode_Mmat02` |
 | 0x290 / 0x298 | `mc04b_DrawModel0` / `1` | branch from `mc03b` when vf16.y != 0 |
 | 0x595 | `mc_DrawEff` | `ccEff::Draw` |
 | 0x5d2 | `mc_DrawShadow1` | `ccShadowModel::Draw` |
@@ -189,6 +189,9 @@ No back-face culling. Three layers:
 ## Unknown
 
 - The DMA order of the three packets.
-- The bone and skin packet layout; which of `mc03b`/`mc03m` is skin.
+- The bone and skin packets' VIF codes (how the halfwords `Decode_Mmat02`
+  writes are unpacked). `mc03b` is the skin program and `mc03m` the bone
+  one; the entry layout as `mc03b` reads it is in
+  [the Model chunk](../formats/ccs-model.md#posing).
 - `view + 0x110`; the `mc04b`/`mc04m` variants; the effect program. The
   shadow programs are in [the shadow volumes](shadow.md).

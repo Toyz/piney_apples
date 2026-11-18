@@ -3,7 +3,7 @@ title: The ALTIMIT desktop
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00168320 ccSetupDesktop, 0x00169a20 ccSetFileListDesktop, 0x001524d0 ccAnm::Draw, 0x0013f220 ccObj::Draw, 0x0013eab0 ccModel::Draw, 0x001052c0 ccView::SetView, 0x00104ae0 ccView::SetFrame, 0x00104e40 ccView::SetAspect, 0x001386b0 ccCam::SetMatrix_PosRotXYZ, 0x00101f60 ccSetViewScreenClipMatrix, 0x001107b0 sceVu0InversMatrix, 0x00127d10 tanf, 0x0014e950 ccStream::DecodeF_Obj, 0x0014ece0 ccStream::DecodeF_Camera, 0x0015aed0 ccSprite::MakePacketStr, 0x0015abb0 ccSprite::SendPacket, 0x0015c0c0 ccSprite::SetTag, 0x00108570 ccLayer::AddAll, 0x0015fb80 ccScFade::SendPacket, 0x001b32f0 ccEvent::CheckOperate, 0x00178af0 ccSaveData::NewMail, 0x00178b80 ReadNewMail, 0x00178ac0 CheckMail; INF desktop.prg:0x00400910 ccThDesktop, 0x004015c0 Desktop_control::SetStream, 0x004014d0 SetWall, 0x00400d10 PlayOpening, 0x00400e40 SelectMode, 0x00401020 ChooseMode, 0x00402690 DrawLogo, 0x00402300 DrawBack, 0x004020c0 NewIconDraw, 0x00408350 MailList_control::MainMailer, 0x00409800 AddMailList, 0x0040ca10 MoveLine, 0x0040a3f0 WriteTitle, 0x0040a150 WriteMail, 0x0040b1a0 ResWindow_Control, 0x0040bbf0 PreviewRes, 0x0040d1d0 Web_control::MainWebNews, 0x0040d5c0 AddHtmlList, 0x0040dc10 MoveCur, 0x0040ded0 WebMove, 0x0040e0f0 WriteList, 0x0040e5d0 SetLength, 0x0040e7e0 SetWebLength, 0x0040ec10 DeleteWeb, 0x00403c40 Acces_control::MainAcces_control, 0x004044f0 AddWallList, 0x00404710 WallList, 0x00404c70 ChangeWall, 0x00404f20 SetLength, 0x004050c0 WriteList, 0x004053d0 ListMove, 0x00405700 Audio_control::MainAudio_control, 0x00406450 AddWaveList, 0x004065b0 AddStrList, 0x00406770 SelectMode, 0x00406f90 StartStream, 0x00407100 SimplePlayStream, 0x004072c0 ChangeWeve, 0x00407730 SetLength, 0x00407860 WriteStrList, 0x00407db0 WriteList, 0x00408050 ListMove, 0x0015f8e0 dec2sjis, 0x00171c20 ccSaveSys::MainProccess, 0x00173f90 NextProccess, 0x001716e0 CheckRightInfo, 0x00174300 GetMessage, 0x003753e0 __sinit_sdmng.cpp, 0x001bba30 ccFacePanel::Draw, 0x0016ac00 ccThDtMenu, 0x0016a7a0 ccDtMenu::OpenMenu, 0x0016aeb0 SystemMenu, 0x0016e930 ResetMenu, 0x0016ee20 FadeMenu, 0x001a4730 ccMessage::Disp, 0x001a5960 Check, 0x001a54a0 Change, 0x001a6000 ChangeInfo, 0x001b27b0 ccEvent::DispInfo, 0x0016a8e0 ccDtMenu::CheckMenuType, 0x001b7910 ccMenuWindow::DispSelectCursol, 0x001baa10 DispPageCursol, 0x00414310 NameEntry_Control::Main, 0x004195b0 Init, 0x00415830 AllTlans, 0x00418960 JudgmentProcess, 0x00419390 CutInBlock, 0x0041a4e0 CurRepeat, 0x0040ede0 SaveData_control::MainSaveData_control, 0x0040eef0 SetData, 0x004106e0 SlotSelect, 0x00410a00 SlotStateData, 0x00410c50 Slot_control, 0x00411720 SaveData, 0x0040fa50 ReCheckData, 0x00411ae0 ListMove, 0x00410f80 SetSavePar, 0x00411d80 InfoWindow, 0x00410430 DispButton, 0x0040fc30 DiaWindow, 0x00412040 ResWindow, 0x004101b0 TimeAlphaCurDraw, 0x0040fb00 DrawBack, 0x0041bac0 desktopFileList, 0x0042b1b0 WallTbl, 0x0041c120 HtmlTbl, INF desktop.prg:0x004125c0 ccThStaffRoll, 0x004126d0 ccThStaffRollCtrl::ccThStaffRollCtrl, 0x00412a80 Main, 0x00412b70 ChangePage, 0x00412d10 BuildPage, 0x00412e50 _Random, 0x00413210 _Fix, 0x00413410 _End, 0x00413690 _BGOnly, 0x00413990 ccThStaffRollLine::Draw, 0x00413b10 Init, 0x00413bb0 SetLink, 0x00413d50 StopChar, 0x00413e50 Build, 0x00414020 DrawFix, 0x00414100 Except, 0x00414210 DrawBackShadow, 0x00412410 ccTransCode2Name, 0x0042c500 g_srDataGrp; INF SLUS_202.67:0x00105080 ccView::SetLayerCenter, 0x00104aa0 ccView::ApplyLayerScreenMatrix; INF SLUS_202.67:0x001b52c0 ccEnableThEvent; MUT SLUS_205.62:0x001c7070 staff_roll (case 147); OUT SLUS_205.63:0x001bd430 staff_roll (case 147); QUA SLUS_205.64:0x001c4a88 staff_roll (case 147), 0x001c8620 ccEnableThEvent
-worklog: 37, 41, 45, 371, 386, 388, 389, 438, 497, 507
+worklog: 37, 41, 45, 371, 386, 388, 389, 438, 497, 507, 613
 ---
 
 # The ALTIMIT desktop
@@ -859,7 +859,11 @@ as 128 x 16 sprites at (193, 152 + 20 i) in `ccSpriteColorTable[7]` with the
 window's alpha; the window `DispSquare(9, 7, "OPTION")` at (179, 136) from
 `xwindow::TEX_xwindo00` (grid 1, 14 x 16 cells; the title in grid 0's
 letters over its top edge); the cursor `DispSelectCursol`, a bar that fades
-between rows and a trail of six wing cells easing after it. Up and down
+between rows and a trail of six wing cells easing after it (the places
+in the EE's arithmetic: the target `x + (a / 10 - 16)` above alpha 96,
+else `x + (a / 12 - 4 - 16)`, each wing `w[k-1] + (t - w[k-1]) /
+((10 - k)(3 - rate))` and the lead `w0 + (t - w0) / (4.5 / rate)`, every
+step a truncating `add.s`, `sub.s`, `mul.s` or `div.s`). Up and down
 (repeat bits) move with sound 17; cancel (sound 19) undims and closes; OK
 (sound 18) opens the item's menu. **Menu 6, `ResetMenu`** (Title Screen)
 asks "Quit and return to Title Screen." then "Data not saved will be lost.
@@ -912,9 +916,13 @@ and stereo (`ccSaveData::Init`).
 
 `tools/test_desktop_menu_rs.py` runs the game's `ccThDtMenu` in eemu
 beside the port over pad scripts through the OPTION list, every option
-menu and Title Screen: the state, every packet, the sounds, the
-information lines and the requests agree frame by frame, the Controller's
-boxes and their labels (the setting kanji) included.
+menu and Title Screen: the state, every packet (its place and size as
+float bits), the sounds, the information lines and the requests agree frame
+by frame, the Controller's boxes and their labels (the setting kanji)
+included. The harness's `MakePacket` hook advances the sprite's x by its
+width with the EE's `add.s` and a string's by each glyph's, as
+`MakePacketStr` does (0x0015c070; a newline puts x back and adds the
+height to y, 0x0015b550).
 
 ### The save menus after the staff roll
 

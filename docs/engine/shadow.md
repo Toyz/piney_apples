@@ -3,7 +3,7 @@ title: The shadow volumes
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00140920 DecodeShadowModel, 0x001400e0 SetShadowNormal2, 0x001403c0 SetShadowWork2, 0x001412b0 ccShadowModel::Draw, 0x0013f220 ccObj::Draw, 0x0013b5d8 ccObj::Init, 0x00141960 ccShadowPacket::SetShadowGSReg, 0x00141c80 TransFrameBuffer, 0x00142060 FillTexBuffer, 0x00142360 ccShadowPacket::TransShadowTex, 0x00142820 ccShadowPacket::FillShadowBuff, 0x00142b20 ccShadowPacket::SetShadowPacket, 0x00142e70 ccShadowPacket::SetShadowPacketAll, 0x00142ec0 ccShadowPacket::GetPacketList, 0x00142ff0 ccShadowPacket::AddPacket, 0x001430a0 ccShadowPacket::ccShadowPacket(short, ccView *), 0x00143150 ccShadowPacket::ccShadowPacket(ccShadowChunk *, ccView *), 0x001432f0 ccShadowPacket::SetBuffer, 0x0014c3e0 ccStream::Decode_Shadow, 0x0014e830 ccStream::DecodeF_Shadow, 0x00148400 ccStreamDrawLayerList::Draw, 0x001054d0 ccDrawEnv::Reset, 0x001a0d60 WORLD_MAN::GO (the packets), 0x001a21a0 WORLD_MAN::SetLightDirection, 0x00139240 ccDistantLight::GetDirc, 0x0013d760 ccClump::SetShadowSw, 0x001529e0 ccAnm::SetShadowSw, 0x002fb130 zureTbl, VU1 0x5d2-0x758 mc_DrawShadow1, mc_DrawShadow2, mc_DrawShadow3, mc_DrawShadowClip, mc_ScissorShadowPolyXY, mc_ScissorShadowPoly, VU0 0x000 mc0_CheckBoundingBoxShadow; INF gcmn.prg:0x005d0cf0 TOBJ::Draw (its packet)
-worklog: 160
+worklog: 160, 613
 ---
 
 # The shadow volumes
@@ -89,9 +89,17 @@ positions, the triangles) and builds:
 
 - **Directions.** Each triangle's `(p1 - p0) x (p2 - p0)` in 64-bit
   integers kept to their low 32 bits (`SetShadowNormal2`, 0x001400e0).
-  Normalised as floats, a direction whose dot product with one already kept
-  exceeds 0.99609375 is that one: nearly flat neighbours share a direction.
-  26,321 of the triangles in `DATA.BIN` share one.
+  Normalised as floats (`sceVu0ITOF0Vector`, `sceVu0Normalize`), a
+  direction whose dot product (`sceVu0InnerProduct`) with one already kept
+  exceeds 0.99609375 (`c.le.s` against `0x3f7f0000`) is that one: nearly
+  flat neighbours share a direction. 26,321 of the triangles in
+  Infection's `DATA.BIN` share one. A kept direction goes to VU1 as
+  `vitof12` of the integers (a `cvt.s.w`, then a divide by 4096) times
+  `1 / 4096` (`sceVu0DivVector`'s `vdiv` and `vmulq`), w 0: so a lane past
+  2^24 is truncated to 24 bits. The same code on every disc (MUT
+  0x00140160, OUT 0x0013e8b0, QUA 0x0013e670). `piney_data::shadow` runs it
+  in the EE's arithmetic (`shadow::direction` for the floats), and
+  `tools/test_shadow_rs.py` compares the stream's float bits exactly.
 - **Edges.** For each triangle's edges `(a, b)`, `(b, c)`, `(c, a)` in turn
   (`SetShadowWork2`, 0x001403c0): an edge kept as `(b, a)` - matched by
   vertex index - joins: with the same direction it is interior and goes
@@ -273,8 +281,10 @@ piney_stream               file (Shadow chunks, shadow layers), scene
 
 - `DecodeAgainstGame` runs `DecodeShadowModel` in eemu on every shadow
   mmat in `DATA.BIN` (1,957 distinct) and compares with `shadow_probe`:
-  refusals, every direction (the stream's floats), every triangle and
-  edge in order with its positions and faces. All match.
+  refusals, every direction (the stream's float bits, against the port's
+  and against `vitof12` and the divide by 4096 of the port's integers),
+  every triangle and edge in order with its positions and faces. All
+  match, on every disc.
 - `VolumeAgainstGame` runs `ccShadowModel::Draw` in eemu (a real
   `ccView` from `SetFrame` and a camera, random world matrices - turned,
   tilted, now and then mirrored - lights, lengths and buffer sizes, the
@@ -283,9 +293,14 @@ piney_stream               file (Shadow chunks, shadow layers), scene
   each `XGKICK` as the GS takes it; `shadow_volume_probe` gives the port's
   polygons. Both are counted into the buffer (+1 add, -1 subtract, against
   a flat Z of 0 and of the draw's median) and compared pixel by pixel: 300
-  draws, 600 comparisons, none off. A draw may differ by a few pixels near
-  the camera (the port saturates Z per pixel, the game's direct path per
-  vertex); the check allows 1% of comparisons.
+  draws, 600 comparisons. This comparison is not exact: `shadow::volume`
+  works in the host's floats (glam), not in VU1's arithmetic, and on
+  Infection 183 of the 600 differ by one to six pixels (175 on Mutation),
+  besides where the port saturates Z per pixel and the game's direct path
+  per vertex. The check allows 8 pixels or 1% of a draw, and 1% of the
+  draws past that. Making it exact means porting `ccShadowModel::Draw`'s
+  matrices and `mc_DrawShadow1`-`3` and `mc_DrawShadowClip` (VU1
+  0x5d2-0x758) in the EE's and VU's arithmetic.
 
 `piney-gs`'s `shadows_darken_where_a_volume_meets_the_floor` renders a
 pass over a floor on the GPU; piney-desktop's `groups_by_alpha_descending`
