@@ -12,6 +12,7 @@ use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::exe::Overlay;
 use piney_data::iso::Iso;
+use piney_data::model::VertexBox;
 use piney_data::scene::Scene;
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
@@ -55,30 +56,27 @@ pub struct ModelInfo {
     /// `ccModel.flag` 0x20), and writes no Z ([`crate::anm::model_state`]).
     pub blend_type: u8,
     pub mmats: Vec<MmatInfo>,
-    /// The centre of the model's vertex box in model space, which the sorted
-    /// group is keyed on (`ccModel::Draw` 0x0013eb38): [`vertex_box_centre`]
-    /// for a model without `mtype & 6`; None for a bone or skin model, whose
-    /// `ccModel` +4 `ccModel::Init` leaves null (0x0013a550).
-    pub centre: Option<Vec3>,
+    /// The model's vertex box (`ccModel` +4), in whose centre the sorted
+    /// group is keyed (`ccModel::Draw` 0x0013eb38) and against which it
+    /// culls: [`piney_data::model::Model::vertex_box`]; None for a bone or
+    /// skin model, whose `ccModel` +4 `ccModel::Init` leaves null
+    /// (0x0013a550). A Bbox chunk (`Decode_Bbox`) goes to a list of its own
+    /// and never reaches it.
+    pub vertex_box: Option<VertexBox>,
 }
 
-/// The centre `ccBbox_SetBox` (0x001388c0) gives a model's chunk box
-/// (`ccModelChunk` +0x10, centre at +0x30), which `Decode_Model` fills from
-/// every vertex: per axis the integer min and max (starting at 0x10000 and
-/// -0x10000), `((min + max) >> 1) * (vertexScale / 4096)`. A Bbox chunk
-/// (`Decode_Bbox`) goes to a list of its own and never reaches it. Checked
-/// against the game's decoder in eemu on every model of `xdttopen0` and
-/// `xddesk01`.
-pub fn vertex_box_centre(m: &piney_data::model::Model) -> Vec3 {
-    let (mut lo, mut hi) = ([0x10000i32; 3], [-0x10000i32; 3]);
-    for p in m.mmats.iter().flat_map(|mm| &mm.positions) {
-        for k in 0..3 {
-            lo[k] = lo[k].min(i32::from(p[k]));
-            hi[k] = hi[k].max(i32::from(p[k]));
-        }
+impl ModelInfo {
+    /// The box's centre in model space.
+    pub fn centre(&self) -> Option<Vec3> {
+        self.vertex_box.map(|b| b.centre_point())
     }
-    let unit = m.scale / 4096.0;
-    Vec3::from_array(std::array::from_fn(|k| unit * ((lo[k] + hi[k]) >> 1) as f32))
+
+    /// The box's greatest corner when `ccModel::Draw` checks it: a rigid
+    /// model with mmats (+0x22) seen above 1/128 (`ccObj::Draw` 0x0013f2b0).
+    pub fn checked_max(&self, transparency: u32) -> Option<[u32; 4]> {
+        let seen = piney_data::field::ee::lt(0x3c00_0000, transparency);
+        self.vertex_box.filter(|_| seen && !self.mmats.is_empty()).map(|b| b.max)
+    }
 }
 
 /// One CCSF file with what the desktop draws from it.
@@ -94,7 +92,7 @@ pub struct SceneFile {
     /// MDL_ object -> the model.
     pub models: HashMap<u32, ModelInfo>,
     /// Shadow MDL_ object -> its vertex scale and mesh (None: refused).
-    pub shadows: HashMap<u32, (f32, Option<piney_data::shadow::ShadowMesh>)>,
+    pub shadows: HashMap<u32, (f32, Option<Arc<piney_data::shadow::ShadowMesh>>)>,
 }
 
 impl SceneFile {
@@ -118,10 +116,10 @@ impl SceneFile {
         let mut shadows = HashMap::new();
         for m in piney_data::model::models(&ccs)? {
             if m.mtype & 8 != 0 {
-                let mesh = m.mmats.first().and_then(piney_data::shadow::ShadowMesh::build);
+                let mesh = m.mmats.first().and_then(piney_data::shadow::ShadowMesh::build).map(Arc::new);
                 shadows.insert(m.object, (m.scale, mesh));
             }
-            let centre = (m.mtype & 6 == 0).then(|| vertex_box_centre(&m));
+            let vertex_box = m.vertex_box();
             let mmats = m
                 .mmats
                 .iter()
@@ -138,7 +136,7 @@ impl SceneFile {
                     }
                 })
                 .collect();
-            models.insert(m.object, ModelInfo { mtype: m.mtype, blend_type: (m.flag & 3) as u8, mmats, centre });
+            models.insert(m.object, ModelInfo { mtype: m.mtype, blend_type: (m.flag & 3) as u8, mmats, vertex_box });
         }
         Ok(SceneFile { stem: stem.to_string(), ccs, scene, anims, anim_by_name, obj_model, models, shadows })
     }

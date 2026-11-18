@@ -64,6 +64,62 @@ def overlay_init(m, prog):
     m.mem[lo:hi] = data
 
 
+# Tables whose length the code states: the function whose loop walks it.
+# NewGame copies every charTbl row into the save (INF demo 0x001772f8,
+# slti 18; MUT 0x00176578, OUT 0x00175d20, QUA 0x00175bb0, slti 21).
+WALKERS = {"charTbl": "NewGame__10ccSaveDataFi"}
+
+
+def loop_rows(prog, func, name):
+    """The count of the loop in `func` that walks global `name`: the
+    `slti t, i, N` whose `t` the loop's backward branch tests, where the
+    loop's body builds `name`'s address (mips.track_lui)."""
+    import mips
+    f, table = prog.symbol_named(func), prog.symbol_named(name).value
+    insns = [mips.decode(prog.u32(va), va) for va in range(f.value, f.value + f.size, 4)]
+    built = mips.track_lui(insns, prog.gp)
+    uses = [pc for pc, a in built.items() if a == table]
+    counts = {
+        insns[k - 1].imm
+        for k, ins in enumerate(insns)
+        if ins.cond and ins.target is not None and k
+        and insns[k - 1].mnemonic == "slti" and insns[k - 1].writes[0] in ins.reads
+        and any(ins.target <= pc < ins.pc for pc in uses)
+    }
+    assert len(counts) == 1, (func, name, counts)
+    return counts.pop()
+
+
+def carried_rows(prog, ref, name, row):
+    """How many `row`-byte rows global `name` has in a later volume's
+    Program `prog`, whose sidecar carries Infection's name with Infection's
+    size (Infection's Program `ref`). Where the code states the count
+    (WALKERS), the code's; else, where the next global is Infection's
+    neighbour too, Infection's size plus however much the gap grew, rounded
+    up to a row and at most the gap; where that neighbour sits elsewhere, up
+    to the next global; where it has no name here, Infection's size, at most
+    the gap. As piney-gen's placement and manifest do."""
+    import bisect
+
+    if name in WALKERS:
+        return loop_rows(prog, WALKERS[name], name)
+
+    def following(p, va):
+        i = bisect.bisect_right(p._starts, va)
+        return p.symbols[i] if i < len(p.symbols) else None
+
+    s, r = prog.symbol_named(name), ref.symbol_named(name)
+    n, rn = following(prog, s.value), following(ref, r.value)
+    gap, ref_gap = n.value - s.value, rn.value - r.value
+    if n.name == rn.name:
+        rows = min(-(-(r.size + gap - ref_gap) // row), gap // row)
+    elif prog.symbol_named(rn.name) is not None:
+        rows = gap // row
+    else:
+        rows = min(r.size, gap) // row
+    return max(rows, 0)
+
+
 CARRY_FILES = {"mutation": "mut_", "outbreak": "out", "quarantine": "qua"}
 SECTIONS = {"main": 0, "gcmn": 1, "demo": 2, "desktop": 3, "toppage": 4}
 

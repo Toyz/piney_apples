@@ -481,9 +481,10 @@ pub fn paint(layers: &mut Layers, to_screen: Mat4, r: &Request, sprites: &mut Ve
             if let Some((length, shadow_alpha)) = *shadow {
                 let back = layers.shadows.active;
                 layers.shadows.active = back.map(|_| piney_desktop::shadow::TOBJ_PACKET);
-                layers.shadows.length = crate::ee::f(length);
+                layers.shadows.length = length;
                 layers.shadows.alpha = shadow_alpha;
-                let objects = play.instances(file, *root).into_iter().map(|i| (i.object, i.world));
+                let tp = |a: f32| crate::ee::f(crate::ee::mul(alpha.to_bits(), a.to_bits()));
+                let objects = play.instances(file, *root).into_iter().map(|i| (i.object, i.world, tp(i.alpha)));
                 draw::cast_shadows(layers, file, objects);
                 layers.shadows.active = back;
             }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The shadow volumes against the game: crates/piney-data's ShadowMesh::build
-against DecodeShadowModel, and crates/piney-desktop's shadow::volume
+against DecodeShadowModel, and crates/piney-desktop's shadow::draw and kicks
 against ccShadowModel::Draw and the VU1 programs it runs.
 
 DecodeAgainstGame. DecodeShadowModel (main 0x00140920) reads a shadow mmat
@@ -23,29 +23,32 @@ face).
 VolumeAgainstGame. ccShadowModel::Draw (0x001412b0) runs in eemu with a
 real ccView (SetFrame, a camera placed by ccCam::SetMatrix_PosTarget and
 ccView::SetView), a random world matrix (turned, tilted, now and then
-mirrored), a random light (mostly downward), length and buffer size, and a
-shadow mmat decoded as above; the packet it adds goes through a VIF1 model
+mirrored; one draw in eight looking away from the model), a random light
+(mostly downward), length and buffer size, and a shadow mmat decoded as
+above, its box made by the game's ccBbox_SetBox from what the decoder
+found. Its box check (_ccCheckBoundingBoxEx) runs mc0_CheckBoundingBoxShadow
+in tools/vu.py's VU0, and the packet it adds goes through a VIF1 model
 (STCYCL, STMASK and STROW with masked unpacks, BASE/OFFSET and the double
-buffer's TOPS, MSCAL and MSCNT) into tools/vu.py's Vu (the MAC flag four
-pairs late as test_effect_draw_rs has it, plus the status flag's sticky bits
-for FSSET/FSAND), and what each XGKICK sends is read as the GS takes it
-(TRIANGLE, TRISTRIP and TRIFAN with ADC; the blend of each). The
-shadow_volume_probe example gives the port's polygons for the same draw.
-Both are counted into the buffer the way the GS would (+1 for the add
-blend, -1 for the subtract, where the Z beats a flat scene depth: 0, which
-every face passes, and the draw's median Z) and the counts compared pixel
-by pixel. The game cuts polygons at the buffer's edges before VU1's ftoi4
-saturates Z at 0x7fffffff, and the port leaves that to the pixel; polygons
-drawn without the cut (the whole polygon inside the GS's range) saturate at
-their vertices instead, so a volume reaching past the near plane can differ
-by a few pixels near the camera: up to 1% of the comparisons may.
+buffer's TOPS, MSCAL and MSCNT) into tools/vu.py's VU1; both VUs are kept
+from one draw to the next, as on the console. The flags reach FMAND and
+FSAND four pairs after the instruction that set them, FSSET's write among
+them in order (flagged). What each XGKICK sends is read when kicked. The
+shadow_volume_probe example runs the port on the same draws, carrying its
+own VU0 vf21 and VU1 memory, and the two are compared exactly: the box,
+whether the check lets the draw on and VU0's vf21 after it, every word of
+every kick; then each side's GS model counts the buffer (+1 for the add
+blend, -1 for the subtract; a pixel whose top-left corner is inside, top
+and left edges in; Z the plane's, truncated, GREATER than a flat depth of
+0 and of the draw's median) and every pixel is compared. The models with
+open edges are drawn eight times more, after the random ones.
 
 Skipped when the disc is not extracted or cargo is missing.
 PINEY_CARGO_ROOT names another cargo workspace to build the examples in;
-PINEY_SHADOW_CASES sets the number of draws (default 300),
-PINEY_SHADOW_VERBOSE prints each, PINEY_SHADOW_DUMP=N the polygons of draw N.
+PINEY_SHADOW_CASES sets the number of random draws (default 300),
+PINEY_SHADOW_VERBOSE prints each, PINEY_SHADOW_DUMP=N the kicks of draw N.
 """
 
+import collections
 import math
 import os
 import shutil
@@ -147,7 +150,8 @@ class Decoder:
         self.raw = None
         m = self.m
         m.mem[CHUNK:CHUNK + 0x80] = bytes(0x80)
-        for i, v in enumerate((0x7FFFFFFF, -0x80000000) * 3):
+        # Decode_Model's start (main 0x0014bddc).
+        for i, v in enumerate((0x10000, -0x10000) * 3):
             m.store(MINMAX + 4 * i, 4, v & 0xFFFFFFFF)
         refused = m.call(self.fn, [CHUNK, INDEX, READER, MINMAX], limit=200_000_000) & 0xFFFFFFFF
         if refused:
@@ -279,52 +283,79 @@ CCSYS, DRAWENV_ACTIVE = inf_va(0x003788E0), inf_va(0x003788C4)
 SYS, SCRATCH, VIEW, DRAWENV, CAM, PKT, VEC = (0x01000000, 0x01010000, 0x01020000, 0x01022000, 0x01023000,
                                              0x01024000, 0x01026000)
 MODEL, BOX, CHUNKREF, PARAM, LW, WORK = 0x01027000, 0x01027100, 0x01027200, 0x01027300, 0x01027400, 0x01028000
-ONE = 0x3F800000
+# ccObj::Draw's owner: the object, its parent, its own model and box, the
+# model's mmat list and mmat, the active layer.
+OBJ, PARENT, OWN, OWNBOX, MMATS, MMAT, LAYER = (0x01029000, 0x01029100, 0x01029200, 0x01029300, 0x01029400,
+                                               0x01029500, 0x01029600)
+ACTIVE_LAYER = inf_va(0x003788D8)
 BUF = 256
-ADD, SUB = 0x48, 0x42
+ADD = 0x48  # alphaBlendTbl[1]
 
 
 def fb(x):
     return struct.unpack("<I", struct.pack("<f", x))[0]
 
 
-def vu1_class():
-    """test_effect_draw_rs's Vu1 (the MAC flag four pairs late) with the
-    status flag's sticky sign and zero bits (FSSET, FSAND) and the address a
-    program stopped at (for MSCNT)."""
-    from test_effect_draw_rs import vu1_class as base
+def flagged(base):
+    """tools/vu.py's Vu with the MAC and status flags read as the code
+    reads them: a flag-setting upper instruction's MAC flag and status bits
+    reach FMAND and FSAND four pairs later (every test in the shadow, model
+    and box programs stands four pairs after what it tests), and FSSET's
+    write goes in among them in order, so the FSAND after a guard band
+    test sees that test's subtractions only. Also the GIF packet of each
+    XGKICK, read when kicked, and the address a program stopped at."""
 
-    class Vu1(base()):
+    class Flagged(base):
         def __init__(self, blob):
             super().__init__(blob)
+            self.step = 0
+            self.pending = collections.deque()
             self.status = 0
+            self.mac_seen = 0
             self.sent = []
 
+        def _pair(self, lo, hi, pc):
+            self.step += 1
+            return super()._pair(lo, hi, pc)
+
         def _flags(self, dest, vals):
-            super()._flags(dest, vals)
+            mac = 0
             for k in range(4):
                 if dest & (8 >> k):
                     v = vals[k] & 0xFFFFFFFF
-                    if v >> 31:
-                        self.status |= 0x82
-                    if v & 0x7FFFFFFF == 0:
-                        self.status |= 0x41
+                    if not v & 0x7FFFFFFF:
+                        mac |= 1 << (3 - k)
+                    if v & 0x80000000:
+                        mac |= 1 << (7 - k)
+            self.pending.append((self.step, "mac", mac))
+
+        def _settle(self):
+            while self.pending and self.pending[0][0] <= self.step - 4:
+                _, kind, v = self.pending.popleft()
+                if kind == "mac":
+                    self.mac_seen = v
+                    s, z = int(bool(v & 0xF0)), int(bool(v & 0x0F))
+                    self.status = (self.status & ~0x3) | s << 1 | z | s << 7 | z << 6
+                else:
+                    self.status = (self.status & 0x3F) | (v & 0xFC0)
 
         def _lower(self, w, pc, vf, vi):
+            self._settle()
+            self.mac = self.mac_seen
             op7 = w >> 25
             if op7 in (0x15, 0x16):
                 imm = ((w >> 10) & 0x800) | (w & 0x7FF)
                 if op7 == 0x15:
-                    self.status = (self.status & 0x3F) | (imm & 0xFC0)
+                    self.pending.append((self.step, "set", imm))
                 else:
-                    self.vi[(w >> 16) & 15] = self.status & imm
+                    r = (w >> 16) & 15
+                    if r:
+                        self.vi[r] = self.status & imm
                 return None
             n = len(self.kicks)
             r = super()._lower(w, pc, vf, vi)
             if len(self.kicks) > n:
-                # What the GS takes, read as the kick sends it: the
-                # program reuses the buffers after.
-                self.sent.append(gif_triangles(self, self.kicks[-1]))
+                self.sent.append(gif_packet(self, self.kicks[-1]))
             return r
 
         def run(self, start, limit=2_000_000):
@@ -346,7 +377,22 @@ def vu1_class():
                     pc += 1
                 if target is not None:
                     branch = target
-    return Vu1
+    return Flagged
+
+
+def gif_packet(u, addr):
+    """The GIF packet (PACKED) at VU1 `addr`, tag by tag to EOP, as words."""
+    out, q, size = [], addr, len(u.mem)
+    while True:
+        tag = list(u.mem[q % size])
+        assert tag[1] >> 26 & 3 == 0
+        out.append(tag)
+        q += 1
+        for _ in range((tag[0] & 0x7FFF) * ((tag[1] >> 28) or 16)):
+            out.append(list(u.mem[q % size]))
+            q += 1
+        if tag[0] & 0x8000:
+            return out
 
 
 def vif_run(u, data):
@@ -401,91 +447,110 @@ def vif_run(u, data):
             raise AssertionError("VIF code %08x" % w)
 
 
-def gif_triangles(u, addr):
-    """The triangles the GS draws from the GIF packet at `addr`: (blend,
-    [(x, y, z)] in GS pixels)."""
-    out, verts, prim, alpha = [], [], 0, None
-    q = addr
-    while True:
-        wd = u.mem[q % len(u.mem)]
-        lo, hi = wd[0] | wd[1] << 32, wd[2] | wd[3] << 32
-        nloop, eop, pre, flg, nreg = lo & 0x7FFF, lo >> 15 & 1, lo >> 46 & 1, lo >> 58 & 3, (lo >> 60) or 16
-        q += 1
-        assert flg == 0
-        if pre:
-            prim, verts = lo >> 47 & 7, []
-        for _ in range(nloop):
-            for r in range(nreg):
-                reg, d = hi >> (4 * r) & 15, u.mem[q % len(u.mem)]
-                q += 1
-                if reg == 0xE:
-                    if d[2] & 0xFF == 0x43:
+def gs_triangles(kicks, offset, add=ADD):
+    """The triangles the GS draws of the kicks (PATH1, PACKED): a PRE tag
+    sets PRIM and starts the vertices afresh, A+D to ALPHA_2 sets the blend,
+    an XYZ2 without ADC draws a TRIANGLE's third vertex, a TRISTRIP's last
+    three, a TRIFAN's first and last two. (+1 / -1, [(x, y)] in sixteenths
+    of the buffer's pixels, [z])."""
+    out, prim, alpha, verts = [], 0, 0, []
+    for kick in kicks:
+        q = 0
+        while q < len(kick):
+            tag = kick[q]
+            q += 1
+            nreg, regs = (tag[1] >> 28) or 16, tag[2] | tag[3] << 32
+            if tag[1] >> 14 & 1:
+                prim, verts = tag[1] >> 15 & 0x7FF, []
+            for _ in range(tag[0] & 0x7FFF):
+                for r in range(nreg):
+                    d = kick[q]
+                    q += 1
+                    reg = regs >> (4 * r) & 0xF
+                    if reg == 0xE and d[2] & 0xFF == 0x43:
                         alpha = d[0] | d[1] << 32
-                elif reg == 0x5:
-                    v = ((d[0] & 0xFFFF) / 16.0, (d[1] & 0xFFFF) / 16.0, d[2] & 0xFFFFFFFF)
-                    verts.append(v)
-                    adc = d[3] >> 15 & 1
-                    if len(verts) >= 3 and not adc:
-                        if prim == 3 and len(verts) % 3 == 0:
-                            out.append((alpha, verts[-3:]))
-                        elif prim == 4:
-                            out.append((alpha, verts[-3:]))
-                        elif prim == 5:
-                            out.append((alpha, [verts[0], verts[-2], verts[-1]]))
-                elif reg == 0x1:
-                    pass
-                else:
-                    raise AssertionError("GIF register %x" % reg)
-        if eop:
-            return out
+                    elif reg == 0x5:
+                        verts.append(((d[0] & 0xFFFF) - offset, (d[1] & 0xFFFF) - offset, d[2]))
+                        n = len(verts)
+                        c = None
+                        if prim & 7 == 3 and n % 3 == 0 or prim & 7 == 4 and n >= 3:
+                            c = verts[-3:]
+                        elif prim & 7 == 5 and n >= 3:
+                            c = [verts[0], verts[-2], verts[-1]]
+                        if c and not d[3] & 0x8000:
+                            out.append((1 if alpha == add else -1, c))
+            if tag[0] & 0x8000:
+                break
+    return out
 
 
 def raster(tris, depth, size=BUF):
-    """Count +1 / -1 per pixel for the triangles whose Z at the pixel's
-    corner beats `depth` (GS Z, larger nearer: ZTST GREATER). Z past VU1's
-    ftoi4 saturates; the game cuts polygons at the buffer's edges before
-    that, so it is the pixel's Z that saturates."""
+    """Count +1 / -1 per buffer pixel as the repo models the GS: a pixel
+    whose top-left corner lies inside a triangle, or on a top or a left
+    edge of it, with the plane's Z there (truncated) above `depth` (ZTST
+    GREATER, unsigned). Edge functions in integers; Z exactly (doubles,
+    and integers where they cannot decide)."""
     import numpy as np
-    count = np.zeros((size, size), dtype=np.int32)
-    # A hair past the pixel's corner, so that a corner on an edge two
-    # triangles share falls in one of them (the GS's fill rule does as much).
-    ys, xs = np.mgrid[0:size, 0:size].astype(np.float64)
-    xs, ys = xs + 1 / 1024, ys + 1 / 2048
-    for sign, (a, b, c) in tris:
-        x0 = max(0, int(np.floor(min(a[0], b[0], c[0]))))
-        x1 = min(size - 1, int(np.ceil(max(a[0], b[0], c[0]))))
-        y0 = max(0, int(np.floor(min(a[1], b[1], c[1]))))
-        y1 = min(size - 1, int(np.ceil(max(a[1], b[1], c[1]))))
-        if x1 < x0 or y1 < y0:
-            continue
-        px, py = xs[y0:y1 + 1, x0:x1 + 1], ys[y0:y1 + 1, x0:x1 + 1]
-        area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    count = np.zeros((size, size), dtype=np.int64)
+    for sign, vs in tris:
+        (ax, ay, az), (bx, by, bz), (cx, cy, cz) = vs
+        area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+        if area < 0:
+            (bx, by, bz), (cx, cy, cz) = (cx, cy, cz), (bx, by, bz)
+            area = -area
         if area == 0:
             continue
-        w0 = ((b[0] - px) * (c[1] - py) - (b[1] - py) * (c[0] - px)) / area
-        w1 = ((c[0] - px) * (a[1] - py) - (c[1] - py) * (a[0] - px)) / area
-        w2 = 1 - w0 - w1
-        inside = (w0 >= 0) & (w1 >= 0) & (w2 >= 0)
-        z = np.minimum(w0 * a[2] + w1 * b[2] + w2 * c[2], 2147483647)
-        inside &= z > depth[y0:y1 + 1, x0:x1 + 1]
-        count[y0:y1 + 1, x0:x1 + 1] += np.where(inside, sign, 0)
+        x0, y0 = max(0, -((-min(ax, bx, cx)) // 16)), max(0, -((-min(ay, by, cy)) // 16))
+        x1, y1 = min(size - 1, max(ax, bx, cx) // 16), min(size - 1, max(ay, by, cy) // 16)
+        if x1 < x0 or y1 < y0:
+            continue
+        ys, xs = np.mgrid[y0:y1 + 1, x0:x1 + 1].astype(np.int64) * 16
+        ok = np.ones(xs.shape, dtype=bool)
+        es = []
+        for (px, py), (qx, qy) in (((bx, by), (cx, cy)), ((cx, cy), (ax, ay)), ((ax, ay), (bx, by))):
+            e = (qx - px) * (ys - py) - (qy - py) * (xs - px)
+            top_left = (qy - py) < 0 or ((qy - py) == 0 and (qx - px) > 0)
+            ok &= (e > 0) | ((e == 0) if top_left else False)
+            es.append(e)
+        if not ok.any():
+            continue
+        zf = (es[0] * float(az) + es[1] * float(bz) + es[2] * float(cz)) / float(area)
+        passes = zf >= depth + 1
+        near = ok & (np.abs(zf - (depth + 1)) < 1e-3)
+        for j, i in zip(*np.nonzero(near)):
+            s = int(es[0][j, i]) * az + int(es[1][j, i]) * bz + int(es[2][j, i]) * cz
+            passes[j, i] = s // area > depth
+        count[y0:y1 + 1, x0:x1 + 1] += np.where(ok & passes, sign, 0)
     return count
 
 
+def vu0_machine_class():
+    """A machine with VU0's integer registers and data memory, which
+    ccCoord::_SetLWMatrix walks its parent chain in: eemu_rs's Vu0Machine,
+    else test_stream_rs's."""
+    try:
+        import eemu_rs
+        return eemu_rs.Vu0Machine
+    except ImportError:
+        from test_stream_rs import machine_class
+        return machine_class()
+
+
 class DrawMachine:
-    """ccShadowModel::Draw in eemu, its packet through VIF1 and VU1."""
+    """ccShadowModel::Draw in eemu, its box check in VU0 and its packet
+    through VIF1 and VU1, both kept from one draw to the next."""
 
     def __init__(self):
         import vu
         from image import Program
-        from test_anim import machine_class
         self.prog = Program(ELF, "gcmn")
-        self.m = machine_class()(self.prog)
+        self.m = vu0_machine_class()(self.prog)
         self.dec = Decoder(self.prog, self.m)
         m, sym = self.m, lambda n: self.prog.symbol_named(n).value
         self.sym = sym
         self.mc = vu.Microcode(ELF)
-        self.Vu1 = vu1_class()
+        self.vu1 = flagged(vu.Vu)(self.mc.vu1)
+        self.vu0 = flagged(vu.Vu)(self.mc.vu0)
         m.store(CCSYS, 4, SYS)
         m.store(SYS + 604, 4, SCRATCH)
         m.store(SYS + 12, 2, 512)
@@ -500,7 +565,8 @@ class DrawMachine:
         m.store(CAM + 0x0C, 4, fb(45.0))
         m.hooks[sym("GetWork__16ccDrawPacketCtrlFi")] = lambda mm, *a: WORK
         m.hooks[sym("AddPacket__14ccShadowPacketFiPvPv")] = self.add
-        m.hooks[sym("_ccCheckBoundingBoxEx__FPA4_fP6ccViewPA4_fi")] = lambda mm, *a: 1
+        m.hooks[sym("_ccCheckBoundingBoxEx__FPA4_fP6ccViewPA4_fi")] = self.check
+        m.hooks[sym("ccSetMatrixPacket__FP16ccDrawModelParam")] = lambda mm, *a: 0
 
     def call(self, name, *args, fargs=()):
         for i, v in enumerate(fargs):
@@ -511,6 +577,53 @@ class DrawMachine:
         self.added = (alpha, head, tail)
         return 0
 
+    def check(self, m, box, view, mat, prog, *a):
+        """_ccCheckBoundingBoxEx (0x0013e9e0): vf13-vf16 the view's +0x1f0,
+        +0x200, +0x1d0, +0x1e0, vf1-vf4 the matrix, vf18-vf20 the three
+        vectors, then the VU0 program at CMSAR0; v0 is its vi01. vf21 is
+        VU0's one register: as the EE's macro code (_SetLWMatrix) left it
+        going in, the program's coming out."""
+        u = self.vu0
+        u.vf[21] = list(m.vf[21])
+        if prog & 0xFFFF == 0:
+            self.stale = list(u.vf[21])
+        for r, a in ((13, view + 496), (14, view + 512), (15, view + 464), (16, view + 480),
+                     (1, mat), (2, mat + 16), (3, mat + 32), (4, mat + 48), (18, box), (19, box + 16),
+                     (20, box + 32)):
+            u.vf[r] = self.words(a, 4)
+        u.run(prog & 0xFFFF)
+        self.vf21 = list(u.vf[21])
+        m.vf[21] = list(u.vf[21])
+        return u.vi[1]
+
+    def owner_draw(self, lw, box, tp):
+        """ccObj::Draw (0x0013f220) of an object at local matrix `lw` under a
+        parent whose world is the unit, the shadow model MODEL its +0x9c:
+        its _SetLWMatrix, then, with `box` (a rigid model with the shadow
+        model's box) and `tp` above 1/128, ccModel::Draw's check of its
+        model, then the shadow. ccSetMatrixPacket says no, so the model is not drawn; an
+        empty model (+0x22 0) returns at once."""
+        m = self.m
+        for a in (OBJ, PARENT, OWN, OWNBOX, MMATS, MMAT):
+            m.mem[a:a + 0x100] = bytes(0x100)
+        unit = [ONE, 0, 0, 0, 0, ONE, 0, 0, 0, 0, ONE, 0, 0, 0, 0, ONE]
+        self.vec(PARENT, unit)
+        self.vec(OBJ + 0x40, [fb(v) for v in lw])
+        for off, size, val in ((0x80, 4, PARENT), (0x84, 4, fb(tp)), (0x8D, 1, 1), (0x94, 4, OWN), (0x9C, 4, MODEL),
+                               (0xA0, 1, 6), (0xA2, 1, 3)):
+            m.store(OBJ + off, size, val)
+        if box:
+            box = self.words(BOX, 8)  # the shadow model's own box
+            self.vec(OWNBOX, box + [0, 0, 0, ONE])
+            m.store(OWN + 4, 4, OWNBOX)
+            m.store(OWN + 8, 4, MMATS)
+            m.store(OWN + 0x22, 2, 1)
+            m.store(MMATS, 4, MMAT)
+            m.store(MMAT + 16, 4, ONE)
+        m.store(ACTIVE_LAYER, 4, LAYER)
+        m.store(LAYER + 0x2C, 4, VIEW)
+        self.call("Draw__5ccObjFf", OBJ, fargs=[ONE])
+
     def vec(self, a, v):
         for i, x in enumerate(v):
             self.m.store(a + 4 * i, 4, x)
@@ -518,9 +631,10 @@ class DrawMachine:
     def words(self, a, n):
         return [self.m.load(a + 4 * i, 4) for i in range(n)]
 
-    def draw(self, pos, tris, scale, lw, eye, target, light, length, tw):
-        """(view matrices and clip for the probe, the game's triangles as
-        (+1 / -1, three (x, y, z) in buffer pixels))."""
+    def draw(self, pos, tris, scale, lw, eye, target, light, length, tw, owner=None):
+        """(the view for the probe, the box, whether a packet was added,
+        VU0's vf21 after the check, the kicks VU1 sent); None when refused.
+        With `owner`, through ccObj::Draw (owner_draw)."""
         m = self.m
         if self.dec.decode(pos, tris) is None:
             return None
@@ -532,7 +646,10 @@ class DrawMachine:
         self.call("GetScreenClip__6ccViewFPf", VIEW, VEC + 32)
         view = dict(world_screen=self.words(VIEW + 0xD0, 16), view_screen=self.words(VIEW + 0x90, 16),
                     near=m.load(VIEW + 0x1DC, 4), far=m.load(VIEW + 0x1EC, 4), clip=self.words(VEC + 32, 4))
-        # the model: +4 its box, +8 the chunk holding the stream, +0xc scale
+        # The model: +4 its box (ccBbox_SetBox of what the decoder found),
+        # +8 the chunk holding the stream, +0xc the scale.
+        m.f[12] = fb(scale)
+        m.call(self.sym("ccBbox_SetBox__FP6ccBboxP14ccVertexMinMumf"), [BOX, MINMAX], limit=100_000)
         m.store(MODEL + 4, 4, BOX)
         m.store(MODEL + 8, 4, CHUNKREF)
         m.store(MODEL + 12, 4, fb(scale))
@@ -549,38 +666,59 @@ class DrawMachine:
         m.store(PKT + 0x3C, 4, VIEW)
         m.store(PKT + 0x15A, 1, tw)
         m.store(PKT + 0x15B, 1, tw)
-        self.added = None
-        self.call("Draw__13ccShadowModelFP16ccDrawModelParam", MODEL, PARAM)
+        self.added, self.vf21 = None, None
+        if owner is None:
+            self.call("Draw__13ccShadowModelFP16ccDrawModelParam", MODEL, PARAM)
+        else:
+            self.owner_draw(lw, *owner)
+        box = self.words(BOX, 8)
         if self.added is None:
-            return view, []
+            return view, box, False, self.vf21, []
         alpha, head, tail = self.added
         assert head == WORK and tail == WORK + 336, (hex(head), hex(tail))
         pkt = bytes(m.mem[WORK:WORK + 352])
         data = pkt[8:16] + pkt[16:320] + pkt[328:336] + bytes(m.mem[vif:vif + size]) + pkt[344:352]
-        u = self.Vu1(self.mc.vu1)
-        vif_run(u, data)
-        off = (4096 - (1 << tw)) / 2
-        out = []
-        for tris in u.sent:
-            for blend, vs in tris:
-                sign = {ADD: 1, SUB: -1}[blend & 0xFF]
-                out.append((sign, [(x - off, y - off, z) for x, y, z in vs]))
-        return view, out
+        self.vu1.sent = []
+        vif_run(self.vu1, data)
+        return view, box, True, self.vf21, self.vu1.sent
 
 
-def poly_triangles(line):
-    """The probe's polygons as fans: (+1 / -1, three (x, y, z))."""
-    v = line.split()
-    n, k, out = int(v[0]), 1, []
-    for _ in range(n):
-        front, nv = int(v[k]), int(v[k + 1])
-        k += 2
-        # VU1's ftoi4: 1/16 pixel, truncated.
-        pts = [tuple(math.floor(f32(int(v[k + 3 * i + j], 16)) * 16) / 16 for j in range(3)) for i in range(nv)]
-        k += 3 * nv
-        for i in range(1, nv - 1):
-            out.append((1 if front else -1, [pts[0], pts[i], pts[i + 1]]))
-    return out
+def has_open_edge(ans):
+    """Whether shadow_probe's answer has an edge open on one side."""
+    v = [int(x) for x in ans.split()]
+    k = 1 + 6 * v[0]
+    k += 1 + 4 * v[k]
+    return any(v[k + 4 + 4 * i] < 0 for i in range(v[k]))
+
+
+def placements(rng, n):
+    """Random draws: a model, its world matrix (turned, tilted, now and then
+    mirrored), a camera, a light (mostly downward), a length and a buffer
+    size; one in eight stands off the screen or behind the camera."""
+    for case in range(n):
+        a, tilt = rng.uniform(-math.pi, math.pi), rng.uniform(-0.3, 0.3)
+        ca, sa, ct, st = math.cos(a), math.sin(a), math.cos(tilt), math.sin(tilt)
+        mirror = -1.0 if rng.random() < 0.1 else 1.0
+        t = [rng.uniform(-200, 200), rng.uniform(-200, 200), rng.uniform(-50, 100)]
+        lw = [mirror * ca, mirror * sa, 0, 0, -sa * ct, ca * ct, st, 0, sa * st, -ca * st, ct, 0] + t + [1]
+        dist = rng.choice([150, 400, 900, 1600])
+        yaw, pitch = rng.uniform(-math.pi, math.pi), rng.uniform(0.1, 1.2)
+        target = [t[0] + rng.uniform(-50, 50), t[1] + rng.uniform(-50, 50), t[2] + rng.uniform(0, 80)]
+        eye = [target[0] + dist * math.cos(yaw) * math.cos(pitch), target[1] + dist * math.sin(yaw) * math.cos(pitch),
+               target[2] + dist * math.sin(pitch)]
+        if rng.random() < 0.125:
+            # Look away: the model off to a side or behind.
+            turn = rng.uniform(0.6, math.pi)
+            dx, dy = target[0] - eye[0], target[1] - eye[1]
+            c, s = math.cos(turn), math.sin(turn)
+            target = [eye[0] + c * dx - s * dy, eye[1] + s * dx + c * dy, target[2]]
+        lx, ly = rng.uniform(-0.8, 0.8), rng.uniform(-0.8, 0.8)
+        lz = -math.sqrt(max(0.05, 1 - lx * lx - ly * ly)) if rng.random() < 0.85 else rng.uniform(-1, 1)
+        ln = math.sqrt(lx * lx + ly * ly + lz * lz)
+        light = [lx / ln, ly / ln, lz / ln]
+        length = rng.choice([150.0, 300.0, 450.0, rng.uniform(20, 900)])
+        tw = rng.choice([8, 8, 7])
+        yield case, lw, eye, target, light, length, tw
 
 
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(DATA) and shutil.which("cargo"),
@@ -590,6 +728,7 @@ class VolumeAgainstGame(unittest.TestCase):
 
     def test_volumes(self):
         import random
+        import statistics
         import numpy as np
         build()
         rng = random.Random(7)
@@ -600,87 +739,139 @@ class VolumeAgainstGame(unittest.TestCase):
             if key not in seen:
                 seen.add(key)
                 distinct.append((pos, tris, sc))
+        # Then the models with open edges (whose second face's flag is read
+        # below the directions, where the clip path's buffers are), each a
+        # few times.
+        probe = subprocess.run([EXAMPLE], input="\n".join(
+            " ".join(str(v) for v in [len(p), len(t)] + [c for q in p for c in q] + [i for x in t for i in x])
+            for p, t, _s in distinct) + "\n", capture_output=True, text=True, check=True).stdout.splitlines()
+        open_models = [d for d, ans in zip(distinct, probe) if ans != "R" and has_open_edge(ans)]
+        models = [None] * self.CASES + [m for m in open_models for _ in range(8)]
         dm = DrawMachine()
         reqs, games = [], []
-        for case in range(self.CASES):
-            pos, tris, scale = rng.choice(distinct)
-            a, tilt = rng.uniform(-math.pi, math.pi), rng.uniform(-0.3, 0.3)
-            ca, sa, ct, st = math.cos(a), math.sin(a), math.cos(tilt), math.sin(tilt)
-            mirror = -1.0 if rng.random() < 0.1 else 1.0
-            t = [rng.uniform(-200, 200), rng.uniform(-200, 200), rng.uniform(-50, 100)]
-            lw = [mirror * ca, mirror * sa, 0, 0, -sa * ct, ca * ct, st, 0, sa * st, -ca * st, ct, 0] + t + [1]
-            dist = rng.choice([150, 400, 900, 1600])
-            yaw, pitch = rng.uniform(-math.pi, math.pi), rng.uniform(0.1, 1.2)
-            target = [t[0] + rng.uniform(-50, 50), t[1] + rng.uniform(-50, 50), t[2] + rng.uniform(0, 80)]
-            eye = [target[0] + dist * math.cos(yaw) * math.cos(pitch), target[1] + dist * math.sin(yaw) * math.cos(pitch),
-                   target[2] + dist * math.sin(pitch)]
-            lx, ly = rng.uniform(-0.8, 0.8), rng.uniform(-0.8, 0.8)
-            lz = -math.sqrt(max(0.05, 1 - lx * lx - ly * ly)) if rng.random() < 0.85 else rng.uniform(-1, 1)
-            ln = math.sqrt(lx * lx + ly * ly + lz * lz)
-            light = [lx / ln, ly / ln, lz / ln]
-            length = rng.choice([150.0, 300.0, 450.0, rng.uniform(20, 900)])
-            tw = rng.choice([8, 8, 7])
+        for (case, lw, eye, target, light, length, tw), model in zip(placements(rng, len(models)), models):
+            pos, tris, scale = model or rng.choice(distinct)
             got = dm.draw(pos, tris, scale, lw, eye, target, light, length, tw)
             if got is None:
                 continue
-            view, game = got
+            view, box, drawn, vf21, kicks = got
+            off = (4096 - (1 << tw)) * 8
+            tris_g = gs_triangles(kicks, off)
+            zs = [v[2] for _s, vs in tris_g for v in vs]
+            depths = [0, statistics.median_low(zs) if zs else 0]
             hx = lambda x: "%08x" % (x & 0xFFFFFFFF)  # noqa: E731
             req = [len(pos), len(tris)] + [c for p in pos for c in p] + [i for tr in tris for i in tr]
             req = " ".join(map(str, req)) + " " + " ".join(
                 [hx(fb(scale))] + [hx(fb(v)) for v in lw] + [hx(v) for v in view["world_screen"]] +
-                [hx(view["near"]), hx(view["far"])] +
+                [hx(v) for v in view["view_screen"]] + [hx(view["near"]), hx(view["far"])] +
                 [hx(v) for v in view["clip"]] + [hx(fb(v)) for v in light] + ["00000000", hx(fb(length))] +
-                ["1", str(1 << tw), str(1 << tw)])
+                ["1", str(tw), str(tw)] + [str(d) for d in depths])
             reqs.append(req)
-            games.append((case, tw, game))
+            games.append((case, tw, box, drawn, vf21, kicks, tris_g, depths))
         p = subprocess.run([VOLUME], input="\n".join(reqs) + "\n", capture_output=True, text=True, check=True)
         answers = p.stdout.splitlines()
         self.assertEqual(len(answers), len(reqs))
-        bad, total, drawn = 0, 0, 0
-        for (case, tw, game), ans in zip(games, answers):
-            port = poly_triangles(ans)
-            size = 1 << tw
+        culled = clipped = words = pixels = 0
+        for (case, tw, box, drawn, vf21, kicks, tris_g, depths), ans in zip(games, answers):
+            v = ans.split()
+            where = "case %d" % case
+            self.assertEqual([int(x, 16) for x in v[:8]], box, where + ": the box")
+            self.assertEqual(int(v[8]), int(drawn), where + ": the check")
+            self.assertEqual([int(x, 16) for x in v[9:13]], vf21, where + ": VU0's vf21")
+            k, port = 14, []
+            for _ in range(int(v[13])):
+                n = int(v[k])
+                port.append([[int(x, 16) for x in v[k + 1 + 4 * i:k + 5 + 4 * i]] for i in range(n)])
+                k += 1 + 4 * n
             if os.environ.get("PINEY_SHADOW_DUMP") == str(case):
-                v = ans.split()
-                k = 1
-                for _ in range(int(v[0])):
-                    fr, nv = int(v[k]), int(v[k + 1])
-                    k += 2
-                    print("poly %+d" % (1 if fr else -1), " ".join("(%.1f %.1f %.4g)" % tuple(
-                        f32(int(v[k + 3 * i + j], 16)) for j in range(3)) for i in range(nv)))
-                    k += 3 * nv
-                for name, tl in (("game", game), ("port", port)):
+                for name, ks in (("game", kicks), ("port", port)):
                     print(name)
-                    for sg, vs in sorted(tl, key=lambda t: (t[0], sorted((round(v[0]), round(v[1])) for v in t[1]))):
-                        print("  %+d" % sg, " ".join("(%.2f %.2f %.0f)" % v for v in vs))
-            drawn += bool(game)
-            for depth in (0.0, None):
-                if depth is None:
-                    zs = [v[2] for _s, vs in game for v in vs] or [0.0]
-                    depth = np.full((size, size), float(np.median(zs)))
-                else:
-                    depth = np.full((size, size), depth)
-                g, r = raster(game, depth, size), raster(port, depth, size)
-                if os.environ.get("PINEY_SHADOW_DUMP") == str(case) and (g != r).any():
-                    ys_, xs_ = np.nonzero(g != r)
-                    py, px = int(ys_[0]), int(xs_[0])
-                    print("pixel", px, py, "game", int(g[py, px]), "port", int(r[py, px]))
-                    for name, tl in (("game", game), ("port", port)):
-                        for t in tl:
-                            c = raster([t], depth, size)
-                            if c[py, px]:
-                                print(" ", name, t[0], " ".join("(%.2f %.2f %.4g)" % v for v in t[1]))
+                    for kk in ks:
+                        print("  kick", " ".join("%08x" % x for q in kk for x in q))
+            self.assertEqual(len(port), len(kicks), where + ": the kicks")
+            for i, (g, q) in enumerate(zip(kicks, port)):
+                self.assertEqual(q, g, where + ": kick %d" % i)
+                words += 4 * len(g)
+            culled += not drawn
+            clipped += sum(1 for kk in kicks if kk[0][1] == 0x1122C000) // 2
+            size = 1 << tw
+            for depth in depths:
+                g = raster(tris_g, depth, size)
+                r = np.zeros((size, size), dtype=np.int64)
+                for j in range(int(v[k])):
+                    i, c = v[k + 1 + j].split(":")
+                    r.flat[int(i)] = int(c)
+                k += 1 + int(v[k])
                 diff = int((g != r).sum())
-                total += 1
                 if os.environ.get("PINEY_SHADOW_VERBOSE"):
-                    print("case %d tw %d: game %d tris, port %d; shadowed %d / %d, %d differ" % (
-                        case, tw, len(game), len(port), int((g > 0).sum()), int((r > 0).sum()), diff))
-                if diff > max(8, int(0.01 * ((g != 0) | (r != 0)).sum())):
-                    bad += 1
-                    print("case %d: %d pixels differ (game %d shadowed, port %d)" % (case, diff, int((g > 0).sum()),
-                                                                                       int((r > 0).sum())))
-        print("\n%d draws (%d with a volume), %d comparisons, %d off" % (len(games), drawn, total, bad))
-        self.assertLessEqual(100 * bad, total)
+                    print("case %d tw %d depth %d: %d triangles, %d pixels counted, %d differ"
+                          % (case, tw, depth, len(tris_g), int((g != 0).sum()), diff))
+                self.assertEqual(diff, 0, where + ": depth %d" % depth)
+                pixels += size * size
+        print("\n%d draws (%d of models with open edges; %d culled, %d clipped polygons): %d kicked words and "
+              "%d pixels the same" % (len(games), len(models) - self.CASES, culled, clipped, words, pixels))
+
+
+
+@unittest.skipUnless(os.path.exists(ELF) and os.path.exists(DATA) and shutil.which("cargo"),
+                     "needs the extracted disc and cargo")
+class OwnerAgainstGame(unittest.TestCase):
+    """ccObj::Draw's real sequence before the shadow's check (the object's
+    _SetLWMatrix, its model's ccModel::Draw) against the port's Prelude:
+    with the model seen its check's last corner is vf21 word for word; else
+    vf21 is the qword VU0's stack holds above the object, its parent's
+    address over $a0's sign and upper half, which the port reads as 0."""
+    CASES = int(os.environ.get("PINEY_SHADOW_OWNERS", "90"))
+
+    def test_owner_sequences(self):
+        import random
+        build()
+        rng = random.Random(11)
+        distinct = {(tuple(p), tuple(t), sc): (p, t, sc) for _f, _o, p, t, sc in shadow_mmats()}
+        distinct = list(distinct.values())
+        dm = DrawMachine()
+        reqs, games = [], []
+        kinds = ("seen", "empty", "faded")
+        for (case, lw, eye, target, light, length, tw), _ in zip(placements(rng, self.CASES), range(self.CASES)):
+            kind = kinds[case % 3]
+            pos, tris, scale = rng.choice(distinct)
+            owner = (kind != "empty", 0.005 if kind == "faded" else 1.0)
+            got = dm.draw(pos, tris, scale, lw, eye, target, light, length, tw, owner=owner)
+            if got is None:
+                continue
+            view, box, drawn, vf21, kicks = got
+            hx = lambda x: "%08x" % (x & 0xFFFFFFFF)  # noqa: E731
+            req = [len(pos), len(tris)] + [c for p in pos for c in p] + [i for tr in tris for i in tr]
+            prelude = ["2"] + [str(w) for w in box[4:8]] if kind == "seen" else ["1"]
+            req = " ".join(map(str, req)) + " " + " ".join(
+                [hx(fb(scale))] + [hx(fb(v)) for v in lw] + [hx(v) for v in view["world_screen"]] +
+                [hx(v) for v in view["view_screen"]] + [hx(view["near"]), hx(view["far"])] +
+                [hx(v) for v in view["clip"]] + [hx(fb(v)) for v in light] + ["00000000", hx(fb(length))] +
+                ["1", str(tw), str(tw), "0", "0"] + prelude)
+            reqs.append(req)
+            games.append((case, kind, box, drawn, vf21, list(dm.stale), kicks))
+        p = subprocess.run([VOLUME], input="\n".join(reqs) + "\n", capture_output=True, text=True, check=True)
+        answers = p.stdout.splitlines()
+        self.assertEqual(len(answers), len(reqs))
+        counts = {k: 0 for k in kinds}
+        for (case, kind, box, drawn, vf21, stale, kicks), ans in zip(games, answers):
+            v = ans.split()
+            where = "case %d (%s)" % (case, kind)
+            if kind == "seen":
+                self.assertNotEqual(stale[:2], [PARENT, 0], where)
+                self.assertEqual([int(x, 16) for x in v[9:13]], vf21, where + ": VU0's vf21")
+            else:
+                self.assertEqual(stale[:2], [PARENT, 0], where + ": the stack's qword")
+            self.assertEqual([int(x, 16) for x in v[:8]], box, where + ": the box")
+            self.assertEqual(int(v[8]), int(drawn), where + ": the check")
+            k, port = 14, []
+            for _ in range(int(v[13])):
+                n = int(v[k])
+                port.append([[int(x, 16) for x in v[k + 1 + 4 * i:k + 5 + 4 * i]] for i in range(n)])
+                k += 1 + 4 * n
+            self.assertEqual(port, kicks, where + ": the kicks")
+            counts[kind] += 1
+        print("\nccObj::Draw before the shadow: %s, the same" % ", ".join("%d %s" % (n, k) for k, n in counts.items()))
 
 
 if __name__ == "__main__":

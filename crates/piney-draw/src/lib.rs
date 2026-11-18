@@ -437,7 +437,7 @@ pub struct Vertex {
 /// One `ccShadowPacket`'s frame (`ccShadowPacket::SetShadowPacket`, main
 /// 0x00142b20; `docs/engine/shadow.md`), as the GS runs it where the command
 /// stands: the Z buffer so far sampled over [`ShadowPass::rect`]; each group,
-/// the last first, counting its polygons ([`ShadowPoly::add`]) where their Z
+/// the last first, counting its triangles ([`ShadowTri::add`]) where their Z
 /// beats the buffer's, the pixels above 0 taking the group's alpha (the first
 /// group in the list wins); then the buffer laid over the rectangle once per
 /// [`ShadowPass::taps`], filtered, darkening by `alpha * darkness / 0x80`.
@@ -461,15 +461,102 @@ pub struct ShadowPass {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShadowGroup {
     pub alpha: u8,
-    pub polys: Vec<ShadowPoly>,
+    /// In the order the GS draws them.
+    pub tris: Vec<ShadowTri>,
 }
 
-/// A convex polygon (a fan) in the buffer's pixels, with GS Z.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ShadowPoly {
-    pub verts: Vec<[f32; 3]>,
+/// A triangle the GS draws into the buffer, as VU1 sent it: x and y in
+/// sixteenths of the buffer's pixels (XYZ2 less the buffer's XYOFFSET),
+/// Z the XYZ2's 32 bits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShadowTri {
+    pub xy: [[i32; 2]; 3],
+    pub z: [u32; 3],
     /// Counts up (the add blend) or down (the subtract).
     pub add: bool,
+}
+
+impl ShadowTri {
+    /// The buffer pixels the GS draws of it, each with its Z: as the repo
+    /// models the GS, a pixel whose top-left corner lies inside, or on a
+    /// top or a left edge (so two triangles sharing an edge never both take
+    /// a pixel on it), Z the plane through the three vertices there,
+    /// truncated. Exact, in integers; none for a triangle with no area.
+    pub fn pixels(&self, width: usize, height: usize, mut f: impl FnMut(usize, usize, u32)) {
+        let [a, mut b, mut c] = self.xy.map(|p| p.map(i64::from));
+        let [za, mut zb, mut zc] = self.z.map(i128::from);
+        let edge = |p: [i64; 2], q: [i64; 2], x: i64, y: i64| (q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0]);
+        let mut area = edge(a, b, c[0], c[1]);
+        if area < 0 {
+            (b, c, zb, zc) = (c, b, zc, zb);
+            area = -area;
+        }
+        if area == 0 || width == 0 || height == 0 {
+            return;
+        }
+        // Inclusive on an edge only when it is a top or a left one.
+        let takes = |p: [i64; 2], q: [i64; 2]| {
+            let (dx, dy) = (q[0] - p[0], q[1] - p[1]);
+            dy < 0 || (dy == 0 && dx > 0)
+        };
+        let edges = [(b, c, takes(b, c)), (c, a, takes(c, a)), (a, b, takes(a, b))];
+        let lo = |k: usize| a[k].min(b[k]).min(c[k]);
+        let hi = |k: usize| a[k].max(b[k]).max(c[k]);
+        let first = |v: i64| -((-v).div_euclid(16));
+        let (x0, y0) = (first(lo(0)).max(0), first(lo(1)).max(0));
+        let x1 = hi(0).div_euclid(16).min(width as i64 - 1);
+        let y1 = hi(1).div_euclid(16).min(height as i64 - 1);
+        for py in y0..=y1 {
+            for px in x0..=x1 {
+                let (x, y) = (16 * px, 16 * py);
+                let w = edges.map(|(p, q, top_left)| (edge(p, q, x, y), top_left));
+                if w.iter().all(|&(e, top_left)| e > 0 || (e == 0 && top_left)) {
+                    let sum = i128::from(w[0].0) * za + i128::from(w[1].0) * zb + i128::from(w[2].0) * zc;
+                    f(px as usize, py as usize, (sum / i128::from(area)) as u32);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod shadow_tests {
+    use super::*;
+
+    /// Two triangles sharing an edge cover each pixel once; a corner on
+    /// the shared diagonal goes to one of them only.
+    #[test]
+    fn shared_edges_cover_once() {
+        let t = |xy: [[i32; 2]; 3]| ShadowTri { xy, z: [100, 100, 100], add: true };
+        let mut count = [0u8; 64];
+        for tri in [t([[0, 0], [128, 0], [0, 128]]), t([[128, 0], [128, 128], [0, 128]])] {
+            tri.pixels(8, 8, |x, y, z| {
+                assert_eq!(z, 100);
+                count[y * 8 + x] += 1;
+            });
+        }
+        assert!(count.iter().all(|&n| n == 1), "{count:?}");
+        // The top and left edges are in, the right and bottom out.
+        let mut n = 0;
+        t([[16, 16], [48, 16], [16, 48]]).pixels(8, 8, |x, y, _| {
+            assert!((1..3).contains(&x) && (1..3).contains(&y));
+            n += 1;
+        });
+        assert_eq!(n, 3);
+    }
+
+    /// Z is the plane's, truncated.
+    #[test]
+    fn z_is_the_plane_truncated() {
+        let tri = ShadowTri { xy: [[0, 0], [160, 0], [0, 160]], z: [0, 1000, 0], add: false };
+        let mut at = std::collections::HashMap::new();
+        tri.pixels(10, 10, |x, y, z| {
+            at.insert((x, y), z);
+        });
+        assert_eq!(at[&(0, 0)], 0);
+        assert_eq!(at[&(1, 0)], 100);
+        assert_eq!(at[&(3, 2)], 300);
+    }
 }
 
 // Models ---------------------------------------------------------------------

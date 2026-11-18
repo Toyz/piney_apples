@@ -155,6 +155,69 @@ impl Model {
     pub fn position(&self, p: [i16; 3]) -> Vec3 {
         Vec3::new(p[0] as f32, p[1] as f32, p[2] as f32) * self.unit()
     }
+
+    /// A bone or skin position as `Decode_Mmat02` writes it for VU1 (an
+    /// UNPACK V3-32, 0x0014ad04): `sceVu0ITOF4Vector` of the stored s16s,
+    /// then `sceVu0ScaleVector` by `vertexScale / 256` (the `div.s` at
+    /// 0x0014a68c), as float bits.
+    pub fn body_words(&self, p: [i16; 3]) -> [u32; 3] {
+        let s = ee::div(self.scale.to_bits(), 0x4380_0000);
+        p.map(|c| ee::mul(ee::div(ee::from_int(i32::from(c)), 0x4180_0000), s))
+    }
+
+    /// [`Model::body_words`] as a point.
+    pub fn body_position(&self, p: [i16; 3]) -> Vec3 {
+        Vec3::from_array(self.body_words(p).map(f32::from_bits))
+    }
+
+    /// The box `ccModel` +4 points at for a rigid model (none for a bone or
+    /// skin model, `mtype & 6`, which `ccModel::Init` leaves null) over all
+    /// its mmats' vertices.
+    pub fn vertex_box(&self) -> Option<VertexBox> {
+        (self.mtype & 6 == 0)
+            .then(|| VertexBox::of(self.mmats.iter().flat_map(|mm| &mm.positions), self.scale.to_bits()))
+    }
+}
+
+/// A model chunk's box as `ccBbox_SetBox` (0x001388c0) stores it, w 1:
+/// each extreme `cvt.s.w` times `vertexScale / 4096`, the centre the
+/// extremes' sum shifted right once, times the same.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VertexBox {
+    pub min: [u32; 4],
+    pub max: [u32; 4],
+    pub centre: [u32; 4],
+}
+
+impl VertexBox {
+    /// From the extremes the decoders keep (`Decode_Mmat01` 0x0014badc,
+    /// `DecodeShadowModel` 0x00140ab4), which start at 0x10000 and -0x10000
+    /// (`Decode_Model` 0x0014bddc): a value below the least so far is not
+    /// also tried as the greatest, so the first vertex sets only minima.
+    pub fn of<'a>(positions: impl IntoIterator<Item = &'a [i16; 3]>, scale: u32) -> VertexBox {
+        let (lo, hi) = positions.into_iter().fold(([0x10000; 3], [-0x10000; 3]), |(mut lo, mut hi), p| {
+            for (k, &c) in p.iter().enumerate() {
+                let v = i32::from(c);
+                if v < lo[k] {
+                    lo[k] = v;
+                } else if v > hi[k] {
+                    hi[k] = v;
+                }
+            }
+            (lo, hi)
+        });
+        let unit = ee::div(scale, 0x4580_0000);
+        let at = |c: [i32; 3]| -> [u32; 4] {
+            let [x, y, z] = c.map(|v| ee::mul(ee::from_int(v), unit));
+            [x, y, z, 0x3f80_0000]
+        };
+        VertexBox { min: at(lo), max: at(hi), centre: at(std::array::from_fn(|k| (lo[k] + hi[k]) >> 1)) }
+    }
+
+    /// The centre as a point.
+    pub fn centre_point(&self) -> Vec3 {
+        Vec3::new(f32::from_bits(self.centre[0]), f32::from_bits(self.centre[1]), f32::from_bits(self.centre[2]))
+    }
 }
 
 pub fn normal(n: [i8; 3]) -> Vec3 {
@@ -163,6 +226,18 @@ pub fn normal(n: [i8; 3]) -> Vec3 {
 
 pub fn uv(st: [u16; 2]) -> [f32; 2] {
     [st[0] as f32 / 256.0, st[1] as f32 / 256.0]
+}
+
+/// A bone or skin ST as `Decode_Mmat02` writes it for VU1 (0x0014af08): the
+/// word's halves kept to 12 bits and shifted up 4, so 4096 = one repeat.
+pub fn body_st(st: [u16; 2]) -> [u32; 2] {
+    st.map(|c| u32::from(c & 0xfff) << 4)
+}
+
+/// [`body_st`] in repeats; [`uv`]'s value for any ST below 0x1000, which
+/// every stored one is.
+pub fn body_uv(st: [u16; 2]) -> [f32; 2] {
+    body_st(st).map(|c| c as f32 / 4096.0)
 }
 
 /// Triangles the GS draws for a strip-flagged vertex run. Every vertex with

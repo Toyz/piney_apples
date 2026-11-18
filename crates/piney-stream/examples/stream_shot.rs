@@ -168,9 +168,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if info && let Some(f) = frames.last() {
         for c in &f.cmds {
             if let piney_draw::Cmd::Shadow(p) = c {
-                let polys: Vec<usize> = p.groups.iter().map(|g| g.polys.len()).collect();
+                let polys: Vec<usize> = p.groups.iter().map(|g| g.tris.len()).collect();
                 let alphas: Vec<u8> = p.groups.iter().map(|g| g.alpha).collect();
-                println!("  shadow pass {}x{}: groups {alphas:?}, polygons {polys:?}", p.width, p.height);
+                println!("  shadow pass {}x{}: groups {alphas:?}, triangles {polys:?}", p.width, p.height);
             }
         }
     }

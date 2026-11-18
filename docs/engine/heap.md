@@ -3,7 +3,7 @@ title: The heap - ccHeap and what it leaves behind
 status: solid
 volumes: OUT, QUA
 covers: OUT SLUS_205.63:0x00100390 ccHeap::InitFirst, 0x00100500 ccHeapFree::SearchFree, 0x001005b0 ccHeapFree::AddTbl, 0x001006e0 _ccMalloc, 0x001009a0 _ccFree, 0x00100b60 ccMemReduce, 0x00100c90 ccMalloc, 0x00100cb0 ccMallocB, 0x00100cd0 ccMemalign, 0x00100ce0 ccMemalignB, 0x00100cf0 ccFree, 0x00386b80 heapTop, 0x00386b84 heapEnd, 0x00386b8c useEnd, 0x00386b90 useEndB, 0x003872d0 freeTbl; OUT gcmn.prg:0x00472e90 ccThBossEffect (its operator new); QUA gcmn.prg:0x003657a0 ccThBossEffect, 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003b2270 ccBoss08_b::ccBoss08_b's blur write, 0x003b9640 ccBoss08_c::ccBoss08_c's blur write, 0x0037a4b0 ccBossEffPhantom::ccBossEffPhantom, 0x0037dca0 ccBossEffPhantomCreate, 0x003aaea0 ccBoss07::OnThinkPhantom, 0x004b2900 ccPlayerStart, 0x0057b5a0 ccSpcStart; QUA SLUS_205.64:0x0013ab68 ccClump::Init's new(0xb0), 0x00104200 ccBltData::Init, 0x00100390 ccHeap::InitFirst, 0x00160580 cameraGetRot
-worklog: 432, 436, 439, 602
+worklog: 432, 436, 439, 602, 614
 ---
 
 # The heap - ccHeap and what it leaves behind
@@ -266,6 +266,10 @@ game's own `_ccMalloc` on `InitFirst`'s region instead.
   handout, free and cut; `EE_DUMP_FREED=size:path` the bytes of a freed
   block of that size.
 - `EE_HEAP_MODEL` checks `piney_eemu::heap::Heap` against every handout.
+- The box checks (`_ccCheckBoundingBoxEx`) say 1 without running VU0, but
+  leave VU0's `vf21` as each program does (its matrix times its last
+  corner); `EE_VF21=path` logs every shadow check with the `vf21` it read
+  ([the shadows](shadow.md#vf21-before-the-check)).
 - `EE_PRINT`'s `name@k` also prints the four words argument k points at;
   `EE_POKE=vblank:addr:value:mask;...` sets a word's masked bits at a
   vblank (a boss's act forced).

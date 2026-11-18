@@ -306,7 +306,8 @@ impl Model {
             draw::model_edited(layers, layer, to_screen, &d, None, fog);
         }
         if self.shadow {
-            draw::cast_shadows(layers, file, instances.iter().map(|i| (i.object, i.world)));
+            let tp = |a: f32| ee::f(ee::mul(alpha.to_bits(), a.to_bits()));
+            draw::cast_shadows(layers, file, instances.iter().map(|i| (i.object, i.world, tp(i.alpha))));
         }
     }
 }

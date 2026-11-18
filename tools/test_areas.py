@@ -95,8 +95,9 @@ class TestAreas(unittest.TestCase):
         self.assertEqual(r["event"], 14)
 
     def test_counts(self):
+        # One more event from Mutation on.
         self.assertEqual(len(self.data.words), 305)
-        self.assertEqual(len(self.data.events), 126)
+        self.assertEqual(len(self.data.events), 126 if volume.NAME == "infection" else 127)
 
     def test_areas_match_game(self):
         check_volume(self, self.eemu, self.areas, self.prog, self.data, 60)
@@ -116,11 +117,16 @@ class TestAreas(unittest.TestCase):
         r = self.areas.generate(self.data, "Bursting", "Passed Over", "Aqua Field", 0)
         e = self.areas.enemies(self.data, r, 0)
         self.assertEqual((e["listType"], e["rank"]), (6, 0))
-        self.assertEqual([n for _, n in e["enemies"]], ["Goblin", "Mad Grass", "Disco Knife"])
+        # Each disc's own enemy list table orders them.
+        want = (["Goblin", "Mad Grass", "Disco Knife"] if volume.NAME in ("infection", "mutation")
+                else ["Mad Grass", "Disco Knife", "Goblin"])
+        self.assertEqual([n for _, n in e["enemies"]], want)
 
-    def test_no_substitutes(self):
-        self.assertEqual(self.data.volume, 1)
-        self.assertEqual(self.data.substitutes, {})
+    def test_substitutes(self):
+        # volumeNum; from Mutation on ccGetEventAreaInfo has substitute
+        # records for events 47 and 71.
+        self.assertEqual(self.data.volume, volume.number())
+        self.assertEqual(sorted(self.data.substitutes), [] if volume.NAME == "infection" else [47, 71])
 
 
 class TestOtherVolumes(unittest.TestCase):

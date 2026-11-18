@@ -634,7 +634,7 @@ fn draw_model_z(
         ctx.layers.prepend(layer, vec![make(opaque)]);
     }
     if !sorted.is_empty() {
-        ctx.layers.sorted(layer, sort_key(&to_screen, info.centre), make(sorted));
+        ctx.layers.sorted(layer, sort_key(&to_screen, info.centre()), make(sorted));
     }
 }
 

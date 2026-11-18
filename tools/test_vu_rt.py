@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Tests for tools/vu.py and tools/vif.py.
 
-    python3 tools/test_vu.py [-v]
+    PINEY_VOLUME=<volume> python3 tools/test_vu_rt.py [-v]
 
 Instruction vectors are hand-assembled from the VU User's Manual field
 layouts with the helpers below; the ones marked "blob" are words taken from
 the VU1 microcode in INF SLUS_202.67 and agree with what the helpers build.
-Tests over the real microcode are skipped when work/infection/disc/SLUS_202.67
-is absent.
+The tests over the real microcode follow PINEY_VOLUME (volume.py): each
+volume's uploads are where its own code sends them (ccSystem::RefrashDMA's
+REF tag, InitCCSys's sceDmaSend), and its entries what its own code builds
+(lui/addiu pairs), checked on Infection against the symbols and the
+relocations. Skipped when the volume's executable is absent.
 """
 
 import os
@@ -17,7 +20,6 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
-from volume import va as inf_va  # noqa: E402
 import vu  # noqa: E402
 import vif  # noqa: E402
 
@@ -270,7 +272,7 @@ class TestVif(unittest.TestCase):
         self.assertEqual(t.vif, struct.pack("<II", 0x05000000, 0x69308009))
 
 
-@unittest.skipUnless(os.path.exists(ELF), "needs work/infection/disc/SLUS_202.67")
+@unittest.skipUnless(os.path.exists(ELF), "needs the volume's executable")
 class TestMicrocode(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -281,8 +283,14 @@ class TestMicrocode(unittest.TestCase):
         self.assertEqual((len(mc.vu1.pairs), len(mc.vu0.pairs)), (1881, 90))
         self.assertEqual([(a, n) for a, n, _ in mc.vu1.mpgs],
                          [(i * 0x100, 256) for i in range(7)] + [(0x700, 89)])
-        self.assertEqual(mc.vu1.range, (inf_va(0x001dac80), inf_va(0x001de790)))
-        self.assertEqual(mc.vu0.mpgs, [(0, 90, inf_va(0x001de7a0))])
+        # The VU0 chain starts where the VU1 upload ends, on every disc.
+        self.assertEqual(mc.vu0.range[0], mc.vu1.range[1])
+        self.assertEqual(mc.vu0.mpgs, [(0, 90, mc.vu0.range[0] + 16)])
+        self.assertEqual(mc.vu1.mpgs[0][2], mc.vu1.range[0] + 8)
+        if volume.NAME == "infection":
+            self.assertEqual(mc.vu1.range, (0x001dac80, 0x001de790))
+            # What the code builds is what the symbols say.
+            self.assertEqual(mc._uploads(), (mc.vu1.range, mc.sym["mcVu0_Top"].value))
 
     def test_labels(self):
         v1, v0 = self.mc.vu1.labels, self.mc.vu0.labels
@@ -303,6 +311,16 @@ class TestMicrocode(unittest.TestCase):
         for va, name, byte in refs:
             _, a = self.mc.find(name)
             self.assertEqual(byte, a * 8, name)
+        # The same programs from the code on every disc; on Infection the
+        # code's reading is the relocations'.
+        code = sorted((name, byte) for _, name, byte in self.mc.code_refs())
+        self.assertEqual(code, sorted((name, byte) for _, name, byte in refs))
+        self.assertEqual(sorted({name for name, _ in code}), [
+            "mc01_Start00", "mc01_Start01", "mc02_Start00", "mc02_Start01", "mc03_SetParam",
+            "mc03b_DrawModel0", "mc03b_DrawModel1", "mc03m_DrawModel0", "mc03m_DrawModel1",
+            "mc0_CheckBoundingBox", "mc0_CheckBoundingBoxShadow", "mc_DrawEff", "mc_DrawShadow1",
+            "mc_DrawShadow2", "mc_DrawShadow3", "mc_DrawTriFast", "mc_DrawTriL", "mc_DrawTriLC",
+            "mc_DrawTriSFast", "mc_SetMatrix", "mc_SetObjParam"])
         b = self.mc.vu1
         self.assertEqual(len(b.relocs), 10)
         for a, (rtype, sym) in b.relocs.items():

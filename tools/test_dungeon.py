@@ -396,16 +396,23 @@ class TestDungeon(unittest.TestCase):
     def test_read_from_the_code(self):
         """What dungeon.Data reads from the code is what Infection's
         symbols say: every room table's address and length, symroom,
-        EditDungeon's 88 entries, ten floors, the byte at saveData+0x6772."""
+        EditDungeon's 88 entries, ten floors, the byte at saveData+0x6772;
+        from Mutation on 90 entries, area 125's 15 floors, the flag at
+        +0x5ec8."""
         p = self.data.p
         for name, (va, rows) in self.data.table_va.items():
             sym = p.symbol_named(name)
             self.assertEqual((va, rows), (sym.value, sym.size // 16), name)
         self.assertEqual(len(self.data.table_va), 31)
         self.assertEqual(self.data.symroom_va, inf_va(0x00696550))
-        self.assertEqual(self.data.edit_count, p.symbol_named("EditDungeon").size // 24)
-        self.assertEqual(self.data.edit_floors, (10, {}))
-        self.assertEqual(self.data.type_rule, ("alt", 0x6772, None))
+        if volume.NAME == "infection":
+            self.assertEqual(self.data.edit_count, p.symbol_named("EditDungeon").size // 24)
+            self.assertEqual(self.data.edit_floors, (10, {}))
+            self.assertEqual(self.data.type_rule, ("alt", 0x6772, None))
+        else:
+            # As TestOtherVolumes reads each later disc's code.
+            self.assertEqual((self.data.edit_count, self.data.edit_floors, self.data.type_rule),
+                             (90, (10, {125: 15}), ("plain", 0x5EC8, 62)))
 
 
 class TestOtherVolumes(unittest.TestCase):

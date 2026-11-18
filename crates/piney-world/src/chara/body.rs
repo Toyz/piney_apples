@@ -365,11 +365,12 @@ impl Body {
         // The shadow models: the instances', and each attached model's own
         // object's, at the node it rides.
         let shown = instances.iter().filter(|i| !play.hidden.contains(&i.entry));
-        draw::cast_shadows(layers, &self.file, shown.map(|i| (i.object, i.world)));
+        let tp = |a: f32| ee::f(ee::mul(alpha.to_bits(), a.to_bits()));
+        draw::cast_shadows(layers, &self.file, shown.map(|i| (i.object, i.world, tp(i.alpha))));
         for (inst, k) in instances.iter().zip(hung) {
             let Some(a) = k.map(|k| &self.attached[k]).filter(|_| arms > 0.0) else { continue };
             let Some(&owner) = a.file.scene.model_owner.get(&a.model) else { continue };
-            draw::cast_shadows(layers, &a.file, [(owner, inst.world)]);
+            draw::cast_shadows(layers, &a.file, [(owner, inst.world, arms)]);
         }
     }
 

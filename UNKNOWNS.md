@@ -637,7 +637,7 @@ player until one of these turns out wrong.
 - [[2]] what the mc_* symbols resolve to — answered by [[243]] (VU entry points, 21 referenced)
 - [[2]] how much of the DWARF survives — answered by [[6]] (survives complete; tools/dwarf1.py)
 - [[2]] what the MWo3 header's overlay id is used for — answered by [[242]] (nothing reads it) / docs/formats/prg.md
-- [[4]] the VU1 microcode is not disassembled — answered by [[17]] (tools/vu.py, tools/test_vu.py)
+- [[4]] the VU1 microcode is not disassembled — answered by [[17]] (tools/vu.py, tools/test_vu_rt.py)
 - [[5]] what fills directCCSTbl and which files use category 19 — answered by [[242]] (ccAddFileList; no volume adds one) / docs/formats/data-bin.md "Category 19"
 - [[5]] the two s16 fields (+0x24, +0x26) of a sceneFileList entry — answered by [[324]] (deleteCnt, a reference count; addFlag, always -1) / docs/formats/data-bin.md "File-list entries"
 - [[5]] whether any requested name can miss its category table — static lists answered by [[324]] (all 679 rows hit on the four volumes); run-time names carried to [[324]]

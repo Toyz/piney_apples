@@ -1871,7 +1871,7 @@ mod tests {
     /// the same amount.
     #[test]
     fn a_scaled_frame_buffer_draws_the_frame_bigger() {
-        use piney_draw::{ShadowGroup, ShadowPass, ShadowPoly};
+        use piney_draw::{ShadowGroup, ShadowPass, ShadowTri};
         let Some(mut gs) = gs() else { return };
         let flat = DrawState { blend: None, ..DrawState::sprite(Blend::MIX, None) };
         let mut frame = Frame::new();
@@ -1893,9 +1893,10 @@ mod tests {
             state: DrawState { texture: Some(copy), ..flat },
             verts: vec![v(200.0, 200.0, 0.0, 0.0), v(264.0, 264.0, 64.0, 64.0)],
         }));
-        let quad = |x0: f32, y0: f32, x1: f32, y1: f32, z: f32, add: bool| ShadowPoly {
-            verts: vec![[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]],
-            add,
+        let quad = |x0: f32, y0: f32, x1: f32, y1: f32, z: u32, add: bool| {
+            let [x0, y0, x1, y1] = [x0, y0, x1, y1].map(|v| (v * 16.0) as i32);
+            let tri = |xy| ShadowTri { xy, z: [z; 3], add };
+            [tri([[x0, y0], [x1, y0], [x1, y1]]), tri([[x0, y0], [x1, y1], [x0, y1]])]
         };
         frame.cmds.push(Cmd::Shadow(Box::new(ShadowPass {
             width: 256,
@@ -1905,10 +1906,8 @@ mod tests {
             taps: vec![[0.0, 0.0]],
             groups: vec![ShadowGroup {
                 alpha: 0x80,
-                polys: vec![
-                    quad(300.0, 300.0, 400.0, 400.0, 2000.0, true),
-                    quad(300.0, 300.0, 400.0, 400.0, 0.0, false),
-                ],
+                tris: [quad(300.0, 300.0, 400.0, 400.0, 2000, true), quad(300.0, 300.0, 400.0, 400.0, 0, false)]
+                    .concat(),
             }],
         })));
         gs.render(&frame);
@@ -1945,7 +1944,7 @@ mod tests {
     /// Two groups over one spot: the earlier in the list gives the alpha.
     #[test]
     fn shadows_darken_where_a_volume_meets_the_floor() {
-        use piney_draw::{ShadowGroup, ShadowPass, ShadowPoly};
+        use piney_draw::{ShadowGroup, ShadowPass, ShadowTri};
         let Some(mut gs) = gs() else { return };
         let mut frame = Frame::new();
         let depth = piney_draw::Depth { test: ZTest::Always, write: true };
@@ -1958,16 +1957,18 @@ mod tests {
             verts: vec![v(0.0, 0.0), v(512.0, 448.0)],
         }));
         // Buffer pixels are 2 x 1.75 frame pixels.
-        let quad = |x0: f32, y0: f32, x1: f32, y1: f32, z: f32, add: bool| ShadowPoly {
-            verts: vec![[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]],
-            add,
+        let quad = |x0: f32, y0: f32, x1: f32, y1: f32, z: u32, add: bool| {
+            let [x0, y0, x1, y1] = [x0, y0, x1, y1].map(|v| (v * 16.0) as i32);
+            let tri = |xy| ShadowTri { xy, z: [z; 3], add };
+            [tri([[x0, y0], [x1, y0], [x1, y1]]), tri([[x0, y0], [x1, y1], [x0, y1]])]
         };
-        let volume = vec![
-            quad(20.0, 20.0, 60.0, 60.0, 2000.0, true),
-            quad(20.0, 20.0, 40.0, 60.0, 500.0, false),
-            quad(40.0, 20.0, 60.0, 60.0, 1500.0, false),
-        ];
-        let other = vec![quad(100.0, 100.0, 140.0, 140.0, 2000.0, true)];
+        let volume = [
+            quad(20.0, 20.0, 60.0, 60.0, 2000, true),
+            quad(20.0, 20.0, 40.0, 60.0, 500, false),
+            quad(40.0, 20.0, 60.0, 60.0, 1500, false),
+        ]
+        .concat();
+        let other = quad(100.0, 100.0, 140.0, 140.0, 2000, true).to_vec();
         frame.cmds.push(Cmd::Shadow(Box::new(ShadowPass {
             width: 256,
             height: 256,
@@ -1975,9 +1976,9 @@ mod tests {
             darkness: 0x30,
             taps: vec![[0.0, 0.0]],
             groups: vec![
-                ShadowGroup { alpha: 0x80, polys: volume },
-                ShadowGroup { alpha: 0x40, polys: other.clone() },
-                ShadowGroup { alpha: 0x80, polys: other },
+                ShadowGroup { alpha: 0x80, tris: volume },
+                ShadowGroup { alpha: 0x40, tris: other.clone() },
+                ShadowGroup { alpha: 0x80, tris: other },
             ],
         })));
         gs.render(&frame);

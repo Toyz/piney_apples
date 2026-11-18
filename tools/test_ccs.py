@@ -12,6 +12,9 @@ blended as VU1's mc03b_DrawModel1 does it: ccsmodel.skin_positions against
 that microcode run in tools/vu.py, word for word, with the slot matrices
 ccModel::DrawBoneType makes (the game's sceVu0InversMatrix2 and
 sceVu0MulMatrix run in eemu) and with the node world matrices place() uses.
+Every bone and skin mmat goes through the game's Decode_Mmat02 in eemu: its
+packet's VIF codes are checked batch by batch (BONE_BATCH, SKIN_BATCH) and
+every word they unpack compared with the port's (the body_probe example).
 Run: python3 tools/test_ccs.py"""
 
 import collections
@@ -280,6 +283,175 @@ class DataBinTest(unittest.TestCase):
         # (230), bone parts included.
         lo, hi = ccsmodel.bounds([v for mm, pos, nrm in placed for v in pos])
         self.assertTrue(-90 <= lo[0] and hi[0] <= 90 and -80 <= lo[1] and hi[1] <= 80 and hi[2] <= 230)
+
+
+# The VIF codes of a bone and of a skin batch as Decode_Mmat02 builds them,
+# less each UNPACK's count (and a skin's ST address); a bone packet opens
+# with STCYCL 3, 1 once. The first batch's MSCAL is DrawModel0, the rest
+# DrawModel1. BASE takes 0x118, 0x210 and 0x308 in turn.
+BONE_BATCH = ["BASE", "OFFSET 0x000", "STMOD normal", "UNPACK V4-32 usn flg addr=0x000",
+              "STMOD normal", "STMASK 0x40404040", "UNPACK V3-32 usn mask flg addr=0x001",
+              "UNPACK V4-8 flg addr=0x002", "STMOD offset", "STMASK 0x50505050",
+              "UNPACK V2-16 usn mask flg addr=0x003", "FLUSH", "MSCAL"]
+SKIN_BATCH = ["BASE", "OFFSET 0x000", "STCYCL cl=3 wl=1", "STMOD normal", "UNPACK V3-16 usn flg addr=0x001",
+              "UNPACK V3-32 flg addr=0x002", "UNPACK V4-8 flg addr=0x003", "STCYCL cl=4 wl=4", "STMOD offset",
+              "STMASK 0x50505050", "UNPACK V2-16 usn mask flg", "STMOD normal",
+              "UNPACK V4-32 usn flg addr=0x000", "FLUSH", "MSCAL"]
+PROGRAMS = {"bone": (0x4DE, 0x4FA), "skin": (0x419, 0x433)}
+
+
+class Mmat02:
+    """ccStream::Decode_Mmat02 (main 0x0014a600) in eemu, its stream reader
+    hooked: the packet it leaves at the mmat's +0x40 (+0x44 qwords)."""
+    STREAM, MODEL, MMAT, VMM, HEAP = 0x01800000, 0x01801000, 0x01802000, 0x01803000, 0x01900000
+
+    def __init__(self):
+        from image import Program
+        from test_anim import machine_class
+        self.prog = Program(ELF, "gcmn")
+        self.m = m = machine_class()(self.prog)
+        sym = self.prog.symbol_named
+        for name in ("ccMalloc__FUi", "__nw__FUi", "__nwa__FUi"):
+            m.hooks[sym(name).value] = self.malloc
+        for name in ("__dl__FPv", "__dla__FPv"):
+            m.hooks[sym(name).value] = lambda mm, *a: 0
+        m.hooks[sym("ReadU32__14ccRingBufferThFv").value] = lambda mm, *a: self.read(4, False)
+        m.hooks[sym("ReadS16__14ccRingBufferThFv").value] = lambda mm, *a: self.read(2, True) & 0xFFFF
+        m.hooks[sym("ReadPadding__14ccRingBufferThFi").value] = self.pad
+        m.hooks[sym("ReadStruct__14ccRingBufferThFPvUi").value] = self.struct
+        self.fn = sym("Decode_Mmat02__8ccStreamFP12ccModelChunkP11ccMmatChunkUsR14ccVertexMinMum").value
+
+    def malloc(self, m, n, *_):
+        a = self.heap
+        self.heap = (a + n + 15) & ~15
+        m.mem[a:a + n] = bytes(n)
+        return a
+
+    def read(self, n, signed):
+        v = int.from_bytes(self.body[self.q:self.q + n], "little", signed=signed)
+        self.q += n
+        return v
+
+    def pad(self, m, _r, n, *a):
+        self.q = (self.q + n - 1) // n * n
+        return 0
+
+    def struct(self, m, _r, dst, n, *a):
+        m.mem[dst:dst + n] = self.body[self.q:self.q + n]
+        self.q += n
+        return 0
+
+    def packet(self, scale_bits, mtype, vertex_num, offset_num, body):
+        """The packet's bytes, the body read to its end."""
+        m = self.m
+        self.body, self.q, self.heap = body, 0, self.HEAP
+        for a in (self.MODEL, self.MMAT):
+            m.mem[a:a + 0x100] = bytes(0x100)
+        m.store(self.MODEL + 0x40, 4, scale_bits)
+        m.store(self.MODEL + 0x50, 2, mtype)
+        m.store(self.MMAT + 0xC, 4, vertex_num)
+        m.store(self.MMAT + 0x34, 4, offset_num)
+        m.store(self.STREAM + 0xA4, 4, 0x01804000)
+        for i, v in enumerate((0x10000, -0x10000) * 3):
+            m.store(self.VMM + 4 * i, 4, v & 0xFFFFFFFF)
+        m.call(self.fn, [self.STREAM, self.MODEL, self.MMAT, mtype, self.VMM], limit=500_000_000)
+        assert self.q == len(body), (self.q, len(body))
+        a, n = m.load(self.MMAT + 0x40, 4), m.load(self.MMAT + 0x44, 4)
+        return bytes(m.mem[a:a + 16 * n])
+
+
+def bodies(c, model):
+    """(index, kind, vertexNum, offsetNum, body bytes) of each bone or skin
+    mmat of a model chunk, its header words as Decode_Model reads them."""
+    d = c.data
+    count = struct.unpack_from("<H", d, model.offset + 18)[0]
+    q = model.offset + 8 + 20
+    for k in range(count):
+        _material, vn, on = struct.unpack_from("<III", d, q)
+        q += 12
+        start = q
+        if on:
+            q += 12 * on + 4 * sum(d[q + 8 * i + 7] >> 1 & 1 for i in range(on))
+        else:
+            q = ccs._align4(q + 4 + 6 * vn) + 8 * vn
+        yield k, "skin" if on else "bone", vn, on, d[start:q]
+
+
+def batches(packet, kind):
+    """The words a packet's batches unpack, in order: a bone vertex's
+    position, normal and ST; a skin entry's weight word, position and
+    normal, then the batch's ST. Checks each batch's VIF codes."""
+    import vif
+    want = BONE_BATCH if kind == "bone" else SKIN_BATCH
+    out, codes, programs = [], [], []
+    for v in vif.codes(packet):
+        if v.cmd == 0:
+            continue
+        text = v.text.split(" (")[0]
+        if v.is_unpack:
+            text = " ".join(w for w in text.split() if not w.startswith("num="))
+            if kind == "skin" and text.startswith("UNPACK V2-16 usn mask flg addr="):
+                text = "UNPACK V2-16 usn mask flg"
+        elif v.cmd == 0x20:
+            text = text.split()[0] + " " + text.split()[1]
+        elif v.cmd in (0x03, 0x14):
+            text = text.split()[0]
+            if v.cmd == 0x14:
+                programs.append(v.imm)
+        codes.append(text)
+        if v.is_unpack and not (v.vn == 3 and v.vl == 0):
+            out.append([x[:v.vn + 1] for x in vif.unpack(v)])
+    head = ["STCYCL cl=3 wl=1"] if kind == "bone" else []
+    assert codes == head + want * ((len(codes) - len(head)) // len(want)), codes[:2 * len(want)]
+    first, rest = PROGRAMS[kind]
+    assert programs == [first] + [rest] * (len(programs) - 1), programs
+    words, sts = [], []
+    if kind == "bone":
+        for pos, nrm, st in zip(out[0::3], out[1::3], out[2::3]):
+            for p, n_, s in zip(pos, nrm, st):
+                words += p + n_ + s
+    else:
+        for ent, pos, nrm, st in zip(out[0::4], out[1::4], out[2::4], out[3::4]):
+            for e, p, n_ in zip(ent, pos, nrm):
+                words += e + p + n_
+            sts += [x for s in st for x in s]
+    return words + sts
+
+
+@unittest.skipUnless(os.path.exists(DATA) and os.path.exists(ELF) and shutil.which("cargo"),
+                     "needs the volume's DATA.BIN and executable, and cargo")
+class BodyPacketTest(unittest.TestCase):
+    def test_bone_and_skin_packets(self):
+        """Every bone and skin mmat of DATA.BIN through the game's
+        Decode_Mmat02: its batches' VIF codes as BONE_BATCH and SKIN_BATCH,
+        and every word they unpack the port's (the body_probe example)."""
+        import gzarc
+        subprocess.run([shutil.which("cargo"), "build", "--release", "-q", "-p", "piney-data", "--example",
+                        "body_probe"], cwd=ROOT, check=True)
+        rust = {}
+        out = subprocess.run([os.path.join(TARGET, "release", "examples", "body_probe"), DATA],
+                             capture_output=True, text=True, check=True).stdout
+        for line in out.splitlines():
+            v = line.split()
+            rust[(v[0], int(v[1]), int(v[2]))] = (v[3], [int(x, 16) for x in v[4:]])
+        dec = Mmat02()
+        data = gzarc.open_bytes(DATA)
+        counts = collections.Counter()
+        for mem in gzarc.members(data):
+            c = ccs.Ccs(gzarc.inflate(data, mem))
+            for model in ccsmodel.models(c):
+                if not model.mtype & 4:
+                    continue
+                for k, kind, vn, on, body in bodies(c, model):
+                    packet = dec.packet(ccsmodel.float_bits(model.scale), model.mtype, vn, on, body)
+                    flat = batches(packet, kind)
+                    where = "%s model 0x%x mmat %d" % (mem.name, model.offset, k)
+                    self.assertEqual(rust.get((mem.name, model.offset, k)), (kind, flat), where)
+                    counts[kind] += 1
+        print("\n%d bone and %d skin mmats: every word the port's" % (counts["bone"], counts["skin"]))
+        bone, skin = MMATS[volume.NAME][0]["bone"], MMATS[volume.NAME][0]["skin"]
+        self.assertEqual((counts["bone"], counts["skin"]), (bone, skin))
+        self.assertEqual(len(rust), bone + skin)
 
 
 @unittest.skipUnless(os.path.exists(ISO), "needs the volume's disc image")

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Tests for tools/mips.py (and tools/image.py when the game files are there).
+"""Tests for tools/mips.py (and tools/image.py on PINEY_VOLUME's executable,
+volume.py, when it is extracted).
 
-    python3 tools/test_mips.py [-v]
+    PINEY_VOLUME=<volume> python3 tools/test_mips_rt.py [-v]
 
 Base-ISA vectors were assembled with llvm-mc (mipsel, mips4) and its
 disassembly agrees; R5900 vectors are hand-assembled from the EE Core
@@ -219,27 +220,40 @@ class Decode(unittest.TestCase):
         self.assertEqual(got, {0x1004: 0x103210, 0x1010: 0x3688e0, 0x1018: 0x3788e0})
 
 
-ELF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "work", "infection",
-                   "disc", "SLUS_202.67")
+import volume  # noqa: E402  # PINEY_VOLUME's disc (volume.py)
+
+ELF = volume.ELF
 
 
 @unittest.skipUnless(os.path.exists(ELF), "game files not extracted")
 class Image(unittest.TestCase):
     def test_overlay_mapping(self):
+        """An overlay's symbol maps into its PRG as loaded (the header at
+        the overlay's base, Infection's 0x00400800; each later volume's
+        own), and means nothing without it."""
         from image import Program
         p = Program(ELF, "gcmn")
         s = p.symbol_named("ccRegisterEnemyList__Fiii")
-        self.assertEqual(s.value, 0x0042ed70)
-        # sll $v1, $a0, 3 opens it; the header is loaded at 0x00400800 too
-        self.assertEqual(p.u32(s.value), 0x000418c0)
-        self.assertEqual(p.read(0x00400800, 4), b"MWo3")
+        ov = p.overlay
+        self.assertTrue(ov.text <= s.value < ov.text + ov.text_size)
+        self.assertEqual(p.read(ov.base, 4), b"MWo3")
+        self.assertEqual(p.read(s.value, 8), ov.data[s.value - ov.base:s.value - ov.base + 8])
+        if volume.NAME == "infection":
+            self.assertEqual(s.value, 0x0042ed70)
+            # sll $v1, $a0, 3 opens it
+            self.assertEqual(p.u32(s.value), 0x000418c0)
         self.assertIsNone(Program(ELF).symbol_named("ccRegisterEnemyList__Fiii"))
         with self.assertRaises(KeyError):
-            Program(ELF).read(0x0042ed70, 4)
+            Program(ELF).read(s.value, 4)
 
     def test_relocs(self):
+        """Infection's relocations resolve to the symbols' addresses; the
+        later executables are stripped of them."""
         from image import Program
         p = Program(ELF, "toppage")
+        if volume.NAME != "infection":
+            self.assertEqual((p.relocs, Program(ELF).relocs), ([], []))
+            return
         hi, = p.relocs_at(0x00400888)
         lo, = p.relocs_at(0x0040088c)
         self.assertEqual((hi.type, lo.type), (5, 6))

@@ -487,7 +487,11 @@ class TestField(unittest.TestCase):
         self.assertEqual(fl.init_draws, 0)
 
     def test_newlib_sqrt(self):
-        self.assertIs(self.data.sqrt, self.field.sqrtf)
+        # ccGetDist calls newlib's sqrtf on Infection and Mutation and has
+        # the FPU's sqrt.s inline from Outbreak on (OUT 0x001e6ec0).
+        import eemu
+        want = self.field.sqrtf if volume.NAME in ("infection", "mutation") else eemu.f_sqrt
+        self.assertIs(self.data.sqrt, want)
 
     # render -------------------------------------------------------------------
     LIGHT = (0x8094786E, (0x420D0EBC, 0x41F00000, 0x420D0EBC), 0xDFF0F7)   # bg_p1's

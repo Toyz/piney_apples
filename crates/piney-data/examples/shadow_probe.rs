@@ -52,7 +52,9 @@ fn main() {
         }
         w += &format!(" {}", s.edges.len());
         for e in &s.edges {
-            w += &format!(" {} {} {} {}", e.v0, e.v1, e.face_a, e.face_b);
+            // An open edge's second side as the stream points at it.
+            let b = e.face_b.map_or(-1 - i32::from(e.face_a), i32::from);
+            w += &format!(" {} {} {} {b}", e.v0, e.v1, e.face_a);
         }
         writeln!(out, "{w}").unwrap();
         out.flush().unwrap();

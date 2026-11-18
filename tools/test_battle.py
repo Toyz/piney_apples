@@ -958,16 +958,24 @@ class TestBattle(unittest.TestCase):
         self.run_check("exp", 100, 6)
         self.run_check("erosion", 200, 7)
 
+    # Kite as charTbl starts him on each disc (level 1, 30, 50, 70): his
+    # first eight stats, the rolls that hit a Goblin, the least and most.
+    KITE = {"infection": (1, [35, 54, 43, 73, 24, 54, 36, 66], 55, (8, 16)),
+            "mutation": (30, [250, 210, 560, 550, 150, 210, 220, 340], 96, (506, 844)),
+            "outbreak": (50, [440, 320, 670, 760, 280, 390, 420, 700], 96, (1857, 2616)),
+            "quarantine": (70, [570, 470, 950, 999, 390, 480, 560, 880], 96, (4346, 4390))}
+
     def test_kite_hits_goblin(self):
-        """Kite at level 1 with his starting equipment against a Goblin."""
+        """Kite with his starting level and equipment against a Goblin."""
         b = self.b
+        level, real, hits, span = self.KITE[volume.NAME]
         kite = b.make_pc(self.data, "Kite")
-        self.assertEqual(kite.real[:8], [35, 54, 43, 73, 24, 54, 36, 66])
+        self.assertEqual((kite.level, kite.real[:8]), (level, real))
         goblin = b.Foe(self.data.find(self.data.enemies, "Goblin", "enemy"), "enemy")
         sk = self.data.skill("ATTACK")
         dmg = [b.calc_battle_damage(kite, goblin, sk, roll=r).dmg for r in range(101)]
-        self.assertEqual(sum(d >= 0 for d in dmg), 55)
-        self.assertEqual((min(d for d in dmg if d >= 0), max(dmg)), (8, 16))
+        self.assertEqual(sum(d >= 0 for d in dmg), hits)
+        self.assertEqual((min(d for d in dmg if d >= 0), max(dmg)), span)
 
     def test_level_table(self):
         b = self.b
@@ -980,9 +988,15 @@ class TestBattle(unittest.TestCase):
         self.run_check("exdefense", 200, 13)
 
     def test_tables_found_from_code(self):
-        """Tables located and sized from the code give the DWARF answer."""
+        """Tables located and sized from the code give the DWARF answer
+        (Infection's alone has it; from Mutation on the Exdefense rule
+        cancels at 256 and charTbl has 21 rows, NewGame's count)."""
         from image import Program
         d = self.data
+        self.assertEqual(d.erosion_va, inf_va(0x003071A0))
+        if volume.NAME != "infection":
+            self.assertEqual((d.exdef_cancel, len(d.chars)), (256, 21))
+            return
         self.assertIsNone(d.exdef_cancel)
         sizes = {"skills": ("skillTbl", 0x38), "boss_skills": ("BossSkillTbl", 0x38),
                  "enemies": ("enemyTbl", 0x1C0), "bosses": ("bossTbl", 0x68)}
@@ -995,7 +1009,6 @@ class TestBattle(unittest.TestCase):
             self.assertEqual(d.rows[k], (s.value, s.size // row), name)
         charTbl = Program(ELF, "demo").symbol_named("charTbl")
         self.assertEqual(len(d.chars), charTbl.size // 0x5C)
-        self.assertEqual(d.erosion_va, inf_va(0x003071A0))
 
 
 class TestOtherVolumes(unittest.TestCase):

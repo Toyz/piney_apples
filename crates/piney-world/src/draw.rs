@@ -11,6 +11,7 @@ use glam::{Mat4, Vec3, Vec4};
 use piney_desktop::anm::{MIN_TRANSPARENCY, OPAQUE_TRANSPARENCY, model_state, sort_key};
 use piney_desktop::assets::{SceneFile, TEX_FLAG_CLAMP, TEX_FLAG_SORTED};
 use piney_desktop::layers::Layers;
+use piney_desktop::shadow::Prelude;
 use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
 use piney_draw::{Cmd, Filter, Lights, MmatDraw, ModelDraw, TexFunc, TexParams, Wrap};
 
@@ -198,7 +199,7 @@ pub fn model_blended(
         layers.prepend(layer, vec![make(opaque)]);
     }
     if !sorted.is_empty() {
-        layers.sorted(layer, sort_key(&m, info.centre), make(sorted));
+        layers.sorted(layer, sort_key(&m, info.centre()), make(sorted));
     }
 }
 
@@ -233,25 +234,26 @@ pub fn char_shadow_env(t: crate::ee::F, height: crate::ee::F) -> (u8, crate::ee:
 /// The same with the alpha and length decided ([`crate::chara::foe::CharDraw`]).
 pub fn shadow_env<R>(layers: &mut Layers, alpha: u8, length: crate::ee::F, f: impl FnOnce(&mut Layers) -> R) -> R {
     layers.shadows.alpha = alpha;
-    layers.shadows.length = f32::from_bits(length);
+    layers.shadows.length = length;
     let r = f(layers);
     layers.shadows.alpha = 128;
     r
 }
 
-/// `ccObj::Draw`'s shadow half for each (object, world matrix) whose Obj
-/// has a shadow model in `file` (`ccObj` +0x9c, its switch on:
-/// `ccObj::Init` sets it with the model): [`piney_desktop::shadow::
-/// Shadows::cast`] into the draw environment's packet. Drawn whatever the
-/// object's transparency.
-pub fn cast_shadows(layers: &mut Layers, file: &SceneFile, objects: impl IntoIterator<Item = (u32, Mat4)>) {
-    if layers.shadows.active.is_none() {
-        return;
-    }
-    for (obj, world) in objects {
+/// `ccObj::Draw`'s shadow half for each (object, world matrix,
+/// transparency) whose Obj has a shadow model in `file` (`ccObj` +0x9c,
+/// its switch on: `ccObj::Init` sets it with the model): [`piney_desktop::
+/// shadow::Shadows::cast`] into the draw environment's packet, drawn
+/// whatever the object's transparency. Before it the object's
+/// `_SetLWMatrix` (every anm entry hangs from its parent slot's object or
+/// the anm) and, its model seen, `ccModel::Draw`'s box check leave vf21.
+pub fn cast_shadows(layers: &mut Layers, file: &SceneFile, objects: impl IntoIterator<Item = (u32, Mat4, f32)>) {
+    for (obj, world, tp) in objects {
         let Some(model) = file.scene.shadow_of.get(&obj) else { continue };
         let Some((scale, Some(mesh))) = file.shadows.get(model) else { continue };
-        layers.shadows.cast(mesh, *scale, world);
+        let own = file.scene.model_of.get(&obj).and_then(|m| file.models.get(m));
+        let prelude = Prelude { parent: true, checked: own.and_then(|m| m.checked_max(tp.to_bits())) };
+        layers.shadows.cast(mesh, scale.to_bits(), piney_data::vu0::of_mat4(world), prelude);
     }
 }
 
@@ -261,23 +263,23 @@ pub fn cast_shadows(layers: &mut Layers, file: &SceneFile, objects: impl IntoIte
 /// view sysLayer's (`world_screen` as the camera left it, near 8, far
 /// 2^20, the whole frame).
 pub fn go_shadows(lights: &crate::town::TownLights, world_screen: &[V4; 4]) -> piney_desktop::shadow::Shadows {
-    let f = f32::from_bits;
     let dir = lights
         .lights
         .iter()
         .find_map(|l| match l.kind {
-            crate::town::LightKind::Distant { dir } => Some(Vec3::new(f(dir[0]), f(dir[1]), f(dir[2]))),
+            crate::town::LightKind::Distant { dir } => Some([dir[0], dir[1], dir[2], 0]),
             _ => None,
         })
-        .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
+        .unwrap_or([0, 0, 0xbf80_0000, 0]);
     let (ox, oy) = (XYOFFSET_X as f32 / 16.0, XYOFFSET_Y as f32 / 16.0);
     let (w, h) = (f32::from(piney_draw::SCREEN_WIDTH), f32::from(piney_draw::SCREEN_HEIGHT));
     let view = piney_desktop::shadow::ShadowView {
-        world_screen: mat(world_screen),
-        near: 8.0,
-        far: 1_048_576.0,
-        clip: [ox, oy, ox + w, oy + h],
+        world_screen: *world_screen,
+        view_screen: crate::camera::VIEW_SCREEN,
+        near: 8.0f32.to_bits(),
+        far: 1_048_576.0f32.to_bits(),
+        clip: [ox, oy, ox + w, oy + h].map(f32::to_bits),
         offset: [ox, oy],
     };
-    piney_desktop::shadow::Shadows::field(dir.extend(0.0), view)
+    piney_desktop::shadow::Shadows::field(dir, view)
 }

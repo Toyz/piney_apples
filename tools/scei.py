@@ -30,7 +30,7 @@ chunk offsets), then Midi (u32 max index, u32 offs[max+1]).
 
 Field names after the ones on the Head, Vagi, Sset and split tables are the
 SDK's; the fields this tool relies on are checked against every bank on the
-disc by tools/test_sound.py. Also a library: `Hd(data)`, `Sq(data)`.
+disc by tools/test_sound_rt.py. Also a library: `Hd(data)`, `Sq(data)`.
 """
 
 import argparse

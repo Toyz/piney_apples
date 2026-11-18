@@ -53,10 +53,11 @@ fn shadows(scene: &Scene, view: &View) -> piney_desktop::shadow::Shadows {
             .map(|s| ShadowPacket::new(s.layer, s.width, s.height, 0x20).with_copies(s.passes, s.spread))
             .collect(),
         view: Some(ShadowView {
-            world_screen: view.world_screen(),
-            near: 8.0,
-            far: 1_048_576.0,
-            clip: [lo[0], lo[1], hi[0], hi[1]],
+            world_screen: *view.world_screen_bits(),
+            view_screen: piney_desktop::camera::view_screen(view.camera().fov, view.projection()),
+            near: 8.0f32.to_bits(),
+            far: 1_048_576.0f32.to_bits(),
+            clip: [lo[0], lo[1], hi[0], hi[1]].map(f32::to_bits),
             offset: [XYOFFSET_X as f32 / 16.0, XYOFFSET_Y as f32 / 16.0],
         }),
         ..Shadows::default()
@@ -66,7 +67,9 @@ fn shadows(scene: &Scene, view: &View) -> piney_desktop::shadow::Shadows {
 /// `ccStreamDrawLayerList::Draw` (0x00148400) before each node's
 /// `ccObj::Draw`: with a packet, the draw environment takes it, its length
 /// and light, and the alpha `(fptosi(256 a) + 1) >> 1`; `ccObj::Draw` then
-/// casts the node's shadow model whatever its transparency.
+/// casts the node's shadow model whatever its transparency, after its
+/// `_SetLWMatrix` (every node hangs from a node or its clump's coordinate)
+/// and its seen model's box check.
 fn cast_shadow(ctx: &mut Ctx, loaded: &Loaded, scene: &Scene, i: usize) {
     let n = &scene.nodes[i];
     let (Some(k), Some((g, mdl))) = (n.shadow, n.shadow_model) else { return };
@@ -74,11 +77,15 @@ fn cast_shadow(ctx: &mut Ctx, loaded: &Loaded, scene: &Scene, i: usize) {
     let sh = &scene.shadows[k];
     let env = &mut ctx.layers.shadows;
     env.active = Some(k);
-    env.length = sh.length;
-    env.light = glam::Vec4::from_array(sh.light);
+    env.length = sh.length.to_bits();
+    env.light = sh.light.map(f32::to_bits);
     let a = piney_data::anim::ee::to_int(piney_data::anim::ee::mul(0x4380_0000, sh.alpha.to_bits()));
     env.alpha = (a.wrapping_add(1) >> 1) as u8;
-    env.cast(mesh, *scale, to_mat4(&scene.world(i)));
+    let checked = n
+        .model
+        .zip(scene.visible(i))
+        .and_then(|((g, m), tp)| loaded.files[g].sf.models.get(&m)?.checked_max(tp.to_bits()));
+    env.cast(mesh, scale.to_bits(), scene.world(i), piney_desktop::shadow::Prelude { parent: true, checked });
 }
 
 /// The scene's world-to-screen matrix, its camera as [`draw`] sets it: for
@@ -248,9 +255,9 @@ fn draw_model(
         ctx.layers.prepend(layer, vec![make(opaque)]);
     }
     if !sorted.is_empty() {
-        let key = match info.centre {
+        let key = match info.centre() {
             None => exact_key(&view.camera().matrix, lw),
-            Some(_) => sort_key(&to_screen, info.centre),
+            centre => sort_key(&to_screen, centre),
         };
         ctx.layers.sorted(layer, key, make(sorted));
     }
@@ -258,7 +265,7 @@ fn draw_model(
 
 /// `ccModel::Draw`'s sort key for a model without a bounding box (a bone or
 /// skin model: a rigid one keys on its vertex box,
-/// [`piney_desktop::assets::vertex_box_centre`]), `M[2][3] / M[3][3]` of
+/// [`piney_data::model::Model::vertex_box`]), `M[2][3] / M[3][3]` of
 /// `world_screen * lw` ([`piney_desktop::anm::sort_key`]), in VU0's
 /// arithmetic. The view screen's w row is (0, 0, 1, 0), so the key needs only
 /// `world_view`'s third row and `lw`, taken as the game has them

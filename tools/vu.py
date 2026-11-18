@@ -25,6 +25,12 @@ at the VIF codes and DMA tags; EE code names micro-addresses through
 value-0 symbols (`mc_DrawTri`) with HI16/LO16 pairs holding the *byte*
 address in micro memory. `labels --check` cross-checks the three.
 
+A stripped executable (Mutation on) has no symbols for them: its uploads
+are where its own code sends them (ccSystem::RefrashDMA's REF tag,
+InitCCSys's sceDmaSend), its references what its code builds with lui
+pairs (`code_refs`), and its labels Infection's, the uploads being the
+same pair for pair.
+
 Also a library: `decode(lower, upper, pc)` returns a `Pair` with an `Op` for
 each half; `Microcode(elf_path)` finds the blobs, `.vu1`/`.vu0` are `Blob`s
 with `.pairs`, `.labels`, and `.listing(start, end)`; `Vu(blob)` runs a
@@ -38,6 +44,7 @@ import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mips  # noqa: E402
 import vif  # noqa: E402
 
 VF = tuple(f"vf{i:02d}" for i in range(32))
@@ -451,46 +458,58 @@ class Microcode:
         self.vu1 = Blob("vu1", 1, VU1_WORDS)
         self.vu0 = Blob("vu0", 0, VU0_WORDS)
         if "ccInitDL_dsmS" in sym:
-            s, e = sym["ccInitDL_dsmS"].value, sym["ccInitDL_dsmE"].value
-            self.vu1.load(vif.Stream([(s, elf.read(s, e - s))]))
-            self.vu1.range = (s, e)
-        if "mcVu0_Top" in sym:
-            segs, end = [], None
-            for tva, tag, ss in vif.chain(elf.read, sym["mcVu0_Top"].value):
-                segs += ss
-                end = tva + 16 + tag.qwc * 16
-            self.vu0.load(vif.Stream(segs))
-            self.vu0.range = (sym["mcVu0_Top"].value, end)
+            vu1 = (sym["ccInitDL_dsmS"].value, sym["ccInitDL_dsmE"].value)
+            vu0 = sym["mcVu0_Top"].value
+        else:
+            vu1, vu0 = self._uploads()
+        self.vu1.load(vif.Stream([(vu1[0], elf.read(vu1[0], vu1[1] - vu1[0]))]))
+        self.vu1.range = vu1
+        segs, end = [], None
+        for tva, tag, ss in vif.chain(elf.read, vu0):
+            segs += ss
+            end = tva + 16 + tag.qwc * 16
+        self.vu0.load(vif.Stream(segs))
+        self.vu0.range = (vu0, end)
         if "ccInitDL_dsmS" in sym:
             self._labels()
         else:
             self._carry()
 
-    def _va_of(self, data):
-        """Where `data` sits in this ELF's loaded segments, or None."""
-        for s in self.elf.segments:
-            if s.type != 1:
-                continue
-            at = self.elf.data.find(data, s.offset, s.offset + s.filesz)
-            if at >= 0:
-                return s.vaddr + (at - s.offset)
-        return None
+    def _built(self, name):
+        """(instructions, {pc: address}) of a function of main: the
+        addresses its lui pairs build (tools/mips.py's track_lui)."""
+        from image import Program
+        prog = getattr(self, "prog", None) or Program(self.elf.path)
+        self.prog = prog
+        f = prog.symbol_named(name)
+        insns = [mips.decode(prog.u32(va), va) for va in range(f.value, f.value + f.size, 4)]
+        return insns, mips.track_lui(insns, prog.gp)
+
+    def _uploads(self):
+        """A stripped executable (Mutation on): where its own code sends the
+        microcode. ccSystem::RefrashDMA builds a REF tag from the VU1
+        upload's two ends (INF 0x0010aa00: the start its address, the end
+        less the start its qwc); InitCCSys's one sceDmaSend starts VU0's
+        chain (INF 0x00109ec8)."""
+        _, built = self._built("RefrashDMA__8ccSystemFv")
+        ends = sorted(set(built.values()))
+        assert len(ends) == 2, ends
+        insns, built = self._built("InitCCSys__Fv")
+        send = self.prog.symbol_named("sceDmaSend").value
+        calls = [k for k, i in enumerate(insns) if i.call and i.target == send]
+        assert len(calls) == 1, calls
+        a1 = [built[i.pc] for i in insns[:calls[0] + 2] if i.pc in built and list(i.writes[:1]) == ["$a1"]]
+        return tuple(ends), a1[-1]
 
     def _carry(self):
-        """A stripped executable (Mutation on): each VU's upload is
-        Infection's, byte for byte, elsewhere; found by its bytes, loaded
-        from here, with Infection's labels (micro addresses, the same)."""
+        """Labels for a stripped executable: each VU's upload is
+        Infection's, pair for pair (asserted), so Infection's labels name
+        the same micro addresses."""
         import volume
         inf = Microcode(volume.INF_ELF)
         for mine, theirs in ((self.vu1, inf.vu1), (self.vu0, inf.vu0)):
-            if theirs.range is None:
-                continue
-            s, e = theirs.range
-            va = self._va_of(inf.elf.read(s, e - s))
-            if va is None:
-                continue
-            mine.load(vif.Stream([(va, self.elf.read(va, e - s))]))
-            mine.range = (va, va + e - s)
+            assert [(a, p.lo, p.hi) for a, p in sorted(mine.pairs.items())] == \
+                [(a, p.lo, p.hi) for a, p in sorted(theirs.pairs.items())], mine.name
             for name, addr in theirs.labels.items():
                 mine.add_label(name, addr)
             mine.globals = set(theirs.globals)
@@ -528,8 +547,11 @@ class Microcode:
                     b.relocs[a] = (rtype, s.name)
 
     def ee_refs(self):
-        """(ee_va_of_lui, name, micro byte address) for every HI16/LO16 pair
-        in main whose symbol is a value-0 micro label."""
+        """(ee_va, name, micro byte address) for every place main names a
+        micro label: its HI16/LO16 relocations where it has them (the lui's
+        address), else what its code builds (code_refs)."""
+        if "ccInitDL_dsmS" not in self.sym:
+            return self.code_refs()
         from image import Program
         prog = Program(self.elf.path)
         out = []
@@ -537,6 +559,37 @@ class Microcode:
             if r.type == 5 and r.symbol.value == 0 and r.symbol.shndx == 0 \
                     and r.symbol.name.startswith("mc"):
                 out.append((r.offset, r.symbol.name, r.addr))
+        return out
+
+    def code_refs(self):
+        """(ee_va, name, micro byte address) for every addiu/ori in main
+        whose base register a `lui r, 0` set on every path to it
+        (mips.track_lui) and whose value is an entry of either VU (the
+        address of the addiu). Where both VUs have an entry at the address
+        (0: mc_SetMatrix and mc0_CheckBoundingBoxShadow) a value shifted
+        into $a3 for _ccCheckBoundingBoxEx, which puts it in CMSAR0 for
+        vcallmsr, is VU0's."""
+        from image import Program
+        prog = getattr(self, "prog", None) or Program(self.elf.path)
+        self.prog = prog
+        main = self.elf.sections[prog.main_index]
+        insns = [mips.decode(w, main.addr + 4 * k) for k, w in
+                 enumerate(struct.unpack("<%dI" % (main.size // 4), prog.read(main.addr, main.size)))]
+        check = prog.symbol_named("_ccCheckBoundingBoxEx__FPA4_fP6ccViewPA4_fi").value
+        out = []
+        for pc, a in sorted(mips.track_lui(insns, prog.gp).items()):
+            ins = insns[(pc - main.addr) // 4]
+            if ins.mnemonic not in ("addiu", "ori") or a % 8:
+                continue
+            names = [n for b in (self.vu1, self.vu0) for n in b.at.get(a // 8, ()) if n in b.globals]
+            if not names:
+                continue
+            if len(names) > 1:
+                after = insns[(pc - main.addr) // 4 + 1:(pc - main.addr) // 4 + 8]
+                vu0 = any(i.call and i.target == check for i in after) and any(
+                    i.mnemonic == "sra" and list(i.writes[:1]) == ["$a3"] and ins.writes[0] in i.reads for i in after)
+                names = [n for n in names if (n in self.vu0.globals) == vu0]
+            out.append((pc, names[0], a))
         return out
 
     def find(self, what):

@@ -193,7 +193,14 @@ def main():
     args = parser.parse_args()
 
     elf = Elf(args.elf)
-    dw = dwarf1.Dwarf(elf)
+    # A later volume has no DWARF: Infection's types, the volume's own
+    # placement (its `.syms` sidecar) and rows (volume.carried_rows).
+    later = not any(sec.name == ".debug" for sec in elf.sections)
+    if later:
+        import volume
+        dw = dwarf1.Dwarf(Elf(volume.INF_ELF))
+    else:
+        dw = dwarf1.Dwarf(elf)
     # The DWARF side names overlays "gcmn.prg"; Program takes "gcmn".
     ov = args.overlay[:-4] if args.overlay and args.overlay.endswith(".prg") else args.overlay
     args.overlay = ov + ".prg" if ov else None
@@ -228,10 +235,20 @@ def main():
         print(f"{done} tables to {args.dir}", file=sys.stderr)
         return 0
 
-    addr, t, where = find_global(dw, elf, args.name, args.overlay)
+    addr, t, where = find_global(dw, dw.elf if later else elf, args.name, args.overlay)
     reader = Reader(args.elf, ov, args.raw)
+    rows = None
+    if later:
+        sym = reader.prog.symbol_named(args.name)
+        if sym is None:
+            raise SystemExit(f"{args.name} is not carried to {args.elf}")
+        addr = sym.value
+        if t[0] == "array":
+            import volume
+            ref = Program(volume.INF_ELF, ov)
+            rows = volume.carried_rows(reader.prog, ref, args.name, dw.sizeof(t[2]))
     dec = Decoder(dw, reader)
-    return dump(dw, dec, reader, args.name, addr, t, where, args.tsv, args.limit, sys.stdout, sys.stderr)
+    return dump(dw, dec, reader, args.name, addr, t, where, args.tsv, args.limit, sys.stdout, sys.stderr, rows)
 
 
 def struct_arrays(dw, overlay, min_size):
@@ -251,9 +268,10 @@ def struct_arrays(dw, overlay, min_size):
     return sorted(rows, key=lambda r: -r[0])
 
 
-def dump(dw, dec, reader, name, addr, t, where, tsv, limit, out_f, err_f):
+def dump(dw, dec, reader, name, addr, t, where, tsv, limit, out_f, err_f, rows=None):
     """One global: an array as a row per element (a header of the columns
-    first), anything else as `name = value` lines."""
+    first), anything else as `name = value` lines. `rows` sets an array's
+    length (a later volume's, laid out by volume.carried_rows)."""
     if t[0] != "array":
         out = {}
         dec.value(t, addr, "", out)
@@ -262,7 +280,7 @@ def dump(dw, dec, reader, name, addr, t, where, tsv, limit, out_f, err_f):
         return 0
     elem = t[2]
     esize = dw.sizeof(elem)
-    n = t[1]
+    n = t[1] if rows is None else rows
     if n is None:
         sym = reader.prog.symbol_named(name)
         n = sym.size // esize if sym and esize else 0

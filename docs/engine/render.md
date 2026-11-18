@@ -2,8 +2,8 @@
 title: The model draw path and VU1 microcode
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x001dac80-0x001de790 VU1 microcode, 0x001de790-0x001dea80 VU0 microcode, 0x0013eab0 ccModel::Draw, 0x0013e350 ccSetMatrixPacket, 0x0013e6c0 ccSetMaterialPacket, 0x0013e130 ccSetModelPacket, 0x0013e9e0 _ccCheckBoundingBoxEx, 0x00108260 ccLayer::Init
-worklog: 10, 17, 244, 484, 613
+covers: INF SLUS_202.67:0x001dac80-0x001de790 VU1 microcode, 0x0014a600 Decode_Mmat02 (the bone and skin packets), 0x0013f860 ccModel::DrawBoneType, 0x001de790-0x001dea80 VU0 microcode, 0x0013eab0 ccModel::Draw, 0x0013e350 ccSetMatrixPacket, 0x0013e6c0 ccSetMaterialPacket, 0x0013e130 ccSetModelPacket, 0x0013e9e0 _ccCheckBoundingBoxEx, 0x00108260 ccLayer::Init
+worklog: 10, 17, 244, 484, 613, 614
 ---
 
 # The model draw path and VU1 microcode
@@ -81,6 +81,48 @@ model packet      ccSetModelPacket, then CALL into the cached per-mmat list
 ```
 
 The order matrix, material, model is inferred from what the prologues read.
+
+## Packets for a bone or skin model
+
+`Decode_Mmat02` (`0x0014a600`) builds each bone or skin mmat's packet once
+(at the mmat's +0x40, +0x44 qwords), batch after batch, the buffers at
+BASE 0x118, 0x210 and 0x308 in turn (OFFSET 0); `DrawBoneType` sends it
+after `mc03_SetParam`. The positions are floats the EE made
+(`sceVu0ITOF4Vector` of the stored s16s times `vertexScale / 256`), the ST
+the stored halves kept to 12 bits and shifted up 4 (0x0014af08):
+
+```
+bone (mc03m)      STCYCL 3,1 once; per batch of up to 82 vertices (246
+                  qwords and the tag in a buffer of 248):
+  BASE; OFFSET 0; STMOD normal
+  UNPACK V4-32 usn flg addr=0 num=1        GIFtag: n vertices, PACKED,
+                                           ST RGBAQ XYZ2
+  STMOD normal; STMASK 0x40404040          w from the row
+  UNPACK V3-32 usn mask flg addr=1 num=n   positions -> slot 0
+  UNPACK V4-8 flg addr=2 num=n             normal + strip flag -> slot 1
+  STMOD offset; STMASK 0x50505050          z, w from the row
+  UNPACK V2-16 usn mask flg addr=3 num=n   ST + row -> slot 2
+  FLUSH; MSCAL mc03m_DrawModel0 (first batch), mc03m_DrawModel1
+
+skin (mc03b)      per batch of whole vertices (in the data at most 55
+                  entries and 41 vertices):
+  BASE; OFFSET 0; STCYCL 3,1; STMOD normal
+  UNPACK V3-16 usn flg addr=1 num=e        weight * 16, matrix address
+                                           20 + 4 slot, entries left of
+                                           the vertex -> slot 0
+  UNPACK V3-32 flg addr=2 num=e            positions -> slot 1
+  UNPACK V4-8 flg addr=3 num=e             normal + the vertex's strip
+                                           flag -> slot 2
+  STCYCL 4,4; STMOD offset; STMASK 0x50505050
+  UNPACK V2-16 usn mask flg addr=1+3e num=n   each vertex's ST + row
+  STMOD normal; UNPACK V4-32 usn flg addr=0 num=1   GIFtag: n vertices
+  FLUSH; MSCAL mc03b_DrawModel0 (first batch), mc03b_DrawModel1
+```
+
+`tools/test_ccs.py` runs `Decode_Mmat02` in eemu on every bone and skin
+mmat of `DATA.BIN` (3,179 on Infection, 3,259 on each later disc), checks
+each batch's codes as above, and compares every word they unpack with the
+port's (`Model::body_words`, `model::body_st`, the `body_probe` example).
 
 VU memory filled by the matrix packet:
 
@@ -189,9 +231,5 @@ No back-face culling. Three layers:
 ## Unknown
 
 - The DMA order of the three packets.
-- The bone and skin packets' VIF codes (how the halfwords `Decode_Mmat02`
-  writes are unpacked). `mc03b` is the skin program and `mc03m` the bone
-  one; the entry layout as `mc03b` reads it is in
-  [the Model chunk](../formats/ccs-model.md#posing).
 - `view + 0x110`; the `mc04b`/`mc04m` variants; the effect program. The
   shadow programs are in [the shadow volumes](shadow.md).

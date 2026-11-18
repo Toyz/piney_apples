@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-613 entries: audio 50, battle 169, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 136, save 16, script 64, test 270, tooling 66, ui 111, video 19, volumes 114, world 196. 169 entries still have open questions - [listed below](#still-open).
+614 entries: audio 51, battle 169, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 137, save 16, script 64, test 271, tooling 67, ui 111, video 19, volumes 115, world 196. 170 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -625,9 +625,11 @@ The [reference](docs/README.md) says what is true now.
 | 611 | [The light group to the bit on every disc](worklog/0611-the-light-group-to-the-bit-on-every-disc.md) | 2026-11-17 | render, world, video, volumes, test |
 | 612 | [Keyed rotations and the dungeon checks to the bit](worklog/0612-keyed-rotations-and-the-dungeon-checks-to-the-bit.md) | 2026-11-17 | render, world, test, volumes |
 | 613 | [The last harness tolerances to the bit](worklog/0613-the-last-harness-tolerances-to-the-bit.md) | 2026-11-17 | render, test, volumes, tooling |
+| 614 | [The shadow volumes to the word and the pixel](worklog/0614-the-shadow-volumes-to-the-word-and-the-pixel.md) | 2026-11-18 | render, test, volumes, tooling, audio |
 
 ## Still open
 
+- [614. The shadow volumes to the word and the pixel](worklog/0614-the-shadow-volumes-to-the-word-and-the-pixel.md) (4 questions) - The bits of _SetLWMatrix's stack qword (a ccCoord's heap address, the drawing thread's $a0 upper half), which the port...
 - [613. The last harness tolerances to the bit](worklog/0613-the-last-harness-tolerances-to-the-bit.md) - the shadow volume's pixels are not yet compared exactly: making them so means porting ccShadowModel::Draw's matrices...
 - [611. The light group to the bit on every disc](worklog/0611-the-light-group-to-the-bit-on-every-disc.md) - nothing of this work.
 - [610. The later discs' last harnesses, and gcmn's statics as the overlay loads](worklog/0610-the-later-discs-last-harnesses-and-gcmn-s-statics-as-the.md) (2 questions) - test_lights_rs compares the light group within 1e-4 for directions and 1e-5 for colours.

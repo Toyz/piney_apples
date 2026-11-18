@@ -21,10 +21,11 @@ pub struct Edge {
     /// Its vertices as the first triangle to have it ran them.
     pub v0: u32,
     pub v1: u32,
-    /// The direction of the last triangle to take it, and of the one before
-    /// (`-1 - face` while only one has).
-    pub face_a: i32,
-    pub face_b: i32,
+    /// The direction of the last triangle to take it, and of the one before;
+    /// None while only one has (an open edge, whose second side the stream
+    /// points at `-1 - face_a`: VU1 reads that flag below the directions).
+    pub face_a: u16,
+    pub face_b: Option<u16>,
 }
 
 /// One mmat of a shadow model.
@@ -91,13 +92,13 @@ impl ShadowMesh {
             s.tris.push((*t, face as u16));
             // SetShadowWork2 for each edge, with the third vertex.
             for (a, b, c) in [(t[0], t[1], t[2]), (t[1], t[2], t[0]), (t[2], t[0], t[1])] {
-                let face = face as i32;
+                let face = face as u16;
                 match s.edges.iter().position(|e| e.v1 == a && e.v0 == b) {
                     Some(i) if s.edges[i].face_a == face => {
                         s.edges.swap_remove(i);
                     }
                     Some(i) => {
-                        let na = s.normals[s.edges[i].face_a as usize].map(i64::from);
+                        let na = s.normals[usize::from(s.edges[i].face_a)].map(i64::from);
                         let cv = sub(p(c), p(a));
                         let side = (na[0] * cv[0]).wrapping_add(na[1] * cv[1]).wrapping_add(na[2] * cv[2]);
                         if side < 0 {
@@ -106,10 +107,10 @@ impl ShadowMesh {
                             concave += 1;
                         }
                         let e = &mut s.edges[i];
-                        e.face_b = e.face_a;
+                        e.face_b = Some(e.face_a);
                         e.face_a = face;
                     }
-                    None => s.edges.push(Edge { v0: a, v1: b, face_a: face, face_b: -1 - face }),
+                    None => s.edges.push(Edge { v0: a, v1: b, face_a: face, face_b: None }),
                 }
             }
         }

@@ -276,7 +276,7 @@ fn model_box_centres_are_the_games() {
     let models = piney_data::model::models(&ccs).unwrap();
     let centre = |name: &str| {
         let m = models.iter().find(|m| ccs.object_name(m.object) == Some(name)).unwrap();
-        piney_desktop::assets::vertex_box_centre(m).to_array()
+        m.vertex_box().unwrap().centre_point().to_array()
     };
     assert_eq!(centre("MDL_xdtsword"), [0.0, -6784.0, 848.0]);
     assert_eq!(centre("MDL_xdtworld1"), [-3.125, 0.0, 0.0]);

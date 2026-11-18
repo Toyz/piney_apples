@@ -167,7 +167,7 @@ class TestFont(unittest.TestCase):
     # static facts -----------------------------------------------------------
     def test_tables(self):
         F, f = self.F, self.fonts
-        self.assertEqual(len(self.corpus), 19135)
+        self.assertEqual(len(self.corpus), CORPUS[volume.number()])
         self.assertEqual([f.trim(0, g) for g in (0, 1, 73, 76)], [1, 3, 5, 4])       # ' ' ! i l
         self.assertEqual([f.trim(2, g) for g in (0, 1, 73, 76)], [3, 6, 7, 6])
         self.assertEqual(f.colours[18][:3], (128, 56, 56))                           # #R
@@ -206,7 +206,7 @@ class TestFont(unittest.TestCase):
             for s in (texts if ni == 0 else F.synthetic()):
                 for kt in range(4):
                     self.assertEqual(g.width(s, kt), F.str_width(f, s, kt, name, real), (s, kt))
-                self.assertEqual(g.strlen(s), F.str_len(s, name, real), s)
+                self.assertEqual(g.strlen(s), F.str_len(s, name, real, f.strlen_counted), s)
                 for m in (0, 5, 12, 20):
                     self.assertEqual(g.strcat(s, m), F.strcat_field(s, m, name, real), (s, m))
         self.assertEqual(g.strcat(None, 7), F.strcat_field(None, 7))
@@ -281,12 +281,16 @@ class TestFont(unittest.TestCase):
             self.assertTrue(os.path.getsize(out) > 100)
 
     def test_addresses_from_code(self):
-        """What font.py reads out of the code is Infection's named objects."""
+        """What font.py reads out of the code is Infection's named objects
+        (a later disc's sidecar lacks some names; TestOtherVolumes reads
+        each disc's own code)."""
         F, f = self.F, self.fonts
+        self.assertEqual(f.strlen_counted, STRLEN_COUNTED[volume.number()])
+        if volume.NAME != "infection":
+            self.skipTest("only Infection's executable names every object")
         sym = lambda p, n: p.symbol_named(n).value      # noqa: E731
         for n in ("ef8x16", "ef12x20", "englishFontOfsS", "englishFontOfsL", "ccSpriteColorTable"):
             self.assertEqual(f.va[n], sym(f.p, n), n)
-        self.assertEqual(f.strlen_counted, STRLEN_COUNTED[1])
         d = F.Program(ELF, "desktop")
         self.assertEqual(F.mail_tables(d), {n: (sym(d, n), d.symbol_named(n).size // size)
                                             for n, size in (("MailTbl", 0x48), ("MailTblp", 0x48),

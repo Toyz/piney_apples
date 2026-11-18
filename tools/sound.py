@@ -67,25 +67,14 @@ CATEGORY_TABLE = {1: "sqDataDesktop", 2: "sqDataTown", 3: "sqDataField",
                   4: "sqDataDungeon", 5: "sqDataEvent", 6: "sqDataStream",
                   7: "sqDataTitle"}
 
-# Which tables play from which file: `voiceFile` indexes evVoiceFile /
-# evVoiceFileE, set by ccVoiceRequest (0x0017eeb0), ccEvVoiceRequest
-# (0x0017e810) and ccVoicePgFood (0x001800e0). SPCnn is voiceData[nn] with
-# spcVoiceData[nn], from skillVoicePlay (0x0017e350). A name ending in "*"
-# is a table of pointers to tables.
-PIGS = ("chibiguso", "gusopon", "kizoku", "iron", "poison", "bone", "sune", "aqua",
-        "milk", "rocker", "wood")
-VOICE_FILE_TABLES = {
-    0: [p + "Tbl" for p in PIGS],                        # PGUSO
-    1: ["fountainVoiceTbl"],                              # FOUNTAIN
-    2: ["partyInOutVoiceTbl"],                            # PARTY
-    3: ["spcTalkVoiceTbl"],                               # SPCTALK
-    4: ["presentVoiceTbl"],                               # PRESENT
-    5: ["inu0VoiceTbl", "inu1VoiceTbl", "inu2VoiceTbl", "inu3VoiceTbl"],   # INU
-    6: ["evVoiceDataVol1M*"],                             # EVVOL1
-    7: ["evVoiceDataVol1S*"],                             # EVVOL1S
-    18: ["voiceFoodTbl"],                                 # FOOD
-    19: ["fidhellVoiceTbl"],                              # BOSSTALK, not on this disc
-}
+# The functions that pick a field voice: each case loads its tables' bases
+# (lui/addiu) and stores `voiceFile` (ccVoiceRequest INF 0x0017eeb0,
+# ccVoicePgFood 0x001800e0). SPCnn is voiceData[nn] with spcVoiceData[nn],
+# from skillVoicePlay (0x0017e350); the event voices are event_tables'.
+FIELD_REQUESTS = ("ccVoiceRequest__Fii", "ccVoicePgFood__Fi")
+# From Mutation on a case of party, Spc talk or present voices also asks
+# for Mia's English lines, `voiceFile` 20 (evVoiceFileE[20], MIAE.BIN).
+MIA_FILE = 20
 
 
 def _disc_path(name):
@@ -112,30 +101,12 @@ class Program:
             raise KeyError(name)
         return s
 
-    @staticmethod
-    def _following(p, va):
-        i = bisect.bisect_right(p._starts, va)
-        return p.symbols[i] if i < len(p.symbols) else None
-
     def rows(self, name, row):
-        """How many `row`-byte rows the table has. On a later volume: where
-        the next global is Infection's neighbour too, Infection's size plus
-        however much the gap grew, rounded up to a row and at most the gap;
-        where that neighbour sits elsewhere, up to the next global; where it
-        has no name here, Infection's size, at most the gap."""
+        """How many `row`-byte rows the table has: its symbol's size, on a
+        later volume as volume.carried_rows lays it out."""
+        import volume
         s = self.sym(name)
-        if self.ref is None:
-            return s.size // row
-        r = self.ref.symbol_named(name)
-        n, rn = self._following(self.gcmn, s.value), self._following(self.ref, r.value)
-        gap, ref_gap = n.value - s.value, rn.value - r.value
-        if n.name == rn.name:
-            rows = min(-(-(r.size + gap - ref_gap) // row), gap // row)
-        elif self.gcmn.symbol_named(rn.name) is not None:
-            rows = gap // row
-        else:
-            rows = min(r.size, gap) // row
-        return max(rows, 0)
+        return s.size // row if self.ref is None else volume.carried_rows(self.gcmn, self.ref, name, row)
 
     def words(self, name, fmt="<I"):
         s = self.sym(name)
@@ -283,33 +254,137 @@ class VoiceFile:
         return sorted(seen.items())
 
 
-def _voice_rows(prog, name):
-    return [(i, o, s) for i, (o, s) in enumerate(prog.words(name, "<ii")) if o >= 0 and s > 0]
+def _voice_stores(p, fn, voice_file):
+    """[(voiceFile value, [(table base, reached rows or None)] built since
+    the last store)] of function `fn` of Program `p`, in code order. A base
+    built after the call to a talkNum getter is an alternative for the
+    messages the two `slti` before it bound, its row the message plus the
+    `addiu` after the call (piney-gen's voice_case): its reached rows are
+    range(first + add, end + add)."""
+    import mips
+    f = p.symbol_named(fn)
+    insns = [mips.decode(p.u32(va), va) for va in range(f.value, f.value + f.size, 4)]
+    built = mips.track_lui(insns, p.gp)
+    li, pending, out = {}, [], []
+    slti, add = [], None
+    for i in insns:
+        w = i.word
+        op, rs, rt = w >> 26, (w >> 21) & 31, (w >> 16) & 31
+        imm = ((w & 0xFFFF) ^ 0x8000) - 0x8000
+        if op == 0x09 and rs == 0:
+            li[rt] = imm
+        elif i.pc in built and i.mnemonic == "addiu":
+            reached = None
+            if add is not None:
+                first, end = slti[-2:]
+                reached = range(first + add, end + add)
+                add = None
+            pending.append((built[i.pc], reached))
+        elif op == 0x09 and rs not in (0, rt) and add is not None:
+            add = imm
+        elif op == 0x0A:
+            slti.append(imm)
+        elif op == 0x03 and any(p.u32(i.target + 4 * k) >> 26 == 0x20 and p.u32(i.target + 4 * k) & 0xFFFF == 0x220C
+                                for k in range(16)):
+            add = 0     # a talkNum getter (lb +0x220c)
+        elif op == 0x2B and rs == 28 and (p.gp + imm) & 0xFFFFFFFF == voice_file:
+            out.append((0 if rt == 0 else li[rt], pending))
+            pending, slti = [], []
+    return out
+
+
+def field_tables(prog):
+    """[(voiceFile, language, table address, reached rows or None)] of the
+    field voices as the volume's own code picks them (FIELD_REQUESTS). A
+    case's store follows its Japanese then English base; from Mutation on a
+    case may store three times, its Japanese table, Mia's (MIA_FILE,
+    English: the rows its alternative reaches) and its English table."""
+    out = []
+    voice_file = prog.sym("voiceFile").value
+    for fn in FIELD_REQUESTS:
+        singles = collections.Counter()
+        for file, bases in _voice_stores(prog.gcmn, fn, voice_file):
+            if len(bases) == 2:
+                out += [(file, "J", *bases[0]), (file, "E", *bases[1])]
+                continue
+            assert len(bases) == 1, (fn, file, bases)
+            lang = "E" if file == MIA_FILE or singles[file] else "J"
+            assert (bases[0][1] is not None) == (file == MIA_FILE), (fn, file, bases)
+            singles[file] += 1
+            out.append((file, lang, *bases[0]))
+    return out
+
+
+def voice_rows(prog, va, starts):
+    """A voice table's rows (index, ofs, siz) that are lines: from `va`
+    to the next table's start (`starts`, sorted), ending early at a row
+    that is neither a line (2048-aligned, a size) nor -1, -1."""
+    i = bisect.bisect_right(starts, va)
+    end = starts[i] if i < len(starts) else va + 8 * 512
+    rows = []
+    for k in range((end - va) // 8):
+        o, s = struct.unpack("<ii", prog.gcmn.read(va + 8 * k, 8))
+        if not ((o >= 0 and o % SECTOR == 0 and s > 0) or (o, s) == (-1, -1)):
+            break
+        if o >= 0:
+            rows.append((k, o, s))
+    return rows
+
+
+def event_messages(prog):
+    """messages(kind, event): how many messages event `event` has in
+    evMsgTbl (Parody Mode's evMsgTblp for the parody tables; evscript),
+    with or without a script (Infection's side event 63 has none but a
+    message and its line). ccEvVoiceRequest(event, msg) asks for row `msg`,
+    so an event's rows past its messages are never read (Outbreak's
+    EVVOL3SE event 266 array is one row in .sdata at 0x003862f8, the words
+    after it other data)."""
+    import evscript
+    ev = evscript.Events(prog.elf)
+    return lambda kind, event: len(ev.messages(event, kind == "parody"))
 
 
 def load_voices(prog):
-    """{disc path: VoiceFile} for every voice file the tables name."""
+    """{disc path: VoiceFile} for every voice file the code's tables name:
+    the Spc lines (voiceData / spcVoiceData), the field voices
+    (field_tables; Mia's the rows its alternative reaches), each table's
+    rows running to the next table's start, and the event voices
+    (event_tables), each event's rows those of its messages
+    (event_messages)."""
+    spc = {lang: [(prog.gcmn.cstr(n).decode("latin-1") if n else None, t)
+                  for (n,), (t,) in zip(prog.words("spcVoiceData" + sfx), prog.words("voiceData" + sfx))]
+           for lang, sfx in (("J", ""), ("E", "E"))}
+    field = field_tables(prog)
+    events = event_tables(prog)
+    arrays = {prog.gcmn.u32(t + 4 * k) for *_, t, ev in events for k, rows in enumerate(ev) if rows}
+    starts = sorted({t for v in spc.values() for _, t in v if t} | {va for _, _, va, _ in field} |
+                    {t for *_, t, _ in events} | arrays)
+    paths = {lang: prog.strings("evVoiceFile" + sfx) for lang, sfx in (("J", ""), ("E", "E"))}
     files = {}
-    for lang, sfx in (("J", ""), ("E", "E")):
-        names = prog.strings("spcVoiceData" + sfx)
-        tables = [prog.gcmn.name_at(p) for (p,) in prog.words("voiceData" + sfx)]
-        for fname, tname in zip(names, tables):
-            if fname is None:
-                continue
-            vf = files.setdefault(_disc_path(fname), VoiceFile(_disc_path(fname), lang))
-            vf.tables.append((tname, _voice_rows(prog, tname)))
-        ev = prog.strings("evVoiceFile" + sfx)
-        for k, tnames in VOICE_FILE_TABLES.items():
-            path = _disc_path(ev[k])
-            vf = files.setdefault(path, VoiceFile(path, lang))
-            for t in tnames:
-                if t.endswith("*"):
-                    for (p,) in prog.words(t[:-1] + sfx):
-                        if p:
-                            sub = prog.gcmn.name_at(p)
-                            vf.tables.append((sub, _voice_rows(prog, sub)))
-                else:
-                    vf.tables.append((t + sfx, _voice_rows(prog, t + sfx)))
+
+    def add(path, lang, va, rows=None):
+        path = _disc_path(path)
+        vf = files.setdefault(path, VoiceFile(path, lang))
+        name = prog.gcmn.name_at(va) or f"0x{va:08x}"
+        vf.tables.append((name, voice_rows(prog, va, starts) if rows is None else rows))
+
+    for lang, rows in spc.items():
+        for path, t in rows:
+            if path and t:
+                add(path, lang, t)
+    for file, lang, va, reached in field:
+        rows = voice_rows(prog, va, starts)
+        add(paths[lang][file], lang, va, rows if reached is None else [r for r in rows if r[0] in reached])
+    messages = event_messages(prog)
+    for section, kind, lang, t, ev in events:
+        file = 6 + 3 * section + EV_KINDS.index(kind)
+        lang = "J" if lang == "jp" else "E"
+        first = 100 * section + EV_FIRST[kind]
+        for k, rows in enumerate(ev):
+            if rows:
+                a = prog.gcmn.u32(t + 4 * k)
+                reach = rows[:messages(kind, first + k)]
+                add(paths[lang][file], lang, a, [(i, o, s) for i, (o, s) in enumerate(reach) if o >= 0])
     return files
 
 
@@ -424,10 +499,15 @@ def event_tables(prog):
 
 # -- cutscene PCM ---------------------------------------------------------------
 
-def stream_pcm(data):
+def stream_pcm(data, lang=None):
     """(CCSTRM_PCM header dict, [1024-byte blocks], frames) out of an inflated
     CCSF stream file, in the order ccStream::Decode_Pcm (0x0014ddb0) and
-    DecodeF_Pcm (0x0014e4a0) hand blocks to ccPcmSound."""
+    DecodeF_Pcm (0x0014e4a0) hand blocks to ccPcmSound. With `lang`, as
+    Outbreak's and Quarantine's decoders read them (Decode_Pcm OUT
+    0x0014cab0, DecodeF_Pcm 0x0014d240): each Pcm chunk and F_Pcm record
+    carries a voice language (the Pcm chunk's byte after the track; an
+    F_Pcm record's u8 lang, then u32 blocks and words), and only `lang`'s
+    are played."""
     import ccs
     c = ccs.Ccs(data)
     head = None
@@ -438,13 +518,22 @@ def stream_pcm(data):
             break
         kind = t & 0xFFFF
         if kind == 0x2200:
-            my_id, typ, bits, track, num, size = struct.unpack_from("<IBBBxII", data, off + 8)
+            my_id, typ, bits, track, voice, num, size = struct.unpack_from("<IBBBBII", data, off + 8)
+            if lang is not None and voice != lang:
+                continue
             head = {"id": my_id, "type": typ, "bits": bits, "track": track,
                     "blocks": num, "words": size}
+            if lang is not None:
+                head["lang"] = voice
             p = off + 8 + 16
-        elif kind == 0x2201:
+        elif kind == 0x2201 and lang is None:
             my_id, num, size = struct.unpack_from("<IHxxI", data, off + 8)
             p = off + 8 + 12
+        elif kind == 0x2201:
+            my_id, voice, num, size = struct.unpack_from("<IBxxxII", data, off + 8)
+            if voice != lang:
+                continue
+            p = off + 8 + 16
         else:
             if kind == 0xFF01 and struct.unpack_from("<i", data, off + 8)[0] >= 0:
                 frames += 1

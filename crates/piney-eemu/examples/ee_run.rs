@@ -339,8 +339,42 @@ fn main() {
         });
     }
 
-    // VU0's bounding-box microprogram: every box in view, unclipped.
-    ret(&mut sys, &["_ccCheckBoundingBoxEx__FPA4_fP6ccViewPA4_fi"], 1);
+    // VU0's bounding-box microprograms: every box in view, unclipped, and
+    // vf21 as each leaves it, the matrix times its last corner: the box's
+    // greatest (mc0_CheckBoundingBox), or vf21's own x, y, z
+    // (mc0_CheckBoundingBoxShadow, VU0 0). EE_VF21=path logs each shadow
+    // check: vf21 before it, the check's box, matrix and view bounds.
+    if let Some(a) = sym("_ccCheckBoundingBoxEx__FPA4_fP6ccViewPA4_fi") {
+        let mut log = std::env::var("EE_VF21").ok().map(|p| std::io::BufWriter::new(File::create(p).unwrap()));
+        sys.hook(a, move |sys, a| {
+            use std::io::Write;
+            let q = |sys: &Sys, at: u32| -> [u32; 4] { std::array::from_fn(|k| sys.r32(at + 4 * k as u32)) };
+            let m: [[u32; 4]; 4] = std::array::from_fn(|k| q(sys, a[2] + 16 * k as u32));
+            let stale = sys.cpu.vf[21];
+            let corner = if a[3] == 0 { stale } else { q(sys, a[0] + 16) };
+            sys.cpu.vf[21] = piney_data::vu0::apply(&m, [corner[0], corner[1], corner[2], 0x3f80_0000]);
+            if let (0, Some(out)) = (a[3], log.as_mut()) {
+                let words =
+                    |v: &[[u32; 4]]| v.iter().flatten().map(|w| format!("{w:08x}")).collect::<Vec<_>>().join(" ");
+                let bounds: Vec<[u32; 4]> = [496, 512, 464, 480].iter().map(|&o| q(sys, a[1] + o)).collect();
+                let boxes: Vec<[u32; 4]> = (0..3).map(|k| q(sys, a[0] + 16 * k)).collect();
+                writeln!(
+                    out,
+                    "{} thread {} ra {:08x} vf21 {} box {} m {} bounds {}",
+                    sys.vblanks,
+                    sys.cur.map_or(-1, |k| k as i64),
+                    sys.cpu.r[31] as u32,
+                    words(&[stale]),
+                    words(&boxes),
+                    words(&m),
+                    words(&bounds)
+                )
+                .unwrap();
+                out.flush().unwrap();
+            }
+            Hooked::Ret(1)
+        });
+    }
     // Overlays' functions, guarded by their first word in the PRG.
     let prg_word = |d: &Rc<RefCell<Disc>>, file: &str, addr: u32| -> u32 {
         let data = d.borrow_mut().iso.read_path(file).expect("the overlay");

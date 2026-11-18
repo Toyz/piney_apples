@@ -368,7 +368,7 @@ pub fn place<'a>(scene: &Scene, m: &'a Model, world: Option<&HashMap<u32, Mat4>>
                 let mat = node_matrix(mm.slot.unwrap_or(0) as usize);
                 Some(Placed {
                     mmat: mm,
-                    positions: mm.positions.iter().map(|&p| mat.transform_point3(m.position(p))).collect(),
+                    positions: mm.positions.iter().map(|&p| mat.transform_point3(m.body_position(p))).collect(),
                     normals: mm
                         .normals
                         .iter()
@@ -384,7 +384,7 @@ pub fn place<'a>(scene: &Scene, m: &'a Model, world: Option<&HashMap<u32, Mat4>>
                     for e in entries {
                         let mat = node_matrix(e.slot as usize);
                         let w = e.weight as f32 / 256.0;
-                        p += w * mat.transform_point3(m.position(e.position));
+                        p += w * mat.transform_point3(m.body_position(e.position));
                         n += w * mat.transform_vector3(model::normal(e.normal));
                     }
                     positions.push(p);

@@ -417,14 +417,15 @@ impl ShadowGpu {
         };
         for g in pass.groups.iter().rev() {
             let mut verts = Vec::new();
-            for p in &g.polys {
-                let sign = if p.add { 1.0 } else { -1.0 };
+            for t in &g.tris {
+                let sign = if t.add { 1.0 } else { -1.0 };
                 // The GS takes a pixel whose corner is inside; wgpu, whose
                 // centre is: half a pixel over.
-                let v = |q: [f32; 3]| CountVertex { clip: to_clip(q[0] + 0.5, q[1] + 0.5, q[2]), sign };
-                for k in 2..p.verts.len() {
-                    verts.extend([v(p.verts[0]), v(p.verts[k - 1]), v(p.verts[k])]);
-                }
+                let v = |k: usize| CountVertex {
+                    clip: to_clip(t.xy[k][0] as f32 / 16.0 + 0.5, t.xy[k][1] as f32 / 16.0 + 0.5, t.z[k] as f32),
+                    sign,
+                };
+                verts.extend([v(0), v(1), v(2)]);
             }
             if verts.is_empty() {
                 continue;

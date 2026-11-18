@@ -35,6 +35,7 @@ pub mod tables;
 pub mod texture;
 pub mod volume;
 pub mod vu0;
+pub mod vu1;
 pub mod world;
 
 use std::fmt;

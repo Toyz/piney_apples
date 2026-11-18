@@ -25,6 +25,27 @@ INF_CHARS = ("Kite", "Mia", "Orca", "Marlo", "Sanjuro", "Nuke Usagimaru", "Balmu
              "Terajima Ryoko", "BlackRose", "Mistral", "Helba")
 
 
+# Per disc: the scripts, the Execute / CheckOpen / SetCurrentOpen tables
+# and Execute's default (the loop head), the survey (blocks, instructions,
+# conditions, currents, unknown cases, kinds of op, messages, waits), and
+# message 1 of its first main event (100 (N - 1) + 1) in both languages.
+EXPECT = {
+    "infection": (192, [(0x00355FD0, 168), (0x00355D60, 41), (0x00355D30, 12)], 0x001A8D80,
+                  (1935, 13515, 2059, 1918, 0, 145, 1993, 1596),
+                  (("VOICE_E/EVVOL1_E.BIN", 0x27000, 441604), "VOICE/EVVOL1.BIN")),
+    "mutation": (196, [(0x00370070, 169), (0x0036FE40, 41), (0x0036FE10, 12)], 0x001BDF60,
+                 (2035, 14253, 2128, 2164, 0, 146, 2074, 1704),
+                 (("VOICE_E/EVVOL2_E.BIN", 972800, 198558), "VOICE/EVVOL2.BIN")),
+    "outbreak": (199, [(0x00369A20, 170), (0x003697F0, 41), (0x003697C0, 12)], 0x001B42B0,
+                 (2062, 14645, 2123, 2220, 1, 146, 2099, 1740),
+                 (("VOICE_E/EVVOL3_E.BIN", 139264, 563200), "VOICE/EVVOL3.BIN")),
+    "quarantine": (206, [(0x0025CFF0, 170), (0x0025CD90, 41), (0x0025CD60, 12)], 0x001BBAC8,
+                   (2139, 14764, 2249, 2227, 0, 147, 2099, 1740),
+                   (("VOICE_E/EVVOL4_E.BIN", 194560, 332832), "VOICE/EVVOL4.BIN")),
+}
+FIRST = 100 * (volume.number() - 1) + 1
+
+
 @unittest.skipUnless(os.path.exists(ELF), "game executable not present")
 class TestEvScript(unittest.TestCase):
     @classmethod
@@ -34,20 +55,35 @@ class TestEvScript(unittest.TestCase):
         cls.ev = evscript.Events(ELF)
 
     def test_event_numbers(self):
-        self.assertEqual(len(self.ev.events), 192)
-        self.assertEqual(len(set(v[0] for v in self.ev.events.values())), 192)
-        self.assertEqual(self.ev.events[1], ("eventTblM101", "MG0001 OPENING"))
+        n = EXPECT[volume.NAME][0]
+        self.assertEqual(len(self.ev.events), n)
+        self.assertEqual(len(set(v[0] for v in self.ev.events.values())), n)
+        self.assertEqual(self.ev.events[FIRST][0], "eventTblM%d01" % volume.number())
         self.assertEqual(self.ev.events[406][0], "eventTblML006")
+        if volume.NAME == "infection":
+            self.assertEqual(self.ev.events[1], ("eventTblM101", "MG0001 OPENING"))
 
     def test_names_and_extents_match_symbols(self):
         # The names are made from the event number and the extents from the
-        # gaps between arrays; Infection's symbol table says the same.
+        # gaps between arrays; Infection's symbol table says the same. A
+        # later disc's sidecar carries the names with Infection's sizes.
+        # A later disc's sidecar names the scripts Infection has, with
+        # Infection's sizes; its new ones (19, 40, 56) have no name.
         p = self.ev.p
+        unnamed = 0
         for name, (va, shorts) in self.ev.bounds.items():
-            sym, off = p.symbol_at(va)
-            self.assertEqual((sym.name, off, sym.size), (name, 0, 2 * shorts))
+            at = p.symbol_at(va)
+            if at is None and volume.NAME != "infection":
+                unnamed += 1
+                continue
+            sym, off = at
+            got = (sym.name, off, sym.size) if volume.NAME == "infection" else (sym.name, off)
+            self.assertEqual(got, (name, 0, 2 * shorts)[:len(got)])
+        self.assertEqual(unnamed, {"infection": 0, "mutation": 19, "outbreak": 40, "quarantine": 56}[volume.NAME])
 
     def test_message_counts_match_symbols(self):
+        if volume.NAME != "infection":
+            self.skipTest("only Infection's executable names the message arrays")
         p = self.ev.p
         for table in ("evMsgTbl", "evMsgTblp"):
             t = p.symbol_named(table).value
@@ -60,25 +96,34 @@ class TestEvScript(unittest.TestCase):
                         self.assertEqual(self.ev.message_count(va), (sym.size - off) // 12, va)
 
     def test_switches(self):
-        self.assertEqual([(t.switch.table, t.switch.count) for t in self.ev.tables],
-                         [(inf_va(0x00355fd0), 168), (inf_va(0x00355d60), 41), (inf_va(0x00355d30), 12)])
-        self.assertEqual(self.ev.execute.default, inf_va(0x001a8d80))      # the loop head
+        n, tables, default, _survey, _voice = EXPECT[volume.NAME]
+        self.assertEqual([(t.switch.table, t.switch.count) for t in self.ev.tables], tables)
+        self.assertEqual(self.ev.execute.default, default)      # the loop head
         self.assertFalse(self.ev.execute.has(134))
-        self.assertEqual(self.ev.ops.args(99), 0)
-        self.assertIsNone(self.ev.ops.args(168))
+        # From Mutation on opcode 99 takes an operand and 168 is a case.
+        later = volume.NAME != "infection"
+        self.assertEqual(self.ev.ops.args(99), int(later))
+        self.assertEqual(self.ev.ops.args(168), 0 if later else None)
 
     def test_survey(self):
+        n, _tables, _default, (blocks, insns, conds, currents, unknown, kinds, msgs, waits), _ = EXPECT[volume.NAME]
         r = self.E.survey(self.ev)
-        self.assertEqual((r["scripts"], r["clean"], r["bad"]), (192, 192, []))
-        self.assertEqual((r["blocks"], r["insns"]), (1935, 13515))
-        self.assertEqual(sum(r["conds"].values()), 2059)
-        self.assertEqual(sum(r["currents"].values()), 1918)
-        self.assertEqual(sum(r["unknown"].values()), 0)
-        self.assertEqual(len(r["ops"]), 145)
-        self.assertEqual(r["ops"][("op", 6)], 1993)       # message
-        self.assertEqual(r["ops"][("op", 5)], 1596)       # wait
+        self.assertEqual((r["scripts"], r["clean"], r["bad"]), (n, n, []))
+        self.assertEqual((r["blocks"], r["insns"]), (blocks, insns))
+        self.assertEqual(sum(r["conds"].values()), conds)
+        self.assertEqual(sum(r["currents"].values()), currents)
+        self.assertEqual(sum(r["unknown"].values()), unknown)
+        self.assertEqual(len(r["ops"]), kinds)
+        self.assertEqual(r["ops"][("op", 6)], msgs)       # message
+        self.assertEqual(r["ops"][("op", 5)], waits)      # wait
 
     def test_first_story_event(self):
+        if volume.NAME != "infection":
+            # The header of each disc's first main event.
+            text = self.E.disassemble(self.ev, self.E.script_name(FIRST)).splitlines()
+            self.assertRegex(text[0], r"# eventTblM%d01 @ 0x[0-9a-f]{8}, \d+ bytes: event %d " % (
+                volume.number(), FIRST))
+            return
         text = self.E.disassemble(self.ev, "eventTblM101").splitlines()
         self.assertEqual(text[:12], [
             '# eventTblM101 @ 0x00317ec0, 540 bytes: event 1 "MG0001 OPENING"',
@@ -103,9 +148,10 @@ class TestEvScript(unittest.TestCase):
 
     def test_voice(self):
         # What the game's ccEvVoiceRequest / evVoicePlay hand to sewordCmd.
-        self.assertEqual(self.ev.voice(1, 1), ("VOICE_E/EVVOL1_E.BIN", 0x27000, 441604))
-        self.assertEqual(self.ev.voice(1, 1, english=False)[0], "VOICE/EVVOL1.BIN")
-        self.assertIsNone(self.ev.voice(1, 1, parody=True))    # Parody Mode mutes main events
+        english, japanese = EXPECT[volume.NAME][4]
+        self.assertEqual(self.ev.voice(FIRST, 1), english)
+        self.assertEqual(self.ev.voice(FIRST, 1, english=False)[0], japanese)
+        self.assertIsNone(self.ev.voice(FIRST, 1, parody=True))    # Parody Mode mutes main events
 
     def test_against_game_code(self):
         # Every case's operand count is documented, and every script's block
@@ -161,9 +207,12 @@ class TestEvScript(unittest.TestCase):
         from image import Program
         demo = Program(ELF, "demo")
         tbl = demo.symbol_named("charTbl")
-        names = [demo.cstr(demo.u32(tbl.value + 92 * i)).decode() for i in range(tbl.size // 92)]
-        self.assertEqual(tuple(names), INF_CHARS)
-        self.assertEqual(self.ev.chars, INF_CHARS)
+        # 21 characters from Mutation on (NewGame's count, volume.WALKERS).
+        chars = INF_CHARS + (() if volume.NAME == "infection" else ("Tsukasa", "Subaru", "Sora"))
+        rows = volume.loop_rows(demo, "NewGame__10ccSaveDataFi", "charTbl")
+        names = [demo.cstr(demo.u32(tbl.value + 92 * i)).decode() for i in range(rows)]
+        self.assertEqual(tuple(names), chars)
+        self.assertEqual(self.ev.chars, chars)
 
 
 class TestOtherVolumes(unittest.TestCase):

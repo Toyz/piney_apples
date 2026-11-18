@@ -300,7 +300,7 @@ pub fn mmat(
                 let (mut q, mut n) = (Vec4::ZERO, Vec3::ZERO);
                 for e in entries {
                     let w = e.weight as f32 / 256.0;
-                    q += w * node(u32::from(e.slot)) * m.position(e.position).extend(1.0);
+                    q += w * node(u32::from(e.slot)) * m.body_position(e.position).extend(1.0);
                     let normal = model::normal(e.normal);
                     n += w * if lights.is_some() { bone(u32::from(e.slot)) * normal } else { normal };
                 }
@@ -313,7 +313,9 @@ pub fn mmat(
                 _ => to_screen,
             };
             let turn = (lights.is_some() && mm.kind == Kind::Bone).then(|| bone(mm.slot.unwrap_or(0)));
-            let q = morphed.unwrap_or(&mm.positions).iter().map(|&p| mat * m.position(p).extend(1.0)).collect();
+            // Bone positions as Decode_Mmat02 sends them, rigid ones as stored.
+            let at = |p: [i16; 3]| if mm.kind == Kind::Bone { m.body_position(p) } else { m.position(p) };
+            let q = morphed.unwrap_or(&mm.positions).iter().map(|&p| mat * at(p).extend(1.0)).collect();
             let n = (0..mm.positions.len()).map(|i| {
                 let n = mm.normals.get(i).map_or(Vec3::ZERO, |&n| model::normal(n));
                 turn.map_or(n, |t| (t * n).normalize_or_zero())
@@ -357,10 +359,13 @@ pub fn mmat(
     let row = [f32::from(draw.uv_row[0]) / 256.0, f32::from(draw.uv_row[1]) / 256.0];
     let fog_f = |q: Vec4| depth_fog.map_or(0.0, |d| d.at(q.w));
     let mut out = Vec::with_capacity(mm.triangles.len() * 3);
+    // Bone and skin ST as Decode_Mmat02 sends them.
+    let uv_of =
+        |st: [u16; 2]| if matches!(mm.kind, Kind::Bone | Kind::Skin) { model::body_uv(st) } else { model::uv(st) };
     let vertex = |i: usize| ClipVertex {
         q: qs[i],
         uv: mm.uvs.get(i).map_or(row, |&st| {
-            let uv = model::uv(st);
+            let uv = uv_of(st);
             [uv[0] + row[0], uv[1] + row[1]]
         }),
         colour: colours[i],
@@ -392,7 +397,7 @@ pub fn mmat(
         }
         for &i in tri {
             let i = i as usize;
-            let uv = mm.uvs.get(i).map_or([0.0, 0.0], |&st| model::uv(st));
+            let uv = mm.uvs.get(i).map_or([0.0, 0.0], |&st| uv_of(st));
             out.push(GVertex {
                 clip: screen.clip_3d(qs[i]),
                 uv: [uv[0] + row[0], uv[1] + row[1]],

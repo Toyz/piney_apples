@@ -137,7 +137,7 @@ fn draw_instance(ctx: &mut Ctx, view: &View, file: &SceneFile, inst: &Instance, 
         ctx.layers.prepend(SYS_LAYER, vec![make(opaque)]);
     }
     if !sorted.is_empty() {
-        ctx.layers.sorted(SYS_LAYER, sort_key(&to_screen, info.centre), make(sorted));
+        ctx.layers.sorted(SYS_LAYER, sort_key(&to_screen, info.centre()), make(sorted));
     }
 }
 

@@ -8583,8 +8583,8 @@ mod area15 {
                 })
                 .unwrap_or_else(|| panic!("{name}: no shadow pass"));
             assert_eq!((pass.width, pass.height, pass.darkness), (256, 256, 0x30), "{name}");
-            let polys: usize = pass.groups.iter().map(|g| g.polys.len()).sum();
-            assert!(pass.groups.iter().any(|g| g.alpha == 128) && polys > 100, "{name}: {polys} polygons");
+            let tris: usize = pass.groups.iter().map(|g| g.tris.len()).sum();
+            assert!(pass.groups.iter().any(|g| g.alpha == 128) && tris > 100, "{name}: {tris} triangles");
             let mut render = |f: &Frame| {
                 let mut c = piney_desktop::soft::Canvas::new(512, 448, f.clear);
                 c.draw(f, &mut soft_assets);
@@ -8595,7 +8595,7 @@ mod area15 {
             bare.cmds.retain(|c| !matches!(c, piney_draw::Cmd::Shadow(_)));
             let without = render(&bare);
             let dark = (0..512 * 448).filter(|&i| with[4 * i] < without[4 * i]).count();
-            eprintln!("{name}: {polys} polygons, {dark} pixels darkened");
+            eprintln!("{name}: {tris} triangles, {dark} pixels darkened");
             assert!(dark > 300, "{name}: {dark}");
         }
     }

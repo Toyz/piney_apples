@@ -2,8 +2,8 @@
 title: The CCSF Model chunk
 status: solid
 volumes: INF
-covers: INF SLUS_202.67:0x0014bce0 Decode_Model, 0x0014b890 Decode_Mmat01, 0x0014a600 Decode_Mmat02, 0x00140920 DecodeShadowModel, 0x0013a440 ccModel::Init, VU1 micro 0x063 mc_DrawTriFast, 0x00147c20 ccStream::CompleteChunk, 0x00151950 ccAnm::SetAnm, 0x0013f860 ccModel::DrawBoneType, VU1 micro 0x433 mc03b_DrawModel1
-worklog: 10, 17, 244, 549, 558, 613
+covers: INF SLUS_202.67:0x0014bce0 Decode_Model, 0x0014b890 Decode_Mmat01 (0x0014badc its extremes), 0x001388c0 ccBbox_SetBox, 0x0014a600 Decode_Mmat02, 0x00140920 DecodeShadowModel, 0x0013a440 ccModel::Init, VU1 micro 0x063 mc_DrawTriFast, 0x00147c20 ccStream::CompleteChunk, 0x00151950 ccAnm::SetAnm, 0x0013f860 ccModel::DrawBoneType, VU1 micro 0x433 mc03b_DrawModel1
+worklog: 10, 17, 244, 549, 558, 613, 614
 ---
 
 # The CCSF Model chunk
@@ -140,16 +140,24 @@ GS ADC bit. Nothing culls back faces, and winding is not consistent across
 models. See [the draw path](../engine/render.md).
 
 After the mmats `ccBbox_SetBox(chunk+0x10, vmm, vertexScale)` (0x001388c0)
-stores the model's box: per axis the integer min and max over every vertex
-(starting at 0x10000 and -0x10000), first doubled about the centre for
-`mtype & 6`. With `unit = vertexScale / 4096`: min at +0x10, max at +0x20,
-each `int * unit`, and the centre at +0x30, `((min + max) >> 1) * unit`, w 1.
-`ccModel::Init` (0x0013a550) points `ccModel` +4 at it for a model without
-`mtype & 6` and leaves it null for a bone or skin model; `ccModel::Draw`
-culls by it (`_ccCheckBoundingBoxEx`) and keys the sorted group on its
-centre ([the desktop's draw order](../engine/desktop.md#draw-order)). The
-centre matches the game's decoder in eemu for all 41 models of `xdttopen0`
-and 138 of `xddesk01`.
+stores the model's box: per axis the integer extremes the decoders kept
+(starting at 0x10000 and -0x10000, `Decode_Model` 0x0014bddc), first
+doubled about the centre for `mtype & 6`. `Decode_Mmat01` (0x0014badc) and
+`DecodeShadowModel` (0x00140ab4) test a value against the least so far and
+only otherwise against the greatest, so a vertex that lowers the minimum
+never raises the maximum: the first vertex sets only minima. With `unit =
+vertexScale / 4096` (`div.s`): min at +0x10, max at +0x20, each `cvt.s.w`
+times `unit`, and the centre at +0x30, `((min + max) >> 1) * unit`, w 1
+(`piney_data::model::VertexBox`). Of 7,691 rigid models with mmats in
+Infection's `DATA.BIN`, 68 have a greatest corner other than the vertices'
+own maxima (`title1`-`3`'s among them). `ccModel::Init` (0x0013a550)
+points `ccModel` +4 at it for a model without `mtype & 6` and leaves it
+null for a bone or skin model; `ccModel::Draw` culls by it
+(`_ccCheckBoundingBoxEx`, which leaves VU0's `vf21` its matrix times the
+greatest corner, [the shadows](../engine/shadow.md)) and keys the sorted
+group on its centre ([the desktop's draw order](../engine/desktop.md#draw-order)).
+The centre matches the game's decoder in eemu for all 41 models of
+`xdttopen0` and 138 of `xddesk01`.
 
 ## Posing
 
@@ -170,6 +178,16 @@ slots:
   `i` of that list.
 - `ccModel::DrawBoneType` (`0x0013f860`) poses slot `i` by entry `i`, with
   no null test.
+
+**The packet.** `Decode_Mmat02` writes what VU1 unpacks (the codes on
+[the draw path](../engine/render.md#packets-for-a-bone-or-skin-model)): a
+bone vertex's position as three floats, its normal bytes with its strip
+flag, its ST; a skin entry's `weight * 16`, its slot's matrix address `20 +
+4 slot` and the entries left of its vertex (u16s), its position, its normal
+bytes with its vertex's strip flag (every entry of a vertex stores the same
+flag), then each vertex's ST. An ST half goes as `(S & 0xfff) << 4` (no
+stored ST reaches 0x1000). The port's `Model::body_words` and
+`model::body_st` are those words, word for word on every disc.
 
 **The skin blend.** `Decode_Mmat02` turns each stored position into floats
 in the packet: `sceVu0ITOF4Vector` of the s16 triple, then

@@ -225,7 +225,25 @@ class FieldHostAgainstGame(unittest.TestCase):
             write_fixture(t.name)
             got = open(t.name).read()
         with open(FIXTURE) as f:
-            self.assertEqual(f.read(), got)
+            want = f.read()
+        if volume.NAME == "infection":
+            self.assertEqual(want, got)
+            return
+        # From Mutation on ChangeScene stores the town as the server (MUT
+        # 0x0016756c) where Infection reads its table for a town of 0 or
+        # more: the same for every town play gives (0-4, docs/engine/
+        # toppage.md). The fixture's random towns differ only there.
+        want, got = want.splitlines(), got.splitlines()
+        self.assertEqual(len(want), len(got))
+        for w, g in zip(want, got):
+            if w == g:
+                continue
+            wa, ga = w.split(" -> "), g.split(" -> ")
+            self.assertEqual(wa[0], ga[0])
+            wo, go = wa[1].split(), ga[1].split()
+            server, town = int(go[7]), int(go[8])     # ccGame +0x1c, +0x20
+            self.assertTrue(w.startswith("scene ") and not 0 <= town <= 4, w)
+            self.assertEqual((wo[:7] + wo[8:], server), (go[:7] + go[8:], town), w)
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@
 title: The shadow volumes
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x00140920 DecodeShadowModel, 0x001400e0 SetShadowNormal2, 0x001403c0 SetShadowWork2, 0x001412b0 ccShadowModel::Draw, 0x0013f220 ccObj::Draw, 0x0013b5d8 ccObj::Init, 0x00141960 ccShadowPacket::SetShadowGSReg, 0x00141c80 TransFrameBuffer, 0x00142060 FillTexBuffer, 0x00142360 ccShadowPacket::TransShadowTex, 0x00142820 ccShadowPacket::FillShadowBuff, 0x00142b20 ccShadowPacket::SetShadowPacket, 0x00142e70 ccShadowPacket::SetShadowPacketAll, 0x00142ec0 ccShadowPacket::GetPacketList, 0x00142ff0 ccShadowPacket::AddPacket, 0x001430a0 ccShadowPacket::ccShadowPacket(short, ccView *), 0x00143150 ccShadowPacket::ccShadowPacket(ccShadowChunk *, ccView *), 0x001432f0 ccShadowPacket::SetBuffer, 0x0014c3e0 ccStream::Decode_Shadow, 0x0014e830 ccStream::DecodeF_Shadow, 0x00148400 ccStreamDrawLayerList::Draw, 0x001054d0 ccDrawEnv::Reset, 0x001a0d60 WORLD_MAN::GO (the packets), 0x001a21a0 WORLD_MAN::SetLightDirection, 0x00139240 ccDistantLight::GetDirc, 0x0013d760 ccClump::SetShadowSw, 0x001529e0 ccAnm::SetShadowSw, 0x002fb130 zureTbl, VU1 0x5d2-0x758 mc_DrawShadow1, mc_DrawShadow2, mc_DrawShadow3, mc_DrawShadowClip, mc_ScissorShadowPolyXY, mc_ScissorShadowPoly, VU0 0x000 mc0_CheckBoundingBoxShadow; INF gcmn.prg:0x005d0cf0 TOBJ::Draw (its packet)
-worklog: 160, 613
+covers: INF SLUS_202.67:0x00140920 DecodeShadowModel, 0x001400e0 SetShadowNormal2, 0x001403c0 SetShadowWork2, 0x001412b0 ccShadowModel::Draw, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x0013eab0 ccModel::Draw (its check), 0x0014badc Decode_Mmat01 (the box's extremes), 0x0013b5d8 ccObj::Init, 0x00141960 ccShadowPacket::SetShadowGSReg, 0x00141c80 TransFrameBuffer, 0x00142060 FillTexBuffer, 0x00142360 ccShadowPacket::TransShadowTex, 0x00142820 ccShadowPacket::FillShadowBuff, 0x00142b20 ccShadowPacket::SetShadowPacket, 0x00142e70 ccShadowPacket::SetShadowPacketAll, 0x00142ec0 ccShadowPacket::GetPacketList, 0x00142ff0 ccShadowPacket::AddPacket, 0x001430a0 ccShadowPacket::ccShadowPacket(short, ccView *), 0x00143150 ccShadowPacket::ccShadowPacket(ccShadowChunk *, ccView *), 0x001432f0 ccShadowPacket::SetBuffer, 0x0014c3e0 ccStream::Decode_Shadow, 0x0014e830 ccStream::DecodeF_Shadow, 0x00148400 ccStreamDrawLayerList::Draw, 0x001054d0 ccDrawEnv::Reset, 0x0013e9e0 _ccCheckBoundingBoxEx, 0x001388c0 ccBbox_SetBox, 0x00108260 ccLayer::Init (the view's bounds), 0x001a0d60 WORLD_MAN::GO (the packets), 0x001a21a0 WORLD_MAN::SetLightDirection, 0x00139240 ccDistantLight::GetDirc, 0x0013d760 ccClump::SetShadowSw, 0x001529e0 ccAnm::SetShadowSw, 0x002fb130 zureTbl, VU1 0x5d2-0x758 mc_DrawShadow1, mc_DrawShadow2, mc_DrawShadow3, mc_DrawShadowClip, mc_ScissorShadowPolyXY, mc_ScissorShadowPoly, VU0 0x000 mc0_CheckBoundingBoxShadow; INF gcmn.prg:0x005d0cf0 TOBJ::Draw (its packet)
+worklog: 160, 613, 614
 ---
 
 # The shadow volumes
@@ -138,10 +138,22 @@ translation dropped), `s` the model's vertex scale and `len` the length:
   likewise y.
 - The near point `B P (0, 0, max(near, 8), 1)`, `P` the view's +0x90; its
   w is the near distance and its Z always past what `ftoi4` holds.
-- `_ccCheckBoundingBoxEx` with `mc0_CheckBoundingBoxShadow`: the model's
-  box and the box moved by the stretch, culled when all its corners lie
-  beyond one side of the view's clip box. The moved corners are built
-  from `vf21`, which the program never sets: what the last check left.
+- `_ccCheckBoundingBoxEx` (0x0013e9e0) with `mc0_CheckBoundingBoxShadow`
+  (VU0 0x000), on `V W` (before `S`): 16 corners through the matrix, culled
+  (0) when for one side of the clip box (+0x1d0, +0x1e0: the clip with the
+  near and far w) none lies within, 1 when all lie within the guard box
+  (+0x1f0, +0x200: `ccLayer::Init`'s (0, 0, 0, 8) and (4095, 4095, 0,
+  far)), else 2. The first eight are the model's box (`ccModel` +4); the
+  program's first two `add` only touch w (`add.w vf21, vf19, vf20`), so the
+  other eight are built from the reach `L_local len` itself (the tip of the
+  model origin's shadow) and from `vf21`'s x, y, z as the object's
+  `ccObj::Draw` left it (below); the check leaves `vf21` its matrix times
+  its last corner.
+- The box: `DecodeShadowModel`'s extremes of the stored positions (from
+  0x10000 and -0x10000, `Decode_Model` 0x0014bddc; a value below the least
+  so far is not also tried as the greatest, 0x00140ab4, so the first
+  vertex never sets a maximum) through `ccBbox_SetBox` (`cvt.s.w` times
+  `scale / 4096`).
 - The GS registers by mode, swapped when the world matrix mirrors
   (`(col0 x col1) . col2 < 0`):
 
@@ -157,28 +169,99 @@ translation dropped), `s` the model's vertex scale and `len` the length:
   mc_DrawShadow1`, then the model's stream by REF, the packet given to
   `AddPacket(alpha)`.
 
-The programs:
+The programs, in VU1's arithmetic (every lane through the EE's FPU model,
+a multiply-add rounding its product first; `piney_data::vu1`):
 
-- `mc_DrawShadow1` (VU1 0x5d2) loads the registers and ends; `MSCNT` runs
-  its tail after the directions arrive: each direction's flag (its w) is
-  0x80 when `(L.x n.x + L.z n.z) + L.y n.y < 0` (it faces the light), else
-  0.
-- `mc_DrawShadow2` (0x5ef): each triangle, its three vertices moved by `e`
-  when its direction does not face the light (the far cap; the lit faces
-  stay, the near cap), transformed by `M`, divided. Wound clockwise on
-  screen (the cross product negative): the first colour and ALPHA, else
-  the second.
-- `mc_DrawShadow3` (0x641): each edge whose two faces' flags differ (the
-  silhouette): the quad `(a, b, a + e, b + e)` as a strip, `a`, `b` in the
-  order the lit face runs them (swapped when the first face is the unlit
-  one). Its first triangle's winding picks the registers.
-- A face or quad with a vertex outside the guard band goes through
-  `mc_DrawShadowClip` (0x6a7): cut at the near plane's w into the part in
-  front and the part behind, the behind part's vertices put on the plane
-  (their x and y kept, the near point's Z and w: the near cap the camera
-  sees when it is inside the volume); each part through
+- `mc_DrawShadow1` (VU1 0x5d2) loads the registers, copies the fan's two
+  tags to 0x203, 0x204 and 0x207, and ends; `MSCNT` runs its tail after the
+  directions arrive: each direction's flag (its w) is 0x80 when `(L.x n.x
+  + L.z n.z) + (0 + L.y n.y)` is negative (its sign bit: it faces the
+  light), else 0. The software pipeline stores three flags below the
+  directions first: 0x20f's is the MAC flag the last program left, 0x210's
+  the sign of that program's `vf18.x + vf18.y`, 0x211's the test on the
+  fan's tag (0x18d) taken as floats.
+- `mc_DrawShadow2` (0x5ef): each triangle of a batch of 24, its three
+  vertices (`ITOF12`, w 1) moved by `e` when its face's flag is 0 (the far
+  cap; the lit faces stay, the near cap), times `M`, divided (`DIV Q`,
+  `MULQ.xyz`), `FTOI4`; `(v1 - v0) x (v2 - v0)` of the divided x, y
+  negative (wound clockwise on screen): the first colour and ALPHA, else
+  the second. The kick holds every triangle: its five qwords, the first two
+  vertices' w 0, the third's 0x7f80, or 0x8000 (ADC) when it goes through
+  the clip path.
+- `mc_DrawShadow3` (0x641): each edge of a batch of 24 whose two faces'
+  flags differ (the silhouette): `(a, b, a + e, b + e)` when the first
+  face is lit, `(b, a, b + e, a + e)` when not, as a strip (the first two
+  vertices' ADC set, the last two 0x7f80 or 0x8000); the tag's NLOOP counts
+  the quads. Its first triangle's winding picks the registers.
+- **The path.** A polygon with a vertex outside the guard band (x or y
+  below 0 or above 4095.75, w below near or above far) takes the clip path:
+  `FSSET 0` clears the status flag's sticky bits, the six (eight)
+  `SUBA.xyw` against vf07 and vf08 follow, and `FSAND 0x80` reads the
+  sticky sign four pairs after the last. Every flag the shadow, model and
+  box programs test (`FMAND`, `FSAND`) stands exactly four pairs after the
+  instruction it tests (the status flag's non-sticky sign at 0x0e1 and
+  0x128 too), so the flags land at the end of the FMAC's four stages; the
+  `FSSET` sits in the pair before the first subtraction in both programs,
+  which only isolates them if its write lands among those of the FMAC in
+  issue order. So only the guard band's subtractions reach the test:
+  earlier operations (the next vertex's transform, the screen edges, the
+  cross product) do not, and a polygon inside the guard band is drawn
+  directly, its vertices held where Z passes what `FTOI4` gives.
+- The queued polygons (raw, before the divide; a quad as `a, b, b + e, a +
+  e`) go through `mc_DrawShadowClip` (0x6a7): cut at the near plane's w
+  into the part in front and the part behind (at 0x1ed and 0x1f3), the
+  behind part's vertices put on the plane (x and y kept, the near point's
+  z and w: the near cap the camera sees when it is inside the volume), a
+  crossing made from the vertex in front toward the one behind (`d =
+  behind - front`, `front + d (near.w - front.w) / d.w`); each part through
   `mc_ScissorShadowPolyXY` (0x6e2): its winding from its first three
-  vertices, clipped in homogeneous space to the buffer, sent as a TRIFAN.
+  vertices divided, a kick of 0x203 (the fan's tag, 0x204 and the colour
+  0x205 as the last polygon left it) before the colour and ALPHA are
+  written to 0x205 and 0x206, then cut to the scissor in homogeneous space
+  (x low, x high, y low, y high; `mc_ScissorShadowPoly`, the buffers taking
+  turns at 0x208 and 0x1f9, a vertex out when `bound.lane v.w - v.lane
+  bound.w` is negative, a crossing from the vertex in), divided, `FTOI4`,
+  each vertex's w 0x8001 counting down (ADC on the first two), and kicked
+  from 0x204 as a TRIFAN.
+
+An open edge's second face is read from VU1 memory below the directions,
+`0x211 - face`. The four in `DATA.BIN` are `e4w1`'s, faces 8 and 10: 0x207
+holds the fan tag's w (0: unlit) and 0x209 what the last clipped polygon
+left there (a fan's second vertex, w 0x8000, which matches no flag; or a
+scissor pass's float w when the polygon was cut away whole).
+
+## vf21 before the check
+
+The only EE code that writes `vf21` is `ccCoord::_SetLWMatrix`
+(0x00138380); the only VU0 programs are the two box checks. `ccObj::Draw`
+(0x0013f220) runs, in order, before its shadow model:
+
+- `_SetLWMatrix` when the object has a parent (+0x80; else
+  `sceVu0CopyMatrix`, no VU0). It pushes each coord of the chain on VU0's
+  stack as `qmtc2` of `$a0` (the pointer, its sign, `$a0`'s upper 64 bits)
+  and leaves `vf21` the qword above the topmost changed coord (+0x8d): vf0
+  when that is the root, else its parent's. `ccAnm::SetAnm` hangs every
+  entry from its parent slot's object or the anm, and every stream node
+  hangs from a node or its clump's coordinate, so an object drawn by
+  either always has a parent.
+- `ccModel::Draw` (0x0013eab0) when the model is drawn (+0x94, +0xa2 3, its
+  transparency above 1/128): a rigid model with mmats (+0x22) is checked
+  against its box (`mc0_CheckBoundingBox`), which leaves `vf21` the matrix
+  (`world_screen` times the object's world) times the box's greatest
+  corner, culled or not. A bone or skin model has no box; its
+  `DrawBoneType` runs `_SetLWMatrix` per bone.
+
+Every shadow owner in `DATA.BIN` has a model: 2,582 an empty placeholder
+(0 mmats), 609 a rigid one. The stack's qword is a heap address over the
+drawing thread's `$a0` upper half: in `ee_run` (Outbreak, the event-218
+save, 7,200 frames) every one of 65,566 such checks read x a `ccCoord`'s
+address (0x00a9xxxx to 0x0159xxxx), y 0 and z, w 0 in the event's thread,
+where no instruction but `_SetLWMatrix`'s own `qmfc2 $a0, $vf20` touched
+the upper half, or, in the field's, z the ground attribute `setNearest`
+(OUT main 0x00152c70) last copied with `lq $a0` (hitResult +0x48,
+0x20004f8f). Run through `mc0_CheckBoundingBoxShadow` in `tools/vu.py`,
+each gives the same result with x and z 0. Of the 3,367 checks after a
+rigid model's own, 3,243 give another with `vf21` 0.
 
 ## A frame's packet (`SetShadowPacket`, 0x00142b20)
 
@@ -255,25 +338,43 @@ and `str7110`-`7112` (225 `F_Shadow` records each) and `str0090`, `0110`,
 
 ```
 piney_data::shadow         ShadowMesh::build: DecodeShadowModel
-piney_desktop::shadow      volume: ccShadowModel::Draw and the VU1
-                           programs; ShadowPacket (GetPacketList,
-                           SetShadowPacket's pass), Shadows (the draw
-                           environment and GO's packets, cast, the frame's
-                           passes)
+piney_data::vu1            VU1's arithmetic: ITOF12, FTOI4, the divide, the
+                           MAC flag's sign
+piney_desktop::shadow      draw (draw.rs): ccShadowModel::Draw to a Setup
+                           (the matrices, the box check, Mode and the two
+                           Blends); kicks (vu1.rs): VU1's programs to Kicks
+                           (Triangles, Quads, FanTag, Fan of Xyz2s), with
+                           Vu1Carry what a draw leaves the next; gif.rs:
+                           Kick::words, the GIF packet word for word, and
+                           gs_triangles, what the GS draws of it;
+                           ShadowPacket (GetPacketList, SetShadowPacket's
+                           pass: VU1 runs the volumes in the GS's order),
+                           Shadows (the draw environment, GO's packets,
+                           cast, the frame's passes, VU0's vf21 and the
+                           Vu1Carry kept); Vf21 (Known, Chain) and
+                           Prelude, what the owner's ccObj::Draw leaves
 piney_desktop::layers      Layers::shadows; flatten puts each pass on its
                            layer
-piney_draw                 Cmd::Shadow(ShadowPass)
+piney_draw                 Cmd::Shadow(ShadowPass), ShadowTri::pixels (the
+                           GS's pixels and Z, exactly)
 piney_gs::shadow           the pass on the GPU: the Z copy, the counts
                            (R16Float, additive), the alpha, the composite
-piney_desktop::soft        the same on the CPU
+piney_desktop::soft        the same on the CPU, exactly
 piney_world::draw          go_shadows (GO's packets from the area's distant
                            light), char_shadow / shadow_env (ccChar::Draw's
                            alpha and length), cast_shadows (ccObj::Draw's
-                           half)
+                           half, its Prelude: a parent, the model's box
+                           checked above 1/128)
 piney_stream               file (Shadow chunks, shadow layers), scene
                            (SceneShadow, F_Shadow, each node's packet),
                            draw (the stream's packets and casts)
 ```
+
+The GS's pixels as the repo models them: a pixel whose top-left corner
+lies inside a triangle (x, y in sixteenths), or on a top or a left edge of
+it, so that two triangles sharing an edge never both take a pixel on it;
+its Z the plane through the three vertices there, truncated, compared
+unsigned (ZTST GREATER).
 
 ## Checks
 
@@ -287,20 +388,31 @@ piney_stream               file (Shadow chunks, shadow layers), scene
   match, on every disc.
 - `VolumeAgainstGame` runs `ccShadowModel::Draw` in eemu (a real
   `ccView` from `SetFrame` and a camera, random world matrices - turned,
-  tilted, now and then mirrored - lights, lengths and buffer sizes, the
-  decoded stream), its packet through a VIF1 model into `tools/vu.py`'s VU1
-  (the MAC flag four pairs late, the status flag's sticky bits), and reads
-  each `XGKICK` as the GS takes it; `shadow_volume_probe` gives the port's
-  polygons. Both are counted into the buffer (+1 add, -1 subtract, against
-  a flat Z of 0 and of the draw's median) and compared pixel by pixel: 300
-  draws, 600 comparisons. This comparison is not exact: `shadow::volume`
-  works in the host's floats (glam), not in VU1's arithmetic, and on
-  Infection 183 of the 600 differ by one to six pixels (175 on Mutation),
-  besides where the port saturates Z per pixel and the game's direct path
-  per vertex. The check allows 8 pixels or 1% of a draw, and 1% of the
-  draws past that. Making it exact means porting `ccShadowModel::Draw`'s
-  matrices and `mc_DrawShadow1`-`3` and `mc_DrawShadowClip` (VU1
-  0x5d2-0x758) in the EE's and VU's arithmetic.
+  tilted, now and then mirrored, one in eight looking away - lights,
+  lengths and buffer sizes, the decoded stream, the box from the game's
+  `ccBbox_SetBox`), its box check through `mc0_CheckBoundingBoxShadow` in
+  `tools/vu.py`'s VU0 and its packet through a VIF1 model into its VU1,
+  both VUs kept from one draw to the next, the flags four pairs late
+  (`FSSET` among them in order); each `XGKICK`'s GIF packet is read when
+  kicked. `shadow_volume_probe` runs the port on the same draws, carrying
+  its VU0 `vf21` and VU1 memory. Compared exactly: the box, whether the
+  check lets the draw on and `vf21` after it, every word of every kick, and
+  every pixel of the buffer each side's GS model counts (+1 add, -1
+  subtract, against a flat Z of 0 and of the draw's median). 300 random
+  draws and eight of the one model with open edges (`e4w1`): on Infection
+  308 draws, 10 culled, 444 clipped polygons, 246,116 kicked words and
+  29,753,344 pixels the same; on each later disc 8 culled, 429 clipped,
+  about 238,000 words and 29,851,648 pixels.
+
+- `OwnerAgainstGame` runs `ccObj::Draw` itself in eemu (a VU0 machine
+  with VU0's integer registers and stack): an object under a parent, its
+  `_SetLWMatrix`, its model's `ccModel::Draw` up to the check
+  (`ccSetMatrixPacket` refused, so nothing is drawn), then its shadow,
+  `vf21` one register between the EE's macro code and the VU0 program.
+  Ninety draws, a third each with the model seen, empty and faded: seen,
+  `vf21` the check's corner word for word; else the stack's qword (the
+  parent's address, 0); every box, check and kicked word the same as the
+  port's Prelude gives.
 
 `piney-gs`'s `shadows_darken_where_a_volume_meets_the_floor` renders a
 pass over a floor on the GPU; piney-desktop's `groups_by_alpha_descending`
@@ -311,15 +423,20 @@ Anu and checks the pass and the CPU GS's darkened ground. `stream_shot
 
 ## Unknown
 
-- Which path (direct or clipped) a volume's polygon takes on the console:
-  the status flag's sticky sign is set by the guard band's subtractions
-  and, four pairs late, by earlier operations. The two paths draw the same
-  pixels except where a vertex's Z passes 0x7fffffff (the direct path
-  holds the vertex, the clipped path the pixel); the port takes the second.
-- `mc0_CheckBoundingBoxShadow`'s moved corners read a register the program
-  never sets; the port tests the box and the box moved by the stretch.
-- An open edge's second face's flag is read from VU1 memory below the
-  directions (`0x211 - face`); the port takes it as unlit.
+- The stack's qword's bits (a `ccCoord`'s heap address and `$a0`'s upper
+  half) the port does not have: it reads x, y, z as 0. By the EE's adder
+  (exact, then truncated) a tiny x or z moves a corner by at most one step
+  of its last bit, so the check's result differs only on a corner within
+  one step of a bound; none of the 65,566 in `ee_run` does.
+- VU1 0x209 before a pass, which `e4w1`'s open edge on face 8 reads (and
+  0x20f, 0x210: the MAC flag and `vf18` the last program left, read by no
+  model). The shadow pass runs no other program, so it is what the
+  frame's model batches left: a rigid batch in buffer A (TOPS 0xec) of 21
+  vertices or more writes vertex 20's XYZ2 there, w its ADC word
+  (`mc_DrawTri*` output from TOPS + 0xc9, four qwords a vertex); a bone
+  batch of 81 or more at 0x118 vertex 80's position, w the row's 1.0;
+  the scissor and effect programs their buffers. The port draws models on
+  the GPU without VU1's memory, so it carries what the last pass left.
 - Modes 2 (front faces into red, back into green, both added) and 3 (the
   model flat, front faces opaque) are never made in Infection; their
   `SetShadowPacket` path (`FillTexBuffer`, the Z copy, `TransShadowTex(0)`)

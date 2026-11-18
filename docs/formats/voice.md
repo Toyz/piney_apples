@@ -3,7 +3,7 @@ title: Voice, streamed music and cutscene PCM
 status: partial
 volumes: INF
 covers: INF VOICE/*.BIN, INF VOICE_E/*.BIN, INF VOICE/BGM.BIN, INF STREAM/*.BIN Pcm chunks; INF SLUS_202.67:0x0017e810 ccEvVoiceRequest, 0x0017ec30 ccMesVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x00183d00 sewordCmd, 0x0033cff0 evVoiceDataVol1M, 0x0033d0c0 evVoiceDataVol1S, 0x0033e670 evVoiceDataVol1ME, 0x0033e740 evVoiceDataVol1SE, 0x0017e6e0 wavPlay; INF MODULES/SEWORDS.IRX:0x0290 bgmFunc, 0x2c74 wordPlay, 0x15e0 BgmPreLoad, 0x1b20 BgmStart, 0x1fb4 _BgmPlay, 0x0af0 _BgmRaw2SpuMono, 0x29dc loopEnd, 0x33e8 bgmPlay; INF SLUS_202.67:0x0017e350 skillVoicePlay, 0x0014ddb0 ccStream::Decode_Pcm; IOPRP243.IMG CDVDMAN:0x1414 cdrom read, 0x1378 its stream read, 0x62d8 the blocking stream copy, 0x65b0 the stream dispatcher; IOPRP243.IMG IOMAN:0x053c read
-worklog: 14, 245, 335
+worklog: 14, 245, 335, 614
 ---
 
 # Voice, streamed music and cutscene PCM
@@ -221,7 +221,31 @@ against the game's own `ccEvVoiceRequest`, `ccEvVoiceStop` and
 modes (`tools/sound_ee.py voice-fixture`); the stream against SEWORDS.IRX
 itself run in `tools/eemu.py` over 115 lines, event 1's six among them
 (`tools/iopemu.py voice-fixture`); the decoded lines against
-`tools/sound.py` (`tools/test_sound_rs.py`).
+`tools/sound.py` (`tools/test_sound_rs.py`). `tools/sound.py` names a
+volume's voice files from its own code (`load_voices`: the Spc tables,
+`ccVoiceRequest`'s and `ccVoicePgFood`'s cases by the `voiceFile` each
+stores, the event tables) and reads a later stream's Pcm by voice
+language; `tools/test_sound_rt.py` checks both on every disc, and that the
+lines the code reaches tile each file. A table runs to the next one; Mia's
+English (`MIAE.BIN`, from Mutation on) is the rows her alternatives reach
+(`ccVoiceRequest`'s `slti` bounds and the `addiu` after the `talkNum`
+call: rows 0-9 of `inu0VoiceTblE` + 0x20, as the sidecar names it); an
+event's rows are those of its messages (`evMsgTbl`, Parody Mode's
+`evMsgTblp`), since `ccEvVoiceRequest(event, msg)` asks for row `msg`
+(Outbreak's English side event 266 and Quarantine's 361 are one row in
+`.sdata`, the words after it other data). The later discs' files hold lines
+no reachable row names, each from a sector's start:
+
+| disc | file | at | why |
+| --- | --- | --- | --- |
+| MUT | `EVVOL2`, `EVVOL2_E` | 0x170800, 0x11e000 | event 101 msg 2's row is -1 |
+| OUT | `EVVOL3`, `EVVOL3_E` | 0x11d0000, 0xe91800 | event 204 msg 2's row is -1 |
+| OUT, QUA | `EVVOL3S` | 0x3f83800 | between side events 262 and 263, no row |
+| QUA | `EVVOL4S` | 0x1371000 | side event 355's row 25, past its 25 messages |
+| QUA | `EVVOL4_E` | 0x5421000 | event 315's row 27 plays 0x4cf9000, event 314's |
+
+Lines tiled: Infection 8,208, Mutation 8,212, Outbreak 8,726, Quarantine
+9,421.
 
 ## Unknown
 
@@ -233,3 +257,6 @@ itself run in `tools/eemu.py` over 115 lines, event 1's six among them
 - How long the disc takes before a line's first sample.
 - Whether a Recovery Drink used by Kite on Quarantine does stop channel 0
   as the code says (above); not run on a console or an emulator.
+- The Mutation-on `.syms` sidecars name `fidhellVoiceTbl`'s two tables
+  `inu0VoiceTbl` and `inu0VoiceTblE` (`ccVoiceRequest`'s BOSSTALK case
+  loads them; its INU case loads the real `inu0` tables elsewhere).

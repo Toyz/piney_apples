@@ -454,38 +454,18 @@ impl Canvas {
                 ((x.floor() as i64).clamp(0, self.w as i64 - 1), (y.floor() as i64).clamp(0, self.h as i64 - 1));
             y as usize * self.w + x as usize
         };
-        let zb: Vec<f32> =
-            (0..w * h).map(|i| self.z[at(x0 + (i % w) as f32 * sx, y0 + (i / w) as f32 * sy)] as f32).collect();
+        let zb: Vec<u32> = (0..w * h).map(|i| self.z[at(x0 + (i % w) as f32 * sx, y0 + (i / w) as f32 * sy)]).collect();
         let (mut alpha, mut count) = (vec![0u8; w * h], vec![0i32; w * h]);
         for g in s.groups.iter().rev() {
             count.fill(0);
-            for p in &g.polys {
-                let sign = if p.add { 1 } else { -1 };
-                for k in 2..p.verts.len() {
-                    let (a, b, c) = (p.verts[0], p.verts[k - 1], p.verts[k]);
-                    let area = (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
-                    if area == 0.0 || !area.is_finite() {
-                        continue;
+            for t in &g.tris {
+                let sign = if t.add { 1 } else { -1 };
+                // ZTST GREATER against the copy of the frame's Z.
+                t.pixels(w, h, |x, y, z| {
+                    if z > zb[y * w + x] {
+                        count[y * w + x] += sign;
                     }
-                    let lo = |i: usize| a[i].min(b[i]).min(c[i]).ceil().max(0.0) as usize;
-                    let hi = |i: usize, n: usize| a[i].max(b[i]).max(c[i]).ceil().clamp(0.0, n as f32) as usize;
-                    for py in lo(1)..hi(1, h) {
-                        for px in lo(0)..hi(0, w) {
-                            let (fx, fy) = (px as f32, py as f32);
-                            let w0 = ((b[0] - fx) * (c[1] - fy) - (c[0] - fx) * (b[1] - fy)) / area;
-                            let w1 = ((c[0] - fx) * (a[1] - fy) - (a[0] - fx) * (c[1] - fy)) / area;
-                            let w2 = 1.0 - w0 - w1;
-                            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
-                                continue;
-                            }
-                            // VU1's ftoi4 holds Z at 0x7fffffff.
-                            let z = (w0 * a[2] + w1 * b[2] + w2 * c[2]).min(2_147_483_647.0);
-                            if z > zb[py * w + px] {
-                                count[py * w + px] += sign;
-                            }
-                        }
-                    }
-                }
+                });
             }
             for (a, &n) in alpha.iter_mut().zip(&count) {
                 if n > 0 {
@@ -601,7 +581,11 @@ impl Canvas {
             let texw = tex.as_ref().map_or((1.0, 1.0), |i| (i.w as f32, i.h as f32));
             let verts: Vec<Option<V>> = (0..mm.positions.len())
                 .map(|i| {
-                    let p = model.position(positions[i]);
+                    // Bone positions as Decode_Mmat02 sends them.
+                    let p = match mm.kind {
+                        piney_data::model::Kind::Bone => model.body_position(positions[i]),
+                        _ => model.position(positions[i]),
+                    };
                     let q: Vec4 = to_screen * p.extend(1.0);
                     if q.w <= 0.0 {
                         return None;
