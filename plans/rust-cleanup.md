@@ -280,7 +280,9 @@ Where the code does by hand, per kind, what a system should do once:
       history's values (`HEAP_EXIT`, `BOSS08_HEAP_EXIT`, `PARTY_VA`). One
       heap model on the carry's heap lifetime, fed by every allocation and
       free the game makes, in its order and sizes, so every such read is
-      the game's for any history. After the carry system.
+      the game's for any history. After the carry system. It also settles
+      the shadow box check's vf21 (worklog 614): `_SetLWMatrix` leaves a
+      ccCoord's heap address there, which the port reads as 0.
 - [ ] **A placement (entry) system.** Who stands where for an event is
       decided in several places (`event/entry.rs`, the town's
       `place_entries`, `Combat::start_entries`' `EnterNpc`, the merchants'
