@@ -1,9 +1,9 @@
 ---
 title: The event interpreter
 status: partial
-volumes: INF
-covers: INF SLUS_202.67:0x001b5a60 ccThEvent, 0x001b5230 ccStartThEvent, 0x001b52c0 ccEnableThEvent, 0x001b5360 ccDisableThEvent, 0x001b5380 ccStartEvent, 0x001b55f0 ccStartEventConvert, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001a7400 ccEvent::CheckOpen, 0x001a7120 CheckCurrentOpen, 0x001a6ec0 SetCurrentOpen, 0x001a8d20 ccEvent::Execute, 0x001a6ca0 ccEvent::Init, 0x001b32f0 CheckOperate, 0x001b33d0 AddOperate, 0x001b34a0 DelOperate, 0x001b27b0 DispInfo, 0x00177730 ccSaveData::AddItem, 0x00177af0 DelItem, 0x00177590 ccAddSkill, 0x00177eb0 AddFriendship, 0x00178160 SetGateList, 0x00178480 SetAreaBan, 0x00178570 ClearAreaBan, 0x00178af0 NewMail, 0x00178b80 ReadNewMail, 0x00307140 addItemCategoryTbl, 0x00307180 the friendship caps, 0x00168960 ccSetupGameCtrl (its event passes), 0x00167380 ccGame::ChangeScene, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x00160400 ccScFade::EntryFade, 0x00160490 ContinueFade, 0x0015fb80 SendPacket, 0x00315120 eventAreaInfo, 0x001a29a0 WORLD_MAN::GetWordParamFromEvCode, 0x00311790-0x00314c10 word_a1-word_c4, 0x001b1c00 fade, 0x001b1c60 fade_more, 0x001b04b8 area, 0x001b01d8 scene, 0x001af440 member_add_msg, 0x001af980 gate_add_msg, 0x001aff34 desktop_item, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0015f860 ccKanjiStrSeparate, 0x00377e5c serverStr, 0x00377e0c getItemMenuStr, 0x00378150 bookItemAddMsg, 0x00387840 spcNameList, 0x00168320 ccSetupDesktop (its passes, its return on a mode change, SetFrameRate); INF SLUS_202.67:0x001b0c1c ccEvent::Execute's piros_colour, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x0056b1c0 ccChar::Draw
-worklog: 18, 24, 40, 325, 329, 355, 489, 497, 589
+volumes: INF, MUT, OUT, QUA
+covers: INF SLUS_202.67:0x001b5a60 ccThEvent, 0x001b5230 ccStartThEvent, 0x001b52c0 ccEnableThEvent, 0x001b5360 ccDisableThEvent, 0x001b5380 ccStartEvent, 0x001b55f0 ccStartEventConvert, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001a7400 ccEvent::CheckOpen, 0x001a7120 CheckCurrentOpen, 0x001a6ec0 SetCurrentOpen, 0x001a8d20 ccEvent::Execute, 0x001a6ca0 ccEvent::Init, 0x001b32f0 CheckOperate, 0x001b33d0 AddOperate, 0x001b34a0 DelOperate, 0x001b27b0 DispInfo, 0x00177730 ccSaveData::AddItem, 0x00177af0 DelItem, 0x00177590 ccAddSkill, 0x00177eb0 AddFriendship, 0x00178160 SetGateList, 0x00178480 SetAreaBan, 0x00178570 ClearAreaBan, 0x00178af0 NewMail, 0x00178b80 ReadNewMail, 0x00307140 addItemCategoryTbl, 0x00307180 the friendship caps, 0x00168960 ccSetupGameCtrl (its event passes), 0x00167380 ccGame::ChangeScene, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x00160400 ccScFade::EntryFade, 0x00160490 ContinueFade, 0x0015fb80 SendPacket, 0x00315120 eventAreaInfo, 0x001a29a0 WORLD_MAN::GetWordParamFromEvCode, 0x00311790-0x00314c10 word_a1-word_c4, 0x001b1c00 fade, 0x001b1c60 fade_more, 0x001b04b8 area, 0x001b01d8 scene, 0x001af440 member_add_msg, 0x001af980 gate_add_msg, 0x001aff34 desktop_item, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0015f860 ccKanjiStrSeparate, 0x00377e5c serverStr, 0x00377e0c getItemMenuStr, 0x00378150 bookItemAddMsg, 0x00387840 spcNameList, 0x00168320 ccSetupDesktop (its passes, its return on a mode change, SetFrameRate); INF SLUS_202.67:0x001b0c1c ccEvent::Execute's piros_colour, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x0056b1c0 ccChar::Draw; MUT SLUS_205.62:0x00167d94 ccThMother's ccStartEvent, 0x001ca9d0 ccStartEvent, 0x001cac50 ccStartEventConvert, 0x001c7438 name_entry, 0x001c77a8 grunty_mail, 0x00171c00 LoadDataPrevReq, 0x001b1fe0 WORLD_MAN::GetEventAreaInfo; MUT gcmn.prg:0x0052d310 ccPgAdultCheck; OUT SLUS_205.63:0x0016701c ccThMother's ccStartEvent, 0x001c1060 ccStartEvent, 0x001c12f0 ccStartEventConvert, 0x001bd8e0 name_entry; QUA SLUS_205.64:0x00166eac ccThMother's ccStartEvent, 0x001c86e0 ccStartEvent, 0x001c8970 ccStartEventConvert, 0x001c4ed0 name_entry
+worklog: 18, 24, 40, 325, 329, 355, 489, 497, 589, 615
 ---
 
 # The event interpreter
@@ -140,7 +140,7 @@ replay runs every block whatever its conditions and bits.
 ## Boot, modes and the task
 
 ```
-ccThMother: ccSaveData::Init(1); ccEvent::Init; ccStartEvent(1, 0); ChangeRequest(2, 7)
+ccThMother: ccSaveData::Init(1); ccEvent::Init; ccStartEvent(volumeNum, 0); ChangeRequest(2, 7)
 
 ccStartEvent(vol, flag)                                 0x001b5380
   clearFlag += vol - 1
@@ -364,6 +364,52 @@ and 4 add nothing. On the desktop, trying any other operation plays block
 1 (message 0 on the desktop, repeatable); once mails 4 and 5 are read
 (state 4 or more) block 2 releases the operations, posts 53 board messages
 and closes event 1, which the next mode change makes done.
+
+### Each volume's new game
+
+Every disc's title has New Game, and from Mutation on CONVERT too: the
+previous volume's cleared save carried over. Both start from the same
+boot. `ccThMother` calls `ccStartEvent(volumeNum, 0)` (INF main
+0x00167c14, MUT 0x00167d94, OUT 0x0016701c, QUA 0x00166eac). On a later
+volume it replays the earlier main stories (0-49, 100-149, 200-249) at
+level 1. It marks their ends done (events 62, 163, 263), counts
+`clearFlag` up to `volumeNum - 1` and marks event `100 * (volumeNum - 1)`
+done (MUT 0x001ca9d0). The replay's `gate_add`, `gate_mark` and
+`virus_core` read the story areas (`GetEventAreaInfo`): the gate lists,
+words and protect items they leave.
+
+- **New Game**: `NewGame(1)`, then `NewGame(0)` ([the title](title.md)).
+- **CONVERT**: `NewGame(1)`; `LoadDataPrevReq` overwrites the record with
+  the previous volume's slot (on Mutation the extension stays
+  `NewGame(1)`'s); `ccStartEventConvert` marks event
+  `100 * (volumeNum - 1)` done again (MUT 0x001cac50); `ConvGame`
+  ([the save](../formats/save.md#carrying-a-save-forward)).
+
+`ChangeRequest(3, 7)` then sets up the desktop. The opening is the
+volume's first main event, whose header waits on that event: 1, 101, 201
+or 301. It plays in the setup's pass at phase 0, from five frames in on
+the later discs:
+
+| volume | opening | its pass | then |
+| --- | --- | --- | --- |
+| INF | event 1 (`eventTblM101` 0x00317ec0) | setup lines, name entry, mails 4, 5, 320 | every operation but the mailer held until mails 4 and 5 are read; block 2 releases them and closes the event |
+| MUT | event 101 (`eventTblM201` 0x003360a0) | name entry, streams 23 and 24, mail 374, `grunty_mail`, mail 25; block 10 etc. mail a saved member | nothing held; the event goes on in Dun Loireag and the field |
+| OUT | event 201 (`eventTblM301` 0x003340b0) | name entry, streams 52 and 53, mails 48 and 323 | operation 0 held (block 1, while `eventStatus[0]` is 0); news 19 read releases it (block 2) |
+| QUA | event 301 (`eventTblM401` 0x002306d0) | news 59, 60, 27; name entry, streams 77 and 78, mails 74, 75, 372 | every operation but the mailer held; mail 74 read opens the Omega server (block 3), 74 and 75 release them (block 4) |
+
+`grunty_mail` (case 168, MUT main 0x001c77a8) delivers mail 324 unless
+`mailList[324]` is set, once some town 1-4 has a grown Grunty in each of
+its three pens (`ccPgAdultCheck`, MUT gcmn 0x0052d310). GCMN.PRG is in by
+then: the opening's `overlay 3`. Name entry returns at once on a
+converted save (`newGameFlag` 2).
+
+A carried save opens more on its first desktop:
+- on Mutation, the user's cleared Infection save also gets mail 324 (its
+  pens) and mail 30 (event 101's block 10: Natsume saved);
+- on Outbreak, events 159-161 (opened by Infection's 58, 60 and 61 and
+  Mutation's 103 and 108) send mails 119-121 before the opening's own,
+  since `ccThEvent` runs the side events (150-199) before the volume's
+  main story.
 
 ### Announcements
 
@@ -628,11 +674,12 @@ lessons, menus 78 and 79, messages 30-56, ending with the party's leave
 **From a new game's save** (`piney-game --mode world`) the task is built
 as a new game brings it to Log in: the boot's `ccStartEvent(volumeNum, 0)`
 on `ccSaveData::Init`'s save, before the title's `NewGame` (it writes the
-save with or without the task kept, `--no-events`); the
-desktop's passes and play (event 1's opening) until mails 4 and 5 are read
-and event 1 closes itself; the board's `ccStartThEvent` (event 1 done) and
-passes; Log in's `ChangeRequest`. Every window and wait answers at once
-there.
+save with or without the task kept, `--no-events`); the desktop's passes
+and play until the volume's opening gives the operations back, the player
+reading what its releasing block waits for (`world::opening_reads`: mails
+4 and 5 on Infection, news 19 on Outbreak, mails 74 and 75 on Quarantine,
+nothing on Mutation); the board's `ccStartThEvent` and passes; Log in's
+`ChangeRequest`. Every window and wait answers at once there.
 
 ## Checks
 
@@ -651,6 +698,26 @@ compares the port with it, reading the scripts from the disc:
 | `eventSub(n)` at level 2 | every script, 3 worlds (576) | frames, every save byte |
 | every block played at level 2 with `Execute` | 2616 blocks, 169,146 frames | frames per block, the save, the registers |
 | a new game to the desktop and into play | 152 frames | the phase each frame, every hooked call and its frame, the save three times |
+| each disc's opening (`openings`) | New Game on all four, CONVERT on MUT, OUT, QUA | the start's hash, the phase each frame, every hooked call and `CheckOperate` answer, the slot three times |
+
+Each disc's opening: `test_event_vm.py`'s `test_new_game_desktop` runs
+the disc's boot, the title's New Game (DEMO.PRG in) and the desktop with
+GCMN.PRG in, and checks the opening's mails, `CheckOperate`'s answers, its
+blocks and closing against what its script says (`OPENINGS`, script
+addresses cited). `test_convert_desktop` does the same through CONVERT.
+On Mutation the save is the user's cleared Infection save (`work/
+savecards`, not in the repository), as Infection's own code writes it
+again: its 0x8d84-byte file's sum refuses it in Mutation's load (0x203f).
+Outbreak and Quarantine take it on through each earlier disc's own code:
+its boot and CONVERT, then `ccStartEvent(volumeNum + 1, 0)` to bring its
+story forward. `test_event_vm.py openings` writes the numbers:
+`crates/piney-game/tests/opening_fixture*.txt` for New Game, and
+`work/analysis/openings/convert_*.txt` for CONVERT, which holds the
+loaded save. `desktop::openings::openings_match_the_game` builds the
+start with the port's boot (`desktop::boot_with`), `new_game` or
+`start_event_convert` and `conv_game`, and plays it through the Bridge
+(its story areas, `grunty_mail`). All seven runs match: the start, every
+phase, call and frame, and the slot three times.
 
 `tools/test_field_host.py` runs `ccScFade`'s `EntryFade`, `ContinueFade`,
 `EntryFlash`, `EntryFlash2`, `EntryFlash3` and `SendPacket` (its packet

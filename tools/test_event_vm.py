@@ -34,12 +34,18 @@ writes; the Rust side cannot run eemu):
   and the player reads two mails. The phase after each frame, every hooked
   call with its frame, and the save three times.
 
+The unit tests run each disc's own opening (OPENINGS) from its boot, its
+title's New Game or CONVERT and its desktop (opening_run); `openings`
+writes them as numbers for crates/piney-game's desktop::openings.
+
 Calls outside the event and save code (message windows, streams, overlays,
 name entry, menus, gcmn) are hooked and finish at once; the Rust test host
 answers the same way.
 
     python3 tools/test_event_vm.py                 the unit tests
     python3 tools/test_event_vm.py fixture         write crates/piney-event/tests/vm_fixture.txt
+    python3 tools/test_event_vm.py openings        write PINEY_VOLUME's opening_fixture*.txt
+                                                   (and work/analysis/openings/convert_*.txt)
 
 The fixture holds numbers only: offsets and bytes, seeds, event numbers,
 frame counts. No script, message or label text goes in it.
@@ -63,6 +69,7 @@ FIXTURE = os.path.join(ROOT, "crates", "piney-event", "tests", "vm_fixture.txt")
 M32 = 0xFFFFFFFF
 M64 = (1 << 64) - 1
 SAVE_SIZE = 0x8530
+EXT_SIZE = test_save_init_rs.EXT_SIZE
 # ccSaveData::timeIdolRankStr: Init's text, kept out of the fixture.
 IDOL_TEXT = (0x6775, 0x683D)
 
@@ -84,6 +91,8 @@ CHUNK = 0x0181a000
 MENU = 0x0181b000
 DTMENU = 0x0181c000
 STREAM = 0x0181d000
+EXT = 0x0181e000                # a later volume's save extension
+DEMO_SAVE = 0x01810000          # the save in the title's machine (GameEvents.demo)
 HEAP = 0x01900000
 
 # ccSaveData offsets (Infection's DWARF, docs/formats/save.md).
@@ -320,18 +329,27 @@ def machine_class():
 
 
 class GameEvents:
-    """Infection's event code in eemu, with scratch objects for everything it
-    dereferences."""
+    """A volume's event code in eemu (PINEY_VOLUME's, or `elf`), with
+    scratch objects for everything it dereferences; from Mutation on the
+    save extension (test_save_init_rs.EXT_SIZE bytes) at EXT, where the
+    $gp pointer ccSaveData's constructor fills points."""
 
-    def __init__(self):
+    def __init__(self, elf=ELF, overlay=None):
         from image import Program
-        self.p = Program(ELF)
+        self.elf = elf
+        self.p = Program(elf, overlay)
         self.m = machine_class()(self.p)
+        if overlay:
+            volume.overlay_init(self.m, self.p)
         self.sym = lambda n: self.p.symbol_named(n).value
+        self.volume = self.p.u32(self.sym("volumeNum"))
         m = self.m
         for name, va in (("saveData", SAVE), ("eventMng", EVMNG), ("game", GAME), ("worldman", WORLDMAN),
                          ("ccSys", SYS), ("g_entCtrl", ENT), ("ccMenu", MENU), ("dtMenu", DTMENU)):
             m.store(self.sym(name), 4, va)
+        self.ext_ptr = test_save_init_rs.extension_pointer(elf)
+        if self.ext_ptr is not None:
+            m.store(self.ext_ptr, 4, EXT)
         self.heap = HEAP
         self.calls = []            # (frame, name, args) of hooked calls, for the desktop trace
         self.frame = 0
@@ -343,6 +361,7 @@ class GameEvents:
         self.hook("SimGenerateCode__9WORLD_MANFiii", lambda mm, this, a, b, c: self.log("generate_area", s32(a), s32(b), s32(c)))
         self.hook("ccClearGtHack__Fv", lambda mm, *a: self.log("clear_gate_hack"))
         self.fresh = self.boot_save()
+        self.fresh_ext = test_save_init_rs.boot_extension(elf)
 
     def hook(self, name, fn):
         self.m.hooks[self.sym(name)] = fn
@@ -357,7 +376,7 @@ class GameEvents:
     def boot_save(self):
         """ccSaveData's constructor and Init(1), as ccThMother runs them,
         with ccSnd pointing at a constructed ccSound (test_save_init_rs)."""
-        self.set_save(test_save_init_rs.boot_save(ELF))
+        self.set_save(test_save_init_rs.boot_save(self.elf))
         return self.save()
 
     def set_save(self, img):
@@ -365,6 +384,17 @@ class GameEvents:
 
     def save(self):
         return bytes(self.m.mem[SAVE:SAVE + SAVE_SIZE])
+
+    def set_slot(self, img):
+        """ccSaveData and, from Mutation on, the extension after it (a slot
+        file's layout)."""
+        self.set_save(img[:SAVE_SIZE])
+        if self.ext_ptr is not None:
+            self.m.mem[EXT:EXT + EXT_SIZE] = bytes(img[SAVE_SIZE:SAVE_SIZE + EXT_SIZE]).ljust(EXT_SIZE, b"\0")
+
+    def slot(self):
+        ext = bytes(self.m.mem[EXT:EXT + EXT_SIZE]) if self.ext_ptr is not None else b""
+        return self.save() + ext
 
     def init_mng(self):
         self.m.mem[EVMNG:EVMNG + 0x800] = bytes(0x800)
@@ -630,9 +660,10 @@ class GameEvents:
         self.hook("ChangeInfo__9ccMessageFPcPcPcPcii",
                   lambda mm, *a: log("info", s32(mm.r[9]), s16(mm.r[10])))
         self.hook("Check__9ccMessageFi", lambda mm, *a: 1)
-        m.hooks[0x419520] = lambda mm, this, *a: (log("name_entry"), this)[1]
-        m.hooks[0x414310] = lambda mm, *a: 1
-        m.hooks[0x419550] = noop
+        ctor, main, dtor = self.name_entry_calls()
+        m.hooks[ctor] = lambda mm, this, *a: (log("name_entry"), this)[1]
+        m.hooks[main] = lambda mm, *a: 1
+        m.hooks[dtor] = noop
         self.hook("ccSeOn__Fi", lambda mm, se, *a: log("se", s32(se)))
         self.hook("ccSndEvRequest__Fiiii", lambda mm, c, a0, a1, a2: log("sound", s32(c), s32(a0), s32(a1), s32(a2)))
         self.hook("MenuBan__7ccEventFv", lambda mm, *a: log("menu_ban", 1))
@@ -646,6 +677,22 @@ class GameEvents:
         # scene left to the runtime.
         self.hook("ChangeScene__6ccGameFiiiiii", lambda mm, *a: mm.store(EVMNG + 0xc, 4, M32) or 0)
         self.hook("CheckMenuType__8ccDtMenuFv", lambda mm, *a: M32)
+
+    def name_entry_calls(self):
+        """DESKTOP.PRG's NameEntry_Control constructor, Main and destructor
+        as Execute's name_entry case (156) calls them: the jal targets after
+        its `__nw__(616)`, but ccBreathThread (INF 0x001b2098, 0x001b20c8,
+        0x001b20ec; MUT 0x001c7460, 0x001c7490, 0x001c74b4)."""
+        import evscript
+        import mips
+        case = evscript.Switch(self.p, "Execute__7ccEventFRPsiii").cases[156]
+        skip = {self.sym("__nw__FUi"), self.sym("ccBreathThread__Fi")}
+        out = []
+        for va in range(case, case + 0x100, 4):
+            ins = mips.decode(self.p.u32(va), va)
+            if ins.word >> 26 == 3 and ins.target not in skip:
+                out.append(ins.target)
+        return tuple(out[:3])
 
     SUB_STUBS = (
         "__ct__16ccDrawPacketCtrlFv", "SetFrame__6ccViewFffffffff", "Init__7ccLayerFsP6ccView", "__dt__7ccLayerFv",
@@ -740,25 +787,86 @@ class GameEvents:
             out.append(self.frame)
         return out
 
-    def desktop_run(self, extra=90, actions=()):
-        """A new game reaching the desktop: the boot's ccStartEvent(1, 0);
-        then ccSetupDesktop's ccStartThEvent and ccEnableThEvent(0), (2), (4),
-        each requested once the task has settled the one before, with
-        ccThEvent running until `extra` frames into play. `actions` are
-        (play frame, what, value) done after that frame of play, as the
-        desktop would: ("operate", n) calls ccEvent::CheckOperate(n, 0),
-        ("read", mail) sets mailList[mail] = 4. Returns [(stage, frame,
-        save)], the phase after every frame, and the calls."""
-        m = self.m
-        self.set_save(self.fresh)
+    # --- the boot and the title ------------------------------------------------------------
+    def boot(self):
+        """ccThMother (INF main 0x00167c14, MUT 0x00167d94, OUT 0x0016701c,
+        QUA 0x00166eac): the boot save, ccEvent::Init, then
+        ccStartEvent(volumeNum, 0), which on a later volume brings the
+        earlier volumes' main stories forward and marks event
+        100 * (volumeNum - 1) done (MUT 0x001ca9d0)."""
+        self.set_slot(self.fresh + self.fresh_ext)
         self.init_mng()
+        self.m.call(self.sym("ccStartEvent__Fii"), (self.volume, 0), limit=200_000_000)
+
+    def demo(self, calls):
+        """`calls` [(function, args)] with DEMO.PRG in (charTbl) on this
+        machine's save and extension, in a machine of their own where the
+        save is at DEMO_SAVE: character 0's name pointer, which NewGame and
+        LoadGame write, is the address the port gives the save
+        (piney_demo::newgame::SAVE_VA). What they do outside the save
+        (display offset, sound settings, camera type) is answered with
+        nothing."""
+        from image import Program
+        if not hasattr(self, "_demo"):
+            p = Program(self.elf, "demo")
+            dm = machine_class()(p)
+            for name, va in (("saveData", DEMO_SAVE), ("game", GAME), ("ccSys", SYS)):
+                dm.store(p.symbol_named(name).value, 4, va)
+            if self.ext_ptr is not None:
+                dm.store(self.ext_ptr, 4, EXT)
+            for name in ("SetDisplayOffset__8ccSystemFii", "SetSoundEnv__10ccSaveDataFv", "setCameraCtrlType__Fi"):
+                dm.hooks[p.symbol_named(name).value] = lambda mm, *a: 0
+            self._demo = (p, dm)
+        p, dm = self._demo
+        dm.mem[DEMO_SAVE:DEMO_SAVE + SAVE_SIZE] = self.m.mem[SAVE:SAVE + SAVE_SIZE]
+        dm.mem[EXT:EXT + EXT_SIZE] = self.m.mem[EXT:EXT + EXT_SIZE]
+        for name, args in calls:
+            dm.call(p.symbol_named(name).value, args)
+        self.m.mem[SAVE:SAVE + SAVE_SIZE] = dm.mem[DEMO_SAVE:DEMO_SAVE + SAVE_SIZE]
+        self.m.mem[EXT:EXT + EXT_SIZE] = dm.mem[EXT:EXT + EXT_SIZE]
+
+    def title_new_game(self):
+        """ccSetupDemo's NewGame(1), then New Game's NewGame(0) (ccThDemo's
+        return 2, INF demo 0x00400900)."""
+        self.demo([("NewGame__10ccSaveDataFi", (DEMO_SAVE, 1)), ("NewGame__10ccSaveDataFi", (DEMO_SAVE, 0))])
+
+    def title_convert(self, card):
+        """ccSetupDemo's NewGame(1); CONVERT's LoadInfoPrevReq and
+        LoadDataPrevReq(0) by this volume's ccSaveSys code (tools/save.py)
+        on `card`, the previous volume's slot 1; then ccThDemo's return 4,
+        ccStartEventConvert and ConvGame (MUT demo 0x00413b38, 0x00413b44).
+        The load's result, which must be "Load complete."."""
+        import save
+        self.demo([("NewGame__10ccSaveDataFi", (DEMO_SAVE, 1))])
+        g = save.Game(self.elf, card)
+        g.m.mem[save.SAVE:save.SAVE + SAVE_SIZE] = self.save()
+        if g.ext:
+            g.m.mem[save.EXT:save.EXT + EXT_SIZE] = self.m.mem[EXT:EXT + EXT_SIZE]
+        g.request("LoadInfoPrevReq__9ccSaveSysFi", 0)
+        result = g.request("LoadDataPrevReq__9ccSaveSysFi", 0)
+        self.loaded = g.save_bytes()
+        self.set_slot(self.loaded)
+        self.demo([("ccStartEventConvert__Fv", ()), ("ConvGame__10ccSaveDataFv", (DEMO_SAVE,))])
+        return result
+
+    def desktop_run(self, extra=90, actions=()):
+        """A game reaching the desktop from the save and event manager as
+        the boot and the title left them (boot, title_*): ccSetupDesktop's
+        ccStartThEvent and ccEnableThEvent(0), (2), (4), each requested once
+        the task has settled the one before, with ccThEvent running until
+        `extra` frames into play. `actions` are (play frame, what, value)
+        done after that frame of play, as the desktop would: ("operate", n)
+        calls ccEvent::CheckOperate(n, 0), ("read", mail) sets
+        mailList[mail] = 4, ("news", n) webnewsList[n] = 3. Returns
+        [(stage, frame, slot)], the phase after every frame, and the
+        calls."""
+        m = self.m
         m.mem[GAME:GAME + 0x88] = bytes(0x88)
         m.store(GAME, 4, 2)
         m.mem[DTMENU:DTMENU + 0x40] = bytes(0x40)
         m.store(DTMENU + 6, 2, M32)
         m.mem[TSCB:TSCB + 0x60] = bytes(0x60)
         self.calls, self.frame = [], 0
-        m.call(self.sym("ccStartEvent__Fii"), (1, 0))
         m.call(self.sym("ccStartThEvent__Fv"), ())
         m.store(EVMNG + 0xc, 4, 0)
         snaps, phases = [], []
@@ -772,11 +880,11 @@ class GameEvents:
             phase = s32(m.load(EVMNG + 0xc, 4))
             phases.append(phase)
             if state["stage"] == 0 and phase == 1:
-                snaps.append((0, self.frame, self.save()))
+                snaps.append((0, self.frame, self.slot()))
                 m.store(EVMNG + 0xc, 4, 2)
                 state["stage"] = 1
             elif state["stage"] == 1 and phase == 3:
-                snaps.append((2, self.frame, self.save()))
+                snaps.append((2, self.frame, self.slot()))
                 m.store(EVMNG + 0xc, 4, 4)
                 state["stage"] = 2
             elif state["stage"] == 2 and phase == 5:
@@ -790,8 +898,10 @@ class GameEvents:
                         self.calls.append((self.frame, "check_operate", (v, go)))
                     elif what == "read":
                         m.mem[SAVE + MAIL + v] = 4
+                    elif what == "news":
+                        m.mem[SAVE + NEWS + v] = 3
                 if state["left"] == 0:
-                    snaps.append((4, self.frame, self.save()))
+                    snaps.append((4, self.frame, self.slot()))
                     raise EndRun
 
         def breath(n):
@@ -831,6 +941,110 @@ class GameEvents:
             items = [(s32(m.load(info + 0x34 + 8 * j, 4)), s32(m.load(info + 0x38 + 8 * j, 4))) for j in range(4)]
             out.append((code, server, words, items))
         return out
+
+
+# The one save that cleared a volume we have: the user's PCSX2 export of
+# Infection (worklog 338; not in the repository), slot 1, level 34,
+# clearFlag 1, events 0-31 and 50-62 done. Its file is 0x8d84 bytes and the
+# index sums all of them, so Infection's own load and Mutation's
+# LoadDataPrevReq refuse it as it is (0x203f, the sum); its first 0x8530
+# bytes are the ccSaveData, which Infection's own code then writes again.
+CLEARED_INFECTION = os.path.join(ROOT, "work", "savecards", "BASLUS-20267DOTHACK", "dhdata01")
+
+
+def written_card(elf, slot, load_game=False):
+    """A card on which volume `elf`'s own code (tools/save.py) made its
+    directory and saved `slot` (ccSaveData, then the extension) to slot 1:
+    InitInfo, MakeDir, SaveDataReq(0). With `load_game` the record is
+    first put in place as the title's Load does, LoadGame (INF main
+    0x00175110) pointing its names at the save again."""
+    import save
+    g = save.Game(elf)
+    for name in ("SetDisplayOffset__8ccSystemFii", "SetSoundEnv__10ccSaveDataFv", "setCameraCtrlType__Fi"):
+        g.m.hooks[g.sym(name)] = lambda mm, *a: 0
+    g.m.mem[save.SAVE:save.SAVE + SAVE_SIZE] = slot[:SAVE_SIZE]
+    if g.ext:
+        g.m.mem[save.EXT:save.EXT + EXT_SIZE] = slot[SAVE_SIZE:SAVE_SIZE + EXT_SIZE]
+    if load_game:
+        g.call("LoadGame__10ccSaveDataFv", save.SAVE)
+    g.call("InitInfo__9ccSaveSysFv", save.SYS)
+    g.call("MakeDir__7ccMcardFii", save.MC, 0, 0)
+    result = g.request("SaveDataReq__9ccSaveSysFi", 0)
+    return save.Card(g.card.files), result
+
+
+def cleared_card(elf):
+    """The card CONVERT reads on volume `elf`: the previous volume's
+    directory, slot 1 a save that cleared it, written by that volume's own
+    code. For Mutation it is the user's cleared Infection save. No cleared
+    Mutation or Outbreak save exists, so each earlier disc carries it on:
+    its boot and CONVERT of the card before, then its story brought forward
+    as the next disc's boot does, ccStartEvent(volumeNum + 1, 0) (MUT
+    0x001ca9d0: the main story replayed, clearFlag up to volumeNum)."""
+    elfs = [volume.paths(n)[0] for n in volume.EXECUTABLES]
+    prev = elfs[elfs.index(elf) - 1]
+    if prev == volume.INF_ELF:
+        with open(CLEARED_INFECTION, "rb") as f:
+            record = f.read()[:SAVE_SIZE]
+        return written_card(prev, record, load_game=True)
+    g = GameEvents(prev, overlay="gcmn")
+    g.hook_play()
+    g.boot()
+    card, _ = cleared_card(prev)
+    g.title_convert(card)
+    g.m.call(g.sym("ccStartEvent__Fii"), (g.volume + 1, 0), limit=200_000_000)
+    return written_card(prev, g.slot())
+
+
+def opening_run(kind, elf=ELF):
+    """A game reaching the desktop and played into (OPENINGS) as the
+    player starts it: `kind` "new" is New Game (the boot, NewGame(1),
+    NewGame(0)); "convert" is CONVERT (the boot, NewGame(1), the previous
+    volume's cleared save from cleared_card, ccStartEventConvert,
+    ConvGame). GCMN.PRG is in, as the opening's overlay 3 leaves it
+    (grunty_mail calls its ccPgAdultCheck). -> (game, the slot at the
+    desktop's start, the desktop's snapshots, phases and calls)."""
+    g = GameEvents(elf, overlay="gcmn")
+    g.hook_play()
+    g.boot()
+    if kind == "new":
+        g.title_new_game()
+    else:
+        card, _ = cleared_card(elf)
+        g.title_convert(card)
+    start = g.slot()
+    o = OPENINGS[g.volume]
+    snaps, phases, calls = g.desktop_run(extra=o.extra, actions=o.actions)
+    return g, start, snaps, phases, calls
+
+
+def mail_order(img):
+    return [x for x in struct.unpack_from("<512h", img, MAIL_ORDER) if x != -1]
+
+
+def write_opening(out, kind):
+    """One opening_run as numbers, for crates/piney-game's desktop.rs
+    (openings_match_the_game). `start HASH`: FNV-1a 64 of the slot at the
+    desktop's start (ccSaveData, then the extension), which holds charTbl's
+    rows and names, so only its hash is kept (NewGameLaterVolumes and
+    ConvGameLaterVolumes compare those bytes); CONVERT's `loaded HEX` is the
+    slot as LoadDataPrevReq left it. Then the phase after each frame,
+    every hooked call and check_operate with its frame, and `save STAGE
+    FRAME RUNS` over the start: what the events wrote."""
+    g, start, snaps, phases, calls = opening_run(kind)
+    o = OPENINGS[g.volume]
+    w = out.write
+    w(f"# {kind} game on volume {g.volume}: tools/test_event_vm.py openings\n")
+    w("actions " + " ".join(f"{at}:{what}:{v}" for at, what, v in o.actions) + "\n")
+    w(f"extra {o.extra}\n")
+    if kind == "convert":
+        w(f"loaded {g.loaded.hex()}\n")
+    w(f"start {fnv(start):016x}\n")
+    w("phases " + " ".join(map(str, phases)) + "\n")
+    for frame, name, args in calls:
+        w(f"call {frame} {name} {' '.join(map(str, args))}".rstrip() + "\n")
+    for stage, frame, img in snaps:
+        w(f"save {stage} {frame} {runs_text(diff_runs(start, img))}\n")
 
 
 def diff_runs(a, b, gap=8):
@@ -877,6 +1091,49 @@ def runs_text(runs):
 # event answers; opens the mailer (1), which it allows; reads mails 4 and 5.
 DESKTOP_ACTIONS = ((3, "operate", 3), (40, "operate", 1), (45, "read", 4), (46, "read", 5), (60, "operate", 3))
 FLAGSET_SEEDS = (1, 2, 3)
+
+
+class Opening:
+    """A disc's opening on the desktop, read from its script (tools/
+    evscript.py dis ELF EVENT): the event the boot opens (its header is
+    `event_done 100 * (volumeNum - 1)`), what the player does after the
+    Nth frame of play (as DESKTOP_ACTIONS), the frames played, and what the
+    game's code gives: the mails its pass delivers (state 1, in order),
+    CheckOperate's answers, the event's block bits and whether it closed,
+    and eventStatus entries."""
+
+    def __init__(self, event, actions, extra, mails, operate, blocks, closed, status=()):
+        self.event, self.actions, self.extra = event, actions, extra
+        self.mails, self.operate, self.blocks, self.closed, self.status = mails, operate, blocks, closed, status
+
+
+OPENINGS = {
+    # INF eventTblM101 (0x00317ec0), event 1: block 0 at phase 0 mails 4, 5
+    # and 320 (+0x42..+0x4a) and add_operate 1 except 1 (+0x36); block 1
+    # (+0xae, repeatable) answers a held operation; block 2 (+0xc6) once
+    # mails 4 and 5 are read releases them and closes the event.
+    1: Opening(1, DESKTOP_ACTIONS, 90, (4, 5, 320), ((3, 0), (1, 1), (3, 1)), 0x5, True),
+    # MUT eventTblM201 (0x003360a0), event 101: block 0 has no setting and
+    # plays in the setup's pass: name entry (+0x50), streams 23 and 24,
+    # mail 374 (+0x70), grunty_mail (+0x80: mail 324 once a town's three
+    # pens hold grown Grunty), mail 25 (+0x82). Nothing is held; blocks
+    # 2-11 answer members saved and replies; the event goes on in the field.
+    2: Opening(101, ((3, "operate", 3), (40, "operate", 1), (45, "read", 374), (46, "read", 25), (60, "operate", 0)),
+               90, (374, 25), ((3, 1), (1, 1), (0, 1)), 0x1, False),
+    # OUT eventTblM301 (0x003340b0), event 201: block 0 at phase 0 mails 48
+    # (+0x42) and 323 (+0x50); block 1 (+0x66, repeatable, eventStatus[0]
+    # 0) holds operation 0; block 3 (+0xa0) answers it; block 2 (+0x80)
+    # once news 19 is read releases it and sets eventStatus[0] to 1.
+    3: Opening(201, ((3, "operate", 0), (40, "operate", 1), (45, "news", 19), (130, "operate", 0)),
+               150, (48, 323), ((0, 0), (1, 1), (0, 1)), 0x5, False, ((0, 1),)),
+    # QUA eventTblM401 (0x002306d0), event 301: block 1 at phase 0 mails 74
+    # (+0x4c), 75 (+0x50), 372 (+0x54) and add_operate 1 except 1 (+0x148);
+    # block 2 (+0x156) answers a held operation; block 3 (+0x16e) on mail
+    # 74 read sets eventStatus[51]; block 4 (+0x18e) on 74 and 75 read
+    # releases the operations (lastTown 3, town_move 4).
+    4: Opening(301, ((3, "operate", 3), (40, "operate", 1), (45, "read", 74), (46, "read", 75), (130, "operate", 3)),
+               150, (74, 75, 372), ((3, 0), (1, 1), (3, 1)), 0x1b, False, ((51, 1),)),
+}
 OPEN_SEEDS = tuple(range(100, 108))
 SUB_SEEDS = (100, 101, 102)
 PLAY_SEEDS = (200, 201, 202)
@@ -953,6 +1210,7 @@ def write_fixture(out):
     w("# desktop save STAGE FRAME OFFSET:BYTES...  the save when phase STAGE settled (4: at the end),\n")
     w("#                            as runs over the boot save\n")
     g.hook_play()
+    g.boot()
     snaps, phases, calls = g.desktop_run(actions=DESKTOP_ACTIONS)
     w("desktop phases " + " ".join(map(str, phases)) + "\n")
     for frame, name, args in calls:
@@ -1023,7 +1281,8 @@ def write_fixture(out):
 
 class EventVmTest(unittest.TestCase):
     """The harness itself: the game's code runs and says what is expected.
-    The comparison with the port is crates/piney-event/tests/vm.rs."""
+    The comparison with the port is crates/piney-event/tests/vm.rs, and
+    for the openings crates/piney-game's desktop::openings."""
 
     @classmethod
     def setUpClass(cls):
@@ -1047,25 +1306,81 @@ class EventVmTest(unittest.TestCase):
         # Block 1 is repeatable, so only blocks 0 and 2 mark themselves.
         self.assertEqual(flags & 7, 5)
 
-    def test_new_game_desktop(self):
-        """A new game on the desktop: the opening plays at phase 0 and
-        delivers mails 4, 5 and 320; the address book is held back until
-        mails 4 and 5 are read, and then the event closes."""
-        g = GameEvents()
-        g.hook_play()
-        snaps, phases, calls = g.desktop_run(actions=DESKTOP_ACTIONS)
-        first = snaps[0][2]
-        self.assertEqual(struct.unpack_from("<3h", first, MAIL_ORDER), (4, 5, 320))
-        self.assertEqual((first[MAIL + 4], first[MAIL + 5], first[MAIL + 320]), (1, 1, 1))
-        self.assertEqual(phases[snaps[0][1] - 1], 1)
-        ops = [(name, args) for _, name, args in calls if name == "check_operate"]
-        self.assertEqual(ops, [("check_operate", (3, 0)), ("check_operate", (1, 1)), ("check_operate", (3, 1))])
-        last = snaps[-1][2]
-        self.assertTrue(struct.unpack_from("<Q", last, EVENT_FLAG + 8)[0] & (1 << 63))
+    def test_boot_opens_the_volume_s_story(self):
+        """ccThMother's ccStartEvent(volumeNum, 0): the earlier volumes
+        counted cleared (clearFlag volumeNum - 1) and event
+        100 * (volumeNum - 1) done, which the opening's header waits for;
+        the opening itself not yet run."""
+        g = self.g
+        g.boot()
+        img = g.save()
+        o = OPENINGS[g.volume]
+        self.assertEqual(img[CLEAR_FLAG], g.volume - 1)
+        done = [n for n in range(450) if struct.unpack_from("<Q", img, EVENT_FLAG + 8 * n)[0] >> 62 & 1]
+        self.assertIn(o.event - 1, done)
+        self.assertEqual(struct.unpack_from("<Q", img, EVENT_FLAG + 8 * o.event)[0], 0)
 
+    def check_opening(self, kind):
+        g, start, snaps, phases, calls = opening_run(kind)
+        o = OPENINGS[g.volume]
+        first = snaps[0][2]
+        new = mail_order(first)[len(mail_order(start)):]
+        if kind == "new":
+            self.assertEqual(tuple(new), o.mails)
+        else:
+            # A carried save opens side events too (ccThEvent's eventSub
+            # runs them before the volume's main story), and the opening
+            # answers what the save holds: its own mails, in order, among.
+            it = iter(new)
+            self.assertTrue(all(m in it for m in o.mails), new)
+        self.assertEqual([first[MAIL + k] for k in new], [1] * len(new))
+        self.assertEqual(phases[snaps[0][1] - 1], 1)
+        ops = [args for _, name, args in calls if name == "check_operate"]
+        self.assertEqual(ops, list(o.operate))
+        last = snaps[-1][2]
+        flags = struct.unpack_from("<Q", last, EVENT_FLAG + 8 * o.event)[0]
+        self.assertEqual(bool(flags >> 63 & 1), o.closed)
+        blocks = flags & ((1 << 62) - 1)
+        self.assertEqual(blocks if kind == "new" else blocks & o.blocks, o.blocks)
+        for k, v in o.status:
+            self.assertEqual(last[EVENT_STATUS + k], v, f"eventStatus[{k}]")
+        return new, flags
+
+    def test_new_game_desktop(self):
+        """New Game on this disc: the boot, the title's NewGame(1) and
+        NewGame(0), then the desktop, where the disc's own opening (OPENINGS)
+        plays in the setup's pass and answers the player."""
+        self.check_opening("new")
+
+    @unittest.skipUnless(os.path.exists(CLEARED_INFECTION), "no cleared Infection save (work/savecards)")
+    def test_convert_desktop(self):
+        """CONVERT on a later disc: the previous volume's cleared save
+        (cleared_card) loaded and converted, then the same opening. On
+        Mutation the save is the user's own: its Grunty pens give mail 324
+        by grunty_mail and its saved Natsume mail 30 by event 101's block 10
+        (+0x17c: member_saved 11, mail_member 30)."""
+        if self.g.volume == 1:
+            self.skipTest("Infection has no CONVERT (its title never asks for proccess 4, 7 and 9)")
+        new, flags = self.check_opening("convert")
+        if self.g.volume == 2:
+            self.assertEqual(new, [374, 324, 25, 30])
+            self.assertEqual(flags, 1 << 10 | 1)
+
+
+OPENING_FIXTURE = os.path.join(ROOT, "crates", "piney-game", "tests", "opening_fixture{}.txt")
+CONVERT_FIXTURE = os.path.join(ROOT, "work", "analysis", "openings", "convert_{}.txt")
+SUFFIX = {"infection": "", "mutation": "_mut", "outbreak": "_out", "quarantine": "_qua"}
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "fixture":
         with open(FIXTURE, "w") as f:
             sys.exit(write_fixture(f))
+    if len(sys.argv) > 1 and sys.argv[1] == "openings":
+        with open(OPENING_FIXTURE.format(SUFFIX[volume.NAME]), "w") as f:
+            write_opening(f, "new")
+        if volume.NAME != "infection" and os.path.exists(CLEARED_INFECTION):
+            os.makedirs(os.path.dirname(CONVERT_FIXTURE), exist_ok=True)
+            with open(CONVERT_FIXTURE.format(volume.NAME), "w") as f:
+                write_opening(f, "convert")
+        sys.exit(0)
     unittest.main()

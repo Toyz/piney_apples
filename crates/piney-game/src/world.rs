@@ -8,7 +8,6 @@
 use piney_data::iso::Iso;
 use piney_desktop::SaveState;
 use piney_event::host::LogHost;
-use piney_event::state::ScriptSave as _;
 use piney_event::vm::Vm;
 use piney_fieldui::FieldUi;
 use piney_world::event::talk;
@@ -65,11 +64,13 @@ pub fn new_game_state(disc: &mut Iso) -> Result<SaveState, String> {
 }
 
 /// [`new_game`]'s save and event task as a new game brings them to Log in
-/// (for `--mode world`): the desktop's passes and play until mails 4 and 5
-/// are read and event 1's block 2 has closed it; the board's
+/// (for `--mode world`): the desktop's passes, where the volume's opening
+/// plays, and play until it gives the desktop's operations back, the
+/// player reading what it waits for ([`opening_reads`]); the board's
 /// `ccStartThEvent` and passes, and Log in. Every window and wait answers
 /// at once (`LogHost`).
 pub fn new_game_events(disc: &mut Iso) -> Result<(SaveState, Vm), String> {
+    let volume = disc.volume().map_err(|e| e.to_string())?;
     let (mut state, mut vm) = new_game(disc)?;
     let mut h = LogHost::new(state.save.clone());
     let settle = |vm: &mut Vm, h: &mut LogHost| -> Result<(), String> {
@@ -94,17 +95,20 @@ pub fn new_game_events(disc: &mut Iso) -> Result<(SaveState, Vm), String> {
     // The desktop.
     h.game.status = 2;
     settle(&mut vm, &mut h)?;
-    for m in [4, 5] {
-        if h.save.mail(m) != 0 && h.save.mail(m) < 4 {
-            h.save.set_mail(m, 4);
+    let opening = 100 * (volume.number() - 1) + 1;
+    for read in opening_reads(vm.library(), opening) {
+        match read {
+            Read::Mail(m) if (1..4).contains(&h.save.mail(m)) => h.save.set_mail(m, 4),
+            Read::News(n) => h.save.set_webnews(n, 3),
+            Read::Mail(_) => {}
         }
     }
     let mut n = 0;
-    while h.save.flags(1) & piney_event::state::CLOSED == 0 {
+    while vm.operate() != 0 {
         vm.frame(&mut h);
         n += 1;
         if n > PASS_FRAMES {
-            return Err("events: event 1 does not close".into());
+            return Err(format!("events: event {opening} does not give the desktop back"));
         }
     }
     vm.disable();
@@ -116,6 +120,43 @@ pub fn new_game_events(disc: &mut Iso) -> Result<(SaveState, Vm), String> {
     state.operate = vm.operate();
     state.operate_set = -1;
     Ok((state, vm))
+}
+
+/// What the player reads on the desktop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Read {
+    /// `mailList[mail]` to 4.
+    Mail(usize),
+    /// `webnewsList[news]` to 3.
+    News(usize),
+}
+
+/// What the volume's opening (event 1, 101, 201 or 301, opened by the
+/// boot's `ccStartEvent`) waits for before it gives the desktop's
+/// operations back: the mails and news asked for by its block whose
+/// `del_operate` undoes one of its `add_operate`s. Infection's event 1
+/// block 2: mails 4 and 5; Outbreak's 201 block 2: news 19; Quarantine's
+/// 301 block 4: mails 74 and 75. Mutation's 101 holds nothing.
+fn opening_reads(lib: &piney_event::vm::Library, opening: i32) -> Vec<Read> {
+    use piney_event::ir::{Cond, Op};
+    let Some(script) = lib.script(opening) else { return Vec::new() };
+    let held: Vec<(i16, i16)> = (script.blocks.iter().flat_map(|b| &b.ops))
+        .filter_map(|o| match *o {
+            Op::AddOperate { num, except } => Some((num, except)),
+            _ => None,
+        })
+        .collect();
+    let releases = |o: &Op| matches!(*o, Op::DelOperate { num, except } if held.contains(&(num, except)));
+    let release = script.blocks.iter().find(|b| b.ops.iter().any(releases));
+    release
+        .into_iter()
+        .flat_map(|b| &b.conds)
+        .filter_map(|c| match *c {
+            Cond::MailGot { mail } => usize::try_from(mail).ok().map(Read::Mail),
+            Cond::NewsRead { news } => usize::try_from(news).ok().map(Read::News),
+            _ => None,
+        })
+        .collect()
 }
 
 /// `saveData.assignPAD` from +0x8404 as `ccSaveData::Init` (0x001743d0)
@@ -152,6 +193,7 @@ pub(crate) fn menu_view(ui: &FieldUi) -> talk::MenuView {
 
 #[cfg(test)]
 mod tests {
+    use piney_event::state::ScriptSave as _;
 
     use std::path::Path;
     use std::sync::Arc;
@@ -396,6 +438,34 @@ mod tests {
         assert!([4, 5].iter().all(|&m| s.mail(m) >= 4), "mails 4 and 5 read");
         assert_eq!(vm.operate(), 0, "event 1 released the operations");
         assert_eq!(vm.phase(), -1, "Log in disabled the task");
+    }
+
+    /// The later volumes' openings brought to Log in as their scripts
+    /// ask: nothing held on Mutation's 101; Outbreak's 201 once news 19 is
+    /// read (block 2, eventStatus[0] 1); Quarantine's 301 once mails 74 and
+    /// 75 are (block 4). Each opening open, the operations given back.
+    #[test]
+    fn the_later_openings_reach_the_world() {
+        let discs = [
+            ("mutation", 101, 0, Vec::new()),
+            ("outbreak", 201, 2, vec![Read::News(19)]),
+            ("quarantine", 301, 4, vec![Read::Mail(74), Read::Mail(75)]),
+        ];
+        for (disc, event, block, reads) in discs {
+            let iso = crate::check_image(disc);
+            if !iso.exists() {
+                eprintln!("{disc}.iso not present; skipped");
+                continue;
+            }
+            let (state, vm) = new_game_events(&mut Iso::open(&iso).unwrap()).unwrap();
+            let s = &state.save;
+            assert_ne!(s.flags(event - 1) & piney_event::state::DONE, 0, "{disc}: event {} done at boot", event - 1);
+            assert_ne!(s.flags(event) & 1 << block, 0, "{disc}: event {event} block {block}");
+            assert_eq!(s.flags(event) & piney_event::state::CLOSED, 0, "{disc}: event {event} goes on in The World");
+            assert_eq!(opening_reads(vm.library(), event), reads, "{disc}");
+            assert_eq!(vm.operate(), 0, "{disc}: the operations given back");
+            assert_eq!(vm.phase(), -1, "{disc}: Log in disabled the task");
+        }
     }
 
     /// Event 2 in Mac Anu, the town's characters' events taken in the frame

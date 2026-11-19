@@ -3,7 +3,7 @@ title: The memory card save
 status: solid
 volumes: all
 covers: INF SLUS_202.67:0x00306be0 mcDirName, 0x00306d40 mcFname, 0x00306c00 iconBinTbl, 0x001661d0 ccMcard::DataWrite, 0x001664b0 ccMcard::SaveSys, 0x00171c20 ccSaveSys::MainProccess, 0x001716e0 ccSaveSys::CheckRightInfo, 0x00174320 ccSaveData::ccSaveData, 0x001743d0 ccSaveData::Init, 0x0033eb90 timeIdolRankDefStr, 0x00180ed0 ccSound::ccSound, 0x00167940 ccThMother; INF DATA/ICON.BIN; MUT SLUS_205.62:0x00171b50 LoadInfoPrevReq, 0x00171c00 LoadDataPrevReq, 0x001767e0 ConvGame, 0x001cac50 ccStartEventConvert, 0x0017af20 the save extension, 0x00175740 ccSaveData::Init, 0x00176270 ccSaveData::NewGame, 0x00177be0 ccSaveData::InitTradeItem, 0x0017a010 the trade count setter, 0x0017a9d0 GetItemList, 0x0017aa20 GetSpcTradeList, 0x0017aba0 GetSkillList, 0x0017ac30 the talkNum setter, 0x0017aca0 the partyTime setter, 0x0017adf0 the spcPresent setter, 0x0017aec0 GetSpcParam, 0x0017b050 the extension tail clear; INF SLUS_202.67:0x00178030 ccSaveData::CheckEventEntry, 0x001780d0 ClearEventEntry; INF gcmn.prg:0x00430200 ccEntryCtrl::deleteEventEntry, 0x0040ffb0 BOOK::GetBookItem, 0x0040ddd0 BOOK::GetBook01Item, 0x005a1930 ccSpcSetOperation, 0x0053af2c ccMenuCtrl::PartyInMenu's call check; MUT SLUS_205.62:0x0017a860 the Flag Race's ranking; MUT gcmn.prg:0x0058ca90 the Rankings page
-worklog: 16, 24, 246, 338
+worklog: 16, 24, 246, 338, 615
 ---
 
 # The memory card save
@@ -516,6 +516,13 @@ Parody.
 
 Infection has the same path: with `volumeNum - 1 = 0` replaced by 1, it
 reads its own directory and marks event 0 done.
+
+The desktop then plays the volume's opening on the carried save
+([each volume's new game](../engine/event-vm.md#each-volumes-new-game)).
+A real cleared Infection save in the 0x8d84-byte form of the user's PCSX2
+export (worklog 338) is refused by Mutation's own `LoadDataPrevReq`:
+the index's sum covers all 0x8d84 bytes, the load sums 0x8530 (result
+0x203f). Written again by Infection's own `SaveDataReq`, it loads.
 
 The port (issue #55) keeps one card for all four parts: the four save
 folders (`BASLUS-20267DOTHACK` to `BASLUS-20564DOTHACK`) in

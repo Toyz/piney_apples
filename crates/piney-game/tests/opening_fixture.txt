@@ -1,0 +1,22 @@
+# new game on volume 1: tools/test_event_vm.py openings
+actions 3:operate:3 40:operate:1 45:read:4 46:read:5 60:operate:3
+extra 90
+start 7e3cc874db245a78
+phases 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 2 3 4 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5
+call 1 clear_gate_hack
+call 2 frame_rate 2
+call 2 overlay 3
+call 2 stream 2
+call 2 frame_rate 1
+call 2 stream 106
+call 2 overlay 1
+call 2 message 1 1
+call 29 message 1 2
+call 56 name_entry
+call 65 check_operate 3 0
+call 66 message 1 0
+call 102 check_operate 1 1
+call 122 check_operate 3 1
+save 0 59 2224:bc7802 2268:0101 23a4:01 2464:040005004001 2864:01*4 2889:01 3484:01*7 5500:01
+save 2 61 2224:bc7802 2268:0101 23a4:01 2464:040005004001 2864:01*4 2889:01 3484:01*7 5500:01
+save 4 152 2224:bc7802 2268:0404 23a4:01 2464:040005004001 2864:01*4 2889:01 28e4:01*20 2914:01*4 2e54:0101 2eb4:0101 2ee4:01 2f14:01 32d4:01*5 3304:01*4 3334:01*9 3364:01*3 3394:0101 3484:01*7 5500:0500000000000080

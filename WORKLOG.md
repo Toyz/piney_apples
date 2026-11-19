@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-614 entries: audio 51, battle 169, build 34, content 3, decomp 39, disc 6, engine 44, format 18, iop 3, render 137, save 16, script 64, test 271, tooling 67, ui 111, video 19, volumes 115, world 196. 170 entries still have open questions - [listed below](#still-open).
+615 entries: audio 51, battle 169, build 34, content 3, decomp 39, disc 6, engine 45, format 18, iop 3, render 137, save 16, script 65, test 272, tooling 67, ui 111, video 19, volumes 116, world 196. 171 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -626,9 +626,11 @@ The [reference](docs/README.md) says what is true now.
 | 612 | [Keyed rotations and the dungeon checks to the bit](worklog/0612-keyed-rotations-and-the-dungeon-checks-to-the-bit.md) | 2026-11-17 | render, world, test, volumes |
 | 613 | [The last harness tolerances to the bit](worklog/0613-the-last-harness-tolerances-to-the-bit.md) | 2026-11-17 | render, test, volumes, tooling |
 | 614 | [The shadow volumes to the word and the pixel](worklog/0614-the-shadow-volumes-to-the-word-and-the-pixel.md) | 2026-11-18 | render, test, volumes, tooling, audio |
+| 615 | [Each disc's own new game and CONVERT on the desktop](worklog/0615-each-disc-s-own-new-game-and-convert-on-the-desktop.md) | 2026-11-19 | script, test, volumes, engine |
 
 ## Still open
 
+- [615. Each disc's own new game and CONVERT on the desktop](worklog/0615-each-disc-s-own-new-game-and-convert-on-the-desktop.md) (2 questions) - No cleared Mutation or Outbreak save exists, so Outbreak's and Quarantine's CONVERT run on the user's Infection save...
 - [614. The shadow volumes to the word and the pixel](worklog/0614-the-shadow-volumes-to-the-word-and-the-pixel.md) (4 questions) - The bits of _SetLWMatrix's stack qword (a ccCoord's heap address, the drawing thread's $a0 upper half), which the port...
 - [613. The last harness tolerances to the bit](worklog/0613-the-last-harness-tolerances-to-the-bit.md) - the shadow volume's pixels are not yet compared exactly: making them so means porting ccShadowModel::Draw's matrices...
 - [611. The light group to the bit on every disc](worklog/0611-the-light-group-to-the-bit-on-every-disc.md) - nothing of this work.

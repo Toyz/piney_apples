@@ -42,12 +42,27 @@ pub fn boot(iso: &mut Iso, state: &mut SaveState) -> Result<Vm, String> {
     let mut events = piney_event::official::events(iso).map_err(|e| format!("event scripts: {e}"))?.to_vec();
     // The port's own additions (piney_event::extras: Helba's mail).
     piney_event::extras::apply(&mut events, volume);
+    let story = Arc::new(Announcements::from_disc(iso)?);
+    Ok(boot_with(volume, events, story, state))
+}
+
+/// [`boot`] on the scripts `events`: `ccEvent::Init`, then
+/// `ccStartEvent(volumeNum, 0)` through the Bridge on `state`. A later
+/// volume's replay of the earlier stories runs their gate instructions,
+/// which read the story areas (`gate_add`'s server and words,
+/// `virus_core`'s protect items: MUT main 0x001b1fe0 GetEventAreaInfo).
+pub(crate) fn boot_with(
+    volume: piney_data::volume::Volume,
+    events: Vec<piney_event::ir::Event>,
+    story: Arc<Announcements>,
+    state: &mut SaveState,
+) -> Vm {
     let mut vm = Vm::new(Arc::new(Library::new(volume, events)));
     vm.init();
-    let mut st = HostState::default();
+    let mut st = HostState { announcements: Some(story), ..HostState::default() };
     let mut h = Bridge { target: Target::Setup(state, None), st: &mut st };
     vm.start_event(volume.number(), 0, &mut h);
-    Ok(vm)
+    vm
 }
 
 /// What the runtime answers the scripts with, apart from the save.
@@ -972,6 +987,9 @@ impl Mode for DesktopMode {
         }
     }
 }
+
+#[cfg(test)]
+mod openings;
 
 #[cfg(test)]
 mod tests {
