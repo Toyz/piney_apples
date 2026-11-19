@@ -10,7 +10,7 @@ use piney_data::Result;
 use piney_desktop::assets::SceneFile;
 
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
-use crate::draw::{self, Fogging};
+use crate::draw::Fogging;
 use crate::ee::{self, F, ONE, V4};
 use crate::field::ambient::Env;
 
@@ -51,7 +51,7 @@ impl Hawk {
         // sqrt(d.y + d.y + d.x d.x): d.y where d.y d.y was meant.
         let s = ee::add(d[1], ee::add(d[1], ee::mul(d[0], d[0])));
         self.far = f64::from(ee::f(s)).sqrt() > 9600.0;
-        let m = crate::town::pos_rot_zyx(self.pos, [0, 0, self.angle]);
+        let m = piney_data::vu0::pos_rot_zyx(self.pos, [0, 0, self.angle, 0]);
         self.angle = ee::add(self.angle, self.turn);
         if !ee::le(self.turn, 0) {
             if !ee::lt(self.angle, ee::PI) {
@@ -120,7 +120,7 @@ impl MapSystem for Bird {
         Some(Request::Models {
             file: self.eff.as_ref()?,
             models: Cow::Borrowed(&self.models),
-            world: draw::mat(&self.matrix),
+            world: piney_data::vu0::to_mat4(&self.matrix),
             layer: crate::field::area::ambient_layer(5),
             rows: HashMap::new(),
             fog: Fogging::None,

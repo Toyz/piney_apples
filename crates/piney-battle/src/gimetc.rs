@@ -412,10 +412,10 @@ fn ctrl_fountain(cx: &mut Cx, who: usize, o: &mut EntryObj, etc: &mut Etc) -> bo
 fn tail(cx: &mut Cx, who: usize, o: &mut EntryObj, etc: &mut Etc) {
     let pos = cx.scene.chars[who].pos;
     if o.act_num < 10 && o.act_cnt & 3 == 0 {
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), rand_f(cx.cc, PI));
+        let m = geom::rot_matrix_z(&geom::UNIT, rand_f(cx.cc, PI));
         let mut v = geom::VF0;
         v[0] = rand_f(cx.cc, geom::k(100.0));
-        let v = geom::apply_matrix(&m, v);
+        let v = geom::apply(&m, v);
         let p = [add(pos[0], v[0]), add(pos[1], v[1]), geom::k(-50.0), pos[3]];
         cx.out.push(Out::DustRingAt { pos: p, s: geom::k(3.0), r: geom::k(30.0), n: 4, life: 35, tex: 110 });
     }
@@ -481,7 +481,7 @@ fn tail(cx: &mut Cx, who: usize, o: &mut EntryObj, etc: &mut Etc) {
         l.intensity = intensity;
         l.far_end = far;
         l.far_end2 = mul(far, far);
-        l.matrix = geom::trans_matrix(&geom::unit_matrix(), p);
+        l.matrix = geom::trans_matrix(&geom::UNIT, p);
         l.mat_calc = true;
     }
     cx.out.push(Out::EtcLights { who, lights: Some(etc.lights) });

@@ -10,10 +10,11 @@
 use super::ee::{self, bits};
 use super::{CHIPS, Cover, Field, MAP, MeshCell, Tables};
 use crate::ccs::{self, Ccs};
+use crate::vu0::{
+    M4, UNIT, V4, apply, cross, dot, normalize, rot_matrix, rot_matrix_x, rot_matrix_y, rot_matrix_z, vadd, vdiv,
+    vscale, vsub,
+};
 use crate::{Bytes, Result, format_err};
-
-type Vec4 = [u32; 4];
-type Mat4 = [Vec4; 4];
 
 const ONE: u32 = bits(1.0);
 const MINUS_ONE: u32 = bits(-1.0);
@@ -34,7 +35,7 @@ const TRIANGLES: [[(u32, u32, i32, i32); 3]; 2] =
 /// `collisionLP` lets a point lie this far outside an edge.
 const EDGE_SLACK: u32 = 0xba83_126f;
 /// `lightVector` (main 0x002fb100).
-const LIGHT_VECTOR: Vec4 = [0, 0, MINUS_ONE, 0];
+const LIGHT_VECTOR: V4 = [0, 0, MINUS_ONE, 0];
 /// `col255to1Vector` (main 0x002f7370): 1/255.
 const COL255: u32 = 0x3b80_8081;
 /// `FIELD`'s constructor starts every colour at 128.
@@ -45,9 +46,6 @@ const NORMAL_UNIT: u32 = bits(64.0);
 const SIX: u32 = bits(6.0);
 const DEG180: u32 = bits(180.0);
 const PI: u32 = 0x4049_0fdb;
-const HALF_PI: u32 = 0x3fc9_0fdb;
-/// `_sceVu0ecossin`'s polynomial (S5432, main 0x002f7520).
-const SIN: [u32; 4] = [0x362e_9c14, 0xb94f_b21f, 0x3c08_873e, 0xbe2a_aaa4];
 /// `FCOVER::SetPosition`: a cover's offset by quadrant, and its z.
 const COVER_OFFSET: u32 = bits(300.0);
 const COVER_Z: u32 = bits(2.5);
@@ -62,114 +60,6 @@ pub const FADE_FROM: f32 = 6700.0;
 pub const DRAWN_CHIPS: i32 = 6;
 /// The field's size: a torus of 80 cells.
 pub const WORLD_SIZE: f32 = 48_000.0;
-
-// VU0 macro code, modelled with the FPU's rules ------------------------------
-
-fn vu_add(a: Vec4, b: Vec4) -> Vec4 {
-    std::array::from_fn(|i| ee::add(a[i], b[i]))
-}
-
-fn vu_sub(a: Vec4, b: Vec4) -> Vec4 {
-    std::array::from_fn(|i| ee::sub(a[i], b[i]))
-}
-
-/// `sceVu0InnerProduct`: vmul.xyz, then x + y, then + z.
-fn vu_inner(a: Vec4, b: Vec4) -> u32 {
-    ee::add(ee::add(ee::mul(a[0], b[0]), ee::mul(a[1], b[1])), ee::mul(a[2], b[2]))
-}
-
-/// `sceVu0Normalize`: Q = sqrt(x*x + y*y + z*z), then 1 / Q, xyz times that;
-/// w becomes 0.
-fn vu_normalize(v: Vec4) -> Vec4 {
-    let q = ee::add(0, ee::sqrt(vu_inner(v, v)));
-    let r = ee::div(ONE, q);
-    [ee::mul(v[0], r), ee::mul(v[1], r), ee::mul(v[2], r), 0]
-}
-
-/// `sceVu0OuterProduct`: opmula then opmsub, each product rounded; w 0.
-fn vu_outer(a: Vec4, b: Vec4) -> Vec4 {
-    [
-        ee::sub(ee::mul(a[1], b[2]), ee::mul(b[1], a[2])),
-        ee::sub(ee::mul(a[2], b[0]), ee::mul(b[2], a[0])),
-        ee::sub(ee::mul(a[0], b[1]), ee::mul(b[0], a[1])),
-        0,
-    ]
-}
-
-fn vu_scale(v: Vec4, k: u32) -> Vec4 {
-    v.map(|c| ee::mul(c, k))
-}
-
-/// `sceVu0DivVector`: Q = 1 / k, then every component times Q.
-fn vu_div(v: Vec4, k: u32) -> Vec4 {
-    let q = ee::div(ONE, k);
-    v.map(|c| ee::mul(c, q))
-}
-
-/// `sceVu0ApplyMatrix`: columns m, ((c0 x + c1 y) + c2 z) + c3 w.
-fn vu_apply(m: &Mat4, v: Vec4) -> Vec4 {
-    std::array::from_fn(|k| {
-        let acc = ee::mul(m[0][k], v[0]);
-        let acc = ee::add(acc, ee::mul(m[1][k], v[1]));
-        let acc = ee::add(acc, ee::mul(m[2][k], v[2]));
-        ee::add(acc, ee::mul(m[3][k], v[3]))
-    })
-}
-
-const UNIT: Mat4 = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-
-/// `_sceVu0ecossin` (main 0x001109b8) as `sceVu0RotMatrixX/Y/Z` use it: cos
-/// an odd polynomial in pi/2 - |angle|, sin +-sqrt(1 - cos^2). (sin, cos).
-fn vu_cossin(angle: u32) -> (u32, u32) {
-    let neg = ee::lt(angle, 0);
-    let x = if neg { ee::add(HALF_PI, angle) } else { ee::sub(HALF_PI, angle) };
-    let x2 = ee::mul(x, x);
-    let mut p = SIN.map(|k| ee::mul(ee::mul(k, x), x2));
-    for v in &mut p[..3] {
-        *v = ee::mul(*v, x2);
-    }
-    let mut r = ee::add(x, p[3]);
-    for v in &mut p[..2] {
-        *v = ee::mul(*v, x2);
-    }
-    r = ee::add(r, p[2]);
-    p[0] = ee::mul(p[0], x2);
-    r = ee::add(ee::add(r, p[1]), p[0]);
-    let q = ee::sqrt(ee::sub(ONE, ee::mul(r, r)));
-    (if neg { ee::sub(0, q) } else { ee::add(0, q) }, r)
-}
-
-/// The rotation's columns times each column of m.
-fn vu_mul(cols: &Mat4, m: &Mat4) -> Mat4 {
-    m.map(|col| {
-        std::array::from_fn(|k| {
-            let acc = ee::mul(cols[0][k], col[0]);
-            let acc = ee::add(acc, ee::mul(cols[1][k], col[1]));
-            let acc = ee::add(acc, ee::mul(cols[2][k], col[2]));
-            ee::add(acc, ee::mul(cols[3][k], col[3]))
-        })
-    })
-}
-
-/// `sceVu0RotMatrixX/Y/Z(m, angle)` for axis 0, 1, 2: the axis rotation
-/// times m.
-fn vu_rot(m: &Mat4, axis: usize, angle: u32) -> Mat4 {
-    let (s, c) = vu_cossin(angle);
-    let (cs, sn, ns) = (ee::add(0, c), ee::add(0, s), ee::sub(0, s));
-    let rot = match axis {
-        0 => [[ONE, 0, 0, 0], [0, cs, sn, 0], [0, ns, cs, 0], [0, 0, 0, ONE]],
-        1 => [[cs, 0, ns, 0], [0, ONE, 0, 0], [sn, 0, cs, 0], [0, 0, 0, ONE]],
-        _ => [[cs, sn, 0, 0], [ns, cs, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]],
-    };
-    vu_mul(&rot, m)
-}
-
-/// `sceVu0RotMatrix(unit, rad)`: Rx * Ry * Rz.
-fn rot_matrix(rad: [u32; 3]) -> Mat4 {
-    let m = vu_rot(&UNIT, 2, rad[2]);
-    let m = vu_rot(&m, 1, rad[1]);
-    vu_rot(&m, 0, rad[0])
-}
 
 // the ground ------------------------------------------------------------------
 
@@ -188,27 +78,27 @@ fn triangle_normal(a: [u32; 3], b: [u32; 3], c: [u32; 3]) -> [u32; 3] {
 /// `collisionLP` (main 0x00152ee0): where segment p0-p1 meets triangle a, b,
 /// c with normal n. p0 must be on n's side, p1 not; each edge test lets the
 /// point lie 0.001 outside.
-fn collision_lp(p0: Vec4, p1: Vec4, a: Vec4, b: Vec4, c: Vec4, n: Vec4) -> Option<Vec4> {
-    let d = vu_normalize(vu_sub(p1, p0));
-    let k = ee::mul(MINUS_ONE, vu_inner(n, a));
-    let s0 = ee::add(k, vu_inner(n, p0));
-    let s1 = ee::add(k, vu_inner(n, p1));
+fn collision_lp(p0: V4, p1: V4, a: V4, b: V4, c: V4, n: V4) -> Option<V4> {
+    let d = normalize(vsub(p1, p0));
+    let k = ee::mul(MINUS_ONE, dot(n, a));
+    let s0 = ee::add(k, dot(n, p0));
+    let s1 = ee::add(k, dot(n, p1));
     if ee::lt(s0, 0) || !ee::le(s1, 0) {
         return None;
     }
-    let nd = vu_inner(n, d);
+    let nd = dot(n, d);
     if ee::cmp(0, nd).is_eq() {
         return None;
     }
     for (e0, e1) in [(b, a), (c, b), (a, c)] {
-        let side = vu_outer(vu_sub(e0, e1), d);
-        let to = vu_normalize(vu_sub(p0, e1));
-        if ee::lt(vu_inner(side, to), EDGE_SLACK) {
+        let side = cross(vsub(e0, e1), d);
+        let to = normalize(vsub(p0, e1));
+        if ee::lt(dot(side, to), EDGE_SLACK) {
             return None;
         }
     }
-    let v = vu_div(vu_scale(d, ee::mul(MINUS_ONE, s0)), nd);
-    let hit = vu_add(p0, v);
+    let v = vdiv(vscale(d, ee::mul(MINUS_ONE, s0)), nd);
+    let hit = vadd(p0, v);
     Some([hit[0], hit[1], hit[2], ONE])
 }
 
@@ -251,7 +141,7 @@ pub(super) fn get_height(map: &[u32], check3: &[u8], x: u32, y: u32) -> u32 {
     for tri in TRIANGLES {
         let [a, b, c] = tri.map(|(tx, ty, dx, dy)| [tx, ty, cell_height(map, cx + dx, cy + dy), ONE]);
         let [nx, ny, nz] = triangle_normal([a[0], a[1], a[2]], [b[0], b[1], b[2]], [c[0], c[1], c[2]]);
-        let n = vu_normalize([nx, ny, nz, 0]);
+        let n = normalize([nx, ny, nz, 0]);
         let p0 = [fx, fy, RAY_TOP, 0];
         let p1 = [fx, fy, RAY_BOTTOM, 0];
         if let Some(hit) = collision_lp(p0, p1, a, b, c, n) {
@@ -307,12 +197,13 @@ impl Light {
     /// `sceVu0RotMatrix` of the rotation in radians (`DecodeF_DistantLight`:
     /// degrees * pi / 180).
     pub fn dirc(&self) -> [u32; 4] {
-        vu_apply(&self.matrix(), LIGHT_VECTOR)
+        apply(&self.matrix(), LIGHT_VECTOR)
     }
 
     /// The light's matrix: `sceVu0RotMatrix` of the rotation in radians.
-    pub fn matrix(&self) -> Mat4 {
-        rot_matrix(self.rotation.map(|d| ee::div(ee::mul(PI, d), DEG180)))
+    pub fn matrix(&self) -> M4 {
+        let [x, y, z] = self.rotation.map(|d| ee::div(ee::mul(PI, d), DEG180));
+        rot_matrix(&UNIT, [x, y, z, 0])
     }
 
     /// The direction `Lambert` (gcmn 0x005af2d0) lights along: lightVector
@@ -320,12 +211,9 @@ impl Light {
     /// angles - the game's own reading of its direction vector - and
     /// normalised.
     pub fn direction(&self) -> [u32; 4] {
-        let dirc = self.dirc();
-        let mut m = UNIT;
-        for (axis, &angle) in dirc.iter().take(3).enumerate() {
-            m = vu_rot(&m, axis, angle);
-        }
-        vu_normalize(vu_apply(&m, LIGHT_VECTOR))
+        let [x, y, z, _] = self.dirc();
+        let m = rot_matrix_z(&rot_matrix_y(&rot_matrix_x(&UNIT, x), y), z);
+        normalize(apply(&m, LIGHT_VECTOR))
     }
 
     /// Frame 0 of Anime `anime` in c: its `F_Ambient` and the
@@ -374,8 +262,8 @@ impl Light {
 
 /// `Lambert`'s colour: each channel colour * (ambient + max(0, -n.L) *
 /// light colour), clamped to 0-255.
-fn lambert(direction: Vec4, n: Vec4, colour: [u32; 3], ambient: [u32; 3], light: [u32; 3]) -> [u32; 3] {
-    let dot = ee::mul(vu_inner(n, direction), MINUS_ONE);
+fn lambert(direction: V4, n: V4, colour: [u32; 3], ambient: [u32; 3], light: [u32; 3]) -> [u32; 3] {
+    let dot = ee::mul(dot(n, direction), MINUS_ONE);
     let dot = if ee::lt(dot, 0) { 0 } else { dot };
     std::array::from_fn(|i| {
         let v = ee::mul(colour[i], ee::add(ambient[i], ee::mul(dot, light[i])));
@@ -400,7 +288,7 @@ pub fn object_colours(normals: &[[u8; 4]], colours: &[[u8; 4]], light: &Light) -
         .iter()
         .zip(colours)
         .map(|(n, c)| {
-            let nf: Vec4 =
+            let nf: V4 =
                 std::array::from_fn(
                     |i| {
                         if i < 3 { ee::div(ee::from_int(i32::from(n[i] as i8)), NORMAL_UNIT) } else { 0 }
@@ -462,7 +350,7 @@ impl Field {
     /// `FIELD::InitQuad`'s two normalised face normals per quad `[x][y]`:
     /// face 0 of corners (x, y+1), (x, y), (x+1, y+1), face 1 of (x+1, y),
     /// (x+1, y+1), (x, y+1).
-    fn quad_faces(&self) -> Vec<[Vec4; 2]> {
+    fn quad_faces(&self) -> Vec<[V4; 2]> {
         let h = |x: i32, y: i32| cell_height(&self.map, x, y);
         let mut out = Vec::with_capacity(MAP * MAP);
         for x in 0..MAP as i32 {
@@ -473,7 +361,7 @@ impl Field {
                 let (p2, p3) = ([px, py1, h(x, y + 1)], [px1, py1, h(x + 1, y + 1)]);
                 let n0 = triangle_normal(p2, p0, p3);
                 let n1 = triangle_normal(p1, p3, p2);
-                out.push([vu_normalize([n0[0], n0[1], n0[2], ONE]), vu_normalize([n1[0], n1[1], n1[2], ONE])]);
+                out.push([normalize([n0[0], n0[1], n0[2], ONE]), normalize([n1[0], n1[1], n1[2], ONE])]);
             }
         }
         out
@@ -489,12 +377,12 @@ impl Field {
         let mut out = Vec::with_capacity(MAP * MAP);
         for x in 0..MAP as i32 {
             for y in 0..MAP as i32 {
-                let mut s = vu_add(q(x, y)[0], q(x, y)[1]);
-                s = vu_add(s, q(x - 1, y - 1)[0]);
-                s = vu_add(s, q(x - 1, y - 1)[1]);
-                s = vu_add(s, q(x - 1, y)[1]);
-                s = vu_add(s, q(x + 1, y - 1)[0]);
-                out.push(vu_normalize(vu_div(s, SIX)));
+                let mut s = vadd(q(x, y)[0], q(x, y)[1]);
+                s = vadd(s, q(x - 1, y - 1)[0]);
+                s = vadd(s, q(x - 1, y - 1)[1]);
+                s = vadd(s, q(x - 1, y)[1]);
+                s = vadd(s, q(x + 1, y - 1)[0]);
+                out.push(normalize(vdiv(s, SIX)));
             }
         }
         out

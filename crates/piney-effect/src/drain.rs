@@ -6,9 +6,11 @@
 //! of their own). `effProtect` (0x001cf250) is [`crate::hit`]'s. The rules
 //! are in docs/engine/effects.md ("Around a Data Drain").
 
+use piney_data::vu0;
+
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::{EffectCtrl, Next, Obj};
-use crate::{CharRef, Cx, IntRef, VecRef, dmath, space, vu};
+use crate::{CharRef, Cx, IntRef, VecRef, dmath, space};
 
 /// `effDrainCtrl`'s controller.
 pub const DRAIN_CTRL: i16 = -24;
@@ -133,9 +135,9 @@ pub fn eff_drain(ctrl: &mut EffectCtrl, cx: &mut Cx, ap: CharRef, bp: CharRef, k
         let t = ee::deg2rad((r & 0x1f00) as i16);
         let mut d = [ee::sinf(t), ee::mul(0xbf80_0000, ee::cosf(t)), 0, 0];
         let t2 = ee::deg2rad(((r << 8) & 0xff00) as u16 as i16);
-        d = ee::apply(&vu::rot_y(&vu::UNIT, t2), d);
+        d = ee::apply(&vu0::rot_matrix_y(&vu0::UNIT, t2), d);
         d[3] = ONE;
-        let m = vu::rot_z(&vu::rot_x(&vu::UNIT, ee::deg2rad(-8192)), ang[2]);
+        let m = vu0::rot_matrix_z(&vu0::rot_matrix_x(&vu0::UNIT, ee::deg2rad(-8192)), ang[2]);
         d = ee::apply(&m, d);
         d[3] = ONE;
         let rot = ee::normalize(d);
@@ -249,7 +251,7 @@ const HALF: F = 0x3f00_0000;
 /// 0x001c66a8-0x001c67c0): `s = 2 / |q|^2` (the norm through the FPU's
 /// accumulator, `mula.s`/`madd.s`/`adda.s`), then the usual products into a
 /// unit matrix's upper 3x3, stored as columns.
-pub fn quat_matrix(q: V4) -> vu::M4 {
+pub fn quat_matrix(q: V4) -> vu0::M4 {
     let [x, y, z, w] = q;
     let acc = ee::mul(x, x);
     let f1 = ee::add(acc, ee::mul(y, y));
@@ -266,7 +268,7 @@ pub fn quat_matrix(q: V4) -> vu::M4 {
     let wx = ee::mul(s, ee::mul(x, w));
     let wy = ee::mul(s, ee::mul(y, w));
     let wz = ee::mul(s, ee::mul(w, z));
-    let mut m = vu::UNIT;
+    let mut m = vu0::UNIT;
     m[0][0] = ee::sub(ONE, ee::add(yy, zz));
     m[1][0] = ee::add(xy, wz);
     m[2][0] = ee::sub(xz, wy);

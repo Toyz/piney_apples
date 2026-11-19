@@ -72,7 +72,7 @@ impl crate::world::cast::Cast for TownCast {
     }
 
     /// The Chaos Gate's body and ring lights ([`Gate::lights`]).
-    fn lights(&self, out: &mut Vec<crate::town::Light>) {
+    fn lights(&self, out: &mut Vec<piney_data::light::Light>) {
         out.extend(self.gate.lights());
     }
 

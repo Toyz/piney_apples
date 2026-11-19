@@ -10,11 +10,12 @@
 //! (`{?, size, data}` at +0x00, +0x0c, +0x18) are `Vec`s.
 
 use piney_data::tables::stfroll::{StfRoll as Table, StfRollLine};
+use piney_data::vu0;
 
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::EffectCtrl;
 use crate::particle::{FfParam, GenParam, GenRef, Generator};
-use crate::{Cx, VecRef, vu};
+use crate::{Cx, VecRef};
 
 /// `ending`: the scene file the roll's animations and textures come from.
 pub const CCS: &str = "ending";
@@ -147,7 +148,7 @@ pub enum Draw {
     Logo { tex: &'static str, transp: F },
     /// `ccAnm::Draw` of an animation at its time, its matrix as the
     /// `SetMatrix_*` left it.
-    Anm { anim: Anim, time: u32, matrix: vu::M4, transparency: F },
+    Anm { anim: Anim, time: u32, matrix: vu0::M4, transparency: F },
 }
 
 /// What the roll asks of the game.
@@ -567,7 +568,7 @@ impl StfRoll {
         if ee::le(x, PI) { x } else { ee::sub(x, TWO_PI) }
     }
 
-    fn anm_draw(&self, k: usize, matrix: vu::M4, draws: &mut Vec<Draw>) {
+    fn anm_draw(&self, k: usize, matrix: vu0::M4, draws: &mut Vec<Draw>) {
         let anim = if k == 0 { Anim::Ring } else { Anim::Book };
         let a = &self.anms[k];
         draws.push(Draw::Anm { anim, time: a.time, matrix, transparency: a.transparency });
@@ -588,7 +589,7 @@ impl StfRoll {
                         self.anms[0].spd = 144;
                     }
                     self.rot[2] = self.rot[0];
-                    let m = vu::pos_rot_xyz_scale(self.pos, self.rot, one);
+                    let m = vu0::pos_rot_xyz_scale(self.pos, self.rot, one);
                     let ended = self.anms[0].found && Self::forward(&mut self.anms[0], clips, Anim::Ring);
                     self.ring_done = i32::from(ended);
                     if ended {
@@ -598,7 +599,7 @@ impl StfRoll {
                 } else {
                     self.rot[0] = ee::add(self.rot[0], 0x3b03_126f);
                     self.rot[2] = self.rot[0];
-                    let m = vu::pos_rot_xyz_scale(self.pos, self.rot, one);
+                    let m = vu0::pos_rot_xyz_scale(self.pos, self.rot, one);
                     self.anm_draw(0, m, draws);
                 }
             }
@@ -616,11 +617,11 @@ impl StfRoll {
                 if ee::lt(self.rot[0], 0) {
                     self.rot[0] = 0;
                 }
-                let m = vu::pos_rot_zyx_scale(self.pos, self.rot, one);
+                let m = vu0::pos_rot_zyx_scale(self.pos, self.rot, one);
                 self.anm_draw(1, m, draws);
             }
             4 => {
-                let m = vu::pos_rot_zyx_scale(self.pos, self.rot, one);
+                let m = vu0::pos_rot_zyx_scale(self.pos, self.rot, one);
                 self.book_drawn = 1;
                 self.anm_draw(1, m, draws);
             }
@@ -630,7 +631,7 @@ impl StfRoll {
                 if !ee::le(self.rot[0], HALF_PI) {
                     self.rot[0] = HALF_PI;
                 }
-                let m = vu::pos_rot_zyx_scale(self.last_pos, self.rot, one);
+                let m = vu0::pos_rot_zyx_scale(self.last_pos, self.rot, one);
                 if self.anms[1].found {
                     Self::forward(&mut self.anms[1], clips, Anim::Book);
                 }

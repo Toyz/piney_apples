@@ -7,9 +7,11 @@
 //! and `effDarkSmoke` (0x001d4a20, controllers -15). The rules are in
 //! docs/engine/effects.md ("ConvergenceSystem", "The ice rocks").
 
+use piney_data::vu0;
+
 use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::{EffectCtrl, Next, ONE_VECTOR, Obj};
-use crate::{Cx, NO_HIT, VecRef, pfx, vu};
+use crate::{Cx, NO_HIT, VecRef, pfx};
 
 /// The dark smoke's controller (no object).
 pub const DARK_SMOKE: i16 = -15;
@@ -130,9 +132,9 @@ pub fn bounce_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize, xy: F, zd: F) {
 pub(crate) fn direction(cx: &mut Cx, r: V4) -> (i32, V4) {
     let rn = cx.host.rand() >> 3;
     let a = [0, ee::deg2rad(((rn << 8) & 0xfc00) as i16), ee::deg2rad(((rn & 0xf00) + 4096) as i16), 0];
-    let m = vu::rot_zyx(&vu::UNIT, a);
+    let m = vu0::rot_matrix(&vu0::UNIT, a);
     let d = ee::apply(&m, [0, 0xbf80_0000, 0, ONE]);
-    let m = vu::rot_zyx(&vu::UNIT, r);
+    let m = vu0::rot_matrix(&vu0::UNIT, r);
     (rn, ee::apply(&m, d))
 }
 

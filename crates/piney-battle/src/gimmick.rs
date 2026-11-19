@@ -532,10 +532,10 @@ fn set_fire(cx: &mut Cx, sym: &mut Symbol, state: i32, n: i32) {
         let Some(f) = sym.fires.iter_mut().find(|f| f.state == 0) else { continue };
         *f = Fire { state, pos: geom::VF0, colour: 0, ..Fire::default() };
         let r = geom::deg2rad(cx.cc.rand() as u16 as i16);
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), r);
+        let m = geom::rot_matrix_z(&geom::UNIT, r);
         let mut v = geom::VF0;
         v[0] = add(v[0], crate::enemy_ai::rand_f(cx.cc, geom::k(10.0)));
-        let v = geom::apply_matrix(&m, v);
+        let v = geom::apply(&m, v);
         let mut p = geom::vadd(sym.light_pos, v);
         p[2] = add(p[2], crate::enemy_ai::rand_f(cx.cc, geom::k(10.0)));
         f.pos = p;
@@ -1002,8 +1002,8 @@ fn idol_main(cx: &mut Cx, who: usize, o: &mut EntryObj) -> bool {
     if o.init_flag {
         if idol.effsw == 1 {
             let pos = cx.scene.chars[who].pos;
-            let m = crate::geom::rot_matrix(&crate::geom::unit_matrix(), o.dirc);
-            let v = crate::geom::apply_matrix(&m, STATUE_OFS);
+            let m = crate::geom::rot_matrix(&crate::geom::UNIT, o.dirc);
+            let v = crate::geom::apply(&m, STATUE_OFS);
             let at = crate::geom::vadd(v, pos);
             cx.out.push(Out::StatueOfGod { who, pos: at });
         }
@@ -1222,16 +1222,16 @@ fn obj_main(cx: &mut Cx, who: usize, o: &mut EntryObj, sym: &mut Symbol) -> bool
 /// A heading of three `ccRand()` turns (X, Y, Z): the light's place 10 out
 /// along it, and a velocity along it with `up` added to z.
 fn scatter(cx: &mut Cx, sym: &Symbol, up: F) -> (V4, V4) {
-    let mut m = geom::unit_matrix();
+    let mut m = geom::UNIT;
     m = geom::rot_matrix_x(&m, geom::deg2rad(cx.cc.rand() as u16 as i16));
     m = geom::rot_matrix_y(&m, geom::deg2rad(cx.cc.rand() as u16 as i16));
     m = geom::rot_matrix_z(&m, geom::deg2rad(cx.cc.rand() as u16 as i16));
-    let d = geom::apply_matrix(&m, [geom::k(10.0), 0, 0, ONE]);
+    let d = geom::apply(&m, [geom::k(10.0), 0, 0, ONE]);
     let mut pos = sym.light_pos;
     for k in 0..3 {
         pos[k] = add(pos[k], d[k]);
     }
-    let mut v = geom::apply_matrix(&m, [ONE, 0, 0, ONE]);
+    let mut v = geom::apply(&m, [ONE, 0, 0, ONE]);
     v[2] = add(v[2], up);
     (pos, v)
 }

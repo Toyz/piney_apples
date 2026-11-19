@@ -13,9 +13,8 @@ use piney_desktop::assets::SceneFile;
 
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::chara::pose::Play;
-use crate::draw;
 use crate::ee::{self, F, ONE, V4};
-use crate::field::ambient::{Env, pos_rot_xyz_scale};
+use crate::field::ambient::Env;
 use crate::town::WaterZero;
 
 /// The haze's file, animation and the model whose texture is the picture
@@ -49,7 +48,7 @@ pub(super) fn sample(water: &mut WaterZero, file: &SceneFile, play: &Play, root:
         file.obj_model.get(&target) == Some(&water.model.object)
     });
     if let Some((_, lw)) = lw {
-        let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
+        let lw = piney_data::vu0::of_mat4(*lw);
         water.modify(cx.core.hits.volume, &lw, lw[3], lw[3], cx.view.world_screen);
     }
 }
@@ -81,12 +80,12 @@ impl Haze {
         pos[2] = 0;
         rot[0] = 0;
         rot[1] = 0;
-        let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
+        let m = piney_data::vu0::rot_matrix(&piney_data::vu0::UNIT, rot);
         let mut off = ee::apply(&m, [0, self.def.ahead, 0, ONE]);
         off = ee::vadd(off, pos);
         off[3] = ONE;
         let off = env.p2w(env.w2p(off));
-        pos_rot_xyz_scale(off, rot, [0x3fa6_6666, ONE, ONE])
+        piney_data::vu0::pos_rot_xyz_scale(off, rot, [0x3fa6_6666, ONE, ONE, 0])
     }
 }
 
@@ -105,7 +104,7 @@ impl MapSystem for Haze {
             Hook::Again => {}
             _ => return,
         }
-        let root = draw::mat(&self.matrix);
+        let root = piney_data::vu0::to_mat4(&self.matrix);
         if let Some((file, play, water)) = &mut self.made {
             sample(water, file, play, root, cx);
         }
@@ -117,7 +116,7 @@ impl MapSystem for Haze {
         Some(Request::Posed {
             file,
             play,
-            root: draw::mat(&self.matrix),
+            root: piney_data::vu0::to_mat4(&self.matrix),
             layer: crate::field::area::ambient_layer(6),
             rows: Cow::Owned(play.uv_rows(file)),
             alpha: ee::f(0x3f33_3333),

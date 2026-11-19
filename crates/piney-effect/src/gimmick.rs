@@ -7,9 +7,11 @@
 //! never uses it. The rules are in docs/engine/effects.md ("The dungeon's
 //! objects").
 
+use piney_data::vu0;
+
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::EffectCtrl;
-use crate::{CharRef, Cx, Event, IntRef, debris, particle, pfx, vu};
+use crate::{CharRef, Cx, Event, IntRef, debris, particle, pfx};
 
 /// The controllers.
 pub const VIRUS_CRYSTAL: i16 = -4;
@@ -90,9 +92,9 @@ fn share(m: i32) -> F {
 
 /// The tilt the fragments and the trap's sparks take: (0, (rn << 8) &
 /// 0xfc00, rn % 12288 + 4096) as 16-bit angles.
-fn tilt(rn: i32) -> vu::M4 {
+fn tilt(rn: i32) -> vu0::M4 {
     let a = [0, ee::deg2rad(((rn << 8) & 0xfc00) as i16), ee::deg2rad((rn % 12288 + 4096) as i16), 0];
-    vu::rot_zyx(&vu::UNIT, a)
+    vu0::rot_matrix(&vu0::UNIT, a)
 }
 
 /// `effWoodFragment(p, r, v, s, n, x)` and the three like it (main
@@ -114,7 +116,7 @@ pub fn eff_fragment(
     for _ in 0..n {
         let rn = cx.host.rand() >> 3;
         let d = ee::apply(&tilt(rn), [0, 0xbf80_0000, 0, ONE]);
-        let d = ee::apply(&vu::rot_zyx(&vu::UNIT, r), d);
+        let d = ee::apply(&vu0::rot_matrix(&vu0::UNIT, r), d);
         last = ctrl.new_effect(cx, kind as i16 + ((rn & 0xf) % 3) as i16);
         let Some(k) = last else { continue };
         let e = &mut ctrl.effects[k];

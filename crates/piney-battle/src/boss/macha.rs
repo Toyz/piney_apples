@@ -288,7 +288,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, m: i32) {
 /// `pos`, white (`ccSetColor(0x00ffffff, 1.0)`), intensity 1, full to 0
 /// and gone at 500 (`farDownEnd2` 250000).
 fn ball_light(pos: V4) -> crate::prim::OmniLight {
-    let mut matrix = geom::unit_matrix();
+    let mut matrix = geom::UNIT;
     matrix[3] = pos;
     crate::prim::OmniLight {
         matrix,
@@ -858,8 +858,8 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             if !ee::le(x.light_rot, PI) {
                 x.light_rot = ee::sub(x.light_rot, TWO_PI);
             }
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), x.light_rot);
-            let v = geom::apply_matrix(&m, [0x4348_0000, 0, 0, ONE]);
+            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI), x.light_rot);
+            let v = geom::apply(&m, [0x4348_0000, 0, 0, ONE]);
             let p = super::p2w(cx, geom::vadd(super::w2p(cx, p), v));
             cx.out(Out::Light(Some(ball_light(p))));
             if f == 20 {
@@ -874,10 +874,10 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         }
         2 => {
             let a = wrap(libm::atan2f(0x4409_8000, b.target_dist));
-            let m = geom::rot_matrix_y(&geom::unit_matrix(), a);
+            let m = geom::rot_matrix_y(&geom::UNIT, a);
             let m = geom::rot_matrix_z(&m, b.target_dirc);
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [x.ball_speed, 0, 0, ONE]);
+            let v = geom::apply(&m, [x.ball_speed, 0, 0, ONE]);
             x.ball_pos = super::p2w(cx, geom::vadd(super::w2p(cx, x.ball_pos), v));
             x.anm_ball.forward();
             let (clip, time) = (BALL.to_string(), x.anm_ball.posed);

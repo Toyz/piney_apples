@@ -14,7 +14,9 @@ use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
 use piney_data::archive::Archive;
+use piney_data::dungeon::Rng;
 use piney_data::field::{self, Field, Kind, Tables};
+use piney_data::light::Light;
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -33,8 +35,7 @@ use crate::systems::{
     BuildCx, Carried, CarriedMut, DrawCx, Drawn, FieldCx, FieldStatics, MapEvent, MapView, Request, Statics, Systems,
     paint,
 };
-use crate::town::{Light, TownLights};
-use piney_data::dungeon::Rng;
+use crate::town::TownLights;
 
 /// The field's size, 48,000 units a side (`WORLD_MAN` bounds in `GO(1)`).
 pub const SIZE: F = 0x473b_8000;
@@ -492,7 +493,7 @@ impl FieldArea {
     /// (`SetMatrix_PosRotZYX(pos, 0)`'s world matrix; the inverse is not read
     /// for `type` 0).
     fn set_hit_matrix(&mut self, k: usize, pos: V4) {
-        let rm = crate::town::pos_rot_zyx(pos, [0; 3]);
+        let rm = piney_data::vu0::pos_rot_zyx(pos, [0; 4]);
         for i in 0..self.objects[k].hits.len() {
             let h = self.objects[k].hits[i];
             self.model_hits[h].rm = rm;
@@ -702,7 +703,7 @@ impl FieldArea {
         let rows = HashMap::new();
         for (k, layer) in drawn {
             let o = &self.objects[k];
-            let root = draw::mat(&crate::town::pos_rot_zyx(o.pos, [0; 3]));
+            let root = piney_data::vu0::to_mat4(&piney_data::vu0::pos_rot_zyx(o.pos, [0; 4]));
             let alpha = ee::f(o.alpha);
             let f = fog_at(root.w_axis.truncate());
             match &o.play {
@@ -899,7 +900,7 @@ impl FieldArea {
             let o = &self.objects[k];
             let mut f = FieldObj { wp: o.wp, anm: o.play.is_some(), ..FieldObj::default() };
             let places: Vec<(u32, V4)> = match &o.play {
-                Some(play) => crate::dungeon::pose_in(file, play, &crate::hit::UNIT, None)
+                Some(play) => crate::dungeon::pose_in(file, play, &piney_data::vu0::UNIT, None)
                     .iter()
                     .map(|i| (i.controller, i.world[3]))
                     .collect(),
@@ -1125,7 +1126,7 @@ impl crate::camera::Camera {
         let p = fw2lw(a.pos);
         let v = fw2lw(a.view);
         self.world_view = crate::camera::pos_target(p, v);
-        self.world_screen = piney_data::anim::vu_mul(&crate::camera::VIEW_SCREEN, &self.world_view);
+        self.world_screen = piney_data::vu0::mul_matrix(&crate::camera::VIEW_SCREEN, &self.world_view);
     }
 }
 

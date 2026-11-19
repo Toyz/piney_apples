@@ -108,14 +108,14 @@ impl Meteor {
         if !ee::le(pitch, PI) {
             pitch = ee::sub(pitch, TWO_PI);
         }
-        let m = geom::rot_matrix_y(&geom::unit_matrix(), pitch);
+        let m = geom::rot_matrix_y(&geom::UNIT, pitch);
         let m = geom::rot_matrix_z(&m, yaw);
         let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-        let velocity = geom::apply_matrix(&m, [v, 0, 0, ONE]);
+        let velocity = geom::apply(&m, [v, 0, 0, ONE]);
         let mut acc = VF0;
         if !ee::le(accel, 0) {
             acc[0] = accel;
-            acc = geom::apply_matrix(&m, acc);
+            acc = geom::apply(&m, acc);
         }
         Meteor {
             enabled: false,
@@ -168,9 +168,9 @@ impl MeteoSworm {
             let e = h.w2p(ep);
             let turn = rand_f(h.cc(), PI);
             let r = rand_f(h.cc(), radius);
-            let m = geom::trans_matrix(&geom::unit_matrix(), [r, 0, 0, ONE]);
+            let m = geom::trans_matrix(&geom::UNIT, [r, 0, 0, ONE]);
             let m = geom::rot_matrix_z(&m, turn);
-            let off = geom::apply_matrix(&m, VF0);
+            let off = geom::apply(&m, VF0);
             let end = h.p2w(geom::vadd(e, off));
             let pull = rand_f(h.cc(), 0x4000_0000);
             let pull = (2.0 + f64::from(f32::from_bits(pull)).abs()) as f32;
@@ -282,8 +282,8 @@ impl Thunder {
             let x = rand_f(h.cc(), HUNDRED);
             let z = ee::sub(ee::mul(HUNDRED, ee::from_int(-(k as i32))), HUNDRED);
             let turn = rand_f(h.cc(), PI);
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
-            self.points[k + 1] = geom::vadd(geom::apply_matrix(&m, [x, 0, z, ONE]), top);
+            let m = geom::rot_matrix_z(&geom::UNIT, turn);
+            self.points[k + 1] = geom::vadd(geom::apply(&m, [x, 0, z, ONE]), top);
         }
         let mut s0 = self.anm_index;
         for k in 0..s0 as usize {
@@ -354,8 +354,8 @@ impl ThunderStorm {
         let mut bolts = Vec::with_capacity(num);
         for k in 0..num {
             let turn = rand_f(h.cc(), PI);
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
-            let off = geom::apply_matrix(&m, [radius, 0, 0, ONE]);
+            let m = geom::rot_matrix_z(&geom::UNIT, turn);
+            let off = geom::apply(&m, [radius, 0, 0, ONE]);
             let at = geom::vadd(pos, off);
             let t = Thunder::new(h, at);
             bolts.push((t, 0, (k as i32 / 3) * 5 + 15));
@@ -446,10 +446,10 @@ impl RockTower {
         let mut towers = Vec::with_capacity(n);
         for k in 0..n as i32 {
             let r = rand_f(h.cc(), 0x43c8_0000);
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+            let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
             let turn = rand_f(h.cc(), PI);
             let m = geom::rot_matrix_z(&m, turn);
-            let off = geom::apply_matrix(&m, [r, 0, 0, ONE]);
+            let off = geom::apply(&m, [r, 0, 0, ONE]);
             let mut at = geom::vadd(pos, off);
             at[2] = 0xc47a_0000;
             let s = ee::add(ONE, rand_f(h.cc(), 0x3f00_0000));

@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 
 use glam::Mat4;
-use piney_data::anim::{Ticks, vu_mul};
-use piney_data::vu0::{self, M4};
+use piney_data::anim::Ticks;
+use piney_data::vu0::{self, M4, mul_matrix};
 use piney_desktop::assets::SceneFile;
 
 /// One object of a `ccAnm` ([`Play::instances`]).
@@ -80,8 +80,7 @@ impl Play {
     /// nodes), each of those at rest (the identity) under its Obj parent,
     /// and `root` over those whose parent is outside the set.
     pub fn worlds(&self, file: &SceneFile, root: Mat4, extra: &[u32]) -> HashMap<u32, Mat4> {
-        let locals: HashMap<u32, M4> =
-            file.anims[self.anim].locals_at(self.posed).into_iter().map(|(o, m)| (o, vu0::of_mat4(m))).collect();
+        let locals = file.anims[self.anim].local_bits_at(self.posed);
         let sc = &file.scene;
         let mut set: Vec<u32> = locals.keys().copied().collect();
         set.extend(extra.iter().copied());
@@ -103,9 +102,9 @@ impl Play {
             let local = locals.get(&obj).unwrap_or(&vu0::UNIT);
             let parent = sc.ext_parent.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
             let m = if parent != 0 && parent != obj && depth < 64 && set.contains(&parent) {
-                vu_mul(&w(sc, locals, set, root, cache, parent, depth + 1), local)
+                mul_matrix(&w(sc, locals, set, root, cache, parent, depth + 1), local)
             } else {
-                vu_mul(root, local)
+                mul_matrix(root, local)
             };
             cache.insert(obj, m);
             m
@@ -118,13 +117,11 @@ impl Play {
 
     /// The objects `ccAnm::SetAnm` (main 0x00150f50) makes and `ccAnm::Draw`
     /// (0x001524d0) draws, in the index's order: one `ccObj` per entry of
-    /// [`piney_data::anim::Animation::objects`] (the clump's node for the
-    /// last entry naming it, a new one for each other, so every ExtObj copy
-    /// of a piece draws it again). Each hangs from the entry its chunk names
-    /// as parent, or from `root` when the index has none (0x00151a24), each
-    /// world matrix `ccCoord::_SetLWMatrix`'s product (`sceVu0MulMatrix`,
-    /// main 0x00138380) of the parent's and its local one. A clump node no
-    /// entry names is not drawn.
+    /// [`piney_data::anim::Animation::objects`] (the clump's node for the last
+    /// entry naming it, a new one for each other). Each hangs from the entry
+    /// its chunk names, or from `root` when the index has none (0x00151a24),
+    /// its world matrix `_SetLWMatrix`'s product (main 0x00138380) of the
+    /// parent's and its local one. A clump node no entry names is not drawn.
     pub fn instances(&self, file: &SceneFile, root: Mat4) -> Vec<Instance> {
         let a = &file.anims[self.anim];
         let sc = &file.scene;
@@ -152,8 +149,8 @@ impl Play {
                 return m;
             }
             let m = match parents[k] {
-                Some(p) if depth < 64 => vu_mul(&world(p, parents, locals, root, out, depth + 1), &locals[k]),
-                _ => vu_mul(root, &locals[k]),
+                Some(p) if depth < 64 => mul_matrix(&world(p, parents, locals, root, out, depth + 1), &locals[k]),
+                _ => mul_matrix(root, &locals[k]),
             };
             out[k] = Some(m);
             m

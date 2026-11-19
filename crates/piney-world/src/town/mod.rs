@@ -29,7 +29,6 @@ pub mod pc;
 #[doc(alias = "ROOTTOWN06")]
 pub mod relic_city;
 
-pub use piney_data::light::{AnimLight, Falloff, Kind as LightKind, Light};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -38,6 +37,7 @@ use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::classes::TownGameClass;
 use piney_data::dungeon::Rng;
+use piney_data::light::{AnimLight, Light};
 use piney_data::scene::Scene;
 use piney_data::statics::Position;
 use piney_data::volume::Volume;
@@ -538,7 +538,7 @@ impl Town {
         self.frame.clear();
         // The group as this frame's characters see it: they draw (49, 50,
         // 64) before the town (96) steps its objects' anms.
-        self.core.lights.objects = self.systems.object_lights();
+        self.systems.object_lights(&mut self.core.lights.objects);
         self.systems.run(self.def.order, &mut self.core, v, &mut self.frame, &mut self.events);
         self.rows = self.systems.rows(&self.core.file);
     }
@@ -642,31 +642,21 @@ pub(crate) fn water_rows(file: &SceneFile, k: usize, u: u16) -> HashMap<u32, [u8
 /// `Decode_DummyPosRot` (0x0014d570: `pi * deg / 180`) store them, and what
 /// a constructor copies of them: the position for postype 1, both for 2,
 /// zeros without a dummy.
-pub fn dummy_bits(position: &Position, c: &Ccs, sc: &Scene) -> (V4, [F; 3]) {
+pub fn dummy_bits(position: &Position, c: &Ccs, sc: &Scene) -> (V4, V4) {
     match position.find(c, sc) {
         Some(d) => {
             let pos = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE];
             let rot = match (position, d.rot) {
                 (Position::DummyRot(_), Some(r)) => {
-                    piney_data::anim::const_radians([r.x.to_bits(), r.y.to_bits(), r.z.to_bits()])
+                    let [x, y, z] = piney_data::anim::const_radians([r.x.to_bits(), r.y.to_bits(), r.z.to_bits()]);
+                    [x, y, z, 0]
                 }
-                _ => [0; 3],
+                _ => [0; 4],
             };
             (pos, rot)
         }
-        None => ([0; 4], [0; 3]),
+        None => ([0; 4], [0; 4]),
     }
-}
-
-/// `ccCoord::SetMatrix_PosRotZYX(pos, rot)` (0x001382f0) as it stores the
-/// coordinate's matrix: `sceVu0RotMatrix` of the unit matrix (z, then y,
-/// then x), then `sceVu0TransMatrix` adds the position.
-pub fn pos_rot_zyx(pos: V4, rot: [F; 3]) -> [V4; 4] {
-    let mut m = piney_data::anim::rot_bits(rot);
-    for (k, &p) in pos.iter().take(3).enumerate() {
-        m[3][k] = ee::add(m[3][k], p);
-    }
-    m
 }
 
 /// `ccModel::Draw`'s morph of an anm's `entry`: the targets and weights
@@ -783,7 +773,7 @@ pub(crate) mod tests {
     #[test]
     fn root_is_translated_rotation() {
         let pos = [1.0f32.to_bits(), 2.0f32.to_bits(), 3.0f32.to_bits(), ONE];
-        let m = pos_rot_zyx(pos, [0; 3]);
+        let m = piney_data::vu0::pos_rot_zyx(pos, [0; 4]);
         assert_eq!(m[3], pos);
         assert_eq!(m[0], [ONE, 0, 0, 0]);
     }
@@ -815,11 +805,13 @@ pub(crate) mod tests {
         assert_eq!(l.ambient, piney_data::light::ambient(0x0078_7171));
         assert_eq!(l.lights.len(), 6);
         let sun = &l.lights[0];
-        assert!(matches!(sun.kind, LightKind::Distant { .. }) && sun.intensity == ONE && sun.priority == -1);
+        assert!(
+            matches!(sun.kind, piney_data::light::Kind::Distant { .. }) && sun.intensity == ONE && sun.priority == -1
+        );
         let omni: Vec<([f32; 3], F, f32, f32)> = l.lights[1..]
             .iter()
             .map(|o| match o.kind {
-                LightKind::Omni { pos, far } => {
+                piney_data::light::Kind::Omni { pos, far } => {
                     ([0, 1, 2].map(|k| ee::f(pos[k])), o.intensity, ee::f(far.start), ee::f(far.end))
                 }
                 _ => panic!("{o:?}"),
@@ -843,7 +835,7 @@ pub(crate) mod tests {
         let obj = file.ccs.find_object("LGT_se1_3lig1").unwrap();
         let (_, lights) = anim_lights(&file, ai).unwrap();
         let l = lights.iter().find(|l| l.object == obj).unwrap().at(256, &piney_data::vu0::UNIT);
-        let LightKind::Direct { matrix, radius, .. } = l.kind else { panic!("{l:?}") };
+        let piney_data::light::Kind::Direct { matrix, radius, .. } = l.kind else { panic!("{l:?}") };
         assert_eq!((l.priority, l.intensity, ee::f(radius.start), ee::f(radius.end)), (0, ONE, 498.0, 500.0));
         assert_eq!(matrix[3].map(ee::f), [0.0, 0.0, 2500.0, 1.0]);
         assert_eq!(l.colour, piney_data::light::colour_of(0x00ff_ffff, ONE));

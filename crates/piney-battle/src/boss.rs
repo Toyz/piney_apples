@@ -1326,9 +1326,9 @@ impl BossBase {
     /// The camera free looking at `vp`, its eye `off` from it turned by
     /// `Rz(-pi/2)`, then `d`'s x, y and z turns (Macha's action cameras).
     pub(crate) fn free_cam_from(&mut self, cx: &mut Cx, vp: V4, d: V4, off: V4) {
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+        let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
         let m = geom::rot_matrix_z(&geom::rot_matrix_y(&geom::rot_matrix_x(&m, d[0]), d[1]), d[2]);
-        let eye = p2w(cx, geom::vadd(w2p(cx, vp), geom::apply_matrix(&m, off)));
+        let eye = p2w(cx, geom::vadd(w2p(cx, vp), geom::apply(&m, off)));
         self.free_cam(cx, eye, vp);
     }
 
@@ -1857,8 +1857,8 @@ impl BossBase {
     fn calc_effect_camera_pos(&self, cx: &Cx, p: V4, d: F) -> V4 {
         let pp = w2p(cx, p);
         let r = get_dirc(pp, self.center_pos_p);
-        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), r);
-        let v = geom::apply_matrix(&m, [d, 0, 0, ONE]);
+        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI), r);
+        let v = geom::apply(&m, [d, 0, 0, ONE]);
         p2w(cx, geom::vadd(pp, v))
     }
 
@@ -1866,8 +1866,8 @@ impl BossBase {
     /// behind the boss, the party held, the music out, the effect.
     fn begin_dead_effect(&mut self, cx: &mut Cx, dist: F, height: F) -> i32 {
         let me = cx.me;
-        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), self.dirc[2]), NEG_HALF_PI);
-        let v = geom::apply_matrix(&m, [dist, 0, height, ONE]);
+        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, self.dirc[2]), NEG_HALF_PI);
+        let v = geom::apply(&m, [dist, 0, height, ONE]);
         let eye = p2w(cx, geom::vadd(cx.scene.chars[me].pos_p, v));
         let id = i32::from(cx.scene.chars[me].id());
         let view = cx.pos();

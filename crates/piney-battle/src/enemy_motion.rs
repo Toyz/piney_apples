@@ -9,6 +9,7 @@
 
 use piney_data::Result;
 use piney_data::iso::Iso;
+use piney_data::tables::sjis::encode;
 
 use crate::affect::{self, AffectCtx};
 use crate::blocks::InfoRef;
@@ -24,7 +25,6 @@ use crate::skill::{self, bits};
 use crate::tables::Tables;
 use crate::weapon::WeaponAt;
 use crate::world::{AnmSlot, Note, World};
-use piney_data::tables::sjis::encode;
 
 const K_0_005: F = 0x3ba3_d70a;
 const K_0_01: F = 0x3c23_d70a;
@@ -1164,10 +1164,10 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
     /// moved there (`sceVu0TransMatrix`).
     pub fn model_matrix(&self, me: usize) -> M4 {
         let e = self.en(me);
-        let m1 = rot_matrix_z(&unit_matrix(), deg2rad(-16384));
-        let v = apply_matrix(&m1, [e.yoffs, 0, 0, ONE]);
-        let mat = rot_matrix(&unit_matrix(), e.dirc);
-        let off = apply_matrix(&mat, v);
+        let m1 = rot_matrix_z(&UNIT, deg2rad(-16384));
+        let v = apply(&m1, [e.yoffs, 0, 0, ONE]);
+        let mat = rot_matrix(&UNIT, e.dirc);
+        let off = apply(&mat, v);
         let mut at = vadd(self.ai.scene.chars[me].pos, off);
         at[3] = ONE;
         trans_matrix(&mat, at)
@@ -3058,7 +3058,7 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
         }
         let (m, smoke) = (e.anm_lw, e.ene_smoke);
         for w in WHEELS {
-            let pos = apply_matrix(&m, w);
+            let pos = apply(&m, w);
             self.call(me, Call::EffDust { pos, n: 2, size: K_3, life: 20, smoke });
         }
     }

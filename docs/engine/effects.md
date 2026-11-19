@@ -2048,7 +2048,7 @@ inputs: the run-time supplies them, and this crate does not port them.
 | `eff.rs` | the Eff chunk, `ccEff::Init`, `SetBlendType` |
 | `sprite.rs` | `ccEff::Draw` and `mc_DrawEff`: `Eff::packet`, `Eff::render`, `fview`, `DrawEnv` |
 | `nodes.rs`, `draw.rs` | what `ccClump::Draw` and `ccAnm::Draw` hand `ccObj::Draw`; `DrawRec` (a sprite, clump or animation with its matrix, transparency, palette swap and layer) and `Camera`; rendering through piney-world's model draw into piney-desktop's `Layers` |
-| `space.rs`, `vu.rs`, `dmath.rs` | the map wrap; `libvu0`'s matrix routines and `ccCoord::SetMatrix_PosRot*Scale`; `acosf` and newlib's double `sin` / `cos` - bit for bit |
+| `space.rs`, `dmath.rs` | the map wrap; `acosf` and newlib's double `sin` / `cos` - bit for bit (`libvu0`'s matrix routines and `ccCoord::SetMatrix_PosRot*Scale` are `piney_data::vu0`'s) |
 | `arrival.rs` | `effTransfer`, `effTransferRing`, `effWarpTransfer`: effects 3, 4, -25 |
 | `hit.rs` | the hit mark, protect, attribute guard and critical, the words: effects 19-24 (their second chain), 131, 150-154, 169, 170, -23 |
 | `flyfont.rs`, `damupr.rs` | the rising and the stacked numbers, the `flyFont` sprite |

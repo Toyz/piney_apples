@@ -716,7 +716,7 @@ impl StoryArea {
         self.frame.clear();
         // The group as this frame's characters see it: they draw before
         // the area steps its objects' anms.
-        self.core.lights.objects = self.systems.object_lights();
+        self.systems.object_lights(&mut self.core.lights.objects);
         let mut events = Vec::new();
         self.systems.run_rand(steps, &mut self.core, v, &mut self.frame, &mut events, cc);
     }
@@ -874,7 +874,7 @@ pub fn light_group<S: AsRef<str>>(
     anim: &str,
     names: impl IntoIterator<Item = S>,
     skip_missing: bool,
-) -> Result<(V4, Vec<crate::town::Light>, Vec<u32>)> {
+) -> Result<(V4, Vec<piney_data::light::Light>, Vec<u32>)> {
     let ai = file.anim(anim).ok_or_else(|| Error::NotFound(anim.into()))?;
     let (ambient, records) = crate::town::anim_lights(file, ai)?;
     let (mut group, mut objects) = (Vec::new(), Vec::new());

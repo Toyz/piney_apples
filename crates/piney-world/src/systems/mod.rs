@@ -1072,9 +1072,10 @@ impl Systems {
     }
 
     /// The lights every `STATICOBJECT` table's anms hold in the group, in
-    /// the systems' order ([`statics::StaticObjects::lights`]).
-    pub fn object_lights(&self) -> Vec<crate::town::Light> {
-        self.all.iter().filter_map(statics::StaticObjects::of).flat_map(statics::StaticObjects::lights).collect()
+    /// the systems' order ([`statics::StaticObjects::lights`]), into `out`.
+    pub fn object_lights(&self, out: &mut Vec<piney_data::light::Light>) {
+        out.clear();
+        out.extend(self.all.iter().filter_map(statics::StaticObjects::of).flat_map(statics::StaticObjects::lights));
     }
 
     pub fn get_mut<T: SystemKind>(&mut self) -> Option<&mut T> {

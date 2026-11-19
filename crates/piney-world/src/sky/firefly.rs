@@ -210,7 +210,7 @@ impl Firefly {
             self.pos[2] = ee::from_int(rng.below(300) as i32);
             rot[0] = 0;
             rot[1] = 0;
-            let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
+            let m = piney_data::vu0::rot_matrix(&piney_data::vu0::UNIT, rot);
             self.pos = ee::apply(&m, self.pos);
             self.pos[2] = roam.ground.height(self.pos[0], self.pos[1]);
         }

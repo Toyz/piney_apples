@@ -7,7 +7,7 @@
 //! eight bands, a sampling and an inversion on [`NOIZ_LAYER`]; `ccMenuCtrl`'s
 //! (+0xe8) is the field menu's; `ccGameOverNoise`'s is not ported.
 
-use piney_data::anim::ee;
+use piney_data::field::ee;
 use piney_draw::{
     AlphaFail, AlphaTest, Blend, Cmd, Compare, Depth, DrawState, Filter, Prim, PrimKind, Rgba, TexFunc, TexRef,
     TexState, Vertex, Wrap, ZTest,
@@ -314,10 +314,7 @@ impl Sampling {
         let m11 = f((f64::from(f32::from_bits(ee::mul(sy, h))) * 8.0) as f32);
         // sceVu0RotMatrixZ by the roll, then the translation.
         let one = f(1.0);
-        let m = piney_data::anim::rot_z_bits_of(
-            [[m00, 0, 0, 0], [0, m11, 0, 0], [0, 0, one, 0], [0, 0, 0, one]],
-            self.roll,
-        );
+        let m = piney_data::vu0::rot_matrix_z(&piney_data::vu0::scale_matrix([m00, m11, one]), self.roll);
         let m30 = ee::add(ee::mul(eight, ee::add(max[0], min[0])), ee::mul(w, ox));
         let m31 = ee::add(ee::mul(eight, ee::add(max[1], min[1])), ee::mul(h, oy));
         let rgba = Rgba(self.colour.to_le_bytes());

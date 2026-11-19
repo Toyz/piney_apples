@@ -117,7 +117,7 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
     let anims = if id == 0 { c.gorre_brother_anims } else { c.gorre_brother2_anims };
     b.anm_tbl = anims;
     // `pos_p` is left at 0: only the first `Move` derives it.
-    cx.scene.chars[me].pos = geom::apply_matrix(&translate(cx.scene.chars[master_me].pos), offset);
+    cx.scene.chars[me].pos = geom::apply(&translate(cx.scene.chars[master_me].pos), offset);
     b.dirc = dirc;
     let old = std::mem::replace(&mut cx.me, me);
     b.change_action(cx, act::NEUTRAL, 0, true);
@@ -129,7 +129,7 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
 }
 
 fn translate(t: V4) -> geom::M4 {
-    geom::trans_matrix(&geom::unit_matrix(), t)
+    geom::trans_matrix(&geom::UNIT, t)
 }
 
 /// A brother's own call: `cx.me` its character for the span of `f`.
@@ -178,8 +178,8 @@ fn mov(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
         x.offset[0] = ee::add(x.offset[0], ee::mul(x.spd, libm::sinf(x.dirc)));
         x.offset[1] = ee::sub(x.offset[1], ee::mul(x.spd, libm::cosf(x.dirc)));
     }
-    x.offset = geom::apply_matrix(&translate(VF0), x.offset);
-    let pos = geom::apply_matrix(&translate(cx.scene.chars[x.master_me].pos), x.offset);
+    x.offset = geom::apply(&translate(VF0), x.offset);
+    let pos = geom::apply(&translate(cx.scene.chars[x.master_me].pos), x.offset);
     let mut pos_p = super::super::w2p(cx, pos);
     if !geom::eq(0, b.move_spd) {
         pos_p[0] = ee::add(pos_p[0], ee::mul(b.move_spd, libm::sinf(b.move_dirc)));
@@ -221,8 +221,8 @@ fn face_master(b: &mut BossBase, x: &Brother, cx: &Cx) {
 
 /// `m_posB` turned [`ORBIT_STEP`] round Z, its w put back to 1.
 fn orbit(x: &mut Brother) {
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), ORBIT_STEP);
-    x.offset = geom::apply_matrix(&m, x.offset);
+    let m = geom::rot_matrix_z(&geom::UNIT, ORBIT_STEP);
+    x.offset = geom::apply(&m, x.offset);
     x.offset[3] = ONE;
 }
 
@@ -360,8 +360,8 @@ fn spin(b: &mut BossBase, x: &mut Brother, kind: Wave, cx: &mut Cx) {
         };
         b.anm.set(clip, cx.clips);
     }
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), r);
-    x.offset = geom::apply_matrix(&m, x.prev_offset);
+    let m = geom::rot_matrix_z(&geom::UNIT, r);
+    x.offset = geom::apply(&m, x.prev_offset);
 }
 
 /// The Wave's strike on the clip's frames: sounds at 15 and 35; from 40
@@ -455,8 +455,8 @@ fn on_tornade(gb: &mut BossBase, gx: &mut G<'_>, k: usize, cx: &mut Cx) {
             report(gb, gx, k, Msg::TornadeDone, cx);
         }
         2 => {
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), x.rad);
-            x.offset = geom::apply_matrix(&m, x.offset);
+            let m = geom::rot_matrix_z(&geom::UNIT, x.rad);
+            x.offset = geom::apply(&m, x.offset);
             x.rad = wrap_pi(x.rad_spd);
             let mut spd = ee::add(x.rad_spd, x.rad_accel);
             if !ee::lt(spd, TORNADE_MAX) {

@@ -151,21 +151,21 @@ impl MagicalBall {
             for s in self.sb.iter_mut().chain(self.rnd_sb.iter_mut()) {
                 s[k] = VF0;
             }
-            let m = geom::rot_matrix_x(&geom::unit_matrix(), rand_f(cc, PI));
+            let m = geom::rot_matrix_x(&geom::UNIT, rand_f(cc, PI));
             let m = geom::rot_matrix_y(&m, rand_f(cc, PI));
             let mut p = VF0;
             p[0] = out(cc);
             p[1] = down(cc, 350.0);
             p[2] = out(cc);
-            self.sb[0][k] = geom::apply_matrix(&m, p);
+            self.sb[0][k] = geom::apply(&m, p);
             p[0] = out(cc);
             p[1] = down(cc, 750.0);
             p[2] = out(cc);
-            self.sb[1][k] = geom::apply_matrix(&m, p);
+            self.sb[1][k] = geom::apply(&m, p);
             p[0] = rand_f(cc, 0x42c8_0000);
             p[1] = fp(dp(self.max_scale) * -17.5);
             p[2] = rand_f(cc, 0x42c8_0000);
-            self.sb[2][k] = geom::apply_matrix(&m, p);
+            self.sb[2][k] = geom::apply(&m, p);
             let r = |cc: &mut dyn Rng, x: F, y: F, z: F| [rand_f(cc, x), rand_f(cc, y), rand_f(cc, z), ONE];
             self.rnd_sb[0][k] = r(cc, 0x4120_0000, 0x4120_0000, 0x4170_0000);
             self.rnd_sb[1][k] = r(cc, 0x4120_0000, 0x40a0_0000, 0x40a0_0000);
@@ -319,12 +319,12 @@ impl MagicalBall {
                 if ee::lt(self.set_t[k], 0) {
                     self.set_t[k] = ONE;
                 }
-                let m = geom::rot_matrix_x(&geom::unit_matrix(), self.rot[0]);
+                let m = geom::rot_matrix_x(&geom::UNIT, self.rot[0]);
                 let m = geom::rot_matrix_y(&m, self.rot[1]);
                 let m = geom::rot_matrix_z(&m, self.rot[2]);
                 let over = geom::rot_matrix_x(&m, NEG_PI);
-                let a = geom::apply_matrix(&m, self.spline);
-                let b = geom::apply_matrix(&over, self.spline);
+                let a = geom::apply(&m, self.spline);
+                let b = geom::apply(&over, self.spline);
                 self.spline = a;
                 self.pla_pos[k] = geom::vadd(self.pos, a);
                 self.pla_pos2[k] = geom::vadd(self.pos, b);

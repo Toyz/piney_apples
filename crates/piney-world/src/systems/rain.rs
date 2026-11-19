@@ -218,7 +218,7 @@ impl MapSystem for Thunder {
                     rot[2] = ee::mul(MINUS_ONE, rot[2]);
                 }
                 rot[2] = ee::add(rot[2], r);
-                let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
+                let m = piney_data::vu0::rot_matrix(&piney_data::vu0::UNIT, rot);
                 e.pos = ee::apply(&m, e.pos);
                 self.frames = 4;
                 *tcnt = rng.below(30) as i32 + 30;

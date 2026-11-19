@@ -7,6 +7,7 @@
 //! in docs/engine/effects.md ("SummonsSystem").
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::drawelm::{self, AnmObj, DrawElm, DrawKind, PI, TWO_PI};
 use crate::ee::{self, F, ONE, V4, VF0};
@@ -17,7 +18,7 @@ use crate::fall::{self, damage2_of, eff_skill_break_se};
 use crate::files::ObjRef;
 use crate::particle::{FfParam, GenParam, GenRef};
 use crate::spell::{Spell, attr, bits, camera_shake, check_camera_shake_range, first, noise, strings};
-use crate::{Cx, Event, debris, pfx, ring, space, thunder, vu};
+use crate::{Cx, Event, debris, pfx, ring, space, thunder};
 
 const NEG_HALF_PI: F = 0xbfc9_0fdb;
 
@@ -109,7 +110,7 @@ fn random_turn(cx: &mut Cx) -> V4 {
 
 /// `(x, 0, 0, 1)` turned about y by `ty`, then about z by `tz`.
 fn out_by(x: F, ty: F, tz: F) -> V4 {
-    let m = vu::rot_z(&vu::rot_y(&vu::UNIT, ty), tz);
+    let m = vu0::rot_matrix_z(&vu0::rot_matrix_y(&vu0::UNIT, ty), tz);
     ee::apply(&m, [x, 0, 0, ONE])
 }
 
@@ -407,7 +408,7 @@ impl EnergyGrow {
             let r = thunder::add_abs(f64::from(f32::from_bits(rad_rnd)), thunder::rand_f(cx, ee::sub(ONE, rad_rnd)));
             let x = ee::mul(radius, r);
             let a = thunder::rand_f(cx, PI);
-            let v = ee::apply(&vu::rot_z(&vu::UNIT, a), [x, 0, 0, ONE]);
+            let v = ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, a), [x, 0, 0, ONE]);
             let sp = Self::spread(cx, mov_rnd);
             let tm = Self::spread(cx, fade_rnd);
             let p = &mut self.tbl[i];
@@ -904,7 +905,7 @@ impl Summoned {
     fn jitter(cx: &mut Cx, x: F) -> V4 {
         let r = ee::from_int(thunder::fptosi(thunder::rand_f(cx, x)).wrapping_abs());
         let a = thunder::rand_f(cx, PI);
-        ee::apply(&vu::rot_z(&vu::UNIT, a), [r, 0, 0, ONE])
+        ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, a), [r, 0, 0, ONE])
     }
 
     fn thunder_init(&mut self, cx: &mut Cx) {
@@ -1215,8 +1216,8 @@ impl Summoned {
         r[1] = ee::from_int(thunder::fptosi(thunder::rand_f(cx, PI)).wrapping_abs());
         r[2] = thunder::rand_f(cx, PI);
         let d = ee::add(0x43fa_0000, ee::from_int(thunder::fptosi(thunder::rand_f(cx, 0x43fa_0000)).wrapping_abs()));
-        let c0 = ee::vadd(pp, ee::apply(&vu::rot_zyx(&vu::UNIT, r), [d, 0, 0, ONE]));
-        let c1 = ee::vadd(pp, ee::apply(&vu::rot_z(&vu::UNIT, r[2]), [d, 0, 0, ONE]));
+        let c0 = ee::vadd(pp, ee::apply(&vu0::rot_matrix(&vu0::UNIT, r), [d, 0, 0, ONE]));
+        let c1 = ee::vadd(pp, ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, r[2]), [d, 0, 0, ONE]));
         let epp = space::w2p(ep, player, bounds);
         let b = &mut bats[i];
         b.cp = [c0, c1];
@@ -1428,7 +1429,8 @@ impl Summoned {
                     let up = ee::atan2f(ee::sub(p[2], q[2]), drawelm::get_dist(cx.assets.volume, p, q));
                     let dirc = piney_battle::geom::get_dirc(p, q);
                     let mut spd = a.speed[0];
-                    let m = vu::rot_z(&vu::rot_z(&vu::rot_y(&vu::UNIT, up), dirc), NEG_HALF_PI);
+                    let m =
+                        vu0::rot_matrix_z(&vu0::rot_matrix_z(&vu0::rot_matrix_y(&vu0::UNIT, up), dirc), NEG_HALF_PI);
                     p = ee::vadd(p, ee::apply(&m, [spd, 0, 0, ONE]));
                     let a = &mut slot.elm.base.anim;
                     a.pos = space::p2w(p, player, bounds);
@@ -1521,7 +1523,7 @@ impl Summoned {
                 let r = thunder::rand_f(cx, 0x3f00_0000);
                 let x = ((1.0 - f64::from(f32::from_bits(r)).abs()) * 1000.0) as f32;
                 let a = thunder::rand_f(cx, PI);
-                let v1 = ee::apply(&vu::rot_z(&vu::UNIT, a), [x.to_bits(), 0, 0, ONE]);
+                let v1 = ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, a), [x.to_bits(), 0, 0, ONE]);
                 n.cp[1] = space::p2w(ee::vadd(top, v1), player, bounds);
                 n.status = 0;
                 n.t = 0;
@@ -1565,7 +1567,7 @@ impl Summoned {
         anm: &mut Option<Box<AnmObj>>,
         forward: bool,
     ) {
-        let m = vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale);
+        let m = vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale);
         drawelm::draw_clump(cx, cmp, m, alpha, true);
         if let Some(r) = anm.as_mut() {
             if forward {
@@ -1587,7 +1589,7 @@ impl Summoned {
         let SummonKind::Tree { roots, anm_roots, .. } = &mut self.kind else { return };
         if let Some(r) = anm_roots.as_ref() {
             for p in roots.iter() {
-                r.draw(cx, vu::pos_rot_zyx_scale(*p, dirc, half), tr);
+                r.draw(cx, vu0::pos_rot_zyx_scale(*p, dirc, half), tr);
             }
         }
         let level = self.base.level;
@@ -1753,7 +1755,7 @@ impl Summoned {
                 d[0] = thunder::add_abs(100.0, thunder::rand_f(cx, 0x43c8_0000));
                 d[2] = 0x442a_0000;
                 let a = thunder::rand_f(cx, PI);
-                q = ee::vadd(q, ee::apply(&vu::rot_z(&vu::UNIT, a), d));
+                q = ee::vadd(q, ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, a), d));
                 let sp = space::p2w(q, player, bounds);
                 let mut to = q;
                 to[2] = ee::add(to[2], 0x447a_0000);
@@ -1830,14 +1832,14 @@ impl Summoned {
             let Some(r) = (0..8).find(|&a| els.get(from + a).is_some_and(|e| e.status == 0)) else { return };
             let x = thunder::add_abs(100.0, thunder::rand_f(cx, 0x447a_0000));
             let a = thunder::rand_f(cx, PI);
-            let c = ee::vadd(gpp, ee::apply(&vu::rot_z(&vu::UNIT, a), [x, 0, 0, ONE]));
+            let c = ee::vadd(gpp, ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, a), [x, 0, 0, ONE]));
             let w = space::p2w(c, player, bounds);
             let e = &mut els[from];
             e.cp_p = [c, c];
             e.cp = [w, w];
             let d = ee::fabsf(thunder::rand_f(cx, 0x43fa_0000));
             let a = thunder::rand_f(cx, PI);
-            let q = ee::vadd(epp, ee::apply(&vu::rot_z(&vu::UNIT, a), [d, 0, 0, ONE]));
+            let q = ee::vadd(epp, ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, a), [d, 0, 0, ONE]));
             let e = &mut els[r];
             e.ep = space::p2w(q, player, bounds);
             e.ep_p = q;

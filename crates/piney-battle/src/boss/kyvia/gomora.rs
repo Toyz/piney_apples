@@ -504,9 +504,9 @@ fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
         // The EX turn's: beside `GomoraKpos`, 50 to 150 off turned up to
         // 1.5 and up to 50 up or down; no departure.
         let turn = rand_f(cx.cc, 0x3fc0_0000);
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
+        let m = geom::rot_matrix_z(&geom::UNIT, turn);
         let off = [0, fp(50.0 + dp(rand_abs(cx, 0x42c8_0000))), 0, ONE];
-        let mut pos = geom::vadd(core, geom::apply_matrix(&m, off));
+        let mut pos = geom::vadd(core, geom::apply(&m, off));
         pos[2] = ee::add(pos[2], rand_f(cx.cc, 0x4248_0000));
         cx.scene.chars[me].pos = pos;
         g.x.disc_pos = pos;
@@ -516,20 +516,20 @@ fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
     }
     let sign: i32 = if (cx.cc.rand() % 2).abs() != 0 { -1 } else { 1 };
     let turn = rand_f(cx.cc, 0x3fc0_0000);
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
+    let m = geom::rot_matrix_z(&geom::UNIT, turn);
     g.x.dp_vec[0] = core;
     g.x.departure = VF0;
     let z = fp(50.0 + dp(rand_abs(cx, 0x42c8_0000)));
     g.x.departure[2] = z;
     g.x.departure[0] = 0;
-    g.x.dp_vec[1] = geom::vadd(geom::apply_matrix(&m, g.x.departure), core);
+    g.x.dp_vec[1] = geom::vadd(geom::apply(&m, g.x.departure), core);
     let z = fp(100.0 + dp(rand_abs(cx, 0x42c8_0000)));
     g.x.departure[2] = z;
     g.x.departure[0] = 0;
-    g.x.dp_vec[2] = geom::vadd(geom::apply_matrix(&m, g.x.departure), core);
+    g.x.dp_vec[2] = geom::vadd(geom::apply(&m, g.x.departure), core);
     g.x.departure[2] = rand_abs(cx, 0x4248_0000);
     g.x.departure[0] = ee::from_int(sign * 200);
-    g.x.dp_vec[3] = geom::vadd(geom::apply_matrix(&m, g.x.departure), core);
+    g.x.dp_vec[3] = geom::vadd(geom::apply(&m, g.x.departure), core);
     super::particles(cx, Gen::GomoraOut(0), Place::At(at), None);
     super::particles(cx, Gen::GomoraOut(1), Place::At(at), None);
     g.x.time_mode = 1;
@@ -633,7 +633,7 @@ const SP_RANGES: [[[i32; 6]; 4]; 3] = [
 fn set_sp_point(g: &mut Part<Gomora>, cx: &mut Cx) {
     let a = dp(rand_abs(cx, 0x43af_0000));
     let b = dp(rand_abs(cx, 0x4316_0000));
-    let v = geom::apply_matrix(&geom::unit_matrix(), [0, fp(a + b), 0, ONE]);
+    let v = geom::apply(&geom::UNIT, [0, fp(a + b), 0, ONE]);
     let base = geom::vadd(v, g.x.disc_pos);
     g.x.sp_vec = [cx.scene.chars[g.me].pos, base, base, base];
     g.x.move_pattern = (cx.cc.rand() % 4).abs();

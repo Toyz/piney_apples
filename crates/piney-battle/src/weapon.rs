@@ -8,8 +8,8 @@
 
 use crate::damage::fptosi;
 use crate::geom::{
-    self, F, M4, ONE, PI, TWO_PI, V4, add, apply_matrix, div, fptoui, from_int, le, lt, mul, mul_matrix, rot_matrix,
-    sinf, sub, trans_matrix, unit_matrix, vadd, vscale, vsub,
+    self, F, M4, ONE, PI, TWO_PI, UNIT, V4, add, apply, div, fptoui, from_int, le, lt, mul, mul_matrix, rot_matrix,
+    sinf, sub, trans_matrix, vadd, vscale, vsub,
 };
 use crate::prim::{RadInfo, RadOut, RadWorld, Radiate, fractional_hsv};
 use crate::world::Note;
@@ -359,11 +359,11 @@ impl Weapon {
     /// rot))`) and moved to the chunk's place under the node (the copy of
     /// `ApplyMatrix(m, pos)` lands on the matrix's last row).
     fn node(&self, w: &mut dyn WeaponWorld) -> M4 {
-        let m = w.node_matrix(&self.info.node, self.ext).unwrap_or_else(unit_matrix);
+        let m = w.node_matrix(&self.info.node, self.ext).unwrap_or(UNIT);
         match (!self.info.chunk.is_empty()).then(|| w.chunk(&self.info.chunk)).flatten() {
             Some((pos, rot)) => {
-                let p = apply_matrix(&m, pos);
-                let mut m = mul_matrix(&m, &rot_matrix(&unit_matrix(), rot));
+                let p = apply(&m, pos);
+                let mut m = mul_matrix(&m, &rot_matrix(&UNIT, rot));
                 m[3] = p;
                 m
             }
@@ -399,7 +399,7 @@ impl Weapon {
         self.cells[k].alpha = ONE;
         let m = self.node(w);
         for i in 0..self.edges() {
-            self.cells[k].vert[i].pos = apply_matrix(&m, self.info.pts[i]);
+            self.cells[k].vert[i].pos = apply(&m, self.info.pts[i]);
         }
         if self.flags & (flag::BEZIER | flag::SPLINE) != 0 && self.count >= 4 {
             self.interpolate_cell(w);
@@ -591,7 +591,7 @@ impl Weapon {
     fn ctrl_radiate(&mut self, weapon: usize, w: &mut dyn WeaponWorld, out: &mut Vec<WeaponOut>) {
         if self.skill {
             let m = self.node(w);
-            let pos: [V4; 4] = std::array::from_fn(|i| apply_matrix(&m, self.info.pts[i]));
+            let pos: [V4; 4] = std::array::from_fn(|i| apply(&m, self.info.pts[i]));
             self.rad.pos = self.rad_point(&pos);
         }
         if !self.rad.rad_flag {
@@ -720,7 +720,7 @@ pub fn rad_ctrl(r: &mut Radiate, w: &mut dyn RadWorld, out: &mut Vec<RadOut>) {
         r.alpha = s;
         r.light.intensity = mul(K_1_5, s);
         r.pos = w.fw2lw(r.pos);
-        r.light.matrix = trans_matrix(&unit_matrix(), r.pos);
+        r.light.matrix = trans_matrix(&UNIT, r.pos);
         r.light.mat_calc = true;
         out.push(RadOut::LightOn(r.light));
         r.lgt_flag = true;

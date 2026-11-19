@@ -6,6 +6,7 @@
 //! times the transparency). The rules are in docs/engine/particles.md
 //! ("ccParticle").
 
+use piney_data::vu0::{self, M4};
 use piney_world::chara::pose::Play;
 
 use super::tables::Tables;
@@ -15,7 +16,6 @@ use crate::ee::{self, F, ONE, V4};
 use crate::eff::Eff;
 use crate::effect::{EFFECT_LAYER, check_camera_deg};
 use crate::files::{Assets, ObjRef};
-use crate::vu::{self, M4};
 use crate::{Host, space};
 
 /// What a particle draws (`pChar`).
@@ -389,7 +389,7 @@ fn main_in(p: &mut Particle, gene: Option<&Generator>, view: &mut View, layer: O
             }
         }
         Obj::Clump { obj, matrix } => {
-            *matrix = vu::pos_rot_zyx_scale(at, p.rot, p.scale);
+            *matrix = vu0::pos_rot_zyx_scale(at, p.rot, p.scale);
             if let Some(alpha) = shown(p, at, view) {
                 // ccClump::ChangeClut's swap: the file's own CLUT drawn as
                 // the particle's.
@@ -398,7 +398,7 @@ fn main_in(p: &mut Particle, gene: Option<&Generator>, view: &mut View, layer: O
             }
         }
         Obj::Anm { obj, play, matrix } => {
-            *matrix = vu::pos_rot_zyx_scale(at, p.rot, p.scale);
+            *matrix = vu0::pos_rot_zyx_scale(at, p.rot, p.scale);
             if !p.end_flag {
                 p.end_flag = play.forward(&view.assets.files[obj.file]);
             }

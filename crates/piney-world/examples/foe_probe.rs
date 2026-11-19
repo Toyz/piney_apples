@@ -104,7 +104,7 @@ fn answer(d: &Disc, files: &mut Files, looks: &mut HashMap<i32, EnemyLook>, circ
             let l = &looks[&row];
             let cols: [[u32; 4]; 4] = std::array::from_fn(|c| std::array::from_fn(|r| n(4 + 4 * c + r)));
             match play_at(&l.model, w[2], n(3)) {
-                Some(p) => println!("{{\"nodes\": {}}}", nodes(&l.model, &p, draw::mat(&cols))),
+                Some(p) => println!("{{\"nodes\": {}}}", nodes(&l.model, &p, piney_data::vu0::to_mat4(&cols))),
                 None => println!("{{\"error\": \"no animation {}\"}}", w[2]),
             }
         }
@@ -116,7 +116,7 @@ fn answer(d: &Disc, files: &mut Files, looks: &mut HashMap<i32, EnemyLook>, circ
                 Some(p) => println!(
                     "{{\"root\": {}, \"nodes\": {}}}",
                     list(root.iter().flatten()),
-                    nodes(&c.model, &p, draw::mat(&root))
+                    nodes(&c.model, &p, piney_data::vu0::to_mat4(&root))
                 ),
                 None => println!("{{\"error\": \"no animation {}\"}}", w[1]),
             }
@@ -213,7 +213,7 @@ fn render(archive: Arc<Archive>, frame: &Frame) -> Result<(u32, u32, Vec<u8>), S
 /// `dispEnemy`'s matrix for an enemy at `pos` facing `dirc_z`, `yoffs` 0:
 /// the facing's rotation moved to the position.
 fn disp_matrix(pos: V4, dirc_z: F) -> [V4; 4] {
-    let m = piney_battle::geom::rot_matrix(&piney_battle::geom::unit_matrix(), [0, 0, dirc_z, 0]);
+    let m = piney_battle::geom::rot_matrix(&piney_battle::geom::UNIT, [0, 0, dirc_z, 0]);
     piney_battle::geom::trans_matrix(&m, [pos[0], pos[1], pos[2], ONE])
 }
 
@@ -260,7 +260,7 @@ fn shot(d: &Disc, s: &Shot) -> Result<(), Box<dyn std::error::Error>> {
         cy + s.dist * pitch.cos() * yaw.cos(),
         cz + 150.0 + s.dist * pitch.sin(),
     );
-    let world_screen = piney_data::anim::vu_mul(&VIEW_SCREEN, &pos_target(eye, target));
+    let world_screen = piney_data::vu0::mul_matrix(&VIEW_SCREEN, &pos_target(eye, target));
     let to_screen = draw::screen(&world_screen);
     let mut layers = Layers::default();
     let player = at(cx, cy + 600.0, ground(cx, cy + 600.0));

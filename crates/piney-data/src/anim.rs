@@ -13,9 +13,10 @@ use std::collections::HashMap;
 use glam::{Mat3, Mat4, Vec3};
 
 use crate::ccs::{self, Ccs};
+use crate::field::ee;
 use crate::libm;
 use crate::scene::{Anime, Scene, Transform};
-use crate::vu0::{self, M4, V4};
+use crate::vu0::{self, M4, ONE, UNIT, V4, mul_matrix, rot_matrix};
 use crate::{Bytes, Result, format_err};
 
 /// Time in 1/256 frames, as `ccAnm` counts it (frameNow * 256 + frameCnt).
@@ -36,13 +37,7 @@ const F_OBJ: u16 = 0x0101;
 const MORPHER: u16 = 0x1900;
 const END_LOOP: u32 = 0xffff_fffe;
 
-/// The EE's single-precision arithmetic on raw bit patterns
-/// ([`crate::field::ee`]), under the name the animation code has used.
-pub use crate::field::ee;
-
-const ONE: u32 = 0x3f80_0000;
 const PI: u32 = 0x4049_0fdb;
-const HALF_PI: u32 = 0x3fc9_0fdb;
 const DEG180: u32 = 0x4334_0000;
 /// 182.04444 = 32768 / 180
 const TO_S16: u32 = 0x4336_0b61;
@@ -50,8 +45,6 @@ const TO_S16: u32 = 0x4336_0b61;
 const FROM_S16: u32 = 0x38c9_0fdb;
 /// EigenVector (0x00105be0) gives up when no cofactor reaches ~1e-11.
 const EIGEN_MIN: u32 = 0x2d2f_ebff;
-/// The sine polynomial's coefficients, S5432 (0x002f7520).
-const SIN: [u32; 4] = [0x362e_9c14, 0xb94f_b21f, 0x3c08_873e, 0xbe2a_aaa4];
 
 // Controllers ----------------------------------------------------------------
 
@@ -124,88 +117,15 @@ impl<const N: usize> Ctrl<N> {
     }
 }
 
-/// `_sceVu0ecossin` (0x001109b8) as `sceVu0RotMatrixX/Y/Z` use it: cos is an
-/// odd polynomial in pi/2 - |angle|, sin is +-sqrt(1 - cos^2). Returns
-/// (sin, cos) as bits.
-fn vu_cossin(angle: u32) -> (u32, u32) {
-    let neg = ee::negative(angle);
-    let x = if neg { ee::add(HALF_PI, angle) } else { ee::sub(HALF_PI, angle) };
-    let x2 = ee::mul(x, x);
-    let mut p = SIN.map(|k| ee::mul(ee::mul(k, x), x2));
-    for v in &mut p[..3] {
-        *v = ee::mul(*v, x2);
-    }
-    let mut r = ee::add(x, p[3]);
-    for v in &mut p[..2] {
-        *v = ee::mul(*v, x2);
-    }
-    r = ee::add(r, p[2]);
-    p[0] = ee::mul(p[0], x2);
-    r = ee::add(ee::add(r, p[1]), p[0]);
-    let q = ee::sqrt(ee::sub(ONE, ee::mul(r, r)));
-    (if neg { ee::sub(0, q) } else { ee::add(0, q) }, r)
-}
-
-/// `sceVu0MulMatrix`'s product of `cols` with each stored column of `m`:
-/// ((a*x + b*y) + c*z) + d*w, as eemu models VU0's multiply-adds. Also
-/// `ccCoord::_SetLWMatrix`'s parent-times-local product.
-pub fn vu_mul(cols: &[[u32; 4]; 4], m: &[[u32; 4]; 4]) -> [[u32; 4]; 4] {
-    m.map(|col| {
-        std::array::from_fn(|k| {
-            let acc = ee::mul(cols[0][k], col[0]);
-            let acc = ee::add(acc, ee::mul(cols[1][k], col[1]));
-            let acc = ee::add(acc, ee::mul(cols[2][k], col[2]));
-            ee::add(acc, ee::mul(cols[3][k], col[3]))
-        })
-    })
-}
-
-/// `sceVu0RotMatrix(unit, rad)` as stored columns of float bits: Rz, then Ry,
-/// then Rx on the left, so Rx * Ry * Rz.
-pub fn rot_bits(rad: [u32; 3]) -> [[u32; 4]; 4] {
-    rot_bits_of([[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]], rad)
-}
-
-/// `sceVu0RotMatrix(out, m, rad)`: `m` turned about z, then y, then x, each
-/// a product on the left (so Rx * Ry * Rz * m, rounded step by step).
-pub fn rot_bits_of(m: [[u32; 4]; 4], rad: [u32; 3]) -> [[u32; 4]; 4] {
-    let z = |v: u32| ee::add(0, v);
-    let n = |v: u32| ee::sub(0, v);
-    let mut m = rot_z_bits_of(m, rad[2]);
-    let (s, c) = vu_cossin(rad[1]);
-    m = vu_mul(&[[z(c), 0, n(s), 0], [0, ONE, 0, 0], [z(s), 0, z(c), 0], [0, 0, 0, ONE]], &m);
-    let (s, c) = vu_cossin(rad[0]);
-    vu_mul(&[[ONE, 0, 0, 0], [0, z(c), z(s), 0], [0, n(s), z(c), 0], [0, 0, 0, ONE]], &m)
-}
-
-/// `sceVu0RotMatrixX(out, m, rx)`: `m` turned about x, `Rx * m`.
-pub fn rot_x_bits_of(m: [[u32; 4]; 4], rx: u32) -> [[u32; 4]; 4] {
-    let z = |v: u32| ee::add(0, v);
-    let n = |v: u32| ee::sub(0, v);
-    let (s, c) = vu_cossin(rx);
-    vu_mul(&[[ONE, 0, 0, 0], [0, z(c), z(s), 0], [0, n(s), z(c), 0], [0, 0, 0, ONE]], &m)
-}
-
-/// `sceVu0RotMatrixY(out, m, ry)`: `m` turned about y, `Ry * m`.
-pub fn rot_y_bits_of(m: [[u32; 4]; 4], ry: u32) -> [[u32; 4]; 4] {
-    let z = |v: u32| ee::add(0, v);
-    let n = |v: u32| ee::sub(0, v);
-    let (s, c) = vu_cossin(ry);
-    vu_mul(&[[z(c), 0, n(s), 0], [0, ONE, 0, 0], [z(s), 0, z(c), 0], [0, 0, 0, ONE]], &m)
-}
-
-/// `sceVu0RotMatrixZ(out, m, rz)` (0x00110a30): `m` turned about z, `Rz *
-/// m`.
-pub fn rot_z_bits_of(m: [[u32; 4]; 4], rz: u32) -> [[u32; 4]; 4] {
-    let z = |v: u32| ee::add(0, v);
-    let n = |v: u32| ee::sub(0, v);
-    let (s, c) = vu_cossin(rz);
-    vu_mul(&[[z(c), z(s), 0, 0], [n(s), z(c), 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]], &m)
-}
-
 fn bits_mat3(m: &[[u32; 4]; 4]) -> Mat3 {
     let col = |c: usize| Vec3::new(f32::from_bits(m[c][0]), f32::from_bits(m[c][1]), f32::from_bits(m[c][2]));
     Mat3::from_cols(col(0), col(1), col(2))
+}
+
+/// `sceVu0RotMatrix(unit, rad)` of a rotation in radians (bits).
+fn turned(rad: [u32; 3]) -> M4 {
+    let [x, y, z] = rad;
+    rot_matrix(&UNIT, [x, y, z, 0])
 }
 
 /// A key's degrees quantised to s16 turns, in radians (bits). Infection
@@ -254,7 +174,7 @@ fn eigen_vector(m: &M4) -> Option<(V4, V4)> {
 fn eigen_frame(axis: V4, w: V4) -> M4 {
     let (a, b) = (vu0::normalize(axis), vu0::normalize(w));
     let c = vu0::normalize(vu0::cross(a, b));
-    let mut f = vu0::UNIT;
+    let mut f = UNIT;
     for (r, row) in f.iter_mut().enumerate().take(3) {
         row[..3].copy_from_slice(&[a[r], b[r], c[r]]);
     }
@@ -268,7 +188,7 @@ fn eigen_frame(axis: V4, w: V4) -> M4 {
 fn m2a(m: &M4) -> V4 {
     let Some((axis, w)) = eigen_vector(m) else { return [0; 4] };
     let f = eigen_frame(axis, w);
-    let local = vu_mul(&f, &vu_mul(m, &vu0::transpose(&f)));
+    let local = mul_matrix(&f, &mul_matrix(m, &vu0::transpose(&f)));
     let wide = |x: u32| f64::from(f32::from_bits(x));
     let angle = libm::atan2(wide(local[1][2]), wide(local[1][1])) as f32;
     [axis[0], axis[1], axis[2], angle.to_bits()]
@@ -282,7 +202,7 @@ fn a2m(aa: V4) -> M4 {
     let s = vu0::vscale(aa, libm::sinf(aa[3]));
     let c = libm::cosf(aa[3]);
     let t = ee::sub(ONE, c);
-    let mut out = vu0::UNIT;
+    let mut out = UNIT;
     for (r, row) in out.iter_mut().enumerate().take(3) {
         let outer = vu0::vscale(vu0::vscale(aa, aa[r]), t);
         for k in 0..3 {
@@ -320,7 +240,7 @@ pub(crate) struct RotKeyed {
 
 impl RotKeyed {
     pub(crate) fn new(keys: &[(u32, [u32; 3])], frames: u32) -> Self {
-        let mats: Vec<M4> = keys.iter().map(|(_, v)| rot_bits(key_radians(*v))).collect();
+        let mats: Vec<M4> = keys.iter().map(|(_, v)| turned(key_radians(*v))).collect();
         let mut t = keys[0].0 << 8;
         let mut turns = Vec::with_capacity(keys.len() + 1);
         if t != 0 {
@@ -328,7 +248,7 @@ impl RotKeyed {
         }
         let mut last = [0; 4];
         for (pair, &(frame, _)) in mats.windows(2).zip(&keys[1..]) {
-            last = m2a(&vu_mul(&pair[1], &vu0::transpose(&pair[0])));
+            last = m2a(&mul_matrix(&pair[1], &vu0::transpose(&pair[0])));
             turns.push(((frame << 8).wrapping_sub(t), last));
             t = frame << 8;
         }
@@ -342,7 +262,7 @@ impl RotKeyed {
             .into_iter()
             .scan(mats[0], |w, (dur, turn)| {
                 let start = *w;
-                *w = vu_mul(&a2m(turn), w);
+                *w = mul_matrix(&a2m(turn), w);
                 Some(RotSeg { dur, turn, start })
             })
             .collect();
@@ -363,7 +283,7 @@ impl RotKeyed {
         // game never evaluates.
         let frac = if seg.dur != 0 { ee::div(ee::from_u32(t), ee::from_u32(seg.dur)) } else { 0 };
         let [x, y, z, angle] = seg.turn;
-        vu_mul(&a2m([x, y, z, ee::mul(angle, frac)]), &seg.start)
+        mul_matrix(&a2m([x, y, z, ee::mul(angle, frac)]), &seg.start)
     }
 }
 
@@ -398,9 +318,8 @@ impl Pose {
         let col = |v: Vec3| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), 0];
         let r = self.rot;
         let rot = [col(r.x_axis), col(r.y_axis), col(r.z_axis), [0, 0, 0, ONE]];
-        let s = self.scale.to_array().map(f32::to_bits);
-        let scale = [[s[0], 0, 0, 0], [0, s[1], 0, 0], [0, 0, s[2], 0], [0, 0, 0, ONE]];
-        vu0::trans_matrix(&vu_mul(&rot, &scale), [self.pos.x, self.pos.y, self.pos.z, 0f32].map(f32::to_bits))
+        let scale = vu0::scale_matrix(self.scale.to_array().map(f32::to_bits));
+        vu0::trans_matrix(&mul_matrix(&rot, &scale), [self.pos.x, self.pos.y, self.pos.z, 0f32].map(f32::to_bits))
     }
 
     /// T(pos) * R * S(scale): [`Pose::bits`] as a matrix.
@@ -496,7 +415,7 @@ impl ObjRecord {
         } else {
             1.0
         };
-        Pose { pos: v(self.pos), rot: bits_mat3(&rot_bits(const_radians(self.rot))), scale: v(self.scale), alpha }
+        Pose { pos: v(self.pos), rot: bits_mat3(&turned(const_radians(self.rot))), scale: v(self.scale), alpha }
     }
 }
 
@@ -664,7 +583,7 @@ fn read_rot(d: &[u8], q: &mut usize, kind: u32, frames: u32) -> Result<RotCtrl> 
         1 => {
             let deg = [d.u32_at(*q)?, d.u32_at(*q + 4)?, d.u32_at(*q + 8)?];
             *q += 12;
-            Ok(RotCtrl::Const(bits_mat3(&rot_bits(const_radians(deg)))))
+            Ok(RotCtrl::Const(bits_mat3(&turned(const_radians(deg)))))
         }
         2 => {
             let keys = read_keys::<3>(d, q)?;
@@ -877,12 +796,17 @@ impl Animation {
     /// (as `Scene::anime_frame0` keeps them), then the F_Obj poses of the
     /// objects no track drives; see [`Track::target`] for instances.
     pub fn locals_at(&self, time: Ticks) -> HashMap<u32, Mat4> {
+        self.local_bits_at(time).into_iter().map(|(o, m)| (o, vu0::to_mat4(&m))).collect()
+    }
+
+    /// [`Animation::locals_at`] as float bits ([`Pose::bits`]).
+    pub fn local_bits_at(&self, time: Ticks) -> HashMap<u32, M4> {
         let mut out = HashMap::new();
         for (tr, pose) in self.tracks.iter().zip(self.poses_at(time)) {
-            out.entry(tr.target).or_insert_with(|| pose.matrix());
+            out.entry(tr.target).or_insert_with(|| pose.bits());
         }
         for (target, pose) in self.obj_poses_at(time) {
-            out.entry(target).or_insert_with(|| pose.matrix());
+            out.entry(target).or_insert_with(|| pose.bits());
         }
         out
     }

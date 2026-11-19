@@ -43,11 +43,7 @@ pub fn omni_lights(world: Mat4) -> Lights {
     let pos = trans_matrix(&UNIT, [x, y, z, ONE])[3];
     let omni = Light { priority: 1, ..Light::omni(pos, light::colour_of(0x00ff_ffff, ONE), ONE, Falloff::default()) };
     let [r, g, b] = AMBIENT.map(f32::to_bits);
-    let w = world.to_cols_array().map(f32::to_bits);
-    let world: [[u32; 4]; 4] = std::array::from_fn(|r| std::array::from_fn(|c| w[4 * r + c]));
-    let regs = light::light_regs(piney_data::volume::Volume::Inf, &[omni], [r, g, b, 0], &world);
-    let f = |v: [u32; 3]| v.map(f32::from_bits);
-    Lights { dirs: regs.dirs.map(f), colours: regs.colours.map(f), ambient: f(regs.ambient) }
+    piney_desktop::anm::model_lights(piney_data::volume::Volume::Inf, [omni], [r, g, b, 0], world)
 }
 
 /// `ccAnm::Draw` of `anm` (an animation of `file`) on the title's layer.

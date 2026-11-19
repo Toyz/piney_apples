@@ -9,7 +9,7 @@
 use piney_desktop::view::{CULL_X1, CULL_Y1, LayerView, XYOFFSET_X, XYOFFSET_Y};
 use piney_draw::{Blend, Cmd, DrawState, Prim, PrimKind, Rgba, TexRef, TexState, Vertex};
 
-use crate::ee::{self, F, ONE, V4};
+use crate::ee::{self, F, ONE};
 
 /// `ccSprite.ctrl`'s bits the map sets: a drop shadow, mirrored left to
 /// right, upside down.
@@ -232,46 +232,6 @@ pub struct Place {
     pub tex_h: i32,
 }
 
-/// `_sceVu0ecossin` (main 0x001109b8) as `sceVu0RotMatrixZ` uses it: cos an
-/// odd polynomial in pi/2 - |angle|, sin +-sqrt(1 - cos^2). (sin, cos).
-fn vu_cossin(angle: F) -> (F, F) {
-    const S: [F; 4] = [0x362e_9c14, 0xb94f_b21f, 0x3c08_873e, 0xbe2a_aaa4];
-    const HALF_PI: F = 0x3fc9_0fdb;
-    let negative = ee::lt(angle, 0);
-    let x = if negative { ee::add(HALF_PI, angle) } else { ee::sub(HALF_PI, angle) };
-    let x2 = ee::mul(x, x);
-    let mut p = S.map(|c| ee::mul(ee::mul(c, x), x2));
-    for v in &mut p[..3] {
-        *v = ee::mul(*v, x2);
-    }
-    let mut r = ee::add(x, p[3]);
-    for v in &mut p[..2] {
-        *v = ee::mul(*v, x2);
-    }
-    r = ee::add(r, p[2]);
-    p[0] = ee::mul(p[0], x2);
-    r = ee::add(ee::add(r, p[1]), p[0]);
-    let q = ee::sqrt(ee::sub(ONE, ee::mul(r, r)));
-    (if negative { ee::sub(0, q) } else { ee::add(0, q) }, r)
-}
-
-/// `sceVu0UnitMatrix` then `sceVu0RotMatrixZ(m, m, a)` (0x00110a30): Rz(a),
-/// as stored columns.
-fn rot_z(a: F) -> [V4; 4] {
-    let (s, c) = vu_cossin(a);
-    let (c, sn, ns) = (ee::add(0, c), ee::add(0, s), ee::sub(0, s));
-    let rot = [[c, sn, 0, 0], [ns, c, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-    let unit = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-    unit.map(|col| {
-        std::array::from_fn(|i| {
-            let acc = ee::mul(rot[0][i], col[0]);
-            let acc = ee::add(acc, ee::mul(rot[1][i], col[1]));
-            let acc = ee::add(acc, ee::mul(rot[2][i], col[2]));
-            ee::add(acc, ee::mul(rot[3][i], col[3]))
-        })
-    })
-}
-
 /// `ccView::ApplyLayerScreenMatrix(int *, float *)` of (x, y, 0, 1):
 /// `layer_screen` times the point, each lane truncated to 12.4.
 pub fn layer_screen(view: &LayerView, x: F, y: F) -> (i32, i32) {
@@ -314,7 +274,7 @@ pub fn corners(p: &Packet, view: &LayerView, tex_h: i32) -> Option<(Vec<Corner>,
         }
         return Some((vec![Corner { x, y, u: a.0, v: a.1 }, Corner { x: x + w, y: y + h, u: b.0, v: b.1 }], rgba));
     }
-    let m = rot_z(ee::neg(p.rot));
+    let m = piney_data::vu0::rot_matrix_z(&piney_data::vu0::UNIT, ee::neg(p.rot));
     let ex = ee::apply(&m, [p.sx, 0, 0, ONE]);
     let ey = ee::apply(&m, [0, p.sy, 0, ONE]);
     let c = ee::apply(&m, [p.cx, p.cy, 0, ONE]);

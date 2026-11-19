@@ -6,11 +6,12 @@
 //! and `ccRand` (`piney_battle::boss::macha::eff`).
 
 use piney_battle::boss::macha::Pic;
+use piney_data::vu0;
 
 use crate::draw::DrawRec;
 use crate::ee::{self, ONE, VF0};
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
-use crate::{Cx, debris, dust, particle, vu};
+use crate::{Cx, debris, dust, particle};
 
 const FIVE: u32 = 0x40a0_0000;
 const TENTH: u32 = 0x3dcc_cccd;
@@ -23,12 +24,12 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, p: &Pic) {
         // The bolt at a tenth: Rx(-pi/2) Rx(pitch) Rz(heading), then the
         // place.
         Pic::Laser { pos, pitch, heading } => {
-            let mut m = vu::UNIT;
+            let mut m = vu0::UNIT;
             (m[0][0], m[1][1], m[2][2]) = (TENTH, TENTH, TENTH);
-            let m = vu::rot_x(&m, NEG_HALF_PI);
-            let m = vu::rot_x(&m, pitch);
-            let m = vu::rot_z(&m, heading);
-            let m = vu::trans(&m, pos);
+            let m = vu0::rot_matrix_x(&m, NEG_HALF_PI);
+            let m = vu0::rot_matrix_x(&m, pitch);
+            let m = vu0::rot_matrix_z(&m, heading);
+            let m = vu0::trans_matrix(&m, pos);
             if let Some(obj) = cx.assets.find("xeffect", "CMP_ex31les0") {
                 cx.draws.push(DrawRec::Clump {
                     obj,
@@ -50,7 +51,7 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, p: &Pic) {
         }
         // The blast at its scale and transparency, unturned.
         Pic::Blast { pos, scale, transparency } => {
-            let m = vu::pos_rot_zyx_scale(pos, VF0, [scale, scale, scale, ONE]);
+            let m = vu0::pos_rot_zyx_scale(pos, VF0, [scale, scale, scale, ONE]);
             if let Some(obj) = cx.assets.find("xeffect", "CMP_ex31exp1") {
                 cx.draws.push(DrawRec::Clump {
                     obj,

@@ -5,7 +5,7 @@
 //! rules here (no denormals, no infinities, truncated); its multiply-adds round
 //! the product first.
 
-pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
+pub use piney_data::field::ee::{add, cmp, div, eq, from_int, le, lt, mul, sqrt, sub, to_int};
 pub use piney_data::libm::{atan2f, cosf, dsqrt_on, fabsf, fmodf, neg, sinf, sqrtf, sqrtf_on, tanf};
 pub use piney_data::vu0::{F, V4, apply, cross, dot, normalize, vadd, vscale, vscale_xyz, vsub};
 
@@ -45,11 +45,6 @@ pub fn f3(v: V4) -> [f32; 3] {
 /// Bits to an `f32`, for reporting and drawing.
 pub fn f(x: F) -> f32 {
     f32::from_bits(x)
-}
-
-/// `c.eq.s`: equal values (every zero pattern equals every other).
-pub fn eq(a: F, b: F) -> bool {
-    cmp(a, b) == std::cmp::Ordering::Equal
 }
 
 /// `sceVu0RotTransPers(out, m, v, 0)`: [`apply`], x, y and z times

@@ -65,10 +65,10 @@ impl Laser {
     /// `Rz(heading)`, `Rz(-pi/2)`.
     pub fn new(cx: &Cx, from: V4, to: V4, speed: F) -> Laser {
         let (a, r) = aim(cx, from, to);
-        let m = geom::rot_matrix_y(&geom::unit_matrix(), a);
+        let m = geom::rot_matrix_y(&geom::UNIT, a);
         let m = geom::rot_matrix_z(&m, r);
         let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-        let vel = geom::apply_matrix(&m, [speed, 0, 0, ONE]);
+        let vel = geom::apply(&m, [speed, 0, 0, ONE]);
         Laser { pos: from, start: from, end: to, vel }
     }
 
@@ -124,8 +124,8 @@ impl Shock {
         self.wait = cx.cc.rand() & 15;
         for k in 0..8 {
             let reach = libm::fabsf(rand_f(cx.cc, 0x447a_0000));
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), rand_f(cx.cc, PI));
-            let v = geom::apply_matrix(&m, [reach, 0, 0, ONE]);
+            let m = geom::rot_matrix_z(&geom::UNIT, rand_f(cx.cc, PI));
+            let v = geom::apply(&m, [reach, 0, 0, ONE]);
             let pos = geom::vadd(self.pos, v);
             let rock = soft_add(45.0, libm::fabsf(rand_f(cx.cc, 0x4234_0000)));
             let size = soft_add(1.0, libm::fabsf(rand_f(cx.cc, 0x41a0_0000)));

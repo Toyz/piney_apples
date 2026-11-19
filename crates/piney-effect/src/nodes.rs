@@ -9,11 +9,11 @@
 
 use std::collections::HashMap;
 
+use piney_data::vu0::{self, M4};
 use piney_world::chara::pose::Play;
 
 use crate::ee::{self, F, ONE};
 use crate::files::{Assets, ObjRef};
-use crate::vu::{self, M4};
 
 /// 1/128: `ccObj::Draw` draws nothing at or below it (0x0013f2a4).
 pub const MIN_TRANSPARENCY: F = 0x3c00_0000;
@@ -71,7 +71,7 @@ pub fn clump(assets: &Assets, obj: ObjRef, matrix: &M4, alpha: F) -> Vec<ObjDraw
             }
             let mut world = *matrix;
             for _ in 0..depth(n) {
-                world = vu::mul(&world, &vu::UNIT);
+                world = vu0::mul_matrix(&world, &vu0::UNIT);
             }
             Some(ObjDraw { obj: n, model, world, alpha: tp })
         })
@@ -95,13 +95,13 @@ pub fn anm(assets: &Assets, obj: ObjRef, play: &Play, matrix: &M4, alpha: F) -> 
         }
     }
     fn world(sc: &piney_data::scene::Scene, l: &HashMap<u32, (M4, F)>, root: &M4, o: u32, d: usize) -> M4 {
-        let local = l.get(&o).map_or(vu::UNIT, |x| x.0);
+        let local = l.get(&o).map_or(vu0::UNIT, |x| x.0);
         let parent = sc.ext_parent.get(&o).or_else(|| sc.parent.get(&o)).copied().unwrap_or(0);
         // A parent the animation does not name hangs from the ccAnm.
         if parent != 0 && parent != o && d < 64 && l.contains_key(&parent) {
-            vu::mul(&world(sc, l, root, parent, d + 1), &local)
+            vu0::mul_matrix(&world(sc, l, root, parent, d + 1), &local)
         } else {
-            vu::mul(root, &local)
+            vu0::mul_matrix(root, &local)
         }
     }
     let mut out = Vec::new();

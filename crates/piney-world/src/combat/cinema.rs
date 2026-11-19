@@ -8,7 +8,7 @@
 //! `ccScFade::EntryFlash` black at alpha 0x80 (docs/engine/boss.md, "The
 //! cinema").
 
-use piney_data::anim::ee;
+use piney_data::field::ee::{self, le, lt};
 use piney_data::volume::Volume;
 use piney_desktop::anm::Ctx;
 use piney_desktop::fade;
@@ -40,15 +40,6 @@ const BAR_COLOUR: u32 = 0x8000_0000;
 pub fn takes(volume: Volume, n: i32) -> bool {
     let end = if volume == Volume::Inf { 61 } else { 79 };
     (0..end).contains(&n)
-}
-
-/// `c.lt.s`, `c.le.s` on EE floats.
-fn lt(a: u32, b: u32) -> bool {
-    ee::to_f64(a) < ee::to_f64(b)
-}
-
-fn le(a: u32, b: u32) -> bool {
-    ee::to_f64(a) <= ee::to_f64(b)
 }
 
 /// A skill's name: its texture (`SetTex(file, tex, 1)`), the texture's

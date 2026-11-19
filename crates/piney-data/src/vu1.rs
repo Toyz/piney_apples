@@ -1,10 +1,10 @@
 //! VU1's upper-pipe arithmetic on float bits, as `tools/vu.py` runs the
 //! microcode: every lane through the EE's FPU model ([`crate::field::ee`]),
-//! a multiply-add rounding its product first (`mulax`/`madday`/`maddaz`/
-//! `maddw` is [`crate::vu0::apply`]), `ITOFn` a `cvt.s.w` then a divide by
-//! `2^n`, `FTOIn` a multiply by `2^n` then a truncation. A flag the code
-//! tests (`FMAND`, `FSAND`) reads a lane's sign as the MAC flag does: the
-//! result's bit 31, so a -0 is negative.
+//! the lane-wise ops and the multiply-adds (`mulax`/`madday`/`maddaz`/`maddw`
+//! is [`crate::vu0::apply`]) [`crate::vu0`]'s, `ITOFn` a `cvt.s.w` then a
+//! divide by `2^n`, `FTOIn` a multiply by `2^n` then a truncation. A flag the
+//! code tests (`FMAND`, `FSAND`) reads a lane's sign as the MAC flag does:
+//! the result's bit 31, so a -0 is negative.
 
 use crate::field::ee;
 use crate::vu0::{F, ONE, V4};
@@ -49,11 +49,6 @@ pub fn cross_xy(a: V4, b: V4) -> F {
 /// `ADDA` then `MADDq`: `from + to * q`, every lane.
 pub fn lerp(from: V4, to: V4, q: F) -> V4 {
     std::array::from_fn(|k| ee::add(ee::add(from[k], 0), ee::mul(to[k], q)))
-}
-
-/// `SUB.xyzw`, every lane.
-pub fn vsub(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|k| ee::sub(a[k], b[k]))
 }
 
 #[cfg(test)]

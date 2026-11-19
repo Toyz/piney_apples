@@ -8,6 +8,7 @@
 //! sorted group. The packet is in docs/engine/effects.md ("Drawing a sprite").
 
 use piney_data::ccs::Ccs;
+use piney_data::vu0::{self, M4};
 use piney_desktop::layers::Layers;
 use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
 use piney_draw::{
@@ -19,7 +20,6 @@ use crate::draw::Camera;
 use crate::ee::{self, F, ONE};
 use crate::eff::{Eff, EffChunk};
 use crate::files::Assets;
-use crate::vu::{self, M4};
 
 /// `-pi`, `ccView::SetView`'s turn about x.
 const MINUS_PI: F = 0xc049_0fdb;
@@ -197,7 +197,7 @@ pub fn fview(wv: &M4) -> M4 {
         ee::add(acc, ee::mul(c[2][k], t[2]))
     });
     c[3] = [ee::sub(zero[0], p[0]), ee::sub(zero[1], p[1]), ee::sub(zero[2], p[2]), t[3]];
-    let mut f = vu::mul(&c, &vu::rot_x(&vu::UNIT, MINUS_PI));
+    let mut f = vu0::mul_matrix(&c, &vu0::rot_matrix_x(&vu0::UNIT, MINUS_PI));
     f[3] = [0, 0, 0, ONE];
     f
 }
@@ -247,17 +247,6 @@ pub struct Packet {
     pub gs: Option<GsSprite>,
 }
 
-/// `ACC = m0 x; ACC += m1 y; ACC += m2 z; m3 w + ACC` lane by lane, as VU1's
-/// `mulax`/`madday`/`maddaz`/`maddw` do it.
-fn apply(m: &M4, p: [F; 4]) -> [F; 4] {
-    std::array::from_fn(|k| {
-        let acc = ee::mul(m[0][k], p[0]);
-        let acc = ee::add(acc, ee::mul(m[1][k], p[1]));
-        let acc = ee::add(acc, ee::mul(m[2][k], p[2]));
-        ee::add(acc, ee::mul(m[3][k], p[3]))
-    })
-}
-
 fn sign(v: F) -> bool {
     v & 0x8000_0000 != 0
 }
@@ -283,15 +272,15 @@ impl Eff {
         }
         let a = a.min(255) as u32;
         let env = &camera.env;
-        let mut m = vu::UNIT;
+        let mut m = vu0::UNIT;
         m[0][0] = self.scale_x;
         m[1][1] = self.scale_y;
         if !ee::eq(self.rotate, 0) {
-            m = vu::rot_z(&m, self.rotate);
+            m = vu0::rot_matrix_z(&m, self.rotate);
         }
-        m = vu::mul(&fview(&camera.world_view), &m);
-        m = vu::trans(&m, self.pos);
-        m = vu::mul(&camera.world_screen, &m);
+        m = vu0::mul_matrix(&fview(&camera.world_view), &m);
+        m = vu0::trans_matrix(&m, self.pos);
+        m = vu0::mul_matrix(&camera.world_screen, &m);
         let w = m[3][3];
         if ee::lt(w, env.near) || !ee::le(w, env.far) {
             return None;
@@ -310,7 +299,7 @@ impl Eff {
         for (out, &(x, y, du, dv)) in verts.iter_mut().zip(&corners) {
             // The row (u, v, 0, 1.0 bits) added to the data lanes, the
             // masked lanes taken from it.
-            let q = apply(m, [x.wrapping_add(u), y.wrapping_add(v), 0, ONE]);
+            let q = vu0::apply(m, [x.wrapping_add(u), y.wrapping_add(v), 0, ONE]);
             let r = ee::div(ONE, q[3]);
             let s: [F; 3] = std::array::from_fn(|k| ee::mul(q[k], r));
             let inside = sign(ee::sub(0, s[0]))
@@ -467,7 +456,7 @@ mod tests {
         let wv = piney_world::camera::pos_target([0, ee::k(-1000.0), 0, ONE], [0, 0, 0, ONE]);
         let camera = Camera {
             world_view: wv,
-            world_screen: piney_data::anim::vu_mul(&piney_world::camera::VIEW_SCREEN, &wv),
+            world_screen: vu0::mul_matrix(&piney_world::camera::VIEW_SCREEN, &wv),
             ..Camera::default()
         };
         let mut e = Eff::init(p, 0, &a.effs[p][0], false, &a.alpha_blend);
@@ -514,7 +503,7 @@ mod tests {
         };
         let camera = Camera {
             world_view: wv,
-            world_screen: piney_data::anim::vu_mul(&piney_world::camera::VIEW_SCREEN, &wv),
+            world_screen: vu0::mul_matrix(&piney_world::camera::VIEW_SCREEN, &wv),
             ..Camera::default()
         }
         .fogged(Some(mac_anu));
@@ -539,9 +528,9 @@ mod tests {
         // view's x, its y turns to the world's z (up the screen).
         let wv = piney_world::camera::pos_target([0, ee::k(500.0), 0, ONE], [0, 0, 0, ONE]);
         let f = fview(&wv);
-        let r = apply(&vu::mul(&wv, &f), [ONE, 0, 0, 0]);
+        let r = vu0::apply(&vu0::mul_matrix(&wv, &f), [ONE, 0, 0, 0]);
         assert!((ee::f(r[0]) - 1.0).abs() < 1e-6, "{r:x?}");
-        let r = apply(&vu::mul(&wv, &f), [0, ONE, 0, 0]);
+        let r = vu0::apply(&vu0::mul_matrix(&wv, &f), [0, ONE, 0, 0]);
         assert!((ee::f(r[1]) + 1.0).abs() < 1e-6, "{r:x?}");
         assert_eq!(f[3], [0, 0, 0, ONE]);
     }

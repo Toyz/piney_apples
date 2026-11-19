@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-615 entries: audio 51, battle 169, build 34, content 3, decomp 39, disc 6, engine 45, format 18, iop 3, render 137, save 16, script 65, test 272, tooling 67, ui 111, video 19, volumes 116, world 196. 171 entries still have open questions - [listed below](#still-open).
+616 entries: audio 51, battle 169, build 34, content 3, decomp 39, disc 6, engine 46, format 18, iop 3, render 137, save 16, script 65, test 272, tooling 67, ui 111, video 19, volumes 116, world 196. 172 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -627,9 +627,11 @@ The [reference](docs/README.md) says what is true now.
 | 613 | [The last harness tolerances to the bit](worklog/0613-the-last-harness-tolerances-to-the-bit.md) | 2026-11-17 | render, test, volumes, tooling |
 | 614 | [The shadow volumes to the word and the pixel](worklog/0614-the-shadow-volumes-to-the-word-and-the-pixel.md) | 2026-11-18 | render, test, volumes, tooling, audio |
 | 615 | [Each disc's own new game and CONVERT on the desktop](worklog/0615-each-disc-s-own-new-game-and-convert-on-the-desktop.md) | 2026-11-19 | script, test, volumes, engine |
+| 616 | [The accuracy work to the clean-up's standard](worklog/0616-the-accuracy-work-to-the-clean-up-s-standard.md) | 2026-11-19 | engine |
 
 ## Still open
 
+- [616. The accuracy work to the clean-up's standard](worklog/0616-the-accuracy-work-to-the-clean-up-s-standard.md) (2 questions) - Whether fobj_matrix differs from the game anywhere.
 - [615. Each disc's own new game and CONVERT on the desktop](worklog/0615-each-disc-s-own-new-game-and-convert-on-the-desktop.md) (2 questions) - No cleared Mutation or Outbreak save exists, so Outbreak's and Quarantine's CONVERT run on the user's Infection save...
 - [614. The shadow volumes to the word and the pixel](worklog/0614-the-shadow-volumes-to-the-word-and-the-pixel.md) (4 questions) - The bits of _SetLWMatrix's stack qword (a ccCoord's heap address, the drawing thread's $a0 upper half), which the port...
 - [613. The last harness tolerances to the bit](worklog/0613-the-last-harness-tolerances-to-the-bit.md) - the shadow volume's pixels are not yet compared exactly: making them so means porting ccShadowModel::Draw's matrices...

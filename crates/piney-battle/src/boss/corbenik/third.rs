@@ -169,7 +169,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
         killer_me,
         anm_w: Anm::new(),
         dummy,
-        body_world: geom::unit_matrix(),
+        body_world: geom::UNIT,
         stage_eff: 0,
         ..Third::default()
     });
@@ -281,7 +281,7 @@ fn pre_draw_anm(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
 fn draw(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     let pos = cx.scene.chars[cx.me].pos;
     if b.draw(cx) {
-        x.body_world = geom::trans_matrix(&geom::rot_matrix(&geom::unit_matrix(), b.dirc), pos);
+        x.body_world = geom::trans_matrix(&geom::rot_matrix(&geom::UNIT, b.dirc), pos);
     }
 }
 
@@ -1214,10 +1214,10 @@ fn calc_tera_laser_pos(x: &mut Third, cx: &mut Cx) {
         let d = crate::boss::dist(cx, a, t);
         let rx = piney_data::libm::atan2f(ee::sub(a[2], t[2]), d);
         let rz = get_dirc(a, t);
-        let m = geom::rot_matrix_y(&geom::unit_matrix(), rx);
+        let m = geom::rot_matrix_y(&geom::UNIT, rx);
         let m = geom::rot_matrix_z(&m, rz);
         let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-        let v = geom::apply_matrix(&m, [s, 0, 0, ONE]);
+        let v = geom::apply(&m, [s, 0, 0, ONE]);
         let me = p.me;
         let pp = geom::vadd(cx.scene.chars[me].pos_p, v);
         cx.scene.chars[me].pos_p = pp;
@@ -1251,8 +1251,8 @@ fn setup_refrect_laser_pos(b: &BossBase, x: &mut Third, cx: &mut Cx, v0: F, n: i
     for (ks, rad, z, step) in rings {
         let mut a = start(back);
         for k in ks {
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), a), NEG_HALF_PI);
-            let o = geom::apply_matrix(&m, [rad, 0, z, ONE]);
+            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, a), NEG_HALF_PI);
+            let o = geom::apply(&m, [rad, 0, z, ONE]);
             x.eyes[k].x.to = p2w(cx, geom::vadd(tp, o));
             a = ee::add(a, step);
             if !ee::le(a, PI) {

@@ -17,7 +17,7 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
 use crate::chara::pose::Play;
-use crate::draw::{self, Fogging};
+use crate::draw::Fogging;
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::HitModel;
 use crate::sky::cloud;
@@ -275,7 +275,7 @@ impl Disc {
     /// matrix under the object's root, and its inverse.
     fn disc_hits(&self, objects: &StaticObjects) -> Vec<HitModel> {
         let Some(o) = objects.get(0) else { return Vec::new() };
-        let worlds = o.play.worlds(&self.file, draw::mat(&o.root), &[]);
+        let worlds = o.play.worlds(&self.file, piney_data::vu0::to_mat4(&o.root), &[]);
         let mut list = Vec::new();
         for (&obj, &m) in &worlds {
             let target = self.file.scene.ext.get(&obj).copied().unwrap_or(obj);
@@ -283,7 +283,7 @@ impl Disc {
             for h in self.hit_models.iter().filter(|h| h.parent == model) {
                 let mut h = h.clone();
                 h.rm = cols(m);
-                h.im = crate::dungeon::invers(&h.rm);
+                h.im = piney_data::vu0::invers(&h.rm);
                 list.push(h);
             }
         }
@@ -335,7 +335,7 @@ impl MapSystem for Disc {
         let Some(objects) = others.get_mut::<StaticObjects>() else { return };
         if let Some(o) = objects.get_mut(0) {
             o.pos = prev;
-            o.root = crate::town::pos_rot_zyx(prev, [0; 3]);
+            o.root = piney_data::vu0::pos_rot_zyx(prev, [0; 4]);
         }
         cx.core.hits.models = self.disc_hits(objects);
         cx.core.hits.trans = Some(prev);
@@ -517,9 +517,9 @@ impl Bodies {
                 .filter(|h| models.contains(&h.parent))
                 .map(|h| {
                     let mut h = h.clone();
-                    h.rm = crate::hit::UNIT;
+                    h.rm = piney_data::vu0::UNIT;
                     h.rm[3] = pos;
-                    h.im = crate::dungeon::invers(&h.rm);
+                    h.im = piney_data::vu0::invers(&h.rm);
                     h
                 })
                 .collect();
@@ -727,7 +727,7 @@ mod tests {
         // the disc, full to 600 and nothing past 1200.
         let disc_light: Vec<_> = objects.lights().collect();
         assert_eq!(disc_light.len(), 1);
-        let crate::town::LightKind::Omni { pos, far } = disc_light[0].kind else { panic!("{disc_light:?}") };
+        let piney_data::light::Kind::Omni { pos, far } = disc_light[0].kind else { panic!("{disc_light:?}") };
         let place = ee::apply(&objects[0].root, [0, 0, ee::k(-100.0), ONE]);
         assert_eq!((pos, far.start, far.end), (place, ee::k(600.0), ee::k(1200.0)));
         assert_eq!(disc(&a).cnt, 2);

@@ -62,10 +62,10 @@ fn wrap(mut v: F) -> F {
 
 /// `Unit, RotY(p), RotZ(y), RotZ(-pi/2)` applied to `v`.
 fn turned(p: F, y: F, v: V4) -> V4 {
-    let m = geom::rot_matrix_y(&geom::unit_matrix(), p);
+    let m = geom::rot_matrix_y(&geom::UNIT, p);
     let m = geom::rot_matrix_z(&m, y);
     let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-    geom::apply_matrix(&m, v)
+    geom::apply(&m, v)
 }
 
 /// `STAR_T` (64 bytes).
@@ -123,10 +123,10 @@ impl StarDust {
             let r = ee::add(0x43c8_0000, rand_f(cx.cc, 0x42c8_0000));
             let ry = rand_f(cx.cc, PI);
             let rz = rand_f(cx.cc, PI);
-            let m = geom::rot_matrix_y(&geom::unit_matrix(), ry);
+            let m = geom::rot_matrix_y(&geom::UNIT, ry);
             let m = geom::rot_matrix_z(&m, rz);
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [r, 0, 0, ONE]);
+            let v = geom::apply(&m, [r, 0, 0, ONE]);
             s.pos = geom::vadd(core, v);
             s.pos0 = s.pos;
             s.count = ((k / 5) * 5) as i16;
@@ -276,10 +276,10 @@ impl StarDust {
             let d = dist(cx, ep, vp);
             let pt = libm::atan2f(ee::sub(ep[2], vp[2]), d);
             let yaw = get_dirc(ep, vp);
-            let m = geom::rot_matrix_x(&geom::unit_matrix(), pt);
+            let m = geom::rot_matrix_x(&geom::UNIT, pt);
             let m = geom::rot_matrix_z(&m, yaw);
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [0x4120_0000, 0, 0, ONE]);
+            let v = geom::apply(&m, [0x4120_0000, 0, 0, ONE]);
             let eye = p2w(cx, geom::vadd(ep, v));
             if b.cam_reset() == 5 {
                 b.with_cam(|c| c.pos = eye);
@@ -340,9 +340,9 @@ impl StarDust {
             self.rain = Some(Box::new(LaserRain::new(cx, self.target)));
             let tp = w2p(cx, self.target);
             let yaw = get_dirc(tp, w2p(cx, VF0));
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), yaw);
+            let m = geom::rot_matrix_z(&geom::UNIT, yaw);
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [0x44fa_0000, 0, 0x42dc_0000, ONE]);
+            let v = geom::apply(&m, [0x44fa_0000, 0, 0x42dc_0000, ONE]);
             let eye = p2w(cx, geom::vadd(tp, v));
             let mut view = self.target;
             view[2] = ee::add(view[2], 0x4396_0000);
@@ -420,8 +420,8 @@ impl Thunder {
             let mut v = [ee::mul(ee::from_int(k as i32), seg), 0, 0, ONE];
             let j = rand_f(cx.cc, 0x4348_0000);
             let rx = rand_f(cx.cc, PI);
-            let m = geom::rot_matrix_x(&geom::unit_matrix(), rx);
-            let jv = geom::apply_matrix(&m, [0, j, 0, ONE]);
+            let m = geom::rot_matrix_x(&geom::UNIT, rx);
+            let jv = geom::apply(&m, [0, j, 0, ONE]);
             v = geom::vadd(v, jv);
             let _ = rand_f(cx.cc, PI);
             let v = turned(pt, yaw, v);

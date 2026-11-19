@@ -153,14 +153,14 @@ fn helper(t: &mut Toks) -> String {
         "apply" => {
             let m = m4(t);
             let v = v4(t);
-            list(geom::apply_matrix(&m, v))
+            list(geom::apply(&m, v))
         }
         "trans" => {
             let m = m4(t);
             let v = v4(t);
             m4_json(&geom::trans_matrix(&m, v))
         }
-        "unit" => m4_json(&geom::unit_matrix()),
+        "unit" => m4_json(&geom::UNIT),
         _ => format!("{{\"error\":\"unknown helper {f}\"}}"),
     }
 }

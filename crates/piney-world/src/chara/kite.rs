@@ -12,8 +12,9 @@ use std::sync::Arc;
 
 use glam::Mat4;
 use piney_data::archive::Archive;
-use piney_data::light::light_regs;
+use piney_data::light::{Kind, Light, SHADE};
 use piney_data::{Error, Result};
+use piney_desktop::anm::model_lights;
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 use piney_draw::Lights;
@@ -22,7 +23,7 @@ use crate::chara::body::Body;
 use crate::chara::motion::PLAYER_ANIM_TBL;
 use crate::chara::pose::Play;
 use crate::ee::{ONE, V4};
-use crate::town::{Light, LightKind, TownLights};
+use crate::town::TownLights;
 
 /// Kite's file (`charTbl[0].ccsname`) and his clump.
 pub const BODY: &str = "ctu1body";
@@ -35,10 +36,6 @@ pub const HANDS: [(&str, &str); 2] = [("OBJ_t0 r hand", "MDL_cwdhsw02r"), ("OBJ_
 /// The palette `ccPlayer::ccPlayer` swaps in before the bracelet.
 pub const CLUT: &str = "CLT_ctu1body";
 pub const CLUT_EARLY: &str = "CLT_ctu1bodyc1";
-
-/// `WORLD_MAN::SleepDistantLight`: the main light's intensity on shaded
-/// ground (`hitAttribute` bit 0x40000).
-pub use piney_data::light::SHADE;
 
 /// Kite's model files, read once.
 pub struct Kite {
@@ -195,20 +192,12 @@ pub use crate::chara::body::root;
 /// ([`piney_data::light::light_regs`]). On shaded ground the distant light
 /// is at `SleepDistantLight`'s 0.3.
 pub fn light_matrix(town: &TownLights, world: Mat4, shaded: bool) -> Lights {
-    let w = world.to_cols_array().map(f32::to_bits);
-    let world: [V4; 4] = std::array::from_fn(|r| std::array::from_fn(|c| w[4 * r + c]));
-    let shade = |l: &Light| match l.kind {
-        LightKind::Distant { .. } if shaded => Light { intensity: SHADE, ..*l },
+    let shade = move |l: &Light| match l.kind {
+        Kind::Distant { .. } if shaded => Light { intensity: SHADE, ..*l },
         _ => *l,
     };
-    let regs = if shaded || !town.objects.is_empty() {
-        let lights: Vec<Light> = town.objects.iter().chain(&town.lights).map(shade).collect();
-        light_regs(town.volume, &lights, town.ambient, &world)
-    } else {
-        light_regs(town.volume, &town.lights, town.ambient, &world)
-    };
-    let f = |v: [u32; 3]| v.map(f32::from_bits);
-    Lights { dirs: regs.dirs.map(f), colours: regs.colours.map(f), ambient: f(regs.ambient) }
+    let group = town.objects.iter().chain(&town.lights).map(shade);
+    model_lights(town.volume, group, town.ambient, world)
 }
 
 #[cfg(test)]

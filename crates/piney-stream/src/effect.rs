@@ -9,7 +9,7 @@
 
 use crate::file;
 use crate::scene::{Loaded, Scene, SceneFog};
-use piney_data::anim::ee;
+use piney_data::field::ee;
 use piney_desktop::fade;
 use piney_desktop::layers::FONT_LAYER;
 use piney_desktop::noiz::{Band, EffView, Sampling, reverse_prim_in};

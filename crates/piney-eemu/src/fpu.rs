@@ -1,8 +1,8 @@
 //! The EE's single-precision arithmetic on raw bit patterns, as
 //! `tools/eemu.py`'s `f_*` functions have it: [`piney_data::field::ee`]'s
-//! functions (`rsqrt.s` among them), and the
-//! integer conversions on raw `u32` patterns the way the interpreter holds
-//! them. `tools/test_eemu_rs.py` fuzzes every one against eemu's.
+//! functions (`rsqrt.s` among them), and the integer conversions on raw
+//! `u32` patterns the way the interpreter holds them. `tools/test_eemu_rs.py`
+//! fuzzes every one against eemu's.
 
 pub use piney_data::field::ee::{FMAX, add, div, mul, rsqrt, sqrt, sub};
 

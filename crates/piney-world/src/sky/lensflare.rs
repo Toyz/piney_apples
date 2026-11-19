@@ -32,7 +32,7 @@ pub const VIEW_DEG: i16 = 12288;
 pub fn points(sun: V4, cams: &CamList) -> [V4; 6] {
     let (eye, view, rot) = (cams.active().pos, cams.active().view, crate::camera::field_turn(cams));
     std::array::from_fn(|i| {
-        let m = piney_data::anim::rot_bits([rot[0], rot[1], rot[2]]);
+        let m = piney_data::vu0::rot_matrix(&piney_data::vu0::UNIT, rot);
         let mut ahead = [0, K_M2500, 0, view[3]];
         ahead = ee::apply(&m, ahead);
         ahead = ee::vadd(ahead, eye);

@@ -8,13 +8,16 @@
 //! dropping it, so the draws never ask the renderer to drop triangles.
 
 use glam::Mat4;
-use piney_desktop::anm::{Ctx, OPAQUE_TRANSPARENCY, model_state, sort_key};
+use piney_data::field::ee;
+use piney_data::light::Light;
+use piney_data::vu0::{self, M4, V4, to_mat4};
+use piney_desktop::anm::{Ctx, OPAQUE_TRANSPARENCY, model_lights, model_state, sort_key};
 use piney_desktop::assets::{TEX_FLAG_CLAMP, TEX_FLAG_SORTED};
 use piney_desktop::camera::frame_projection;
 use piney_desktop::view::View;
 use piney_draw::{AlphaFail, AlphaTest, Cmd, Compare, Filter, Lights, MmatDraw, ModelDraw, TexFunc, TexParams, Wrap};
 
-use crate::scene::{Loaded, Scene, to_mat4};
+use crate::scene::{Loaded, Scene};
 
 /// `ccObj::Draw` skips an object at or below this transparency
 /// (`c.le.s tp, 1/128` at 0x0013f2b0), and `ccModel::Draw` a mmat below it.
@@ -79,7 +82,7 @@ fn cast_shadow(ctx: &mut Ctx, loaded: &Loaded, scene: &Scene, i: usize) {
     env.active = Some(k);
     env.length = sh.length.to_bits();
     env.light = sh.light.map(f32::to_bits);
-    let a = piney_data::anim::ee::to_int(piney_data::anim::ee::mul(0x4380_0000, sh.alpha.to_bits()));
+    let a = ee::to_int(ee::mul(0x4380_0000, sh.alpha.to_bits()));
     env.alpha = (a.wrapping_add(1) >> 1) as u8;
     let checked = n
         .model
@@ -99,31 +102,25 @@ pub fn scene_view(scene: &Scene) -> View {
     View::new(frame_projection(&scene.frame), scene.view_camera())
 }
 
-/// The scene's light group as `ccLight`s, in its order, and its ambient.
-fn group(scene: &Scene) -> (Vec<piney_data::light::Light>, [u32; 4]) {
+/// The scene's light group (its `ccLight`s, in its order) and ambient.
+fn group(scene: &Scene) -> (impl Iterator<Item = Light> + Clone + '_, V4) {
     let [r, g, b] = scene.ambient.map(f32::to_bits);
-    (scene.lights.iter().map(|l| l.light).collect(), [r, g, b, 0])
+    (scene.lights.iter().map(|l| l.light), [r, g, b, 0])
 }
 
 /// `SetLightMatrix` (0x00105900) at `at` (a `lwMatrix`'s place), then
 /// `sceVu0NormalLightMatrix`: the light matrix and the colours as the
 /// game stores them ([`piney_data::light`]).
-pub fn light_matrix(scene: &Scene, at: [u32; 4]) -> ([[u32; 4]; 4], [[u32; 4]; 4]) {
+pub fn light_matrix(scene: &Scene, at: V4) -> (M4, M4) {
     let (lights, ambient) = group(scene);
-    let (normals, colours) = piney_data::light::set_light_matrix(scene.volume, &lights, ambient, at);
+    let (normals, colours) = piney_data::light::set_light_matrix(scene.volume, lights, ambient, at);
     (piney_data::light::normal_light_matrix(&normals), colours)
 }
 
-/// What VU1 lights a lit model at `world` with, after `mc_SetMatrix`: the
-/// light matrix times `lwMatrix` (`ccSetMatrixPacket`), renormalised, the
-/// colours doubled, the ambient ([`piney_data::light::light_regs`]).
+/// What VU1 lights a lit model at `world` with ([`model_lights`]).
 pub fn lights(scene: &Scene, world: Mat4) -> Lights {
     let (lights, ambient) = group(scene);
-    let w = world.to_cols_array().map(f32::to_bits);
-    let world: [[u32; 4]; 4] = std::array::from_fn(|r| std::array::from_fn(|c| w[4 * r + c]));
-    let regs = piney_data::light::light_regs(scene.volume, &lights, ambient, &world);
-    let f = |v: [u32; 3]| v.map(f32::from_bits);
-    Lights { dirs: regs.dirs.map(f), colours: regs.colours.map(f), ambient: f(regs.ambient) }
+    model_lights(scene.volume, lights, ambient, world)
 }
 
 fn draw_node(ctx: &mut Ctx, view: &View, loaded: &Loaded, scene: &Scene, i: usize, layer: i16) {
@@ -271,13 +268,7 @@ fn draw_model(
 /// `world_view`'s third row and `lw`, taken as the game has them
 /// (`Scene::view_camera`): for planes square to the view the key is the
 /// camera's small tilt, which a float camera gets as rounding noise instead.
-fn exact_key(wv: &[[u32; 4]; 4], lw: &[[u32; 4]; 4]) -> f32 {
-    use piney_data::anim::ee;
-    let w = |c: usize| {
-        let acc = ee::mul(wv[0][2], lw[c][0]);
-        let acc = ee::add(acc, ee::mul(wv[1][2], lw[c][1]));
-        let acc = ee::add(acc, ee::mul(wv[2][2], lw[c][2]));
-        ee::add(acc, ee::mul(wv[3][2], lw[c][3]))
-    };
-    f32::from_bits(ee::div(w(2), w(3)))
+fn exact_key(wv: &M4, lw: &M4) -> f32 {
+    let z = |c: usize| vu0::apply(wv, lw[c])[2];
+    f32::from_bits(ee::div(z(2), z(3)))
 }

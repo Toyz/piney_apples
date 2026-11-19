@@ -12,6 +12,7 @@ use piney_battle::boss::kyvia::magic_ball::{BallHost, BallOut, MagicalBall};
 use piney_battle::boss::kyvia::thunder::{Bolt as Strokes, BoltData};
 use piney_battle::boss::kyvia::{Gen, GenOp, Held, Meteorite as Flights, Place, Table};
 use piney_battle::rand::Rng;
+use piney_data::vu0;
 
 use crate::boss::{Tables, ff_row, gen_row, va};
 use crate::draw::DrawRec;
@@ -20,7 +21,7 @@ use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
 use crate::files::ObjRef;
 use crate::particle::{GenParam, GenRef};
-use crate::{CharRef, Cx, VecRef, debris, vu};
+use crate::{CharRef, Cx, VecRef, debris};
 
 const THREE: [F; 4] = [0x4040_0000, 0x4040_0000, 0x4040_0000, ONE];
 const HALF: F = 0x3f00_0000;
@@ -243,7 +244,7 @@ impl Meteorite {
         self.last_t = t0;
         for k in 0..f.now.len() {
             if !self.landed[k] {
-                let m = vu::pos_rot_xyz_scale(f.now[k], VF0, THREE);
+                let m = vu0::pos_rot_xyz_scale(f.now[k], VF0, THREE);
                 if let Some(a) = &self.fire[k] {
                     a.draw(cx, m, HALF);
                 }
@@ -441,7 +442,7 @@ impl Ball {
         }
         self.drawn = Some(now);
         if let Some(a) = &self.anm {
-            a.draw(cx, vu::pos_rot_xyz_scale(b.pos, VF0, b.anm_scale), b.anm_transparency);
+            a.draw(cx, vu0::pos_rot_xyz_scale(b.pos, VF0, b.anm_scale), b.anm_transparency);
         }
     }
 }
@@ -560,7 +561,7 @@ impl Hell {
         if let Some(a) = self.anm.as_mut() {
             a.play.time = h.bung_anm.time;
             a.play.posed = h.bung_anm.posed;
-            let m = vu::pos_rot_xyz_scale(h.bung_pos, h.bung_rot, h.bung_scale);
+            let m = vu0::pos_rot_xyz_scale(h.bung_pos, h.bung_rot, h.bung_scale);
             a.draw(cx, m, ONE);
             a.draw(cx, m, ONE);
         }

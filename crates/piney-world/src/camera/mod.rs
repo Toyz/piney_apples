@@ -11,15 +11,15 @@ pub mod evcam;
 
 use piney_input::pressure;
 
-use crate::camera::evcam::{UNIT, rot_x, rot_y, rot_z};
 use piney_battle::camera::button::{L1, L2, R1, R2};
 pub use piney_battle::camera::{Cam, CamId, CamList, CamPad, Scheme, Shake, ShockForce, kind, shake_range};
+use piney_data::volume::Volume;
+use piney_data::vu0::{UNIT, rot_matrix_x, rot_matrix_y, rot_matrix_z};
 
 use crate::ee::{
     self, F, ONE, V4, add, atan2f, cosf, deg2rad, div, dot, fmodf, from_int, le, lt, mul, normalize, rad2deg, sinf,
     sqrtf_on, sub, tanf, to_int, vadd, vscale, vsub,
 };
-use piney_data::volume::Volume;
 
 /// The field drawers' turn of the camera (the lens flare, rain, haze,
 /// fireflies): `cameraGetRot2(1)` with the eye view (`checkCameraType()`
@@ -277,7 +277,7 @@ impl Camera {
                 } else if !le(r[2], ee::PI) {
                     r[2] = sub(r[2], TWO_PI);
                 }
-                let m = rot_z(&rot_y(&rot_x(&UNIT, r[0]), r[1]), r[2]);
+                let m = rot_matrix_z(&rot_matrix_y(&rot_matrix_x(&UNIT, r[0]), r[1]), r[2]);
                 let c = l.cam_mut(n);
                 c.view = view;
                 c.pos = vadd(ee::apply(&m, [0x43fa_0000, 0, 0, ONE]), view);
@@ -309,7 +309,7 @@ impl Camera {
         if lt(a, MINUS_PI) {
             a = add(a, TWO_PI);
         }
-        let v = ee::apply(&rot_z(&UNIT, a), [0x4370_0000, 0, 0, ONE]);
+        let v = ee::apply(&rot_matrix_z(&UNIT, a), [0x4370_0000, 0, 0, ONE]);
         let c = l.cam_mut(n);
         c.view = view;
         c.pos = vadd(pos, v);
@@ -642,7 +642,7 @@ impl Camera {
         let p = fw2lw(pos);
         let v = fw2lw(view);
         self.world_view = pos_target(p, v);
-        self.world_screen = piney_data::anim::vu_mul(&VIEW_SCREEN, &self.world_view);
+        self.world_screen = piney_data::vu0::mul_matrix(&VIEW_SCREEN, &self.world_view);
     }
 }
 

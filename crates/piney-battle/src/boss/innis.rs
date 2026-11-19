@@ -322,7 +322,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         default_argb: 0x3080_8080,
         ex_argb: 0x6080_8080,
         quake_vector: [0x40a0_0000, 0x40a0_0000, 0x40a0_0000, ONE],
-        cam_mat: geom::unit_matrix(),
+        cam_mat: geom::UNIT,
         ..Innis::default()
     };
     // SetBaseParam(ccGetBossParam(1)) is the character's; then cheatHP,
@@ -1232,8 +1232,8 @@ fn pattern07(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
         reset_data(b, x, cx);
     }
     let d = geom::vsub(x.rot_vec, x.sub_vec);
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), x.rot);
-    let p = geom::vadd(geom::apply_matrix(&m, d), x.sub_vec);
+    let m = geom::rot_matrix_z(&geom::UNIT, x.rot);
+    let p = geom::vadd(geom::apply(&m, d), x.sub_vec);
     cx.scene.chars[me].pos = p;
 }
 
@@ -1319,8 +1319,8 @@ fn pattern10(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             if !ee::le(0, x.alpha) {
                 x.alpha = 0;
                 x.escape_act_cou = 3;
-                let m = geom::rot_matrix_z(&geom::unit_matrix(), rand_f(cx.cc, PI));
-                let v = geom::apply_matrix(&m, [0x4489_8000, 0, 0, ONE]);
+                let m = geom::rot_matrix_z(&geom::UNIT, rand_f(cx.cc, PI));
+                let v = geom::apply(&m, [0x4489_8000, 0, 0, ONE]);
                 let mut p = geom::vadd(v, x.sub_vec);
                 p[2] = x.hipos;
                 cx.scene.chars[me].pos = p;
@@ -1482,14 +1482,14 @@ fn skill_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.cam_pos = cx.cams_ref().cam(CamId::Battle).pos;
             x.cam_view = cx.cams_ref().cam(CamId::Battle).view;
             let pos = cx.pos();
-            x.cam_mat = geom::rot_matrix_z(&geom::unit_matrix(), get_dirc(b.target_pos, pos));
+            x.cam_mat = geom::rot_matrix_z(&geom::UNIT, get_dirc(b.target_pos, pos));
             b.cam_mode(cx, 5);
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x4448_0000);
             x.zoom_vec[2] = ee::add(x.zoom_vec[2], 0x4248_0000);
             // The view's x and y are the stack's leftover, SetCameraEyes'
             // saved return address, which the FPU reads as zero.
             let view = [pos[0], pos[1], ee::add(0x437a_0000, pos[2]), pos[3]];
-            let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), b.target_pos);
+            let eye = geom::vadd(geom::apply(&x.cam_mat, x.zoom_vec), b.target_pos);
             b.cam_pos_view(eye, view);
             b.erase_cmnd_target(cx);
             cx.out(Out::CursorOff(true));
@@ -1533,7 +1533,7 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.zoom_view = VF0;
             x.cam_pos = cx.cams_ref().cam(CamId::Battle).pos;
             x.cam_view = cx.cams_ref().cam(CamId::Battle).view;
-            x.cam_mat = geom::rot_matrix_z(&geom::unit_matrix(), b.dirc[2]);
+            x.cam_mat = geom::rot_matrix_z(&geom::UNIT, b.dirc[2]);
             b.cam_mode(cx, 5);
             x.cou = 1;
             x.eny_flg = 0;
@@ -1542,12 +1542,12 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             return;
         }
         1 if x.eny_flg == 0 => {
-            x.cam_mat = geom::rot_matrix_z(&geom::unit_matrix(), b.dirc[2]);
+            x.cam_mat = geom::rot_matrix_z(&geom::UNIT, b.dirc[2]);
             x.zoom_vec[1] = 0xc4bb_8000;
             x.zoom_vec[2] = 0x4348_0000;
             x.zoom_view[1] = ee::add(ONE, x.zoom_vec[1]);
-            let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), pos);
-            let view = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_view), x.cam_view);
+            let eye = geom::vadd(geom::apply(&x.cam_mat, x.zoom_vec), pos);
+            let view = geom::vadd(geom::apply(&x.cam_mat, x.zoom_view), x.cam_view);
             b.cam_pos_view(eye, view);
             x.cou += 1;
         }
@@ -1565,10 +1565,10 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.zoom_view = VF0;
             x.cam_pos = cx.cams_ref().cam(CamId::Battle).pos;
             x.cam_view = cx.cams_ref().cam(CamId::Battle).view;
-            x.cam_mat = geom::rot_matrix_z(&geom::unit_matrix(), get_dirc(b.target_pos, pos));
+            x.cam_mat = geom::rot_matrix_z(&geom::UNIT, get_dirc(b.target_pos, pos));
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x442f_0000);
             x.zoom_vec[2] = ee::add(x.zoom_vec[2], 0x4248_0000);
-            let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), x.cam_pos);
+            let eye = geom::vadd(geom::apply(&x.cam_mat, x.zoom_vec), x.cam_pos);
             b.cam_pos_view(eye, pos);
             x.cou += 1;
         }
@@ -1576,7 +1576,7 @@ fn magic_square(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.zoom_vec = VF0;
             x.zoom_vec[1] = 0x448f_c000;
             x.zoom_vec[2] = 0x4316_0000;
-            let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), b.target_pos);
+            let eye = geom::vadd(geom::apply(&x.cam_mat, x.zoom_vec), b.target_pos);
             b.cam_pos_view(eye, pos);
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x42b4_0000);
             x.zoom_view[1] = ee::sub(x.zoom_vec[1], ONE);
@@ -1727,10 +1727,10 @@ fn ice_attack(b: &mut BossBase, cx: &mut Cx) {
                 v3[2] = ee::add(0x42c8_0000, ee::from_int(rand_mod(cx, 5).abs() * 100));
             }
         }
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), b.dirc[2]);
-        v2 = geom::apply_matrix(&m, v2);
+        let m = geom::rot_matrix_z(&geom::UNIT, b.dirc[2]);
+        v2 = geom::apply(&m, v2);
         let m = geom::rot_matrix_z(&m, NEG_PI);
-        v3 = geom::apply_matrix(&m, v3);
+        v3 = geom::apply(&m, v3);
         v2 = geom::vadd(v2, pos);
         v3 = geom::vadd(v3, v4);
         missile(b, Element::Ice, [pos, v2, v3, v4], s == 0, cx);
@@ -1767,9 +1767,9 @@ fn thunder_attack(b: &mut BossBase, cx: &mut Cx) {
                 v3[2] = ee::add(0x42c8_0000, ee::from_int(rand_mod(cx, 5).abs() * 100));
             }
         }
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
-        v2 = geom::apply_matrix(&m, v2);
-        v3 = geom::apply_matrix(&m, v3);
+        let m = geom::rot_matrix_z(&geom::UNIT, turn);
+        v2 = geom::apply(&m, v2);
+        v3 = geom::apply(&m, v3);
         v2 = geom::vadd(v2, pos);
         v3 = geom::vadd(v3, v4);
         missile(b, Element::Lightning, [pos, v2, v3, v4], s == 0, cx);
@@ -1806,9 +1806,9 @@ fn blaze_attack(b: &mut BossBase, cx: &mut Cx) {
                 v3[2] = ee::add(0x42c8_0000, ee::from_int(rand_mod(cx, 5).abs() * 100));
             }
         }
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
-        v2 = geom::apply_matrix(&m, v2);
-        v3 = geom::apply_matrix(&m, v3);
+        let m = geom::rot_matrix_z(&geom::UNIT, turn);
+        v2 = geom::apply(&m, v2);
+        v3 = geom::apply(&m, v3);
         v2 = geom::vadd(v2, pos);
         v3 = geom::vadd(v3, v4);
         missile(b, Element::Blaze, [pos, v2, v3, v4], s == 0, cx);
@@ -2004,12 +2004,12 @@ fn images(b: &mut BossBase, x: &mut Innis, ims: &mut Images, cx: &mut Cx) {
             }
             b.act_proccess = 5;
             x.zoom_vec = VF0;
-            x.cam_mat = geom::unit_matrix();
+            x.cam_mat = geom::UNIT;
             b.cam_mode(cx, 5);
             x.cam_mat = geom::rot_matrix_z(&x.cam_mat, get_dirc(b.target_pos, pos));
             x.zoom_vec[1] = ee::add(x.zoom_vec[1], 0x44bb_8000);
             x.zoom_vec[2] = ee::add(x.zoom_vec[2], 0x43af_0000);
-            let eye = geom::vadd(geom::apply_matrix(&x.cam_mat, x.zoom_vec), b.target_pos);
+            let eye = geom::vadd(geom::apply(&x.cam_mat, x.zoom_vec), b.target_pos);
             b.cam_pos_view(eye, pos);
             return;
         }
@@ -2245,7 +2245,7 @@ impl Slave {
         let f20 = wrap(ee::add(PI, cx.cams_ref().rot()[2]));
         sb.dirc[2] = f20;
         let mut v = VF0;
-        let unit = geom::unit_matrix();
+        let unit = geom::UNIT;
         let (m, count, spin) = match self.slave_id {
             0 => {
                 v[2] = ee::add(v[2], 0x43fa_0000);
@@ -2266,7 +2266,7 @@ impl Slave {
             }
             _ => return,
         };
-        let v = geom::apply_matrix(&m, v);
+        let v = geom::apply(&m, v);
         let pos = geom::vadd(cx.scene.chars[me].pos, v);
         cx.scene.chars[me].pos = pos;
         self.start_count = count;
@@ -2301,12 +2301,12 @@ impl Slave {
     fn set_tan(&mut self, sb: &mut BossBase, cx: &mut Cx) {
         let pz = cx.scene.chars[self.me].pos_p[2];
         let up = wrap(libm::atan2f(pz, self.dist));
-        let m = geom::rot_matrix_y(&geom::unit_matrix(), up);
+        let m = geom::rot_matrix_y(&geom::UNIT, up);
         let m = geom::rot_matrix_z(&m, self.dirc);
         let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
         let mut v = VF0;
         v[0] = if ee::le(self.dist, 0x42c8_0000) { 0x42c8_0000 } else { 0x4316_0000 };
-        sb.move_vector = geom::apply_matrix(&m, v);
+        sb.move_vector = geom::apply(&m, v);
     }
 
     /// `ccBoss02Slave::EnemyBurst` (0x0049d1b0): the burst's particles, two
@@ -2418,7 +2418,7 @@ impl Mirror {
             self.set_point_flg = 0;
         }
         self.drawn.clear();
-        let mut m = geom::unit_matrix();
+        let mut m = geom::UNIT;
         let mut any = false;
         for k in 0..60 {
             self.vx[k] = ee::add(self.vx[k], ee::mul(0, DT));
@@ -2440,7 +2440,7 @@ impl Mirror {
             }
             m = geom::rot_matrix_z(&m, NEG_HALF_PI);
             m = geom::rot_matrix_z(&m, self.zrot[k]);
-            let mut p = geom::vadd(geom::apply_matrix(&m, [self.x[k], 0, self.z[k], ONE]), self.nut_pos);
+            let mut p = geom::vadd(geom::apply(&m, [self.x[k], 0, self.z[k], ONE]), self.nut_pos);
             if ee::lt(p[2], 0x40a0_0000) && ee::lt(self.vz[k], 0) {
                 let g = (cx.land)(p);
                 if ee::lt(p[2], g) {

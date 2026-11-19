@@ -11,10 +11,11 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use piney_battle::prim::OmniLight;
+use piney_data::light::Light;
 
 use super::{World, omni_light, symbol_light};
 use crate::combat::lights::{GimmickLights, WalkLights};
-use crate::town::{Light, TownLights};
+use crate::town::TownLights;
 
 /// Everything that moves in the group, as one moment of the frame had it.
 #[derive(Clone, Debug, Default, PartialEq)]

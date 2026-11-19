@@ -11,7 +11,14 @@ use glam::Vec3;
 
 use crate::ccs::{self, Ccs};
 use crate::field::ee;
+use crate::vu0::{ONE, V4};
 use crate::{Bytes, Result, align4, format_err};
+
+/// `sceVu0ITOF4Vector`'s 16, `Decode_Mmat02`'s 256 and `ccBbox_SetBox`'s
+/// 4096 (`lui 0x4180`, `0x4380`, `0x4580`).
+const F16: u32 = 0x4180_0000;
+const F256: u32 = 0x4380_0000;
+const F4096: u32 = 0x4580_0000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -161,8 +168,8 @@ impl Model {
     /// then `sceVu0ScaleVector` by `vertexScale / 256` (the `div.s` at
     /// 0x0014a68c), as float bits.
     pub fn body_words(&self, p: [i16; 3]) -> [u32; 3] {
-        let s = ee::div(self.scale.to_bits(), 0x4380_0000);
-        p.map(|c| ee::mul(ee::div(ee::from_int(i32::from(c)), 0x4180_0000), s))
+        let s = ee::div(self.scale.to_bits(), F256);
+        p.map(|c| ee::mul(ee::div(ee::from_int(i32::from(c)), F16), s))
     }
 
     /// [`Model::body_words`] as a point.
@@ -184,9 +191,9 @@ impl Model {
 /// extremes' sum shifted right once, times the same.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VertexBox {
-    pub min: [u32; 4],
-    pub max: [u32; 4],
-    pub centre: [u32; 4],
+    pub min: V4,
+    pub max: V4,
+    pub centre: V4,
 }
 
 impl VertexBox {
@@ -206,10 +213,10 @@ impl VertexBox {
             }
             (lo, hi)
         });
-        let unit = ee::div(scale, 0x4580_0000);
-        let at = |c: [i32; 3]| -> [u32; 4] {
+        let unit = ee::div(scale, F4096);
+        let at = |c: [i32; 3]| -> V4 {
             let [x, y, z] = c.map(|v| ee::mul(ee::from_int(v), unit));
-            [x, y, z, 0x3f80_0000]
+            [x, y, z, ONE]
         };
         VertexBox { min: at(lo), max: at(hi), centre: at(std::array::from_fn(|k| (lo[k] + hi[k]) >> 1)) }
     }

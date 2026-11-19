@@ -12,13 +12,14 @@ use std::rc::Rc;
 
 use glam::Mat4;
 use piney_data::Result;
+use piney_data::vu0::UNIT;
 
 use super::sparks::fieldrand;
 use super::{BuildCx, DrawCx, Hook, Joined, Kind, MapSystem, Others, Piece, Request, RoomCx, RoomPart, StepCx};
 use crate::draw;
 use crate::dungeon::{Anm, Instance, Rooms, Slot, placed};
 use crate::ee::V4;
-use crate::hit::{HitModel, UNIT};
+use crate::hit::HitModel;
 
 /// `object[10]`, `anmobj[10]`, `anmobj2[10]`: at most ten of each.
 const PIECES: usize = 10;
@@ -176,7 +177,7 @@ impl Pieces {
         let mut out = Vec::new();
         for o in &a.objects {
             let Some(models) = self.rooms.obj_models.get(&o.target) else { continue };
-            let world = draw::mat(&o.world);
+            let world = piney_data::vu0::to_mat4(&o.world);
             for &model in models {
                 if file.models.get(&model).is_none_or(|i| i.mtype & 0x600 == 0x600) {
                     continue;

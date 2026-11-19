@@ -1202,7 +1202,7 @@ pub fn check_note(r: &mut Ride, w: &mut dyn RideWorld, note: Note, rng: &mut dyn
 /// whose attribute (`& 0xf0f0f0`) is one of the five soft kinds, type 4 on
 /// the eleven dark ones, else 133.
 pub fn paw_smoke(r: &Ride, w: &mut dyn RideWorld, dirc: F, legs: i32, rng: &mut dyn Rng) {
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), dirc);
+    let m = geom::rot_matrix_z(&geom::UNIT, dirc);
     let mut pos = [0; 4];
     let mut v = VF0;
     let (mut s, mut life) = (0, 0);
@@ -1215,7 +1215,7 @@ pub fn paw_smoke(r: &Ride, w: &mut dyn RideWorld, dirc: F, legs: i32, rng: &mut 
         let k = from_int(10 - rng.rand() % 5);
         v = VF0;
         v[1] = mul(K01, mul(mul(K0075, mul(MINUS_ONE, r.speed)), k));
-        v = geom::apply_matrix(&m, v);
+        v = geom::apply(&m, v);
         s = K3;
         life = l;
     }

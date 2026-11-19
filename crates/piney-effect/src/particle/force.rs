@@ -10,8 +10,8 @@ use super::one::Particle;
 use super::tables::FfParam;
 use super::{Generator, normal2angle};
 use crate::ee::{self, F, ONE, V4};
-use crate::vu;
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 /// `oneVector` (main 0x0033ef80, particle.cpp's own): (1, 1, 1, 0).
 const ONE_VECTOR: V4 = [ONE, ONE, ONE, 0];
@@ -28,10 +28,6 @@ fn squash(w: F) -> V4 {
         t[1] = ee::div(ONE, w);
     }
     t
-}
-
-fn vmul(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|i| ee::mul(a[i], b[i]))
 }
 
 /// `Calc(p)`: true when the particle should fade out now (`Main` sets
@@ -96,7 +92,7 @@ pub fn calc(volume: Volume, ff: &FfParam, p: &mut Particle, gene: Option<&Genera
                 6 => {
                     p.scale = ee::vscale(ONE_VECTOR, s);
                     p.scale = ee::vscale(p.scale, p.size);
-                    p.scale = vmul(p.scale, squash(f[3]));
+                    p.scale = vu0::vmul(p.scale, squash(f[3]));
                     p.scale[3] = ONE;
                 }
                 7 => p.scale[0] = mul(p.size, s),
@@ -104,7 +100,7 @@ pub fn calc(volume: Volume, ff: &FfParam, p: &mut Particle, gene: Option<&Genera
             }
         }
         9 => {
-            p.scale = vmul(f, squash(f[3]));
+            p.scale = vu0::vmul(f, squash(f[3]));
             p.scale[3] = ONE;
         }
         10 => {
@@ -159,7 +155,7 @@ pub fn calc(volume: Volume, ff: &FfParam, p: &mut Particle, gene: Option<&Genera
                 let d = ee::sqrtf_on(volume, ee::dot(line, line));
                 let axis = ee::normalize(line);
                 let ang = normal2angle(axis);
-                let m = vu::rot_z(&vu::rot_x(&vu::UNIT, ang[0]), ang[2]);
+                let m = vu0::rot_matrix_z(&vu0::rot_matrix_x(&vu0::UNIT, ang[0]), ang[2]);
                 let r = g.param.map_or(0, |p| p.g_radius);
                 let mut t = [0, 0, 0, ONE];
                 t[0] = mul(HUNDREDTH, mul(from_int(i32::from(p.ofst_r)), r));

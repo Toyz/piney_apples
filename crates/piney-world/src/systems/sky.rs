@@ -194,7 +194,7 @@ impl MapSystem for Sky {
                 At::Bob => made.world = Mat4::from_translation(Vec3::new(0.0, 0.0, crate::ee::f(bob))),
                 At::Centre(t) => {
                     let rz = t.map_or(0, |t| turn[t]);
-                    made.world = crate::draw::mat(&crate::town::pos_rot_zyx([x, y, 0, ONE], [0, 0, rz]));
+                    made.world = piney_data::vu0::to_mat4(&piney_data::vu0::pos_rot_zyx([x, y, 0, ONE], [0, 0, rz, 0]));
                 }
                 At::Origin | At::Dummy(_) => {}
             }

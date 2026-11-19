@@ -6,13 +6,13 @@
 use std::rc::Rc;
 
 use piney_data::Result;
+use piney_data::light::{Falloff, Light};
 
 use super::sparks::fieldrand;
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, RoomCx, RoomPart, StepCx};
 use crate::dungeon::Rooms;
 use crate::ee::{self, F, ONE, V4};
 use crate::sprite::{EffSprite, EffState};
-use crate::town::{Falloff, Light};
 
 /// `roomlight[32]`: `SetLight` checks the count before each dummy, and
 /// `DrawEff` walks the 32.

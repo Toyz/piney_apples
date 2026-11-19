@@ -426,8 +426,8 @@ fn start_init(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     let _ = gs;
     let r = if c.x.kyvia_lv < 5 { 0x40a0_0000 } else { 0x43fa_0000 };
     let turn = rand_f(cx.cc, PI);
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
-    let v = geom::apply_matrix(&m, [0, r, 0, ONE]);
+    let m = geom::rot_matrix_z(&geom::UNIT, turn);
+    let v = geom::apply(&m, [0, r, 0, ONE]);
     let pos = geom::vadd(v, c.x.disc_pos);
     cx.scene.chars[c.me].pos = pos;
     c.b.base.draw_sw = 1;
@@ -709,7 +709,7 @@ fn move_spline(c: &mut Part<Core>, cx: &mut Cx, p: [V4; 4]) {
     let b1 = ee::add(ONE, ee::add(ee::mul(0x3fc0_0000, t3), ee::mul(0xc020_0000, t2)));
     let b2 = ee::add(ee::mul(0x3f00_0000, t), ee::add(ee::mul(0xbfc0_0000, t3), ee::mul(0x4000_0000, t2)));
     let b3 = ee::sub(ee::mul(0x3f00_0000, t3), ee::mul(0x3f00_0000, t2));
-    let mut pos = geom::apply_matrix(&p, [b0, b1, b2, b3]);
+    let mut pos = geom::apply(&p, [b0, b1, b2, b3]);
     pos[3] = ONE;
     cx.scene.chars[c.me].pos = pos;
 }
@@ -719,7 +719,7 @@ fn move_spline(c: &mut Part<Core>, cx: &mut Cx, p: [V4; 4]) {
 fn set_sp_point(c: &mut Part<Core>, cx: &mut Cx) {
     let a = dp(rand_abs(cx, 0x43af_0000));
     let b = dp(rand_abs(cx, 0x4316_0000));
-    let v = geom::apply_matrix(&geom::unit_matrix(), [0, fp(a + b), 0, ONE]);
+    let v = geom::apply(&geom::UNIT, [0, fp(a + b), 0, ONE]);
     let base = geom::vadd(v, c.x.disc_pos);
     c.x.sp_vec = [cx.scene.chars[c.me].pos, base, base, base];
     c.x.move_pattern = (cx.cc.rand() % 3).abs();

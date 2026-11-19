@@ -10,7 +10,7 @@ use piney_data::classes::StoryMapGameClass;
 use piney_data::statics::DrawPass;
 use piney_data::volume::Volume;
 
-use crate::ee::{F, V4};
+use crate::ee::V4;
 use crate::story_map::{
     Asleep, BASE_BLOCK, BASE_STORY_MAP, BlockDef, Door, LightsDef, Start, StoryMapDef, layer, move_tex,
 };
@@ -84,7 +84,7 @@ static SCROLLS: ScrollsDef = ScrollsDef::move_tex(
 /// turned by (0, 3.14, -3.14): the church's lanterns again, upside down
 /// under its floor.
 pub const REV_POS: V4 = [0, 0x45a8_c000, 0, 0];
-pub const REV_ROT: [F; 3] = [0, 0x4048_f5c3, 0xc048_f5c3];
+pub const REV_ROT: V4 = [0, 0x4048_f5c3, 0xc048_f5c3, 0];
 static REV: AnimDef = AnimDef { anim: "ANM_se1_2la1a", file: None, pos: REV_POS, rot: REV_ROT, layer: layer::OBJ2 };
 
 /// `DrawLensFlare` (gcmn 0x00402dc0) at `DMY_se1_2lig1point`: in the

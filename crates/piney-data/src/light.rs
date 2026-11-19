@@ -7,14 +7,12 @@
 //! the colours. Only `sqrt` differs by disc: newlib's `sqrtf` on Infection
 //! and Mutation, `sqrt.s` from Outbreak on (docs/engine/field-game.md).
 
-use std::cmp::Ordering;
-
-use crate::anim::{Ctrl, RotKeyed, Ticks, const_radians, read_ctrl, read_keys, rot_bits};
-use crate::field::ee::{add, cmp, div, from_int, le, lt, mul, rsqrt, sub};
+use crate::anim::{Ctrl, RotKeyed, Ticks, const_radians, read_ctrl, read_keys};
+use crate::field::ee::{add, div, eq, from_int, from_u32, le, lt, mul, rsqrt, sub};
 use crate::libm::{neg, sqrtf_on, tanf};
 use crate::volume::Volume;
 use crate::vu0::{
-    F, M4, ONE, UNIT, V4, apply, invers, mul_matrix, normalize, trans_matrix, transpose, vmul, vscale, vsub,
+    F, M4, ONE, UNIT, V4, apply, invers, mul_matrix, normalize, rot_matrix, trans_matrix, transpose, vmul, vscale, vsub,
 };
 use crate::{Bytes, Result, format_err};
 
@@ -33,11 +31,6 @@ const DEG180: F = 0x4334_0000;
 /// `ccSetColor`'s 1/255 and 255.
 const INV255: F = 0x3b80_8081;
 const K255: F = 0x437f_0000;
-
-/// `c.eq.s`: equal values, every zero equal to every other.
-fn eq(a: F, b: F) -> bool {
-    cmp(a, b) == Ordering::Equal
-}
 
 /// A fall-off: full to `start`, nothing past `end` (0: no end); `end2` the
 /// square the light keeps (`farDownEnd2`, a direct light's second radius
@@ -206,40 +199,65 @@ pub struct Regs {
 }
 
 /// The registers a lit model with `lwMatrix` `world` is drawn with: the
-/// group's lights (`lights`, in the order added; `AddGrp` keeps them in
-/// descending priority, equal ones in that order) at its place, the
+/// group's lights (`lights`, in the order added) at its place, the
 /// ambient `ambient` (`ccDrawEnv` +0x30).
-pub fn light_regs(volume: Volume, lights: &[Light], ambient: V4, world: &M4) -> Regs {
+pub fn light_regs<I>(volume: Volume, lights: I, ambient: V4, world: &M4) -> Regs
+where
+    I: IntoIterator<Item = Light>,
+    I::IntoIter: Clone,
+{
     let (normals, colours) = set_light_matrix(volume, lights, ambient, world[3]);
     let product = mul_matrix(&normal_light_matrix(&normals), world);
     mc_set_matrix(&product, &colours)
 }
 
-/// `SetLightMatrix`: the unit matrix and black, then three records of
-/// (priority, row), all -128; a light above the lowest record's priority
-/// that answers `CheckRange` takes its place among them by priority
-/// (strictly greater goes higher) and the row of the record it pushes
-/// out: its direction there (w 1), its colour (w 0). The ambient is row 3.
-pub fn set_light_matrix(volume: Volume, lights: &[Light], ambient: V4, at: V4) -> (M4, M4) {
-    let mut order: Vec<&Light> = lights.iter().collect();
-    order.sort_by_key(|l| std::cmp::Reverse(l.priority));
+/// The group as `AddGrp` keeps it: descending priority, equal ones in the
+/// order added.
+fn by_priority<I>(lights: I) -> impl Iterator<Item = Light>
+where
+    I: Iterator<Item = Light> + Clone,
+{
+    let below = lights.clone();
+    let top = lights.clone().map(|l| l.priority).max();
+    std::iter::successors(top, move |&p| below.clone().map(|l| l.priority).filter(|&q| q < p).max())
+        .flat_map(move |p| lights.clone().filter(move |l| l.priority == p))
+}
+
+/// One of `SetLightMatrix`'s three records: a priority and the row its
+/// light takes.
+#[derive(Clone, Copy)]
+struct Slot {
+    priority: i8,
+    row: usize,
+}
+
+/// `SetLightMatrix`: the unit matrix and black, then three records, all
+/// priority -128; a light above the lowest record's priority that answers
+/// `CheckRange` takes its place among them by priority (strictly greater
+/// goes higher) and the row of the record it pushes out: its direction
+/// there (w 1), its colour (w 0). The ambient is row 3.
+pub fn set_light_matrix<I>(volume: Volume, lights: I, ambient: V4, at: V4) -> (M4, M4)
+where
+    I: IntoIterator<Item = Light>,
+    I::IntoIter: Clone,
+{
     let (mut normals, mut colours) = (UNIT, [[0; 4]; 4]);
     colours[3] = ambient;
-    let mut rec: [(i8, usize); 3] = [(-128, 0), (-128, 1), (-128, 2)];
-    for l in order {
-        if l.priority <= rec[2].0 {
+    let mut slots = [0, 1, 2].map(|row| Slot { priority: -128, row });
+    for l in by_priority(lights.into_iter()) {
+        if l.priority <= slots[2].priority {
             continue;
         }
         let Some((dir, colour)) = l.check_range(volume, at) else { continue };
-        let row = rec[2].1;
-        let new = (l.priority, row);
-        if l.priority <= rec[1].0 {
-            rec[2] = new;
-        } else if l.priority <= rec[0].0 {
-            rec[2] = rec[1];
-            rec[1] = new;
+        let row = slots[2].row;
+        let new = Slot { priority: l.priority, row };
+        if l.priority <= slots[1].priority {
+            slots[2] = new;
+        } else if l.priority <= slots[0].priority {
+            slots[2] = slots[1];
+            slots[1] = new;
         } else {
-            rec = [new, rec[0], rec[1]];
+            slots = [new, slots[0], slots[1]];
         }
         normals[row] = [dir[0], dir[1], dir[2], ONE];
         colours[row] = [colour[0], colour[1], colour[2], 0];
@@ -388,8 +406,7 @@ impl Colour {
                 }
                 let (dur, next) = segs[i];
                 // 0/0 only past a last key at the chunk's end (as the floats).
-                let frac =
-                    if dur != 0 { div(crate::field::ee::from_u32(t), crate::field::ee::from_u32(dur)) } else { 0 };
+                let frac = if dur != 0 { div(from_u32(t), from_u32(dur)) } else { 0 };
                 blend_color(held, next, frac)
             }
         }
@@ -412,7 +429,8 @@ impl Rot {
             1 => {
                 let deg = [d.u32_at(*q)?, d.u32_at(*q + 4)?, d.u32_at(*q + 8)?];
                 *q += 12;
-                Ok(Rot::Const(rot_bits(const_radians(deg))))
+                let [x, y, z] = const_radians(deg);
+                Ok(Rot::Const(rot_matrix(&UNIT, [x, y, z, 0])))
             }
             2 => Ok(Rot::Keyed(RotKeyed::new(&read_keys::<3>(d, q)?, frames))),
             k => format_err(format!("light rotation controller kind {k} at 0x{:x}", *q)),
@@ -564,12 +582,12 @@ mod tests {
     #[test]
     fn an_omni_light_fades_to_its_end() {
         let light = Light::omni([0, 0, k(-500.0), ONE], colour_of(0x00ff_ffff, ONE), ONE, Falloff::new(0, k(1000.0)));
-        let regs = light_regs(Volume::Inf, &[light], [0; 4], &UNIT);
+        let regs = light_regs(Volume::Inf, [light], [0; 4], &UNIT);
         assert_eq!(regs.colours[2].map(f), [1.0; 3]);
         // Toward the light, one short of -1 (`Normalize` and `ERSQRT` truncate).
         assert_eq!(regs.dirs[2].map(f), [0.0, 0.0, -0.999_999_94]);
         let far = Light::omni([0, 0, k(-1000.0), ONE], light.colour, ONE, Falloff::new(0, k(1000.0)));
-        assert_eq!(light_regs(Volume::Inf, &[far], [0; 4], &UNIT).colours[2], [0; 3]);
+        assert_eq!(light_regs(Volume::Inf, [far], [0; 4], &UNIT).colours[2], [0; 3]);
     }
 
     /// Three slots by priority: the distant light (-1) loses its slot to
@@ -581,12 +599,27 @@ mod tests {
             |x: f32, p: i8| Light { priority: p, ..Light::omni([k(x), 0, 0, ONE], white, ONE, Falloff::default()) };
         let sun = Light::distant(&UNIT, white, ONE);
         let (normals, _) =
-            set_light_matrix(Volume::Inf, &[sun, near(1.0, 0), near(2.0, 0), near(3.0, 1)], [0; 4], [0, 0, 0, ONE]);
+            set_light_matrix(Volume::Inf, [sun, near(1.0, 0), near(2.0, 0), near(3.0, 1)], [0; 4], [0, 0, 0, ONE]);
         // Slot 2 the first taken: the priority-1 light, then the omni
         // lights in order; the distant light (straight down) none.
         let towards = [0, 1, 2].map(|r| f(normals[r][0]));
         assert!(towards.iter().all(|&x| (x + 1.0).abs() < 1e-6), "{towards:?}");
         assert!(normals.iter().take(3).all(|r| r[3] == ONE && r[2] == 0));
+    }
+
+    /// `AddGrp`'s order: descending priority, equal ones as added.
+    #[test]
+    fn the_group_goes_by_priority_then_order() {
+        let at =
+            |x: f32, p: i8| Light { priority: p, ..Light::omni([k(x), 0, 0, ONE], [0; 4], ONE, Falloff::default()) };
+        let group = [at(1.0, 0), at(2.0, -1), at(3.0, 1), at(4.0, 0), at(5.0, 1)];
+        let order: Vec<f32> = by_priority(group.iter().copied())
+            .map(|l| match l.kind {
+                Kind::Omni { pos, .. } => f(pos[0]),
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(order, [3.0, 5.0, 1.0, 4.0, 2.0]);
     }
 
     /// `ccSetColor` at 1 takes each byte times 1/255; `ccSetBlendColor` at

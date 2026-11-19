@@ -255,19 +255,6 @@ impl Eff {
     }
 }
 
-/// `SetMatrix_PosRotXYZScale(pos, rot, scale)` (main 0x00138050): the
-/// scale, turned about x, then y, then z, then moved to `pos`.
-pub fn pos_rot_xyz_scale(pos: V4, rot: V4, scale: [F; 3]) -> [V4; 4] {
-    let mut m = [[scale[0], 0, 0, 0], [0, scale[1], 0, 0], [0, 0, scale[2], 0], [0, 0, 0, ONE]];
-    m = piney_data::anim::rot_x_bits_of(m, rot[0]);
-    m = piney_data::anim::rot_y_bits_of(m, rot[1]);
-    m = piney_data::anim::rot_z_bits_of(m, rot[2]);
-    for k in 0..3 {
-        m[3][k] = ee::add(m[3][k], pos[k]);
-    }
-    m
-}
-
 /// The drawing's function statics as the executable starts them, which
 /// live as long as the game does (the first `DrawRain` of the whole game
 /// seeds its thunder's count): `DrawRain`'s `tcnt` (unset), `tcnt2` 750,

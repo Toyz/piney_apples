@@ -5,6 +5,7 @@
 //! direction turned by three `ccRand()` angles about x, then y, then z.
 
 use piney_data::Result;
+use piney_data::vu0;
 
 use super::{BuildCx, Hook, MapEvent, MapSystem, Others, Smoke, StepCx};
 use crate::ee::{self, ONE, V4};
@@ -50,13 +51,12 @@ impl MapSystem for Fires {
         let Some(cc) = cx.cc.as_deref_mut() else { return };
         let mut next = || cc.rand() as u32;
         for fire in out {
-            let unit = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
             let a = ee::deg2rad(next() as u16 as i16);
-            let mut m = piney_data::anim::rot_x_bits_of(unit, a);
+            let m = vu0::rot_matrix_x(&vu0::UNIT, a);
             let b = ee::deg2rad(next() as u16 as i16);
-            m = piney_data::anim::rot_y_bits_of(m, b);
+            let m = vu0::rot_matrix_y(&m, b);
             let c = ee::deg2rad(next() as u16 as i16);
-            m = piney_data::anim::rot_z_bits_of(m, c);
+            let m = vu0::rot_matrix_z(&m, c);
             let off = ee::apply(&m, [0x4120_0000, 0, 0, ONE]);
             let mut pos = fire;
             for k in 0..3 {

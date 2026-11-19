@@ -10,6 +10,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use piney_battle::geom::{get_dirc, set_dirc};
 use piney_data::archive::Archive;
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
@@ -24,7 +25,6 @@ use crate::ee::{self, F, ONE, V4};
 use crate::hit::{self, Hits};
 use crate::systems::npcs::NpcCtx;
 use crate::town::TownLights;
-use piney_battle::geom::{get_dirc, set_dirc};
 
 /// `ccMerchan::main` steps and draws only nearer than this (4600).
 pub const NEAR: F = 0x458f_c000;
@@ -533,7 +533,7 @@ impl Merchant {
     /// `SetMatrix_PosRotZYX(pos, dirc)` as the anm stores it.
     pub fn root(&self) -> [V4; 4] {
         let d = self.core.ch.dirc;
-        crate::town::pos_rot_zyx(self.core.ch.pos, [d[0], d[1], d[2]])
+        piney_data::vu0::pos_rot_zyx(self.core.ch.pos, [d[0], d[1], d[2], 0])
     }
 
     /// The last step's draw: `ccAnm::Draw` of the body on the character

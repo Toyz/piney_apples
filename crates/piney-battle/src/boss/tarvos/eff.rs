@@ -49,10 +49,10 @@ fn atan2d(y: F, x: F) -> F {
 /// `(len, 0, 0, 1)` turned by `Ry(pitch)`, `Rz(heading)`, `Rz(-pi/2)`: a
 /// step along the line from a point to what it looks at.
 fn along(pitch: F, heading: F, len: F) -> V4 {
-    let m = geom::rot_matrix_y(&geom::unit_matrix(), pitch);
+    let m = geom::rot_matrix_y(&geom::UNIT, pitch);
     let m = geom::rot_matrix_z(&m, heading);
     let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-    geom::apply_matrix(&m, [len, 0, 0, ONE])
+    geom::apply(&m, [len, 0, 0, ONE])
 }
 
 /// One of the rain's 32 spikes (`SPIKE_T`, 0xe0 bytes: a `ccClump` of
@@ -100,9 +100,9 @@ impl SpikeRain {
             if ee::lt(a, 0) {
                 a = ee::add(a, PI);
             }
-            let m = geom::rot_matrix_y(&geom::unit_matrix(), a);
+            let m = geom::rot_matrix_y(&geom::UNIT, a);
             let m = geom::rot_matrix_z(&m, rand_f(cx.cc, PI));
-            s.pos = geom::vadd(top, geom::apply_matrix(&m, [0x4348_0000, 0, 0, ONE]));
+            s.pos = geom::vadd(top, geom::apply(&m, [0x4348_0000, 0, 0, ONE]));
             let (p, q) = (crate::boss::w2p(cx, s.pos), crate::boss::w2p(cx, aim));
             let pitch = atan2d(ee::sub(p[2], q[2]), crate::boss::dist(cx, q, p));
             s.vel = along(pitch, get_dirc(p, q), 0x4248_0000);
@@ -227,8 +227,8 @@ impl Phantom {
     /// camera free on them, its view the target's address (`target_va`).
     pub fn new(b: &mut BossBase, cx: &mut Cx, pos: V4, dirc: F, target_va: u32) -> Phantom {
         let p = crate::boss::w2p(cx, pos);
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), dirc);
-        let v = geom::apply_matrix(&m, [0x44bb_8000, 0, 0, ONE]);
+        let m = geom::rot_matrix_z(&geom::UNIT, dirc);
+        let v = geom::apply(&m, [0x44bb_8000, 0, 0, ONE]);
         let mut eye = crate::boss::p2w(cx, geom::vadd(p, v));
         eye[2] = 0x43fa_0000;
         let radius = 0x43c8_0000;
@@ -282,17 +282,17 @@ impl Phantom {
         }
         let mut f = 0;
         for l in &mut self.lights[..4] {
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), f);
-            l.vel = geom::apply_matrix(&m, [0x41a0_0000, 0, 0, ONE]);
+            let m = geom::rot_matrix_z(&geom::UNIT, f);
+            l.vel = geom::apply(&m, [0x41a0_0000, 0, 0, ONE]);
             f = wrap(ee::add(f, HALF_PI));
         }
         self.lights[4].vel = [0, 0, 0x41a0_0000, ONE];
         self.lights[5].vel = [0, 0, 0xc1a0_0000, ONE];
         let mut f = QUARTER_PI;
         for k in [6, 10] {
-            let m = geom::rot_matrix_y(&geom::unit_matrix(), QUARTER_PI);
+            let m = geom::rot_matrix_y(&geom::UNIT, QUARTER_PI);
             let m = geom::rot_matrix_z(&m, f);
-            self.lights[k].vel = geom::apply_matrix(&m, [0x41a0_0000, 0, 0, ONE]);
+            self.lights[k].vel = geom::apply(&m, [0x41a0_0000, 0, 0, ONE]);
             self.lights[k + 1].vel = geom::vscale(self.lights[k].vel, 0xbf80_0000);
             let mut v = self.lights[k + 1].vel;
             v[2] = ee::mul(v[2], 0xbf80_0000);
@@ -332,8 +332,8 @@ impl Phantom {
             1 | 2 => {
                 let centre = self.pos_p;
                 for l in &mut self.lights[..8] {
-                    let m = geom::rot_matrix_z(&geom::unit_matrix(), l.angle);
-                    let v = geom::apply_matrix(&m, [self.radius, 0, 0, ONE]);
+                    let m = geom::rot_matrix_z(&geom::UNIT, l.angle);
+                    let v = geom::apply(&m, [self.radius, 0, 0, ONE]);
                     l.pos = crate::boss::p2w(cx, geom::vadd(centre, v));
                     l.angle = ee::add(l.angle, 0x3d56_7750);
                     if !ee::le(l.angle, PI) {
@@ -441,8 +441,8 @@ impl Phantom {
                 }
                 self.pos[2] = ee::sub(self.pos[2], 0x42c8_0000);
                 if ee::lt(self.lights[0].pos[2], 0x447a_0000) {
-                    let m = geom::rot_matrix_z(&geom::unit_matrix(), self.dirc);
-                    let v = geom::apply_matrix(&m, [0x447a_0000, 0, 0, ONE]);
+                    let m = geom::rot_matrix_z(&geom::UNIT, self.dirc);
+                    let v = geom::apply(&m, [0x447a_0000, 0, 0, ONE]);
                     self.eye = crate::boss::p2w(cx, geom::vadd(crate::boss::w2p(cx, self.origin), v));
                     self.eye[2] = 0x42c8_0000;
                     self.pos[2] = 0x4396_0000;

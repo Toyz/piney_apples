@@ -8,12 +8,13 @@
 //! ("TornadoSystem").
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
 use crate::element::Base;
 use crate::files::ObjRef;
-use crate::{Cx, Event, space, vu};
+use crate::{Cx, Event, space};
 
 /// The thunder's controller.
 pub const THUNDER_POS: i16 = -17;
@@ -111,7 +112,7 @@ pub struct ThunderBolt {
     pub default_scale: i32,
     pub rand_scale: i32,
     pub rnd_point: V4,
-    pub sp_mat: vu::M4,
+    pub sp_mat: vu0::M4,
     /// +0x284 `EffCmp`: CMP_x012, duplicated, its CLUT swapped.
     pub eff_cmp: Option<ObjRef>,
     pub clut: Option<(u32, u32)>,
@@ -222,7 +223,7 @@ impl ThunderBolt {
         let r = ee::div(self.bottom_range, 0x4120_0000);
         for i in 0..self.num.max(0) as usize {
             let mut spot = VF0;
-            let m = vu::rot_z(&vu::UNIT, rand_f(cx, ee::PI));
+            let m = vu0::rot_matrix_z(&vu0::UNIT, rand_f(cx, ee::PI));
             spot[1] = ee::sub(self.bottom_range, rand_f(cx, r));
             let spot = ee::apply(&m, spot);
             self.thunder_tbl[i].spot = ee::vadd(spot, self.center_pos);
@@ -243,18 +244,18 @@ impl ThunderBolt {
             let scale = add_abs(f64::from(self.default_scale), rand_f(cx, ee::from_int(self.rand_scale)));
             let mut spot_new = self.thunder_tbl[i].spot;
             for _ in 0..self.thunder_tbl[i].break_point {
-                let mut mat = vu::UNIT;
-                let test = vu::UNIT;
+                let mut mat = vu0::UNIT;
+                let test = vu0::UNIT;
                 let new_pos = [0, MODEL_RANGE, 0, ONE];
                 mat[0][0] = scale;
                 mat[1][1] = range;
                 mat[2][2] = scale;
                 let rot = rand_f(cx, ee::PI);
                 let x_rot = add_abs(f64::from(f32::from_bits(self.default_angle)), rand_f(cx, self.rand_angle));
-                let mat = vu::rot_z(&vu::rot_x(&mat, x_rot), rot);
-                let test = vu::rot_z(&vu::rot_x(&test, x_rot), rot);
+                let mat = vu0::rot_matrix_z(&vu0::rot_matrix_x(&mat, x_rot), rot);
+                let test = vu0::rot_matrix_z(&vu0::rot_matrix_x(&test, x_rot), rot);
                 let spot = spot_new;
-                let model = vu::trans(&mat, spot);
+                let model = vu0::trans_matrix(&mat, spot);
                 spot_new = ee::vadd(ee::apply(&test, new_pos), spot);
                 if let Some(obj) = self.eff_cmp {
                     cx.draws.push(crate::draw::DrawRec::Clump {

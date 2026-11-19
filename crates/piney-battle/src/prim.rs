@@ -10,8 +10,8 @@
 
 use crate::entry::Cx;
 use crate::geom::{
-    self, F, HALF_PI, M4, ONE, PI, TWO_PI, V4, add, apply_matrix, cosf, div, from_int, le, lt, mul, neg, pi_limit,
-    rand_f, rot_matrix_x, rot_matrix_y, rot_matrix_z, sinf, sub, trans_matrix, unit_matrix,
+    self, F, HALF_PI, M4, ONE, PI, TWO_PI, UNIT, V4, add, apply, cosf, div, from_int, le, lt, mul, neg, pi_limit,
+    rand_f, rot_matrix_x, rot_matrix_y, rot_matrix_z, sinf, sub, trans_matrix,
 };
 use crate::rand::Rng;
 
@@ -291,7 +291,7 @@ impl Radiate {
     /// `matCalcSW`) and into `cc3d`'s group, `lgtFlag` up.
     pub fn set_light(&mut self, w: &mut dyn RadWorld, out: &mut Vec<RadOut>) {
         self.pos = w.fw2lw(self.pos);
-        self.light.matrix = trans_matrix(&unit_matrix(), self.pos);
+        self.light.matrix = trans_matrix(&UNIT, self.pos);
         self.light.mat_calc = true;
         out.push(RadOut::LightOn(self.light));
         self.lgt_flag = true;
@@ -318,7 +318,7 @@ impl Radiate {
             rot[2] = pi_limit(add(HALF_PI, cam[2]));
             rot[3] = 0;
         }
-        let m = rot_matrix_x(&unit_matrix(), rot[0]);
+        let m = rot_matrix_x(&UNIT, rot[0]);
         let m = rot_matrix_y(&m, rot[1]);
         let m = rot_matrix_z(&m, rot[2]);
         if self.parts.is_empty() {
@@ -335,7 +335,7 @@ impl Radiate {
         let mut len = mul(self.scale, mul(self.length, self.lscale));
         let c = mul(self.center, self.scale);
         let z = self.fzoom;
-        let bank = rot_matrix_y(&unit_matrix(), self.bank);
+        let bank = rot_matrix_y(&UNIT, self.bank);
         let facing = self.ty & 1 != 0;
         for i in 0..usize::try_from(self.pnum).unwrap_or(0) {
             if !geom::eq(self.dp_length, 0) {
@@ -348,19 +348,19 @@ impl Radiate {
                 turn = rot_matrix_y(&turn, r);
             }
             let a = pi_limit(mul(self.angle, from_int(i as i32)));
-            let rx = rot_matrix_x(&unit_matrix(), a);
-            let mut m: M4 = std::array::from_fn(|r| apply_matrix(mat0, rx[r]));
+            let rx = rot_matrix_x(&UNIT, a);
+            let mut m: M4 = std::array::from_fn(|r| apply(mat0, rx[r]));
             m[3] = self.pos;
             let outer = |y: F| {
                 let v = [0, y, add(c, len), ONE];
-                let v = if facing { v } else { apply_matrix(&turn, v) };
-                apply_matrix(&m, v)
+                let v = if facing { v } else { apply(&turn, v) };
+                apply(&m, v)
             };
             let neg_hw = geom::neg(hw);
             let p = &mut self.parts[i];
-            p.vert[0].pos = apply_matrix(&m, [0, neg_hw, c, ONE]);
+            p.vert[0].pos = apply(&m, [0, neg_hw, c, ONE]);
             p.vert[1].pos = outer(mul(neg_hw, z));
-            p.vert[2].pos = apply_matrix(&m, [0, hw, c, ONE]);
+            p.vert[2].pos = apply(&m, [0, hw, c, ONE]);
             p.vert[3].pos = outer(mul(hw, z));
             p.set_alpha(self.alpha);
         }

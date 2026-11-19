@@ -7,6 +7,7 @@
 //! docs/engine/effects.md ("The element manager and the elements").
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 use piney_world::chara::pose::Play;
 
 use crate::draw::DrawRec;
@@ -17,7 +18,7 @@ use crate::element::{Base, Element};
 use crate::files::ObjRef;
 use crate::particle::GenRef;
 use crate::spell::attr;
-use crate::{Cx, pfx, space, thunder, vu};
+use crate::{Cx, pfx, space, thunder};
 
 const HALF_PI: F = 0x3fc9_0fdb;
 const NEG_HALF_PI: F = 0xbfc9_0fdb;
@@ -113,7 +114,7 @@ impl AnmObj {
         self.play.frame_spd = 256;
     }
 
-    pub(crate) fn draw(&self, cx: &mut Cx, matrix: vu::M4, alpha: F) {
+    pub(crate) fn draw(&self, cx: &mut Cx, matrix: vu0::M4, alpha: F) {
         let clut = self.clut.clone();
         cx.draws.push(DrawRec::Anm {
             obj: self.obj,
@@ -134,7 +135,7 @@ pub fn particle_clump(cx: &Cx, name: &str) -> Option<ObjRef> {
 
 /// A clump's `Draw`; `fog` its objects' fog bit (`ccObj::Init`'s on, or
 /// as the owner's `SetFogSw` left it).
-pub(crate) fn draw_clump(cx: &mut Cx, obj: Option<ObjRef>, matrix: vu::M4, alpha: F, fog: bool) {
+pub(crate) fn draw_clump(cx: &mut Cx, obj: Option<ObjRef>, matrix: vu0::M4, alpha: F, fog: bool) {
     draw_clump_clut(cx, obj, matrix, alpha, None, fog);
 }
 
@@ -142,7 +143,7 @@ pub(crate) fn draw_clump(cx: &mut Cx, obj: Option<ObjRef>, matrix: vu::M4, alpha
 pub(crate) fn draw_clump_clut(
     cx: &mut Cx,
     obj: Option<ObjRef>,
-    matrix: vu::M4,
+    matrix: vu0::M4,
     alpha: F,
     clut: Option<(u32, u32)>,
     fog: bool,
@@ -172,8 +173,8 @@ pub(crate) fn draw_eff_at(cx: &mut Cx, eff: &mut Eff, pos: V4, pat: u16) {
 }
 
 /// The unit matrix with `s` on its diagonal.
-fn scale_matrix(s: V4) -> vu::M4 {
-    let mut m = vu::UNIT;
+fn scale_matrix(s: V4) -> vu0::M4 {
+    let mut m = vu0::UNIT;
     m[0][0] = s[0];
     m[1][1] = s[1];
     m[2][2] = s[2];
@@ -565,13 +566,13 @@ impl DrawElm {
         match &mut self.kind {
             DrawKind::Fire { anm, kasa, kasa_rot, .. } => {
                 let mut m = scale_matrix(a.scale);
-                m = vu::rot_y(&m, *kasa_rot);
-                m = vu::rot_z(&m, HALF_PI);
-                m = vu::rot_x(&m, a.dirc[0]);
-                m = vu::rot_y(&m, a.dirc[1]);
-                m = vu::rot_z(&m, a.dirc[2]);
-                m = vu::rot_z(&m, NEG_HALF_PI);
-                m = vu::trans(&m, a.pos);
+                m = vu0::rot_matrix_y(&m, *kasa_rot);
+                m = vu0::rot_matrix_z(&m, HALF_PI);
+                m = vu0::rot_matrix_x(&m, a.dirc[0]);
+                m = vu0::rot_matrix_y(&m, a.dirc[1]);
+                m = vu0::rot_matrix_z(&m, a.dirc[2]);
+                m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
+                m = vu0::trans_matrix(&m, a.pos);
                 if let Some(anm) = anm {
                     let ended = anm.forward(cx);
                     anm.draw(cx, m, a.transparency);
@@ -583,20 +584,20 @@ impl DrawElm {
                 *kasa_rot = turn(*kasa_rot, 0x3dd6_7750);
             }
             DrawKind::Rock { cmp } => {
-                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
+                draw_clump(cx, *cmp, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
             }
             DrawKind::Dark { cmp } => {
-                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
+                draw_clump(cx, *cmp, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
                 for k in 1..3 {
                     self.base.anim.dirc[k] = turn(self.base.anim.dirc[k], 0x3e56_7750);
                 }
             }
             DrawKind::Ice { cmp } => {
                 let mut m = scale_matrix(a.scale);
-                m = vu::rot_x(&m, a.dirc[0]);
-                m = vu::rot_y(&m, a.dirc[1]);
-                m = vu::rot_z(&m, a.dirc[2]);
-                m = vu::rot_z(&m, NEG_HALF_PI);
+                m = vu0::rot_matrix_x(&m, a.dirc[0]);
+                m = vu0::rot_matrix_y(&m, a.dirc[1]);
+                m = vu0::rot_matrix_z(&m, a.dirc[2]);
+                m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
                 // m_pos into the matrix's translation row, w and all.
                 m[3] = a.pos;
                 draw_clump(cx, *cmp, m, a.transparency, true);
@@ -629,7 +630,7 @@ impl DrawElm {
             DrawKind::FireBall { anm } | DrawKind::DarkBat { anm } => {
                 if let Some(anm) = anm {
                     let ended = anm.forward(cx);
-                    anm.draw(cx, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+                    anm.draw(cx, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
                     if ended {
                         anm.restart();
                     }
@@ -638,14 +639,14 @@ impl DrawElm {
             DrawKind::PlasmaBall { anm, .. } => {
                 if let Some(anm) = anm {
                     anm.forward(cx);
-                    anm.draw(cx, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+                    anm.draw(cx, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
                 }
             }
             DrawKind::Blantch { cmp } | DrawKind::Needle { cmp } => {
-                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
+                draw_clump(cx, *cmp, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
             }
             DrawKind::MagicCircle { cmp, clut, scale_spd, scale_limit, fade_spd, fade_limit } => {
-                draw_clump_clut(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, *clut, false);
+                draw_clump_clut(cx, *cmp, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, *clut, false);
                 let b = &mut self.base;
                 if !ee::eq(0, *scale_spd) {
                     let mut v = ee::add(b.anim.scale[0], *scale_spd);
@@ -739,7 +740,7 @@ impl DrawElm {
                 let mut ended = false;
                 if let Some(anm) = anm {
                     ended = anm.forward(cx);
-                    anm.draw(cx, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+                    anm.draw(cx, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
                 }
                 self.base.anim.animate_fade();
                 self.base.anim.animate_scale();
@@ -767,7 +768,7 @@ fn thunder_draw(cx: &mut Cx, a: &crate::element::Animate, bow: Option<ObjRef>, c
         let x = thunder::rand_f(cx, 0x42c8_0000);
         let z = ee::sub(ee::mul(0x42c8_0000, ee::from_int(-i)), 0x42c8_0000);
         let r = thunder::rand_f(cx, PI);
-        let v = ee::apply(&vu::rot_z(&vu::UNIT, r), [x, 0, z, ONE]);
+        let v = ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, r), [x, 0, z, ONE]);
         let k = (i + 1) as usize;
         c[k][1] = ee::vadd(v, sp);
         c[k][0] = space::p2w(c[k][1], player, bounds);
@@ -778,15 +779,15 @@ fn thunder_draw(cx: &mut Cx, a: &crate::element::Animate, bow: Option<ObjRef>, c
         let d = get_dist(cx.assets.volume, p, q);
         let d3 = get_dist3d(cx.assets.volume, p, q);
         let tilt = ee::atan2f(ee::sub(c[i][0][2], c[i + 1][0][2]), d);
-        let mut m = vu::UNIT;
+        let mut m = vu0::UNIT;
         m[0][0] = 0x4040_0000;
         m[1][1] = ee::mul(0x3a91_a2b4, d3);
         m[2][2] = 0x4040_0000;
-        m = vu::rot_z(&m, NEG_HALF_PI);
-        m = vu::rot_y(&m, tilt);
-        m = vu::rot_z(&m, dirc);
-        m = vu::rot_z(&m, NEG_HALF_PI);
-        m = vu::trans(&m, c[i][0]);
+        m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
+        m = vu0::rot_matrix_y(&m, tilt);
+        m = vu0::rot_matrix_z(&m, dirc);
+        m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
+        m = vu0::trans_matrix(&m, c[i][0]);
         draw_clump(cx, bow, m, a.transparency, false);
     }
 }

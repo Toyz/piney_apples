@@ -5,6 +5,9 @@
 //! meteor at 20 only. Levels 3 and up use the fall element. The rules are in
 //! docs/engine/effects.md ("FallSystem").
 
+use piney_data::volume::Volume;
+use piney_data::vu0;
+
 use crate::debris;
 use crate::drawelm::{self, DrawElm, PI};
 use crate::ee::{self, F, ONE, V4, VF0};
@@ -13,8 +16,7 @@ use crate::element::{Base, Element};
 use crate::particle::{FfParam, GenParam};
 use crate::spell::{Spell, attr, bits, camera_shake, check_camera_shake_range, first, noise};
 use crate::thunder::{self, ThunderBolt, ThunderData};
-use crate::{CharRef, Cx, Event, IntRef, NO_HIT, VecRef, pfx, space, vu};
-use piney_data::volume::Volume;
+use crate::{CharRef, Cx, Event, IntRef, NO_HIT, VecRef, pfx, space};
 
 /// ANM_x300, the fire meteor's animation: it shares the meteors' cases of
 /// both passes, but no function of any volume makes it.
@@ -582,7 +584,7 @@ impl FallElement {
             for i in 0..e.elements.len() {
                 let mut tp = space::w2p(s.t_pos, player, bounds);
                 let x = thunder::add_abs(100.0, thunder::rand_f(cx, 0x43c8_0000));
-                let v = ee::apply(&vu::rot_z(&vu::UNIT, ang), [x, 0, 0x442a_0000, ONE]);
+                let v = ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, ang), [x, 0, 0x442a_0000, ONE]);
                 tp = ee::vadd(tp, v);
                 let sp = space::p2w(tp, player, bounds);
                 let mut ep = tp;
@@ -596,7 +598,7 @@ impl FallElement {
                 let d = drawelm::get_dist(cx.assets.volume, tp, ep);
                 let tilt = ee::atan2f(ee::sub(tp[2], ep[2]), d);
                 let dirc = piney_battle::geom::get_dirc(tp, ep);
-                let m = vu::rot_z(&vu::rot_z(&vu::rot_y(&vu::UNIT, tilt), dirc), 0xbfc9_0fdb);
+                let m = vu0::rot_matrix_z(&vu0::rot_matrix_z(&vu0::rot_matrix_y(&vu0::UNIT, tilt), dirc), 0xbfc9_0fdb);
                 let slot = &mut e.elements[i];
                 let a = &mut slot.elm.base.anim;
                 a.sp = sp;
@@ -766,7 +768,7 @@ impl ThunderFallElement {
                 let mut elm = DrawElm::thunder(cx);
                 let x = thunder::rand_f(cx, 0x4396_0000);
                 let r = thunder::rand_f(cx, PI);
-                let v = ee::apply(&vu::rot_z(&vu::UNIT, r), [x, 0, 0x44fa_0000, ONE]);
+                let v = ee::apply(&vu0::rot_matrix_z(&vu0::UNIT, r), [x, 0, 0x44fa_0000, ONE]);
                 let p = ee::vadd(tpp, v);
                 let sp = space::p2w(p, player, bounds);
                 let mut q = p;

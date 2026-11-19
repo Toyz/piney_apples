@@ -212,11 +212,11 @@ fn wave<'a>(o: &'a mut Others) -> &'a mut Wave {
 /// its free eye `offset` from `vp` turned by `Rz(-pi/2) Rx Ry Rz` of `d`,
 /// looking at `vp`.
 fn magic_camera(b: &mut BossBase, cx: &mut Cx, vp: V4, d: V4, off: V4) {
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+    let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
     let m = geom::rot_matrix_x(&m, d[0]);
     let m = geom::rot_matrix_y(&m, d[1]);
     let m = geom::rot_matrix_z(&m, d[2]);
-    let v = geom::apply_matrix(&m, off);
+    let v = geom::apply(&m, off);
     let eye = super::p2w(cx, geom::vadd(super::w2p(cx, vp), v));
     if b.cam.is_some() {
         b.cam_mode(cx, 5);
@@ -229,9 +229,9 @@ fn magic_camera(b: &mut BossBase, cx: &mut Cx, vp: V4, d: V4, off: V4) {
 fn spell_camera(b: &mut BossBase, cx: &mut Cx) {
     let mut vp = b.target_pos;
     vp[2] = 0x4348_0000;
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+    let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
     let m = geom::rot_matrix_z(&m, b.target_dirc);
-    let v = geom::apply_matrix(&m, [0x44bb_8000, 0, 0x428c_0000, ONE]);
+    let v = geom::apply(&m, [0x44bb_8000, 0, 0x428c_0000, ONE]);
     let eye = super::p2w(cx, geom::vadd(super::w2p(cx, b.target_pos), v));
     b.cam_mode(cx, 5);
     b.cam_pos_view(eye, vp);
@@ -1076,8 +1076,8 @@ fn on_transfer(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
                 return;
             }
             let mut v = [rand_f(cx.cc, 0x44fa_0000), 0, 0, ONE];
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), rand_f(cx.cc, PI));
-            v = geom::apply_matrix(&m, v);
+            let m = geom::rot_matrix_z(&geom::UNIT, rand_f(cx.cc, PI));
+            v = geom::apply(&m, v);
             let p = geom::vadd(b.center_pos_p, v);
             cx.scene.chars[me].pos_p = p;
             cx.scene.chars[me].pos = super::p2w(cx, p);

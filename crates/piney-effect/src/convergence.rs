@@ -8,6 +8,7 @@
 //! ("ConvergenceSystem").
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::drawelm::{self, DrawElm};
 use crate::ee::{self, F, ONE, V4};
@@ -15,7 +16,7 @@ use crate::effect::{EffectCtrl, Next, ONE_VECTOR};
 use crate::element::{Base, Element};
 use crate::fall::eff_skill_break_se;
 use crate::spell::{attr, camera_shake, check_camera_shake_range, first, noise};
-use crate::{CharRef, Cx, Event, debris, ring, space, thunder, tornado, vu};
+use crate::{CharRef, Cx, Event, debris, ring, space, thunder, tornado};
 
 /// `effSkillChargeObject`'s controller (no object).
 pub const CHARGE: i16 = -18;
@@ -503,8 +504,8 @@ impl ConvergenceElement {
                 w[0] = ee::add(w[0], 0x4396_0000);
                 w[2] = ee::add(w[2], 0x4396_0000);
                 let tilt = ee::neg(ee::fabsf(thunder::rand_f(cx, drawelm::PI)));
-                let m = vu::rot_y(&vu::UNIT, tilt);
-                let m = vu::rot_z(&m, thunder::rand_f(cx, drawelm::PI));
+                let m = vu0::rot_matrix_y(&vu0::UNIT, tilt);
+                let m = vu0::rot_matrix_z(&m, thunder::rand_f(cx, drawelm::PI));
                 let p1 = ee::vadd(tpp, ee::apply(&m, v));
                 let sp = space::p2w(p1, player, bounds);
                 let p2 = ee::vadd(tpp, ee::apply(&m, w));

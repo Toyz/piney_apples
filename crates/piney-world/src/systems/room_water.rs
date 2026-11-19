@@ -17,7 +17,7 @@ use super::{
     BuildCx, Carried, CarriedMut, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, RoomCx, RoomPart, StepCx,
 };
 use crate::chara::pose::Play;
-use crate::draw::{self, Fogging, OBJ_LAYER};
+use crate::draw::{Fogging, OBJ_LAYER};
 use crate::dungeon::Rooms;
 use crate::ee::{self, F, ONE, V4};
 use crate::field::area::REF_LAYER;
@@ -68,13 +68,13 @@ impl RoomWater {
         let Some(w) = &mut self.water else { return };
         let Some(w0) = &mut w.water0 else { return };
         let file = &*self.rooms.file;
-        let worlds = w.plays[0].worlds(file, draw::mat(&w.root), &[]);
+        let worlds = w.plays[0].worlds(file, piney_data::vu0::to_mat4(&w.root), &[]);
         let lw = worlds.iter().find(|(o, _)| {
             let target = file.scene.ext.get(o).copied().unwrap_or(**o);
             file.obj_model.get(&target) == Some(&w0.model.object)
         });
         if let Some((_, lw)) = lw {
-            let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
+            let lw = piney_data::vu0::of_mat4(*lw);
             w0.modify(cx.core.hits.volume, &lw, lw[3], lw[3], cx.view.world_screen);
         }
     }
@@ -115,7 +115,7 @@ impl MapSystem for RoomWater {
         let rows = if k == 0 { play.uv_rows(file) } else { water_rows(file, k, w.uv) };
         let edit = (k == 0).then_some(()).and(w.water0.as_ref()).filter(|w0| w0.st.is_some());
         let pieces = play
-            .worlds(file, draw::mat(&w.root), &[])
+            .worlds(file, piney_data::vu0::to_mat4(&w.root), &[])
             .into_iter()
             .filter_map(|(obj, world)| {
                 let target = file.scene.ext.get(&obj).copied().unwrap_or(obj);

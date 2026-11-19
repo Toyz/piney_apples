@@ -389,7 +389,7 @@ fn calc_jump_pos(cx: &Cx, j: &Jump) -> V4 {
         crate::boss::w2p(cx, j.cp),
         crate::boss::w2p(cx, j.ep),
     ];
-    let mut p = crate::boss::p2w(cx, geom::apply_matrix(&m, k));
+    let mut p = crate::boss::p2w(cx, geom::apply(&m, k));
     p[3] = ONE;
     p
 }
@@ -561,13 +561,13 @@ fn on_die(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             x.boss_eff = Some(b.effect_at(cx, EffKind::Dead, pos, VF0));
             b.dirc[2] = b.center_dirc;
             let d = b.dirc;
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+            let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
             let m = geom::rot_matrix_x(&m, d[0]);
             let m = geom::rot_matrix_y(&m, d[1]);
             let m = geom::rot_matrix_z(&m, d[2]);
             let mut view = pos;
             view[2] = 0x4348_0000;
-            let v = geom::apply_matrix(&m, [0x44fa_0000, 0, 0x4248_0000, ONE]);
+            let v = geom::apply(&m, [0x44fa_0000, 0, 0x4248_0000, ONE]);
             let eye = crate::boss::p2w(cx, geom::vadd(v, crate::boss::w2p(cx, view)));
             cx.cams().change(CamId::Battle);
             cx.cams().cam_mut(CamId::Battle).pos = eye;
@@ -582,9 +582,9 @@ fn on_die(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             b.act_count += 1;
             if c >= 60 {
                 // `cameraGetPos(camID)` moved 10 across the centre's way.
-                let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+                let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
                 let m = geom::rot_matrix_z(&m, b.center_dirc);
-                let v = geom::apply_matrix(&m, [0x4120_0000, 0, 0, ONE]);
+                let v = geom::apply(&m, [0x4120_0000, 0, 0, ONE]);
                 let eye = crate::boss::w2p(cx, cx.cams_ref().active().pos);
                 let pos = crate::boss::p2w(cx, geom::vadd(eye, v));
                 cx.cams().active_mut().pos = pos;
@@ -645,9 +645,9 @@ fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             let mut view = tp;
             view[2] = ee::add(view[2], 0x42c8_0000);
             let d = get_dirc(crate::boss::w2p(cx, tp), b.center_pos_p);
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+            let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
             let m = geom::rot_matrix_z(&m, d);
-            let v = geom::apply_matrix(&m, [0x451c_4000, 0, 0x43fa_0000, ONE]);
+            let v = geom::apply(&m, [0x451c_4000, 0, 0x43fa_0000, ONE]);
             let eye = crate::boss::p2w(cx, geom::vadd(crate::boss::w2p(cx, tp), v));
             cx.cams().change(CamId::Battle);
             cx.cams().cam_mut(CamId::Battle).pos = eye;

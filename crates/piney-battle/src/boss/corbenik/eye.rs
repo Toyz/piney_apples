@@ -79,10 +79,10 @@ fn pitch(cx: &Cx, a: V4, b: V4) -> F {
 /// `(len, 0, 0)` turned `Ry(y) Rz(z) Rz(-pi/2)`: a step from one place to
 /// another (`UnitMatrix`, `RotMatrixY`, `RotMatrixZ` twice).
 fn step_along(y: F, z: F, len: F) -> V4 {
-    let m = geom::rot_matrix_y(&geom::unit_matrix(), y);
+    let m = geom::rot_matrix_y(&geom::UNIT, y);
     let m = geom::rot_matrix_z(&m, z);
     let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-    geom::apply_matrix(&m, [len, 0, 0, ONE])
+    geom::apply(&m, [len, 0, 0, ONE])
 }
 
 // --- the eyes --------------------------------------------------------------------------------------
@@ -169,9 +169,9 @@ pub(crate) fn setup_eye(p: &mut Part<Eye>, cx: &mut Cx, master: usize, k: i32) {
     } else if !ee::le(a, 0x4027_8d37) {
         a = 0x4027_8d37;
     }
-    let m = geom::rot_matrix_y(&geom::unit_matrix(), a ^ 0x8000_0000);
+    let m = geom::rot_matrix_y(&geom::UNIT, a ^ 0x8000_0000);
     let m = geom::rot_matrix_z(&m, rand_f(cx.cc, PI));
-    p.x.pos_b = geom::apply_matrix(&m, [r, 0, 0, ONE]);
+    p.x.pos_b = geom::apply(&m, [r, 0, 0, ONE]);
     p.x.pos_bp = w2p(cx, p.x.pos_b);
 }
 
@@ -230,11 +230,11 @@ fn face(b: &mut BossBase, cx: &Cx, at: V4) {
 /// `m_rotDirc` (`RotMatrixX`, `Y`, `Z` over its translation).
 fn eye_neutral(b: &mut BossBase, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
     face(b, cx, m.pos_p);
-    let t = geom::trans_matrix(&geom::unit_matrix(), x.pos_b);
+    let t = geom::trans_matrix(&geom::UNIT, x.pos_b);
     let t = geom::rot_matrix_x(&t, x.rot_dirc[0]);
     let t = geom::rot_matrix_y(&t, x.rot_dirc[1]);
     let t = geom::rot_matrix_z(&t, x.rot_dirc[2]);
-    x.pos_b = geom::apply_matrix(&t, VF0);
+    x.pos_b = geom::apply(&t, VF0);
 }
 
 /// `OnThinkTeraLaser` (0x003bf070): facing its target.
@@ -687,8 +687,8 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
                 }
                 b.move_vector = VF0;
                 let d = b.dirc[2];
-                let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), d);
-                let o = geom::apply_matrix(&m, [0x400e_38e4, 0, 0, ONE]);
+                let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI), d);
+                let o = geom::apply(&m, [0x400e_38e4, 0, 0, ONE]);
                 b.move_vector = p2w(cx, geom::vadd(w2p(cx, b.move_vector), o));
                 b.transparency = t;
                 b.set_transparency = t;
@@ -701,10 +701,10 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
                     a = ee::add(a, TWO_PI);
                 }
                 let _ = cx.rand.rand() >> 3;
-                let m = geom::rot_matrix_x(&geom::unit_matrix(), 0);
+                let m = geom::rot_matrix_x(&geom::UNIT, 0);
                 let m = geom::rot_matrix_y(&m, 0x8000_0000);
                 let m = geom::rot_matrix_z(&m, a);
-                let v = geom::apply_matrix(&m, [ONE, 0, 0, ONE]);
+                let v = geom::apply(&m, [ONE, 0, 0, ONE]);
                 x.act_pos = v.map(|c| ee::mul(c, 0x41f0_0000));
                 x.spin = VF0;
                 let r = rand_f(cx.cc, HALF_PI);
@@ -958,7 +958,7 @@ impl BossSystem for Eye {
     /// `ccBoss08Eye::PreDrawAnm` (0x003bed70): turned XYZ.
     fn draw(&self, b: &BossBase, _all: &Systems, cx: &mut Cx, out: &mut crate::boss::Output) {
         let pos = cx.scene.chars[cx.me].pos;
-        let m = geom::rot_matrix_x(&geom::unit_matrix(), b.dirc[0]);
+        let m = geom::rot_matrix_x(&geom::UNIT, b.dirc[0]);
         let m = geom::rot_matrix_y(&m, b.dirc[1]);
         let m = geom::rot_matrix_z(&m, b.dirc[2]);
         out.body = crate::boss::BodyDraw {
@@ -1030,7 +1030,7 @@ pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {
 
 /// The body's dummy in the world: `ApplyMatrix(anm, dmyEye->pos)`.
 pub fn dummy_at(world: &M4, dummy: V4) -> V4 {
-    geom::apply_matrix(world, dummy)
+    geom::apply(world, dummy)
 }
 
 impl Third {

@@ -954,7 +954,7 @@ fn gorre_brothers_model_shots() {
                 let root = piney_world::chara::body::root([0, 0, 0, f(1.0)], [0, 0, f(r), f(1.0)]);
                 let eye = [0, f(-1800.0), f(400.0), f(1.0)];
                 let at = [0, 0, f(400.0), f(1.0)];
-                let ws = piney_data::anim::vu_mul(
+                let ws = piney_data::vu0::mul_matrix(
                     &piney_world::camera::VIEW_SCREEN,
                     &piney_world::camera::pos_target(eye, at),
                 );

@@ -82,9 +82,6 @@ pub struct HitModel {
     pub id: u32,
 }
 
-/// The unit matrix, as stored columns.
-pub const UNIT: [V4; 4] = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-
 /// `fptoui` (0x00129d08): 0 for a negative or sub-1 value, all ones from
 /// 2^32, else truncated.
 fn fptoui(v: F) -> u32 {
@@ -212,8 +209,8 @@ impl HitModel {
                 min,
                 max,
                 polys: polys.into(),
-                rm: UNIT,
-                im: UNIT,
+                rm: piney_data::vu0::UNIT,
+                im: piney_data::vu0::UNIT,
                 kind: 0,
                 id: object,
             });

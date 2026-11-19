@@ -328,20 +328,11 @@ fn manager_pass_x(b: &mut BossBase, cx: &mut Cx, mut third: Option<&mut third::T
     });
 }
 
-/// `ccCoord::SetMatrix_PosRotZYXScale(pos, rot, (s, s, s))` (main
-/// 0x00136340): the scale on the unit matrix's diagonal, turned, moved.
-fn pos_rot_zyx_scale(pos: V4, rot: V4, s: F) -> crate::geom::M4 {
-    use crate::geom;
-    let mut m = geom::unit_matrix();
-    (m[0][0], m[1][1], m[2][2]) = (s, s, s);
-    geom::trans_matrix(&geom::rot_matrix(&m, rot), pos)
-}
-
 /// `P2W(W2P(at) + Rz(-pi/2) Rz(d) v)`: a place `v` out from `at` along
 /// `d` (the matrix turned by `d`, then by -pi/2).
 fn out_from(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
     use crate::geom;
-    let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), crate::boss::NEG_HALF_PI), d);
-    let o = geom::apply_matrix(&m, v);
+    let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, crate::boss::NEG_HALF_PI), d);
+    let o = geom::apply(&m, v);
     crate::boss::p2w(cx, geom::vadd(crate::boss::w2p(cx, at), o))
 }

@@ -8,6 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use piney_battle::boss::corbenik::{Gen, Pic};
+use piney_data::vu0;
 
 use crate::boss::{Tables, ff_row, gen_row, va};
 use crate::draw::DrawRec;
@@ -15,7 +16,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::eff::Eff;
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
 use crate::particle::{GenRef, Generator};
-use crate::{CharRef, Cx, debris, drawelm, dust, shield, vu};
+use crate::{CharRef, Cx, debris, drawelm, dust, shield};
 
 const QUARTER: F = 0x3e80_0000;
 const TENTH: F = 0x3dcc_cccd;
@@ -158,7 +159,7 @@ const NEG_HALF_PI: F = 0xbfc9_0fdb;
 
 /// `ccClump::SetTransparency(alpha)`, `ccClump::Draw` at `m` on the effect
 /// layer.
-fn clump(cx: &mut Cx, file: &str, name: &str, matrix: vu::M4, alpha: F, clut: Option<(u32, u32)>) {
+fn clump(cx: &mut Cx, file: &str, name: &str, matrix: vu0::M4, alpha: F, clut: Option<(u32, u32)>) {
     if let Some(obj) = cx.assets.find(file, name) {
         cx.draws.push(DrawRec::Clump { obj, matrix, alpha, layer: EFFECT_LAYER, clut, fog: true });
     }
@@ -173,12 +174,12 @@ fn way(a: V4, b: V4) -> (F, F) {
 }
 
 /// A laser head's clump matrix (`_Init`'s +0x2c0, moved to the head).
-fn head_clump(pos: V4, pitch: F, yaw: F) -> vu::M4 {
-    let mut s = vu::UNIT;
+fn head_clump(pos: V4, pitch: F, yaw: F) -> vu0::M4 {
+    let mut s = vu0::UNIT;
     (s[0][0], s[1][1], s[2][2]) = (0x4000_0000, 0x4000_0000, 0x4040_0000);
-    let s = vu::rot_x(&s, NEG_HALF_PI);
-    let r = vu::rot_x(&vu::UNIT, pitch);
-    let r = vu::rot_z(&r, yaw);
+    let s = vu0::rot_matrix_x(&s, NEG_HALF_PI);
+    let r = vu0::rot_matrix_x(&vu0::UNIT, pitch);
+    let r = vu0::rot_matrix_z(&r, yaw);
     let mut m = piney_battle::geom::mul_matrix(&r, &s);
     m[3] = [pos[0], pos[1], pos[2], ONE];
     m
@@ -203,12 +204,12 @@ fn thunder(cx: &mut Cx, pts: &[V4], alpha: F, width: F) {
         if !ee::le(pt, PI) {
             pt = ee::sub(pt, TWO_PI);
         }
-        let mut m = vu::UNIT;
+        let mut m = vu0::UNIT;
         (m[0][0], m[1][1], m[2][2]) = (width, ee::mul(0x3a91_a2b4, d3), width);
-        let m = vu::rot_z(&m, NEG_HALF_PI);
-        let m = vu::rot_y(&m, pt);
-        let m = vu::rot_z(&m, piney_battle::geom::get_dirc(a, b));
-        let mut m = vu::rot_z(&m, NEG_HALF_PI);
+        let m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
+        let m = vu0::rot_matrix_y(&m, pt);
+        let m = vu0::rot_matrix_z(&m, piney_battle::geom::get_dirc(a, b));
+        let mut m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
         m[3] = [a[0], a[1], a[2], ONE];
         clump(cx, "particle", "CMP_x012", m, alpha, None);
     }
@@ -314,12 +315,12 @@ pub fn calls(
         // `ccBossEffTeraLaser::Draw` (0x00378d80): the beam scaled, turned
         // -pi/2 about x then x, y, z by its turn, at its place.
         Pic::TeraBeam { pos, rot, scale } => {
-            let mut m = vu::UNIT;
+            let mut m = vu0::UNIT;
             (m[0][0], m[1][1], m[2][2]) = (scale[0], scale[1], scale[2]);
-            let m = vu::rot_x(&m, NEG_HALF_PI);
-            let m = vu::rot_x(&m, rot[0]);
-            let m = vu::rot_y(&m, rot[1]);
-            let m = vu::rot_z(&m, rot[2]);
+            let m = vu0::rot_matrix_x(&m, NEG_HALF_PI);
+            let m = vu0::rot_matrix_x(&m, rot[0]);
+            let m = vu0::rot_matrix_y(&m, rot[1]);
+            let m = vu0::rot_matrix_z(&m, rot[2]);
             let mut m = m;
             m[3] = [pos[0], pos[1], pos[2], pos[3]];
             clump(cx, "x81", "CMP_ex8efc3", m, ONE, None);
@@ -327,7 +328,7 @@ pub fn calls(
         // `ccBossEffTransform::Draw` (0x00373060): a lay at (0.5, 2, 0.5),
         // turned, on `CLT_ex8efc2c1` for `CLT_ex8efc2`.
         Pic::TransformLay { pos, rot, alpha } => {
-            let m = vu::pos_rot_zyx_scale(pos, rot, [0x3f00_0000, 0x4000_0000, 0x3f00_0000, ONE]);
+            let m = vu0::pos_rot_zyx_scale(pos, rot, [0x3f00_0000, 0x4000_0000, 0x3f00_0000, ONE]);
             let clut = cx.assets.find("x81", "CLT_ex8efc2").zip(cx.assets.find("x81", "CLT_ex8efc2c1"));
             clump(cx, "x81", "CMP_ex8efc2", m, alpha, clut.map(|(f, t)| (f.object, t.object)));
         }

@@ -5,12 +5,14 @@
 //! these. See docs/engine/effects.md ("The element manager and the
 //! elements").
 
+use piney_data::vu0;
+
+use crate::Cx;
 use crate::draw::DrawRec;
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::EFFECT_LAYER;
 use crate::element::{Base, Element};
 use crate::files::ObjRef;
-use crate::{Cx, vu};
 
 /// `ccRingElement` (0x200 bytes).
 #[derive(Clone, Debug, PartialEq)]
@@ -118,7 +120,7 @@ impl RingElement {
             }
             self.transparency = t;
         }
-        let matrix = vu::pos_rot_xyz_scale(self.pos, self.rot, self.scale);
+        let matrix = vu0::pos_rot_xyz_scale(self.pos, self.rot, self.scale);
         if let Some(obj) = self.eff_cmp {
             cx.draws.push(DrawRec::Clump {
                 obj,

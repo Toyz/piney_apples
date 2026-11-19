@@ -45,11 +45,11 @@ impl Xyz2 {
     }
 }
 
-/// A triangle or a quad of a batch, with its blend.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Polygon {
+/// A triangle (`N` 3) or a quad (4) of a batch, with its blend.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Polygon<const N: usize> {
     pub blend: Blend,
-    pub verts: Vec<Xyz2>,
+    pub verts: [Xyz2; N],
 }
 
 /// One `XGKICK` of a shadow draw.
@@ -57,10 +57,10 @@ pub struct Polygon {
 pub enum Kick {
     /// `mc_DrawShadow2`'s batch, a TRIANGLE list: every triangle, the
     /// clipped ones with their third vertex's ADC set.
-    Triangles(Vec<Polygon>),
+    Triangles(Vec<Polygon<3>>),
     /// `mc_DrawShadow3`'s batch, a TRISTRIP: each silhouette quad `(a, b,
     /// a + e, b + e)`, its first two vertices' ADC set.
-    Quads(Vec<Polygon>),
+    Quads(Vec<Polygon<4>>),
     /// `mc_ScissorShadowPolyXY`'s first kick, of VU1 0x203: the fan's tag
     /// with 0x204 (the tag again, its NLOOP 2 once a fan was sent this draw)
     /// and 0x205 (the colour register the last fan was given, zero before
@@ -85,15 +85,15 @@ impl Blend {
 impl Kick {
     /// The GIF packet, as VU1 memory holds it when kicked.
     pub fn words(&self) -> Vec<Qword> {
-        let batch = |tag: [u32; 3], loops: usize, polys: &[Polygon]| -> Vec<Qword> {
-            let head = [EOP | loops as u32, tag[0], tag[1], tag[2]];
+        fn batch<const N: usize>(tag: [u32; 3], polys: &[Polygon<N>]) -> Vec<Qword> {
+            let head = [EOP | polys.len() as u32, tag[0], tag[1], tag[2]];
             std::iter::once(head)
                 .chain(polys.iter().flat_map(|p| p.blend.words().into_iter().chain(p.verts.iter().map(Xyz2::word))))
                 .collect()
-        };
+        }
         match self {
-            Kick::Triangles(polys) => batch(TRIANGLE_TAG, polys.len(), polys),
-            Kick::Quads(polys) => batch(STRIP_TAG, polys.len(), polys),
+            Kick::Triangles(polys) => batch(TRIANGLE_TAG, polys),
+            Kick::Quads(polys) => batch(STRIP_TAG, polys),
             Kick::FanTag { fan_sent, colour } => {
                 let mut again = FAN_TAG;
                 if *fan_sent {
@@ -130,9 +130,9 @@ pub fn gs_triangles(kicks: &[Kick], offset: [i32; 2], add: u64) -> Vec<ShadowTri
     let mut out = Vec::new();
     for kick in kicks {
         match kick {
-            Kick::Triangles(polys) => out.extend(polys.iter().filter_map(|p| match &p.verts[..] {
-                [a, b, c] if !c.adc() => Some(tri(&p.blend, [a, b, c])),
-                _ => None,
+            Kick::Triangles(polys) => out.extend(polys.iter().filter_map(|p| {
+                let [a, b, c] = &p.verts;
+                (!c.adc()).then(|| tri(&p.blend, [a, b, c]))
             })),
             Kick::Quads(polys) => {
                 for p in polys {

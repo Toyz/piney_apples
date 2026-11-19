@@ -13,8 +13,8 @@ use piney_input::{Pad, pressure};
 
 use crate::enemy_ai::Frame;
 use crate::geom::{
-    F, MINUS_ONE, ONE, V4, add, apply_matrix, atan2f, cosf, deg2rad, div, dot, from_int, k, le, lt, mul, neg, rad2deg,
-    rot_matrix_y, rot_matrix_z, sinf, sub, unit_matrix, vadd, vscale, vsub,
+    F, MINUS_ONE, ONE, UNIT, V4, add, apply, atan2f, cosf, deg2rad, div, dot, from_int, k, le, lt, mul, mul_matrix,
+    neg, rad2deg, rot_matrix_y, rot_matrix_z, sinf, sub, vadd, vscale, vsub,
 };
 use button::{R1, R2};
 
@@ -398,8 +398,8 @@ impl Shake {
         let mut d = vsub(view, pos);
         d[2] = 0;
         let ang = (f64::from(f32::from_bits(d[0])).atan2(f64::from(f32::from_bits(mul(MINUS_ONE, d[1]))))) as f32;
-        let m = piney_data::anim::vu_mul(&rot_matrix_z(&unit_matrix(), ang.to_bits()), &self.matrix);
-        let o = vscale(apply_matrix(&m, [0, 0, self.offset_z, 0]), 0x3f00_0000);
+        let m = mul_matrix(&rot_matrix_z(&UNIT, ang.to_bits()), &self.matrix);
+        let o = vscale(apply(&m, [0, 0, self.offset_z, 0]), 0x3f00_0000);
         let dv = vsub(view, pos);
         let len = piney_data::libm::sqrtf_on(volume, dot(dv, dv));
         let s = if lt(len, 0x438c_0000) { div(len, 0x438c_0000) } else { ONE };
@@ -424,13 +424,13 @@ impl Shake {
                 self.force = p;
                 self.cycle = SHAKE_CYCLE.get(s.cycle as usize).copied().unwrap_or(0);
                 self.rotate = if s.rot == 0 { -1 } else { i as i32 };
-                self.matrix = rot_matrix_y(&unit_matrix(), deg2rad(s.dirc));
+                self.matrix = rot_matrix_y(&UNIT, deg2rad(s.dirc));
             }
         }
         if let Ok(r) = usize::try_from(self.rotate) {
             let d = &mut self.sf[r].dirc;
             *d = d.wrapping_add(0x1000);
-            self.matrix = rot_matrix_y(&unit_matrix(), deg2rad(*d));
+            self.matrix = rot_matrix_y(&UNIT, deg2rad(*d));
         }
         let old = self.oscillator;
         // vibrateCycle is 0 until a first shock (the game's division by 0

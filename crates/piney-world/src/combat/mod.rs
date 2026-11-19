@@ -370,7 +370,7 @@ fn gim_swaps(ctrl: &EntryCtrl, cast: &cast::Cast, who: usize) -> Vec<(u32, u32)>
 }
 
 fn food_matrix(pos: V4, rot: V4, scale: V4) -> [V4; 4] {
-    let m = crate::town::pos_rot_zyx(pos, [rot[0], rot[1], rot[2]]);
+    let m = piney_data::vu0::pos_rot_zyx(pos, [rot[0], rot[1], rot[2], 0]);
     let mut out = m;
     for (col, &s) in out.iter_mut().zip(scale.iter()).take(3) {
         for v in col.iter_mut().take(3) {
@@ -1933,7 +1933,7 @@ impl Combat {
                         a.drawn = true;
                         a.set_alpha(ONE);
                         a.matrix =
-                            Some(crate::field::ambient::pos_rot_xyz_scale(pos, dirc, [scale[0], scale[1], scale[2]]));
+                            Some(piney_data::vu0::pos_rot_xyz_scale(pos, dirc, [scale[0], scale[1], scale[2], 0]));
                     }
                 }
                 entry::Out::CircleDraw { who, transparency } => {

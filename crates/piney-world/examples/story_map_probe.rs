@@ -263,7 +263,7 @@ fn main() {
                 println!("{{}}");
             }
             Some("revroot") => {
-                println!("{}", mat(&piney_world::town::pos_rot_zyx(holy_ground::REV_POS, holy_ground::REV_ROT)))
+                println!("{}", mat(&piney_data::vu0::pos_rot_zyx(holy_ground::REV_POS, holy_ground::REV_ROT)))
             }
             Some("charpos") => {
                 let a = area.as_ref().unwrap();

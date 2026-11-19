@@ -11,10 +11,10 @@ use std::rc::Rc;
 
 use glam::Mat4;
 use piney_data::Result;
-use piney_data::anim::{rot_x_bits_of, rot_z_bits_of};
+use piney_data::vu0::{UNIT, rot_matrix_x, rot_matrix_z};
 
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, RoomCx, RoomPart, StepCx};
-use crate::draw::{self, EFF_LAYER, Fogging};
+use crate::draw::{EFF_LAYER, Fogging};
 use crate::dungeon::{Anm, Rooms};
 use crate::ee::{self, F, ONE, V4};
 
@@ -99,9 +99,7 @@ impl Leaf {
     /// `LEAF::Draw`'s matrix (0x005051f0): turned about z, then x, at the
     /// centre plus its place.
     fn matrix(&self) -> [V4; 4] {
-        let unit = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-        let mut m = rot_z_bits_of(unit, self.rot_z);
-        m = rot_x_bits_of(m, self.rot_x.unwrap_or(0));
+        let mut m = rot_matrix_x(&rot_matrix_z(&UNIT, self.rot_z), self.rot_x.unwrap_or(0));
         for ((t, c), o) in m[3].iter_mut().zip(self.centre).zip(self.off).take(3) {
             *t = ee::add(*t, ee::add(c, o));
         }
@@ -182,7 +180,13 @@ impl MapSystem for Leaves {
                 let pieces = tree
                     .objects
                     .iter()
-                    .flat_map(|o| obj_models.get(&o.target).into_iter().flatten().map(|&m| (m, draw::mat(&o.world))))
+                    .flat_map(|o| {
+                        obj_models
+                            .get(&o.target)
+                            .into_iter()
+                            .flatten()
+                            .map(|&m| (m, piney_data::vu0::to_mat4(&o.world)))
+                    })
                     .collect();
                 Some(Request::Pieces {
                     file,
@@ -196,7 +200,8 @@ impl MapSystem for Leaves {
             }
             _ => {
                 let model = file.ccs.find_object(LEAF_MODEL)?;
-                let pieces: Vec<(u32, Mat4)> = self.matrices.iter().map(|m| (model, draw::mat(m))).collect();
+                let pieces: Vec<(u32, Mat4)> =
+                    self.matrices.iter().map(|m| (model, piney_data::vu0::to_mat4(m))).collect();
                 Some(Request::Pieces {
                     file,
                     pieces,

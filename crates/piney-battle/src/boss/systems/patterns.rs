@@ -127,8 +127,8 @@ pub(crate) fn base_exec_pattern_index<C: Patterns + ?Sized>(
         6 => {
             let d = ee::from_int(word(tbl, i));
             i += 1;
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), b.center_dirc), NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [d, 0, 0, a.dash_w]);
+            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, b.center_dirc), NEG_HALF_PI);
+            let v = geom::apply(&m, [d, 0, 0, a.dash_w]);
             let p = geom::vadd(v, cx.scene.chars[me].pos_p);
             b.dash_pos = super::super::p2w(cx, p);
             b.dash_prev_pos = cx.scene.chars[me].pos;

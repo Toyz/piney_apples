@@ -422,10 +422,16 @@ impl FogRow {
         self.colour.map(|v| v as i32 as u8)
     }
 
-    /// The ambient colour as `SetRoom` passes it (each / 255 by the EE's
-    /// `div.s`, which rounds towards zero, 0x005c347c).
+    /// The ambient colour as `SetRoom` passes it to `SetAmbient` (each / 255
+    /// by the EE's `div.s`, which rounds towards zero, 0x005c347c), as
+    /// float bits.
+    pub fn ambient_bits(&self) -> [u32; 3] {
+        self.ambient.map(|v| crate::field::ee::div(v.to_bits(), 255f32.to_bits()))
+    }
+
+    /// [`FogRow::ambient_bits`] as floats.
     pub fn ambient(&self) -> [f32; 3] {
-        self.ambient.map(|v| f32::from_bits(crate::field::ee::div(v.to_bits(), 255f32.to_bits())))
+        self.ambient_bits().map(f32::from_bits)
     }
 
     /// The GS fog value VU1 writes at depth `w` (255 no fog, 0 all fog):

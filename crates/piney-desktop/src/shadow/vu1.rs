@@ -9,8 +9,8 @@
 
 use piney_data::field::ee;
 use piney_data::shadow::{Edge, ShadowMesh, direction};
-use piney_data::vu0::{self, F, ONE, V4};
-use piney_data::vu1::{cross_xy, ftoi4, itof12, lerp, plus0, project, sign, vsub};
+use piney_data::vu0::{self, F, ONE, V4, vsub};
+use piney_data::vu1::{cross_xy, ftoi4, itof12, lerp, plus0, project, sign};
 
 use super::draw::{Blend, Setup};
 use super::gif::{FAN_TAG, Kick, Polygon, Xyz2};
@@ -151,7 +151,7 @@ impl Run<'_> {
                     queue.push(clip.to_vec());
                 }
                 let last = if out { ADC } else { DRAWN };
-                Polygon { blend, verts: vec![xyz2(p[0], 0), xyz2(p[1], 0), xyz2(p[2], last)] }
+                Polygon { blend, verts: [xyz2(p[0], 0), xyz2(p[1], 0), xyz2(p[2], last)] }
             })
             .collect();
         self.kicks.push(Kick::Triangles(polys));
@@ -185,7 +185,7 @@ impl Run<'_> {
                 queue.push(vec![clip[0], clip[1], clip[3], clip[2]]);
             }
             let last = if out { ADC } else { DRAWN };
-            let verts = vec![xyz2(p[0], ADC), xyz2(p[1], ADC), xyz2(p[2], last), xyz2(p[3], last)];
+            let verts = [xyz2(p[0], ADC), xyz2(p[1], ADC), xyz2(p[2], last), xyz2(p[3], last)];
             polys.push(Polygon { blend, verts });
         }
         self.kicks.push(Kick::Quads(polys));

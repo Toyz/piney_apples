@@ -10,7 +10,9 @@
 
 use std::collections::HashMap;
 
+use piney_data::light::set_color;
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::draw::DrawRec;
 use crate::ee::{self, F, ONE, V4, VF0};
@@ -18,7 +20,7 @@ use crate::eff::Eff;
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
 use crate::files::ObjRef;
 use crate::particle::{FfParam, GenParam, GenRef, Generator};
-use crate::{Cx, Event, VecRef, debris, drawelm, vu};
+use crate::{Cx, Event, VecRef, debris, drawelm};
 
 /// The manager's slots.
 pub const SLOTS: usize = 1024;
@@ -754,12 +756,12 @@ impl BossEffects {
     /// [`BossEffects::lights`] as the characters are lit by them:
     /// `ccLight(4, 1)` after `ccOmniLight::Init` (intensity 1, no start),
     /// priority 1, the fall-off's square as its constructor worked it out.
-    pub fn omni_lights(&self) -> Vec<piney_world::town::Light> {
+    pub fn omni_lights(&self) -> Vec<piney_data::light::Light> {
         self.lights()
             .into_iter()
             .map(|(p, c, far)| {
-                let far = piney_world::town::Falloff::new(0, far);
-                piney_world::town::Light { priority: 1, ..piney_world::town::Light::omni(p, c, ONE, far) }
+                let far = piney_data::light::Falloff::new(0, far);
+                piney_data::light::Light { priority: 1, ..piney_data::light::Light::omni(p, c, ONE, far) }
             })
             .collect()
     }
@@ -926,7 +928,7 @@ impl BossEffects {
             offset[2] = ee::add(offset[2], 0x42c8_0000);
         }
         // ApplyMatrix(unit, offset) + base, four lanes.
-        let p = ee::vadd(ee::apply(&vu::UNIT, offset), pos);
+        let p = ee::vadd(ee::apply(&vu0::UNIT, offset), pos);
         let mut colour = [0; 4];
         set_color(&mut colour, 1, ONE);
         let l = Light {
@@ -977,7 +979,7 @@ impl BossEffects {
             let mut off = VF0;
             off[0] = r0;
             let a = if k & 1 != 0 { PI } else { 0 };
-            let m = vu::rot_z(&vu::UNIT, a);
+            let m = vu0::rot_matrix_z(&vu0::UNIT, a);
             let off = ee::apply(&m, off);
             let pos = ee::vadd(p, off);
             let anchor = (key << 8) | k as u32;
@@ -1173,8 +1175,6 @@ pub(crate) fn explode2(cx: &mut Cx, t: &Tables, pos: V4) {
     crate::dust::enemy_eff_dust(cx, pos, 10, 0x40a0_0000, life, tex);
 }
 
-pub(crate) use piney_data::light::set_color;
-
 /// A float to the unsigned colour `ccBossEffLight::Draw` hands on:
 /// Infection's and Mutation's `fptoui` (0x00129d08: 0 below 1, a negative
 /// too); Outbreak's and Quarantine's inline `cvt.w.s`, which keeps a
@@ -1212,7 +1212,7 @@ impl WaveShock {
         let s = ee::mul(0x40a0_0000, self.scale);
         let Some(a) = self.anm.as_mut() else { return false };
         let ended = a.forward(cx);
-        let m = vu::pos_rot_zyx_scale(self.pos, self.rot, [s, s, s, ONE]);
+        let m = vu0::pos_rot_zyx_scale(self.pos, self.rot, [s, s, s, ONE]);
         a.draw(cx, m, ONE);
         !ended
     }
@@ -1244,7 +1244,7 @@ impl Light {
                 self.count += 1;
                 self.cam_rot[2] = wrap(self.cam_rot[2]);
                 self.heading = wrap(self.heading);
-                let m = vu::rot_z(&vu::rot_x(&vu::UNIT, NEG_HALF_PI), self.heading);
+                let m = vu0::rot_matrix_z(&vu0::rot_matrix_x(&vu0::UNIT, NEG_HALF_PI), self.heading);
                 self.pos = ee::vadd(ee::apply(&m, self.offset), self.base);
                 self.pulse();
                 let c = u32::from(self.intensity >= 2);
@@ -1258,7 +1258,7 @@ impl Light {
                 // RotMatrixX of the unit matrix, then RotMatrixZ of the unit
                 // matrix again: the tilt is lost.
                 let _ = crate::thunder::rand_f(cx, 0x3f00_0000);
-                let m = vu::rot_z(&vu::UNIT, self.cam_rot[2]);
+                let m = vu0::rot_matrix_z(&vu0::UNIT, self.cam_rot[2]);
                 self.intensity += 1;
                 self.pos = ee::vadd(ee::apply(&m, self.offset), self.base);
                 if self.intensity % 3 == 0 {
@@ -1279,7 +1279,7 @@ impl Light {
                 }
                 self.cam_rot[2] = wrap(self.cam_rot[2]);
                 self.heading = wrap(self.heading);
-                let m = vu::rot_z(&vu::rot_x(&vu::UNIT, NEG_TILT), self.heading);
+                let m = vu0::rot_matrix_z(&vu0::rot_matrix_x(&vu0::UNIT, NEG_TILT), self.heading);
                 self.pos = ee::vadd(ee::apply(&m, self.offset), self.base);
                 self.pulse();
                 let c = to_uint(ee::from_int(self.intensity), t.volume);
@@ -1407,7 +1407,7 @@ impl SamonRing {
             alpha = self.transparency;
             self.transparency = ee::sub(self.transparency, self.step);
         }
-        let m = vu::pos_rot_xyz_scale(self.pos, self.rot, self.scale);
+        let m = vu0::pos_rot_xyz_scale(self.pos, self.rot, self.scale);
         let on = !ee::lt(self.transparency, 0);
         if let Some(obj) = self.clump {
             cx.draws.push(DrawRec::Clump { obj, matrix: m, alpha, layer: EFFECT_LAYER, clut: self.clut, fog: true });
@@ -1460,7 +1460,7 @@ impl IceBreak {
         }
         if matches!(self.state, 1 | 2) {
             let s = self.scale;
-            let m = vu::pos_rot_zyx_scale(self.pos, [0; 4], [s, s, s, ONE]);
+            let m = vu0::pos_rot_zyx_scale(self.pos, [0; 4], [s, s, s, ONE]);
             if let Some(obj) = self.clump {
                 cx.draws.push(DrawRec::Clump {
                     obj,

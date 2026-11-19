@@ -9,18 +9,14 @@
 
 use std::collections::{HashMap, HashSet};
 
-use piney_data::anim::{const_radians, ee, rot_bits_of};
+use piney_data::anim::const_radians;
+use piney_data::field::ee;
 use piney_data::light::{self, Falloff};
-use piney_data::vu0;
+use piney_data::vu0::{self, M4, ONE, UNIT, mul_matrix};
 use piney_desktop::camera::Camera;
 use piney_desktop::view::Frame;
 
 use crate::file::{self, StreamFile};
-
-/// `1.0` as bits.
-const ONE: u32 = 0x3f80_0000;
-/// The identity, as stored columns of float bits.
-pub const IDENTITY: [[u32; 4]; 4] = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
 
 /// `ccAnmNote.event` values the stream acts on (`ccSetStreamDemoNote`
 /// 0x00184340, `ccSndStreamSE` 0x0017caa0).
@@ -115,7 +111,7 @@ pub struct Node {
     /// The layer it draws on.
     pub layer: i16,
     /// `ccCoord.matrix` as float bits (stored columns).
-    pub local: [[u32; 4]; 4],
+    pub local: M4,
     pub localtp: f32,
     pub worldtp: f32,
     /// `ccObj.dispSW`: drawn when 3.
@@ -164,7 +160,7 @@ pub struct EffNode {
     pub eff: (usize, u32),
     pub layer: i16,
     /// `ccCoord.matrix` as float bits (stored columns): a translation only.
-    pub local: [[u32; 4]; 4],
+    pub local: M4,
     /// +0x88 `localtp`.
     pub localtp: f32,
     /// +0x106: the pattern drawn; 0xffff stopped, 0xfffe just started.
@@ -292,7 +288,7 @@ pub struct Scene {
     /// Not the game's: node -> world matrix set from outside
     /// ([`Scene::place`]), over its own and its parents' (its children
     /// follow it).
-    pub placed: HashMap<usize, [[u32; 4]; 4]>,
+    pub placed: HashMap<usize, M4>,
     /// The next record `DecodeFrameChunk` reads.
     cursor: usize,
     /// `frameOffsetTbl`: record index of each frame's Top, once read. Only
@@ -452,7 +448,7 @@ impl Scene {
                             parent: None,
                             eff: (g, o),
                             layer,
-                            local: IDENTITY,
+                            local: UNIT,
                             localtp: 0.0,
                             pattern: PATTERN_STOP,
                             part: o2.flags & file::OBJ2_PART != 0,
@@ -476,7 +472,7 @@ impl Scene {
                     succession: o2.flags & file::OBJ2_SUCCESSION != 0,
                     part: o2.flags & file::OBJ2_PART != 0,
                     layer: if o2.layer != 0 { layer_of(o2.layer) } else { default_layer },
-                    local: IDENTITY,
+                    local: UNIT,
                     localtp: 0.0,
                     worldtp: 0.0,
                     disp: if model.is_some() { 3 } else { 0 },
@@ -743,14 +739,13 @@ impl Scene {
         let Some(&i) = self.by_obj.get(&obj) else { return };
         let w = |k: usize| f.u32_at(at + 4 * k);
         let pos = [w(2), w(3), w(4)];
-        let rot = const_radians([w(5), w(6), w(7)]);
-        let scale = [w(8), w(9), w(10)];
+        let [rx, ry, rz] = const_radians([w(5), w(6), w(7)]);
         let tp = f32::from_bits(w(11)).clamp(0.0, 1.0);
         let disp = w(12) & 1;
         let n = &mut self.nodes[i];
-        let at_origin = pos.iter().all(|&p| ee::to_f64(p) == 0.0);
+        let at_origin = pos.iter().all(|&p| ee::eq(p, 0));
         n.disp = if n.part && at_origin { disp as u8 } else { (disp | 2) as u8 };
-        n.local = pos_rot_scale(pos, rot, scale);
+        n.local = vu0::pos_rot_zyx_scale([pos[0], pos[1], pos[2], 0], [rx, ry, rz, 0], [w(8), w(9), w(10), 0]);
         n.localtp = tp;
         if !n.succession {
             n.worldtp = tp;
@@ -782,7 +777,7 @@ impl Scene {
     /// `SetMatrix_PosRotXYZDebug(camPos, camRot, matrix)` with the stream's
     /// matrix (+0xc0), which `Init` leaves the unit matrix.
     pub fn view_camera(&self) -> Camera {
-        self.camera.debug(&piney_desktop::camera::UNIT)
+        self.camera.debug(&UNIT)
     }
 
     fn light(&mut self, obj: u32) -> Option<&mut Light> {
@@ -817,7 +812,8 @@ impl Scene {
         let Some(l) = self.light(obj) else { return };
         let w = |k: usize| f.u32_at(at + 8 + 4 * k);
         let place = [w(0), w(1), w(2), ONE];
-        let matrix = vu0::trans_matrix(&rot_bits_of(vu0::UNIT, const_radians([w(3), w(4), w(5)])), place);
+        let [rx, ry, rz] = const_radians([w(3), w(4), w(5)]);
+        let matrix = vu0::trans_matrix(&vu0::rot_matrix(&UNIT, [rx, ry, rz, 0]), place);
         let far = Falloff::new(w(10), w(11));
         let kind = if spot {
             let half = const_radians([w(8), w(9), 0]).map(|r| piney_data::libm::tanf(ee::div(r, 0x4000_0000)));
@@ -835,7 +831,7 @@ impl Scene {
         let obj = f.u32_at(at);
         let Some(&k) = self.shadow_by_obj.get(&obj).or_else(|| self.shadow_by_obj.get(&0)) else { return };
         let r = const_radians([f.u32_at(at + 4), f.u32_at(at + 8), f.u32_at(at + 12)]);
-        let m = piney_effect::vu::rot_zyx(&piney_effect::vu::UNIT, [r[0], r[1], r[2], 0]);
+        let m = vu0::rot_matrix(&UNIT, [r[0], r[1], r[2], 0]);
         // sceVu0ApplyMatrix of (0, 0, -1, 0): the third column negated.
         let sh = &mut self.shadows[k];
         sh.light = [0, 1, 2, 3].map(|i| if i == 3 { 0.0 } else { -f32::from_bits(m[2][i]) });
@@ -849,7 +845,8 @@ impl Scene {
         let obj = f.u32_at(at);
         let flag = f.u32_at(at + 4);
         let Some(l) = self.light(obj) else { return };
-        let rot = rot_bits_of(vu0::UNIT, const_radians([f.u32_at(at + 8), f.u32_at(at + 12), f.u32_at(at + 16)]));
+        let [rx, ry, rz] = const_radians([f.u32_at(at + 8), f.u32_at(at + 12), f.u32_at(at + 16)]);
+        let rot = vu0::rot_matrix(&UNIT, [rx, ry, rz, 0]);
         let intensity = if flag & 0x20 != 0 { f.u32_at(at + 24) } else { l.light.intensity };
         let lit = light::Light::distant(&rot, colour(f.u32_at(at + 20)), intensity);
         l.light = light::Light { priority: l.light.priority, ..lit };
@@ -871,7 +868,7 @@ impl Scene {
 
     /// `lwMatrix` of node `i` (`ccCoord::_SetLWMatrix` 0x00138380): its
     /// parents' matrices times its own, VU0's multiply-adds.
-    pub fn world(&self, i: usize) -> [[u32; 4]; 4] {
+    pub fn world(&self, i: usize) -> M4 {
         if let Some(m) = self.placed.get(&i) {
             return *m;
         }
@@ -880,22 +877,22 @@ impl Scene {
         // is its (identity) matrix: the product still rounds (-0 + 0).
         let parent = match n.parent {
             Some(p) if p != i => self.world(p),
-            _ => IDENTITY,
+            _ => UNIT,
         };
-        ee_mul(&parent, &n.local)
+        mul_matrix(&parent, &n.local)
     }
 
     /// Effect node `k`'s world matrix (`DrawNoAnm`'s `lwMatrix`): its
     /// parent's times its own.
-    pub fn eff_world(&self, k: usize) -> [[u32; 4]; 4] {
+    pub fn eff_world(&self, k: usize) -> M4 {
         let e = &self.effs[k];
-        let parent = e.parent.map_or(IDENTITY, |p| self.world(p));
-        ee_mul(&parent, &e.local)
+        let parent = e.parent.map_or(UNIT, |p| self.world(p));
+        mul_matrix(&parent, &e.local)
     }
 
     /// The world matrix of the node named `name` (`GetSubstAdrsF(name)`'s
     /// `lwMatrix`), None when the scene has no such object.
-    pub fn world_named(&self, name: &str) -> Option<[[u32; 4]; 4]> {
+    pub fn world_named(&self, name: &str) -> Option<M4> {
         self.by_name.get(name).map(|&i| self.world(i))
     }
 
@@ -937,7 +934,7 @@ impl Scene {
 
     /// Not the game's: node `i` (and its children with it) put at the
     /// world matrix `m`, or where the scene has it again (None).
-    pub fn place(&mut self, i: usize, m: Option<[[u32; 4]; 4]>) {
+    pub fn place(&mut self, i: usize, m: Option<M4>) {
         match m {
             Some(m) => self.placed.insert(i, m),
             None => self.placed.remove(&i),
@@ -951,8 +948,8 @@ impl Scene {
     pub fn turn_y(&mut self, i: usize, ry: u32) {
         self.placed.remove(&i);
         let rest = self.world(i);
-        let r = piney_data::anim::rot_y_bits_of(IDENTITY, ry);
-        self.placed.insert(i, ee_mul(&rest, &r));
+        let r = vu0::rot_matrix_y(&UNIT, ry);
+        self.placed.insert(i, mul_matrix(&rest, &r));
     }
 
     /// Every node in `ccStreamDrawLayerList::Draw`'s order, with its layer.
@@ -984,11 +981,6 @@ fn colour(c: u32) -> [u32; 4] {
     light::colour_of(c, ONE)
 }
 
-/// `sceVu0MulMatrix(a, b)`: a times b, as stored columns.
-pub fn ee_mul(a: &[[u32; 4]; 4], b: &[[u32; 4]; 4]) -> [[u32; 4]; 4] {
-    piney_data::anim::vu_mul(a, b)
-}
-
 /// `DecodeF_Obj`'s effect branch (0x0014eb80): a stopped effect with the
 /// part bit (re)starts where the record's place is off the origin; any
 /// other starts as the record's transparency comes on from a `localtp` of
@@ -1001,7 +993,7 @@ fn f_obj_eff(e: &mut EffNode, f: &StreamFile, at: usize) {
     let pos = [w(2), w(3), w(4)];
     let rot = const_radians([w(5), w(6), w(7)]);
     let tp = f32::from_bits(w(11)).clamp(0.0, 1.0);
-    let off_origin = pos.iter().any(|&p| ee::to_f64(p) != 0.0);
+    let off_origin = pos.iter().any(|&p| !ee::eq(p, 0));
     if e.part && e.pattern == PATTERN_STOP {
         if off_origin {
             e.pattern = PATTERN_START;
@@ -1010,7 +1002,7 @@ fn f_obj_eff(e: &mut EffNode, f: &StreamFile, at: usize) {
         e.pattern = PATTERN_START;
     }
     e.animate(1);
-    let mut m = IDENTITY;
+    let mut m = UNIT;
     m[3] = [pos[0], pos[1], pos[2], 0x3f80_0000];
     e.local = m;
     e.localtp = tp;
@@ -1019,37 +1011,9 @@ fn f_obj_eff(e: &mut EffNode, f: &StreamFile, at: usize) {
     e.rotate = rot[2];
 }
 
-/// `ccCoord::SetMatrix_PosRotZYXScale(pos, rot, scale)` (0x00138120): a
-/// scale matrix, `sceVu0RotMatrix` by `rot` (Rx Ry Rz on the left), then
-/// the translation stored in the fourth column.
-pub fn pos_rot_scale(pos: [u32; 3], rot: [u32; 3], scale: [u32; 3]) -> [[u32; 4]; 4] {
-    let s = [[scale[0], 0, 0, 0], [0, scale[1], 0, 0], [0, 0, scale[2], 0], [0, 0, 0, ONE]];
-    let mut m = rot_bits_of(s, rot);
-    // sceVu0TransMatrix: the fourth column's xyz plus pos.
-    for k in 0..3 {
-        m[3][k] = ee::add(m[3][k], pos[k]);
-    }
-    m
-}
-
-/// Stored columns of bits to a glam matrix.
-pub fn to_mat4(m: &[[u32; 4]; 4]) -> glam::Mat4 {
-    glam::Mat4::from_cols_array_2d(&m.map(|c| c.map(f32::from_bits)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::Vec3;
-
-    #[test]
-    fn pos_rot_scale_is_t_r_s() {
-        let one = 1.0f32.to_bits();
-        let m = pos_rot_scale([10.0f32.to_bits(), 0, 0], [0, 0, 0], [2.0f32.to_bits(), one, one]);
-        let g = to_mat4(&m);
-        let p = g.transform_point3(Vec3::new(1.0, 1.0, 0.0));
-        assert!((p - Vec3::new(12.0, 1.0, 0.0)).length() < 1e-6, "{p:?}");
-    }
 
     /// `SetFog(200, 7000, colour)` clears to 200 and fogs fully from 7,000;
     /// `SetFog(1000, 7500, 0, 85, colour)` holds at 2.55 x 15 past 7,500.

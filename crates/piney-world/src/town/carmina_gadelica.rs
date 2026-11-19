@@ -10,6 +10,7 @@
 use piney_data::classes::TownGameClass;
 use piney_data::dungeon::Rng;
 use piney_data::statics::DrawPass;
+use piney_data::vu0;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
@@ -256,12 +257,12 @@ impl Airship {
             puff: 1,
             pos,
             dirc: [0; 4],
-            way: sub(to, pos),
+            way: vu0::vsub(to, pos),
             markers,
             from: pos,
             to,
             play,
-            root: unit(),
+            root: vu0::UNIT,
         })
     }
 
@@ -271,15 +272,7 @@ impl Airship {
         let mut p = self.pos;
         p[2] = ship::DRAW_Z;
         let r = self.dirc;
-        let m = piney_data::anim::rot_z_bits_of(
-            piney_data::anim::rot_y_bits_of(piney_data::anim::rot_x_bits_of(unit(), r[0]), r[1]),
-            r[2],
-        );
-        let mut m = m;
-        for (k, &v) in p.iter().take(3).enumerate() {
-            m[3][k] = ee::add(m[3][k], v);
-        }
-        m
+        vu0::pos_rot_xyz(p, r)
     }
 
     /// `AIRSHIP::Move`: the ccAnm set and stepped, then the turn, the wait
@@ -321,11 +314,11 @@ impl Airship {
             let (a, b) = ship::LEGS[self.leg];
             self.from = self.markers[a];
             self.to = self.markers[b];
-            self.way = sub(self.to, self.pos);
+            self.way = vu0::vsub(self.to, self.pos);
             return;
         }
-        let s = scale(self.way, self.t);
-        self.pos = add(self.from, s);
+        let s = vu0::vscale(self.way, self.t);
+        self.pos = vu0::vadd(self.from, s);
         if self.puff == 0 {
             self.puffs(ship::FLY_V, rng, events);
             self.puff = rng.below(8) as i32 + 6;
@@ -338,48 +331,16 @@ impl Airship {
     /// heading (`sceVu0RotMatrix`), the place from the ship's; the size 3
     /// to 5 and the life 40 to 79 from `fieldrand`.
     fn puffs(&self, v: [F; 2], rng: &mut Rng, events: &mut Vec<MapEvent>) {
-        let m = piney_data::anim::rot_bits([self.dirc[0], self.dirc[1], self.dirc[2]]);
+        let m = vu0::rot_matrix(&vu0::UNIT, self.dirc);
         for k in 0..2 {
-            let at = apply(&m, [ship::CHIMNEYS[k], ship::CHIMNEY_Y, ship::CHIMNEY_Z, ONE]);
-            let vel = apply(&m, [ship::PUFF_X[k], v[0], v[1], ONE]);
-            let pos = add(at, self.pos);
+            let at = vu0::apply(&m, [ship::CHIMNEYS[k], ship::CHIMNEY_Y, ship::CHIMNEY_Z, ONE]);
+            let vel = vu0::apply(&m, [ship::PUFF_X[k], v[0], v[1], ONE]);
+            let pos = vu0::vadd(at, self.pos);
             let scale = ee::from_int(rng.below(3) as i32 + 3);
             let life = rng.below(40) as i32 + 40;
             events.push(MapEvent::SmokeN { pos, v: vel, scale, life, kind: ship::PUFF_TEX, fade: ship::PUFF_FADE });
         }
     }
-}
-
-fn unit() -> [V4; 4] {
-    [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]]
-}
-
-/// `sceVu0AddVector` (all four).
-fn add(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|i| ee::add(a[i], b[i]))
-}
-
-/// `sceVu0SubVector` (all four).
-fn sub(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|i| ee::sub(a[i], b[i]))
-}
-
-/// `sceVu0ScaleVector` (all four).
-fn scale(a: V4, t: F) -> V4 {
-    a.map(|x| ee::mul(x, t))
-}
-
-/// `sceVu0ApplyMatrix`.
-fn apply(m: &[V4; 4], v: V4) -> V4 {
-    let mut out = [0; 4];
-    for (i, o) in out.iter_mut().enumerate() {
-        let mut s = ee::mul(m[0][i], v[0]);
-        for c in 1..4 {
-            s = ee::add(s, ee::mul(m[c][i], v[c]));
-        }
-        *o = s;
-    }
-    out
 }
 
 impl MapSystem for Airship {
@@ -396,7 +357,7 @@ impl MapSystem for Airship {
 
     fn draw<'a>(&'a self, piece: Piece, cx: &DrawCx<'a>) -> Option<Request<'a>> {
         let Piece::Anim(_) = piece else { return None };
-        let root = crate::draw::mat(&self.root);
+        let root = piney_data::vu0::to_mat4(&self.root);
         let (file, play, fog) = (&*cx.core.file, &self.play, cx.fog);
         Some(Request::Anim { file, play, root, layer: OBJ_LAYER, rows: None, fog, edit: None })
     }

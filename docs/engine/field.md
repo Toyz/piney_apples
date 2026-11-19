@@ -416,6 +416,13 @@ whose largest exponent is normal (`_FLT_LARGEST_EXPONENT_IS_NORMAL`), so
 it has no NaN or infinity cases. `piney_data::libm` transcribes each
 routine operation for operation under these rules.
 
+In the port each of these has one home, which every crate calls:
+`piney_data::field::ee` the FPU's operations, `piney_data::libm` newlib's
+routines, `piney_data::vu0` libvu0's vector and matrix routines (the
+rotations with `_sceVu0ecossin`, `sceVu0MulMatrix`, `ApplyMatrix`,
+`InversMatrix` ...) and `ccCoord`'s `SetMatrix_PosRot*` setters built on
+them, `piney_data::vu1` the VU1 microcode's own conversions.
+
 ## Other volumes
 
 Each volume's own `WORLD::Init` and `WORLD::Generate` in eemu against

@@ -17,11 +17,12 @@ use piney_battle::event::{Event as Rule, Who};
 use piney_battle::scene::Scene;
 use piney_battle::{enemy_ai, enemy_motion, entry, fellow, kite};
 use piney_data::archive::Archive;
+use piney_data::vu0;
 use piney_desktop::anm::Ctx;
 use piney_effect::draw::{Camera as FxCamera, DrawRec};
 use piney_effect::eff::Eff;
 use piney_effect::portal::{CircleFrame, MagicCircle};
-use piney_effect::{CharRef, Effects, Host, ONE, V4, flyfont, vu};
+use piney_effect::{CharRef, Effects, Host, ONE, V4, flyfont};
 use piney_world::combat::{FxTasks, FxWorld, Look, Show, SpellDamage, SpellOut, SpellRun};
 use piney_world::sprite::EffSprite;
 use piney_world::town::merchant::SysopEvent;
@@ -129,7 +130,7 @@ impl Ending {
                         to_screen,
                         &self.file,
                         &play,
-                        piney_world::draw::mat(matrix),
+                        piney_data::vu0::to_mat4(matrix),
                         &[],
                         f32::from_bits(*transparency),
                         None,
@@ -475,7 +476,7 @@ impl FieldFx for AreaFx {
         out
     }
 
-    fn lights(&self) -> Vec<piney_world::town::Light> {
+    fn lights(&self) -> Vec<piney_data::light::Light> {
         self.fx.boss.omni_lights()
     }
 
@@ -547,7 +548,7 @@ fn circle_frame(view: &FxView, mc: &MagicCircle, spark: &Eff) -> CircleFrame {
         let Some(a) = view.cast.get(who).filter(|a| a.drawn && a.look == Look::Circle) else { continue };
         let Some(entry::Obj::Circle(c)) = view.ctrl.objs.get(who) else { continue };
         let pos = view.scene.chars[who].pos;
-        let matrix = vu::trans(&vu::rot_zyx(&vu::UNIT, c.obj.dirc), pos);
+        let matrix = vu0::pos_rot_zyx(pos, c.obj.dirc);
         frame.draws.push(DrawRec::Anm {
             obj: mc.clump(),
             play: a.ch.play.clone(),

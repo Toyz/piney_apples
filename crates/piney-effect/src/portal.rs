@@ -8,7 +8,9 @@
 //! [`MagicCircle::main`] each frame. The acts are in docs/engine/effects.md.
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 use piney_desktop::layers::Layers;
+use piney_world::chara::pose::Play;
 use piney_world::draw::{self as wdraw, Draw};
 
 use crate::draw::{Camera, DrawRec};
@@ -16,8 +18,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::eff::Eff;
 use crate::effect::{EFFECT_LAYER, check_camera_deg};
 use crate::files::{Assets, ObjRef};
-use crate::{Host, space, vu};
-use piney_world::chara::pose::Play;
+use crate::{Host, space};
 
 /// `gimmickTbl[15]`: the file, the circle, its animations, the sparks and
 /// the entry's palette.
@@ -81,7 +82,7 @@ pub struct McPart {
     pub status: i32,
     /// +0x10 `mat`: where it started (the portal's position as the
     /// translation), then its random turn.
-    pub mat: vu::M4,
+    pub mat: vu0::M4,
     /// +0x50 `speed`, +0x54 `radCnt`.
     pub speed: F,
     pub rad_cnt: F,
@@ -170,7 +171,7 @@ pub struct MagicCircle {
     /// +0xd4 the ccAnm: its playback, the matrix `SetMatrix_PosRotZYX` last
     /// gave it, its transparency (+0x88).
     pub play: Play,
-    pub matrix: vu::M4,
+    pub matrix: vu0::M4,
     pub transparency: F,
 }
 
@@ -228,7 +229,7 @@ impl MagicCircle {
     }
 
     /// `ccMagicCircle::setPart(ptype, lmat, num)` (gcmn 0x00455510).
-    fn set_part(&mut self, ptype: i32, lmat: &vu::M4, num: i32) {
+    fn set_part(&mut self, ptype: i32, lmat: &vu0::M4, num: i32) {
         for _ in 0..num {
             let found = (0..PARTS as i32)
                 .map(|v| (self.part_top + v) % PARTS as i32)
@@ -264,7 +265,7 @@ impl MagicCircle {
 
     /// `ccMagicCircle::createPart()` (gcmn 0x00455710).
     fn create_part(&mut self) {
-        let mut m = vu::UNIT;
+        let mut m = vu0::UNIT;
         m[3] = self.pos;
         match self.act {
             0 => self.set_part(1, &m, 3),
@@ -378,7 +379,7 @@ impl MagicCircle {
             input.set_transparency,
         );
         self.transparency = t;
-        self.matrix = vu::trans(&vu::rot_zyx(&vu::UNIT, self.dirc), self.pos);
+        self.matrix = vu0::trans_matrix(&vu0::rot_matrix(&vu0::UNIT, self.dirc), self.pos);
         out.draws.push(DrawRec::Anm {
             obj: self.anim,
             play: self.play.clone(),
@@ -447,7 +448,7 @@ impl MagicCircle {
                 let draw = Draw {
                     file,
                     model,
-                    world: wdraw::mat(&o.world),
+                    world: vu0::to_mat4(&o.world),
                     alpha: ee::f(o.alpha),
                     rows: &rows,
                     lights: None,
@@ -462,15 +463,15 @@ impl MagicCircle {
 }
 
 /// The spark's translation: `mat`'s last column with w 1.
-fn origin(m: &vu::M4) -> V4 {
+fn origin(m: &vu0::M4) -> V4 {
     [m[3][0], m[3][1], m[3][2], ONE]
 }
 
 /// Three `ccRand` turns about x, y and z of the unit matrix.
-fn random_turn(host: &mut dyn Host) -> vu::M4 {
-    let m = vu::rot_x(&vu::UNIT, rand_angle(host));
-    let m = vu::rot_y(&m, rand_angle(host));
-    vu::rot_z(&m, rand_angle(host))
+fn random_turn(host: &mut dyn Host) -> vu0::M4 {
+    let m = vu0::rot_matrix_x(&vu0::UNIT, rand_angle(host));
+    let m = vu0::rot_matrix_y(&m, rand_angle(host));
+    vu0::rot_matrix_z(&m, rand_angle(host))
 }
 
 /// `radCnt` on by `step` in the game's 16-bit angles.
@@ -540,9 +541,9 @@ fn part_main(p: &mut McPart, host: &mut dyn Host, player: V4, bounds: [F; 4]) {
                 if ee::lt(p.speed, 0xc049_0fdb) {
                     p.speed = ee::add(p.speed, 0x40c9_0fdb);
                 }
-                let m = vu::rot_x(&p.mat, p.speed);
-                let m = vu::rot_y(&m, p.speed);
-                let m = vu::rot_z(&m, p.speed);
+                let m = vu0::rot_matrix_x(&p.mat, p.speed);
+                let m = vu0::rot_matrix_y(&m, p.speed);
+                let m = vu0::rot_matrix_z(&m, p.speed);
                 p.mat = m;
                 let v = ee::apply(&m, v);
                 eff.pos = ee::vadd(eff.pos, v);
@@ -695,7 +696,7 @@ mod tests {
         let mut drawn = Vec::new();
         for f in 0..180 {
             play.forward(file);
-            let d = crate::nodes::anm(&fx.assets, obj, &play, &vu::UNIT, ONE);
+            let d = crate::nodes::anm(&fx.assets, obj, &play, &vu0::UNIT, ONE);
             drawn.push((f, d.iter().map(|d| name(d.obj)).collect::<Vec<_>>()));
         }
         assert!(drawn[29].1.iter().any(|n| n == "OBJ_xmagball"), "the ball at its height: {:?}", drawn[29]);

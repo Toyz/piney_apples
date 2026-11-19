@@ -10,9 +10,11 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use piney_battle::entry::EventRegistry;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::save::offset;
+use piney_data::store::Table;
 use piney_desktop::SaveState;
 use piney_desktop::anm::Ctx;
 use piney_desktop::assets::SceneFile;
@@ -36,8 +38,6 @@ use crate::sprite::{EffSprite, EffState};
 use crate::story_map::Kept;
 use crate::systems::{MapEvent, Signal};
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw};
-use piney_battle::entry::EventRegistry;
-use piney_data::store::Table;
 
 pub mod cast;
 mod char_id;
@@ -3109,7 +3109,7 @@ impl World {
                         crate::field::area::REF_LAYER,
                         to_screen,
                         &a.ch.play,
-                        draw::mat(m),
+                        piney_data::vu0::to_mat4(m),
                         1.0,
                         lights,
                         false,
@@ -3127,7 +3127,7 @@ impl World {
                             draw::CHAR_LAYER,
                             to_screen,
                             &a.ch.play,
-                            draw::mat(m),
+                            piney_data::vu0::to_mat4(m),
                             ee::f(a.alpha),
                             lights,
                             shaded,
@@ -3163,7 +3163,7 @@ impl World {
                         draw::CHAR_LAYER,
                         to_screen,
                         &a.ch.play,
-                        draw::mat(m),
+                        piney_data::vu0::to_mat4(m),
                         ee::f(a.alpha),
                         lights,
                         false,
@@ -3330,7 +3330,7 @@ impl World {
                         draw::OBJ_LAYER,
                         to_screen,
                         &a.ch.play,
-                        draw::mat(m),
+                        piney_data::vu0::to_mat4(m),
                         *alpha,
                         lights,
                         false,
@@ -4223,19 +4223,22 @@ fn room_clear(
 /// it fades from the flame to nothing 1000 away; `ccSetColor(color,
 /// 0x7fff, 1.0)`, a fire's orange (each byte over 255, red the low one).
 /// `symMain` sets the intensity each frame.
-fn symbol_light(p: V4, intensity: F) -> crate::town::Light {
-    let far = crate::town::Falloff { start: 0, end: 0x447a_0000, end2: 0x4974_2400 };
+fn symbol_light(p: V4, intensity: F) -> piney_data::light::Light {
+    let far = piney_data::light::Falloff { start: 0, end: 0x447a_0000, end2: 0x4974_2400 };
     let colour = piney_data::light::colour_of(0x7fff, ONE);
-    crate::town::Light { priority: 1, ..crate::town::Light::omni([p[0], p[1], p[2], ONE], colour, intensity, far) }
+    piney_data::light::Light {
+        priority: 1,
+        ..piney_data::light::Light::omni([p[0], p[1], p[2], ONE], colour, intensity, far)
+    }
 }
 
 /// A spring's or the rays' `ccOmniLight` (`ccLight(4, 1)`) as its frame
 /// left it: at its matrix's place, `ccSetColor`'s RGB (red the low byte,
 /// each over 255), its intensity and fall-off.
-fn omni_light(o: &piney_battle::prim::OmniLight) -> crate::town::Light {
-    let far = crate::town::Falloff { start: o.far_start, end: o.far_end, end2: o.far_end2 };
+fn omni_light(o: &piney_battle::prim::OmniLight) -> piney_data::light::Light {
+    let far = piney_data::light::Falloff { start: o.far_start, end: o.far_end, end2: o.far_end2 };
     let colour = piney_data::light::colour_of(o.rgb, ONE);
-    crate::town::Light { priority: 1, ..crate::town::Light::omni(o.matrix[3], colour, o.intensity, far) }
+    piney_data::light::Light { priority: 1, ..piney_data::light::Light::omni(o.matrix[3], colour, o.intensity, far) }
 }
 
 #[cfg(test)]
@@ -4415,7 +4418,7 @@ pub trait FieldFx {
     fn smoke(&mut self, _smoke: &[MapEvent]) {}
     /// The lights the effects have put in the light group (the boss's
     /// `ccBossEffLight`), which the characters are lit by with the map's.
-    fn lights(&self) -> Vec<crate::town::Light> {
+    fn lights(&self) -> Vec<piney_data::light::Light> {
         Vec::new()
     }
     /// What the effects hold now (for tests).

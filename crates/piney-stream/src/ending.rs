@@ -356,7 +356,7 @@ impl Parts {
         let extra = if p.count_rand != 0 { rand.rand() % p.count_rand } else { 0 };
         for _ in 0..p.count + extra {
             let a = ee::sub(rand_in(p.angle, rand), HALF_TURN);
-            let m = piney_data::anim::rot_z_bits_of(unit(), ee::div(ee::mul(PI, a), HALF_TURN));
+            let m = piney_data::vu0::rot_matrix_z(&piney_data::vu0::UNIT, ee::div(ee::mul(PI, a), HALF_TURN));
             let mut pos = ee::apply(&m, [rand_in(p.radius, rand), 0, 0, 0]);
             pos = ee::vadd(pos, at);
             pos[2] = ee::add(pos[2], ee::add(p.z, rand_in(p.z_rand, rand)));
@@ -432,16 +432,12 @@ impl Parts {
     }
 }
 
-fn unit() -> [V4; 4] {
-    [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]]
-}
-
 /// One rock as `ccObjPartCreate0580::Ctrl` makes it: a turn about z, the
 /// start out along it, the speeds across (turned) and up, the turns, the
 /// model and its scale.
 fn new_rock(at: V4, p: &RockParam, tables: &Tables, rand: &mut Rand) -> Rock {
     let a = ee::sub(rand_in(FULL_TURN, rand), HALF_TURN);
-    let m = piney_data::anim::rot_z_bits_of(unit(), ee::div(ee::mul(PI, a), HALF_TURN));
+    let m = piney_data::vu0::rot_matrix_z(&piney_data::vu0::UNIT, ee::div(ee::mul(PI, a), HALF_TURN));
     let mut pos = [rand_in(p.radius, rand), 0, 0, 0];
     let mut vel = [rand_in(p.vx, rand), 0, 0, 0];
     let mut acc = [rand_in(p.ax, rand), 0, 0, 0];
@@ -485,7 +481,8 @@ fn rock_step(r: &mut Rock, out: &mut Vec<PartDraw>) {
     r.vel = ee::vadd(r.vel, r.acc);
     r.rot[1] = rotate(r.rot[1], r.drot[1]);
     r.rot[2] = rotate(r.rot[2], r.drot[2]);
-    let matrix = piney_world::field::ambient::pos_rot_xyz_scale(r.pos, r.rot, r.scale);
+    let [sx, sy, sz] = r.scale;
+    let matrix = piney_data::vu0::pos_rot_xyz_scale(r.pos, r.rot, [sx, sy, sz, 0]);
     out.push(PartDraw::Rock { model: r.model, matrix });
 }
 

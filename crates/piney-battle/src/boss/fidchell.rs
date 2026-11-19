@@ -208,13 +208,13 @@ fn held(b: &BossBase, cx: &Cx) -> bool {
 
 /// `ccTransPosP2W(W2P(from) + m v)`: a place `v` off `from`, turned by `m`.
 fn off_from(cx: &Cx, from: V4, m: &geom::M4, v: V4) -> V4 {
-    let v = geom::apply_matrix(m, v);
+    let v = geom::apply(m, v);
     super::p2w(cx, geom::vadd(super::w2p(cx, from), v))
 }
 
 /// `Rz(-pi/2)` then `Rz(r)` on the unit matrix.
 fn behind(r: F) -> geom::M4 {
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+    let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
     geom::rot_matrix_z(&m, r)
 }
 
@@ -604,8 +604,8 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             r[3] = ONE;
             let (p, r) = (super::w2p(cx, p), super::w2p(cx, r));
             let d = get_dirc(p, r);
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), d), NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [0x447a_0000, 0, 0, ONE]);
+            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, d), NEG_HALF_PI);
+            let v = geom::apply(&m, [0x447a_0000, 0, 0, ONE]);
             x.pred_pos = super::p2w(cx, geom::vadd(p, v));
             let voice = pick(combat::of(cx.volume()).fidchell_pred_voices, k);
             cx.out(Out::Voice { event: PRED_VOICE_EVENT, msg: voice });
@@ -836,7 +836,7 @@ fn spell_camera(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, eye: V4, view: 
 #[allow(clippy::too_many_arguments)]
 fn on_magic_camera_at(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, vp: V4, d: V4, off: V4, cam: CamId) {
     let _ = b;
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+    let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
     let m = geom::rot_matrix_x(&m, d[0]);
     let m = geom::rot_matrix_y(&m, d[1]);
     let m = geom::rot_matrix_z(&m, d[2]);

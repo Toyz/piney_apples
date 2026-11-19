@@ -8,6 +8,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use piney_battle::geom::{get_dirc, get_dirc_chg, set_dirc};
 use piney_data::Result;
 use piney_data::archive::Archive;
 use piney_data::volume::Volume;
@@ -20,7 +21,6 @@ use crate::ee::{self, F, ONE, V4, add, cosf, from_int, lt, mul, sinf, sub};
 use crate::hit::{self, WALL_MASK};
 use crate::systems::npcs::NpcCtx;
 use crate::town::pc::get_dist3d;
-use piney_battle::geom::{get_dirc, get_dirc_chg, set_dirc};
 
 /// `npcTbl`'s first dog row; the four are 141-144.
 pub const ROW: usize = 141;
@@ -275,7 +275,7 @@ impl Dog {
         if ee::le(self.core.ch.transparency, 0x3d4c_cccd) || self.core.acts.num != 3 {
             return;
         }
-        let m = crate::camera::evcam::rot_z(
+        let m = piney_data::vu0::rot_matrix_z(
             &[[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]],
             self.core.ch.dirc[2],
         );

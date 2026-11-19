@@ -19,11 +19,11 @@ use piney_battle::geom::M4;
 use piney_battle::param::cond;
 use piney_battle::races::boss_anm_name;
 use piney_battle::tables::Tables;
-use piney_data::anim::vu_mul;
 use piney_data::archive::Archive;
 use piney_data::tables::types::GimmickTable;
 use piney_data::volume::Volume;
 use piney_data::vu0;
+use piney_data::vu0::mul_matrix;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -34,7 +34,7 @@ use crate::chara::kite::light_matrix;
 use crate::chara::pose::Play;
 use crate::draw::{self, CHAR_LAYER, Draw, EFF_LAYER};
 use crate::ee::{self, F, V4};
-use crate::town::{self, TownLights};
+use crate::town::TownLights;
 
 /// The skeleton every enemy file carries (`initEnemyCCS`).
 pub const CLUMP: &str = "CMP_trall";
@@ -189,8 +189,7 @@ impl Model {
     /// parent).
     pub fn worlds(&self, play: &Play, root: Mat4) -> HashMap<u32, Mat4> {
         let file = &self.body.file;
-        let locals: HashMap<u32, M4> =
-            file.anims[play.anim].locals_at(play.posed).into_iter().map(|(o, m)| (o, vu0::of_mat4(m))).collect();
+        let locals = file.anims[play.anim].local_bits_at(play.posed);
         let parents = self.parents(play);
         let sc = &file.scene;
         let mut set: Vec<u32> = locals.keys().copied().collect();
@@ -214,9 +213,9 @@ impl Model {
             let local = locals.get(&obj).unwrap_or(&vu0::UNIT);
             let parent = parents.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
             let m = if parent != 0 && parent != obj && depth < 64 && set.contains(&parent) {
-                vu_mul(&w(sc, locals, parents, set, root, cache, parent, depth + 1), local)
+                mul_matrix(&w(sc, locals, parents, set, root, cache, parent, depth + 1), local)
             } else {
-                vu_mul(root, local)
+                mul_matrix(root, local)
             };
             cache.insert(obj, m);
             m
@@ -410,7 +409,7 @@ impl EnemyLook {
         if !how.drawn {
             return;
         }
-        let root = draw::mat(matrix);
+        let root = piney_data::vu0::to_mat4(matrix);
         let fog = how.blend.fog();
         self.model.draw(
             layers,
@@ -437,7 +436,16 @@ impl EnemyLook {
         lights: &TownLights,
     ) {
         if let Some(m) = &self.second {
-            m.draw(layers, CHAR_LAYER, to_screen, play, draw::mat(matrix), ee::f(alpha), Some((lights, false)), None);
+            m.draw(
+                layers,
+                CHAR_LAYER,
+                to_screen,
+                play,
+                piney_data::vu0::to_mat4(matrix),
+                ee::f(alpha),
+                Some((lights, false)),
+                None,
+            );
         }
     }
 }
@@ -740,7 +748,7 @@ impl Circle {
 
     /// `ccCoord::SetMatrix_PosRotZYX(pos, dirc)` as stored.
     pub fn root(pos: V4, dirc: V4) -> [V4; 4] {
-        town::pos_rot_zyx(pos, [dirc[0], dirc[1], dirc[2]])
+        piney_data::vu0::pos_rot_zyx(pos, [dirc[0], dirc[1], dirc[2], 0])
     }
 
     /// `Out::CircleDraw`: `ccAnm::Draw` on layer 3 (priority 20) at the
@@ -757,7 +765,7 @@ impl Circle {
         transparency: F,
         lights: &TownLights,
     ) {
-        let root = draw::mat(&Self::root(pos, dirc));
+        let root = piney_data::vu0::to_mat4(&Self::root(pos, dirc));
         self.model.draw(layers, EFF_LAYER, to_screen, play, root, ee::f(transparency), Some((lights, false)), None);
     }
 }
@@ -1020,7 +1028,7 @@ mod tests {
             [0, 0, ONE, 0],
             [0x447a_0000, 0x44fa_0000, 0x41f0_0000, ONE],
         ];
-        let worlds = l.model.worlds(&p, draw::mat(&m));
+        let worlds = l.model.worlds(&p, piney_data::vu0::to_mat4(&m));
         #[rustfmt::skip]
         let cases: [(&str, [f32; 16]); 2] = [
             ("OBJ_t0 head", [-0.5254571, -0.1185403, 0.842519, 0.0, 0.7796808, -0.463468, 0.4210581, 0.0,

@@ -11,6 +11,7 @@
 use crate::field::ee;
 use crate::model::{Kind, Mmat};
 use crate::vu0::{self, ONE};
+use crate::vu1;
 
 /// VU1 has room for 494 directions (`DecodeShadowModel`'s check).
 pub const MAX_NORMALS: usize = 495;
@@ -59,8 +60,9 @@ const F4096: u32 = 0x4580_0000;
 /// (a `cvt.s.w` and a divide by 4096), then `sceVu0DivVector` by 4096 (Q =
 /// 1 / 4096 by `vdiv`, the lanes times Q by `vmulq`): x, y, z as float bits.
 pub fn direction(n: [i32; 3]) -> [u32; 3] {
-    let q = ee::div(ONE, F4096);
-    n.map(|c| ee::mul(ee::div(ee::from_int(c), F4096), q))
+    let [x, y, z] = n.map(|c| vu1::itof12(c as u32));
+    let [x, y, z, _] = vu0::vdiv([x, y, z, 0], F4096);
+    [x, y, z]
 }
 
 impl ShadowMesh {

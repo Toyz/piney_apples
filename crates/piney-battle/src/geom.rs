@@ -1,24 +1,20 @@
 //! The EE arithmetic the motion layer computes with: the FPU's scalar
 //! operations ([`piney_data::field::ee`]), newlib's maths ([`piney_data::libm`]),
-//! libvu0's macro-mode vector routines (`sceVu0*`, main) and the angle helpers
-//! (`ccGetDirc`, `ccSetDirc`, `RAD2DEG` ...), on raw bit patterns. VU0 follows
-//! the FPU's rules (no denormals or infinities, results truncated) and rounds
-//! a multiply-add's product first (piney-world's `ee.rs`). Angles are radians
-//! in -pi..pi (0 faces -y, growing toward +x), or 16-bit units where 32768 is
-//! pi (`RAD2DEG`).
+//! libvu0's routines ([`piney_data::vu0`]) and the angle helpers (`ccGetDirc`,
+//! `ccSetDirc`, `RAD2DEG` ...), on raw bit patterns. Angles are radians in
+//! -pi..pi (0 faces -y, growing toward +x), or 16-bit units where 32768 is pi
+//! (`RAD2DEG`).
 
-pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
+pub use piney_data::field::ee::{add, cmp, div, eq, from_int, le, lt, mul, sqrt, sub, to_int};
 pub use piney_data::libm::{atan2f, cosf, fabsf, neg, sinf, sqrtf};
 use piney_data::volume::Volume;
+pub use piney_data::vu0::{
+    F, M4, ONE, UNIT, V4, apply, dot, mul_matrix, normalize, rot_matrix, rot_matrix_x, rot_matrix_y, rot_matrix_z,
+    trans_matrix, vadd, vscale, vscale_xyz, vsub,
+};
 
 pub use crate::enemy_ai::{get_dist, get_dist_on, rad_disperse, rand_f};
 
-/// A float as bits.
-pub type F = u32;
-/// A `sceVu0FVECTOR`: x, y, z, w as bits.
-pub type V4 = [F; 4];
-
-pub const ONE: F = 0x3f80_0000;
 /// `3.14159274` (0x40490fdb), the code's pi.
 pub const PI: F = 0x4049_0fdb;
 pub const TWO_PI: F = 0x40c9_0fdb;
@@ -34,44 +30,6 @@ pub const VF0: V4 = [0, 0, 0, ONE];
 /// A constant's bits.
 pub const fn k(x: f32) -> F {
     x.to_bits()
-}
-
-/// `c.eq.s`: equal values (every zero pattern equals every other).
-pub fn eq(a: F, b: F) -> bool {
-    cmp(a, b) == std::cmp::Ordering::Equal
-}
-
-/// `sceVu0AddVector` (main 0x00110888): every lane.
-pub fn vadd(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|i| add(a[i], b[i]))
-}
-
-/// `sceVu0SubVector` (main 0x001108a0): every lane.
-pub fn vsub(a: V4, b: V4) -> V4 {
-    std::array::from_fn(|i| sub(a[i], b[i]))
-}
-
-/// `sceVu0ScaleVector` (main 0x001108d0): every lane times `s`.
-pub fn vscale(a: V4, s: F) -> V4 {
-    a.map(|x| mul(x, s))
-}
-
-/// `sceVu0ScaleVectorXYZ` (main 0x00111200): x, y, z times `s`, w kept.
-pub fn vscale_xyz(a: V4, s: F) -> V4 {
-    [mul(a[0], s), mul(a[1], s), mul(a[2], s), a[3]]
-}
-
-/// `sceVu0InnerProduct` (main 0x00110700): `vmul.xyz`, then x + y, then + z.
-pub fn dot(a: V4, b: V4) -> F {
-    add(add(mul(a[0], b[0]), mul(a[1], b[1])), mul(a[2], b[2]))
-}
-
-/// `sceVu0Normalize` (main 0x00110728): Q = sqrt(x x + y y + z z), then
-/// 1 / Q, x, y, z times that; w 0.
-pub fn normalize(a: V4) -> V4 {
-    let q = sqrt(dot(a, a));
-    let r = div(ONE, add(0, q));
-    [mul(a[0], r), mul(a[1], r), mul(a[2], r), 0]
 }
 
 /// The code's `sqrtf` on the volume ([`piney_data::libm::sqrtf_on`]):
@@ -316,121 +274,6 @@ pub fn camera_transparency(
     if le(over, fade) { div(sub(fade, over), fade) } else { 0 }
 }
 
-/// A 4x4 matrix as `libvu0` stores it: four rows of four floats (`sceVu0FMATRIX`).
-pub type M4 = [V4; 4];
-
-/// `S5432` (main 0x002f7520): the sine polynomial's coefficients of
-/// `_sceVu0ecossin`, t^9, t^7, t^5, t^3 in x, y, z, w.
-const S5432: V4 = [0x362e_9c14, 0xb94f_b21f, 0x3c08_873e, 0xbe2a_aaa4];
-
-/// `_sceVu0ecossin` (main 0x001109b8), VU0 macro code: `s` = the odd
-/// polynomial of `t` (t + t^3 w + t^5 z + t^7 y + t^9 x, each term a chain
-/// of products, added from t^3 up), then `c = sqrt(1 - s s)` (`vsqrt`),
-/// negated when `negative`. Returns (vf4.x, vf4.y) = (c, s); the rotation
-/// routines pass `pi/2 -+ angle`, so these are the angle's sine and cosine.
-fn ecossin(t: F, negative: bool) -> (F, F) {
-    let x = add(0, t);
-    let t2 = mul(t, t);
-    let mut v8: V4 = S5432.map(|s| mul(s, t));
-    v8 = v8.map(|v| mul(v, t2));
-    for v in v8.iter_mut().take(3) {
-        *v = mul(*v, t2);
-    }
-    let mut x = add(x, v8[3]);
-    for v in v8.iter_mut().take(2) {
-        *v = mul(*v, t2);
-    }
-    x = add(x, v8[2]);
-    v8[0] = mul(v8[0], t2);
-    x = add(x, v8[1]);
-    x = add(x, v8[0]);
-    let s = add(0, x);
-    let q = sqrt(sub(ONE, mul(s, s)));
-    let c = if negative { sub(0, add(0, q)) } else { add(0, add(0, q)) };
-    (c, s)
-}
-
-/// The sine and cosine the `sceVu0RotMatrix*` routines take of `r`:
-/// `ecossin(pi/2 + r)` negated for a negative `r`, else `ecossin(pi/2 -
-/// r)`. Returns (sin, cos) as vf4.x, vf4.y.
-fn rot_sin_cos(r: F) -> (F, F) {
-    if lt(r, 0) { ecossin(add(HALF_PI, r), true) } else { ecossin(sub(HALF_PI, r), false) }
-}
-
-/// The VU0 product of a matrix routine: each row of `m` times the four
-/// basis rows `b`, accumulated in order (`vmulax`, `vmadday`, `vmaddaz`,
-/// `vmaddw`).
-fn rows_times(b: &M4, m: &M4) -> M4 {
-    m.map(|r| {
-        std::array::from_fn(|i| {
-            let acc = mul(b[0][i], r[0]);
-            let acc = add(acc, mul(b[1][i], r[1]));
-            let acc = add(acc, mul(b[2][i], r[2]));
-            add(acc, mul(b[3][i], r[3]))
-        })
-    })
-}
-
-/// `sceVu0MulMatrix(out, a, b)`: each row of `b` through `a` (`out[i] =
-/// a[0] b[i].x + a[1] b[i].y + a[2] b[i].z + a[3] b[i].w`).
-pub fn mul_matrix(a: &M4, b: &M4) -> M4 {
-    rows_times(a, b)
-}
-
-/// `sceVu0UnitMatrix` (main 0x00110990).
-pub fn unit_matrix() -> M4 {
-    [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]]
-}
-
-/// `sceVu0RotMatrixZ(out, m, r)` (main 0x00110a30): `m` turned about z.
-pub fn rot_matrix_z(m: &M4, r: F) -> M4 {
-    let (x, y) = rot_sin_cos(r);
-    let b = [[add(0, y), add(0, x), 0, 0], [sub(0, x), add(0, y), 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-    rows_times(&b, m)
-}
-
-/// `sceVu0RotMatrixX(out, m, r)` (main 0x00110ad8): `m` turned about x.
-pub fn rot_matrix_x(m: &M4, r: F) -> M4 {
-    let (x, y) = rot_sin_cos(r);
-    let b =
-        [[add(0, ONE), 0, 0, 0], [0, add(0, y), add(0, x), 0], [0, sub(0, x), add(0, y), 0], [0, 0, 0, add(0, ONE)]];
-    rows_times(&b, m)
-}
-
-/// `sceVu0RotMatrixY(out, m, r)` (main 0x00110b80): `m` turned about y.
-pub fn rot_matrix_y(m: &M4, r: F) -> M4 {
-    let (x, y) = rot_sin_cos(r);
-    let b =
-        [[add(0, y), 0, sub(0, x), 0], [0, add(0, ONE), 0, 0], [add(0, x), 0, add(0, y), 0], [0, 0, 0, add(0, ONE)]];
-    rows_times(&b, m)
-}
-
-/// `sceVu0RotMatrix(out, m, rot)` (main 0x00110c28): about z by `rot.z`,
-/// then y by `rot.y`, then x by `rot.x`.
-pub fn rot_matrix(m: &M4, rot: V4) -> M4 {
-    let m = rot_matrix_z(m, rot[2]);
-    let m = rot_matrix_y(&m, rot[1]);
-    rot_matrix_x(&m, rot[0])
-}
-
-/// `sceVu0ApplyMatrix(out, m, v)` (main 0x00110668): the rows of `m`
-/// weighted by `v`'s lanes, ((r0 x + r1 y) + r2 z) + r3 w.
-pub fn apply_matrix(m: &M4, v: V4) -> V4 {
-    std::array::from_fn(|i| {
-        let acc = mul(m[0][i], v[0]);
-        let acc = add(acc, mul(m[1][i], v[1]));
-        let acc = add(acc, mul(m[2][i], v[2]));
-        add(acc, mul(m[3][i], v[3]))
-    })
-}
-
-/// `sceVu0TransMatrix(out, m, t)` (main 0x001108e8): `m` with `t`'s x, y,
-/// z added to its last row (its w kept).
-pub fn trans_matrix(m: &M4, t: V4) -> M4 {
-    let r = m[3];
-    [m[0], m[1], m[2], [add(r[0], t[0]), add(r[1], t[1]), add(r[2], t[2]), r[3]]]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -497,12 +340,12 @@ mod tests {
 
     #[test]
     fn rotation_matrices_are_rotations() {
-        let m = rot_matrix_z(&unit_matrix(), deg2rad(16384));
+        let m = rot_matrix_z(&UNIT, deg2rad(16384));
         // a quarter turn about z sends x to y
-        let v = apply_matrix(&m, [ONE, 0, 0, ONE]);
+        let v = apply(&m, [ONE, 0, 0, ONE]);
         assert!(f32::from_bits(v[0]).abs() < 1e-3 && (f32::from_bits(v[1]) - 1.0).abs() < 1e-3);
-        let t = trans_matrix(&unit_matrix(), [k(1.0), k(2.0), k(3.0), 0]);
+        let t = trans_matrix(&UNIT, [k(1.0), k(2.0), k(3.0), 0]);
         assert_eq!(t[3], [k(1.0), k(2.0), k(3.0), ONE]);
-        assert_eq!(rot_matrix(&unit_matrix(), [0, 0, 0, ONE])[0], [ONE, 0, 0, 0]);
+        assert_eq!(rot_matrix(&UNIT, [0, 0, 0, ONE])[0], [ONE, 0, 0, 0]);
     }
 }

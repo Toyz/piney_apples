@@ -13,11 +13,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use glam::Mat4;
+use piney_battle::geom::{get_dirc, get_dirc_chg, get_dirc0, set_dirc};
+use piney_battle::rand::{Genrand, Rng as _};
 use piney_data::Result;
 use piney_data::archive::Archive;
 use piney_data::save::SaveData;
 use piney_data::tables::world;
 use piney_data::volume::Volume;
+use piney_data::vu0::UNIT;
 use piney_desktop::assets::SceneFile;
 
 use crate::camera::{CamId, CamList};
@@ -26,11 +29,9 @@ use crate::chara::char::{Char, p2w, w2p};
 use crate::chara::npc::{Core, NpcRow, Stuck};
 use crate::chara::pose::Play;
 use crate::ee::{self, F, ONE, V4, add, cosf, from_int, le, lt, mul, sinf, sub};
-use crate::hit::{self, UNIT};
+use crate::hit;
 use crate::systems::npcs::NpcCtx;
 use crate::town::pc::get_dist3d;
-use piney_battle::geom::{get_dirc, get_dirc_chg, get_dirc0, set_dirc};
-use piney_battle::rand::{Genrand, Rng as _};
 
 /// `npcTbl`'s grown Grunties (145-153) and young ones (154-157).
 pub const ROW_ADULT: i32 = 145;
@@ -1296,7 +1297,7 @@ impl Grunty {
     }
 
     fn burp_with(&mut self, y: F, z: F, sc: F) {
-        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
+        let m = piney_data::vu0::rot_matrix_z(&UNIT, self.core.ch.dirc[2]);
         let off = ee::apply(&m, [0, y, z, ONE]);
         let p = self.core.ch.pos;
         let pos = [add(p[0], off[0]), add(p[1], off[1]), add(p[2], off[2]), ONE];
@@ -1306,7 +1307,7 @@ impl Grunty {
 
     /// `ccPGuso::evoEff` (gcmn 0x005100e0): smoke round it as it grows.
     fn evo_eff(&mut self, mt: &mut Genrand) {
-        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
+        let m = piney_data::vu0::rot_matrix_z(&UNIT, self.core.ch.dirc[2]);
         let (y, z): (F, F) = match self.grow.level {
             0 => (0xc2c8_0000, 0x41c8_0000),
             1 => (0xc2c8_0000, 0x4248_0000),
@@ -1330,7 +1331,7 @@ impl Grunty {
         }
         self.speed = 0x4120_0000;
         let speed = self.speed;
-        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
+        let m = piney_data::vu0::rot_matrix_z(&UNIT, self.core.ch.dirc[2]);
         let off = ee::apply(&m, [0, 0x4348_0000, 0x4248_0000, ONE]);
         let p = self.core.ch.pos;
         let pos = [add(p[0], off[0]), add(p[1], off[1]), add(p[2], off[2]), ONE];
@@ -1344,7 +1345,7 @@ impl Grunty {
     /// `ccPGuso::pgDead` (gcmn 0x0050e990): a puff as a grown one that ran
     /// off flattens away.
     fn pg_dead(&mut self, rand: &mut crate::Rand) {
-        let m = crate::camera::evcam::rot_z(&UNIT, self.core.ch.dirc[2]);
+        let m = piney_data::vu0::rot_matrix_z(&UNIT, self.core.ch.dirc[2]);
         let p = self.core.ch.pos;
         let pos = [p[0], p[1], add(p[2], 0x4220_0000), ONE];
         let r = rand.rand() % 5;

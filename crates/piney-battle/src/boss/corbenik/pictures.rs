@@ -28,20 +28,12 @@ const LASER_FOG: Blend = Blend { rate: 0x4248_0000, colour: 0x00ff_0000 };
 const HALF_PI: F = 0x3fc9_0fdb;
 const NEG_HALF_PI: F = 0xbfc9_0fdb;
 
-/// `SetMatrix_PosRotXYZ(pos, rot)`.
-fn pos_rot_xyz(pos: V4, rot: V4) -> M4 {
-    let m = geom::rot_matrix_x(&geom::unit_matrix(), rot[0]);
-    let m = geom::rot_matrix_y(&m, rot[1]);
-    let m = geom::rot_matrix_z(&m, rot[2]);
-    geom::trans_matrix(&m, pos)
-}
-
 /// A laser segment's matrix (`ccBossEffLaserRain::_Init`'s +0x240 moved
 /// to the segment, `ccBossEffRefrectionLaser::Draw`'s per segment): its
 /// length scale on z, turned -pi/2 about x, then about x by `pitch` and
 /// z by `yaw`, at `pos`.
 fn segment(pos: V4, pitch: F, yaw: F, len: F) -> M4 {
-    let mut m = geom::unit_matrix();
+    let mut m = geom::UNIT;
     m[2][2] = len;
     let m = geom::rot_matrix_x(&m, NEG_HALF_PI);
     let m = geom::rot_matrix_x(&m, pitch);
@@ -52,9 +44,9 @@ fn segment(pos: V4, pitch: F, yaw: F, len: F) -> M4 {
 /// A laser head's clip matrix: turned +pi/2 about x, then by `pitch` and
 /// `yaw`, at `pos`.
 fn head(pos: V4, pitch: F, yaw: F) -> M4 {
-    let r = geom::rot_matrix_x(&geom::unit_matrix(), pitch);
+    let r = geom::rot_matrix_x(&geom::UNIT, pitch);
     let r = geom::rot_matrix_z(&r, yaw);
-    let x = geom::rot_matrix_x(&geom::unit_matrix(), HALF_PI);
+    let x = geom::rot_matrix_x(&geom::UNIT, HALF_PI);
     geom::trans_matrix(&geom::mul_matrix(&r, &x), pos)
 }
 
@@ -106,12 +98,17 @@ pub(super) fn press_image(cx: &mut Cx, time: u32, pos: V4, dirc: V4, alpha: F) {
 
 /// An element (`BODYELEMENT_T`'s clip) at `pos` turned XYZ by `dirc`.
 pub(super) fn element(cx: &mut Cx, pos: V4, dirc: V4, alpha: F) {
-    cx.out(x81(Some(ELEMENT_CLIP.into()), ELEMENT_TIME, Root::Matrix(pos_rot_xyz(pos, dirc)), Some(alpha)));
+    cx.out(x81(
+        Some(ELEMENT_CLIP.into()),
+        ELEMENT_TIME,
+        Root::Matrix(piney_data::vu0::pos_rot_xyz(pos, dirc)),
+        Some(alpha),
+    ));
 }
 
 /// The root drain's root (`ANM_ex8natc4`) at `pos`.
 pub(super) fn root_l(cx: &mut Cx, time: u32, pos: V4, alpha: F) {
-    cx.out(x81(Some(ROOT_L.into()), time, Root::Matrix(geom::trans_matrix(&geom::unit_matrix(), pos)), Some(alpha)));
+    cx.out(x81(Some(ROOT_L.into()), time, Root::Matrix(geom::trans_matrix(&geom::UNIT, pos)), Some(alpha)));
 }
 
 /// `ccBossEffLaserRain::Draw` (0x00379940): les1, then les0 in the fog,

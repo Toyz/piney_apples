@@ -8,6 +8,7 @@
 //! cases are in docs/engine/effects.md ("SummonsSystem").
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::{EffectCtrl, Next, ONE_VECTOR, Obj};
@@ -15,7 +16,7 @@ use crate::fall;
 use crate::fall::eff_skill_break_se;
 use crate::hit::EFF_SBL_LAYER;
 use crate::spell::{Spell, attr, camera_shake, check_camera_shake_range, noise};
-use crate::{CharRef, Cx, Event, debris, pfx, summoned, tornado, upheaval, vu};
+use crate::{CharRef, Cx, Event, debris, pfx, summoned, tornado, upheaval};
 
 pub const RING: i16 = 56;
 pub const CREATURE_FIRST: i16 = 57;
@@ -422,8 +423,8 @@ pub fn wave_outer_pre(ctrl: &mut EffectCtrl, _cx: &mut Cx, i: usize) -> Next {
 fn upward(cx: &mut Cx, r: V4) -> (i32, V4) {
     let rn = cx.host.rand() >> 3;
     let a = [0, ee::deg2rad(((rn << 8) & 0xfc00) as i16), ee::deg2rad((6144 - (rn & 0xfc0)) as i16), 0];
-    let d = ee::apply(&vu::rot_zyx(&vu::UNIT, a), [0, 0xbf80_0000, 0, ONE]);
-    (rn, ee::apply(&vu::rot_zyx(&vu::UNIT, r), d))
+    let d = ee::apply(&vu0::rot_matrix(&vu0::UNIT, a), [0, 0xbf80_0000, 0, ONE]);
+    (rn, ee::apply(&vu0::rot_matrix(&vu0::UNIT, r), d))
 }
 
 /// `(100 - (rn >> 8) % 50) / 100`.
@@ -689,7 +690,7 @@ pub struct Drill {
 fn x703_anm(cx: &Cx, name: &str) -> Option<Obj> {
     let obj = cx.assets.find("x703", name)?;
     let play = piney_world::chara::pose::Play::new(&cx.assets.files[obj.file], name)?;
-    Some(Obj::Anm { obj, play, matrix: vu::UNIT })
+    Some(Obj::Anm { obj, play, matrix: vu0::UNIT })
 }
 
 /// `ccLandHitCheck(pos, 0x20000001)`.

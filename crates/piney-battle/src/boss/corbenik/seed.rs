@@ -175,10 +175,10 @@ pub(crate) fn order(b: &mut BossBase, x: &mut Seed, cx: &mut Cx, n: i32, master_
             let ry = ee::sub(0x3fa0_d97c, rand_f(cx.cc, 0x3ea0_d97c));
             let rz = rand_f(cx.cc, PI);
             let r = cx.rand.rand() >> 3;
-            let m = geom::rot_matrix_x(&geom::unit_matrix(), 0);
+            let m = geom::rot_matrix_x(&geom::UNIT, 0);
             let m = geom::rot_matrix_y(&m, ry ^ 0x8000_0000);
             let m = geom::rot_matrix_z(&m, rz);
-            let v = geom::apply_matrix(&m, [ONE, 0, 0, ONE]);
+            let v = geom::apply(&m, [ONE, 0, 0, ONE]);
             b.move_vector = v.map(|c| ee::mul(c, 0x4270_0000));
             x.rot_speed = [((r >> 4) & 0xf000) as u16, ((r >> 8) & 0xf000) as u16];
             b.exit = 0;
@@ -416,7 +416,11 @@ impl BossSystem for Seed {
             pos,
             dirc: b.dirc,
             shown: b.draw_sw != 0,
-            matrix: Some(super::pos_rot_zyx_scale([pos[0], pos[1], ee::add(pos[2], DRAW_UP), ONE], b.dirc, DRAW_SCALE)),
+            matrix: Some(piney_data::vu0::pos_rot_zyx_scale(
+                [pos[0], pos[1], ee::add(pos[2], DRAW_UP), ONE],
+                b.dirc,
+                [DRAW_SCALE; 4],
+            )),
             again: b.draw_sw != 0 && b.exit == 0,
         };
     }

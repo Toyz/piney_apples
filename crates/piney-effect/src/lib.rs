@@ -59,7 +59,6 @@ pub mod tarvos;
 pub mod thunder;
 pub mod tornado;
 pub mod upheaval;
-pub mod vu;
 
 use piney_battle::camera::CamId;
 use piney_data::Result;

@@ -7,6 +7,7 @@
 //! b)` (main 0x001d9ce0) is `atan2f(b.y - a.y, b.x - a.x) + pi / 2` brought
 //! into -pi..pi. See docs/engine/effects.md ("The resistant shield").
 
+use piney_data::vu0;
 use piney_world::chara::pose::Play;
 
 use crate::draw::DrawRec;
@@ -14,7 +15,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::effect::EFFECT_LAYER;
 use crate::element::{Base, Element};
 use crate::files::ObjRef;
-use crate::{CharRef, Cx, Event, space, vu};
+use crate::{CharRef, Cx, Event, space};
 
 /// `ccSeOn3D(99, ch's pos)`.
 pub const SE_SHIELD: i32 = 99;
@@ -137,13 +138,13 @@ impl ResistantShield {
             return;
         }
         let a = &mut self.base.anim;
-        let m = vu::rot_zyx(&vu::UNIT, a.dirc);
+        let m = vu0::rot_matrix(&vu0::UNIT, a.dirc);
         let p = ee::vadd(cx.host.char_pos_p(t), ee::apply(&m, a.offset));
         a.pos = space::p2w(p, cx.host.player_pos(), cx.host.bounds());
         let mut done = false;
         if let Some((obj, play)) = &mut self.anm {
             done = play.forward(&cx.assets.files[obj.file]);
-            let matrix = vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale);
+            let matrix = vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale);
             cx.draws.push(DrawRec::Anm {
                 obj: *obj,
                 play: play.clone(),

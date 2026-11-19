@@ -13,7 +13,6 @@ use piney_desktop::assets::SceneFile;
 
 use super::{BuildCx, Carried, CarriedMut, DrawCx, Hook, Kind, MapEvent, MapSystem, Others, Piece, Request, StepCx};
 use crate::chara::pose::Play;
-use crate::draw;
 use crate::ee::{self, F, ONE, V4};
 use crate::field::ambient::{Env, statics, uint_float};
 
@@ -228,7 +227,7 @@ impl Tobj {
         let mut out = [[0, 0, 0, ONE]; 2];
         let Some((file, plays)) = &self.made else { return out };
         let Some(play) = plays.first() else { return out };
-        let worlds = play.worlds(file, draw::mat(m), &[]);
+        let worlds = play.worlds(file, piney_data::vu0::to_mat4(m), &[]);
         for (k, name) in RUNNER_DUMMIES.into_iter().enumerate() {
             let Some(o) = file.ccs.find_object(name) else { continue };
             if let Some(w) = worlds.get(&o) {
@@ -269,7 +268,7 @@ impl Tobj {
         if t.server == 3 {
             t.rot = [0x3f86_0a92, 0, 0, t.rot[3]];
         }
-        let m = crate::town::pos_rot_zyx(t.pos, [t.rot[0], t.rot[1], t.rot[2]]);
+        let m = piney_data::vu0::pos_rot_zyx(t.pos, [t.rot[0], t.rot[1], t.rot[2], 0]);
         if matches!(t.server, 0 | 2 | 4) && t.alpha & 0x7fff_ffff != 0 {
             out.push(MapEvent::SeLoop(t.pos, t.alpha));
         }
@@ -281,7 +280,7 @@ impl Tobj {
         self.drawn.push(TobjDraw { play: 0, matrix: m, alpha: shown, shadow });
         if server == 4 {
             for (k, p) in self.runner_places(&m).into_iter().enumerate() {
-                let m = crate::town::pos_rot_zyx(p, [rot[0], 0, rot[2]]);
+                let m = piney_data::vu0::pos_rot_zyx(p, [rot[0], 0, rot[2], 0]);
                 self.drawn.push(TobjDraw { play: 1 + k, matrix: m, alpha: shown, shadow });
             }
         }
@@ -332,7 +331,7 @@ impl MapSystem for Tobj {
         Some(Request::Posed {
             file,
             play,
-            root: draw::mat(&d.matrix),
+            root: piney_data::vu0::to_mat4(&d.matrix),
             layer: crate::field::area::ambient_layer(5),
             rows: Cow::Owned(rows),
             alpha: ee::f(d.alpha),

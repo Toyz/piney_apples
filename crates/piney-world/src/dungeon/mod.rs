@@ -10,8 +10,6 @@
 //! lake's sky and fireflies, type 32's leaves) are the dungeon type's
 //! systems ([`def::DungeonDef`]).
 
-pub use piney_data::vu0::invers;
-use piney_data::vu0::{mul_matrix, trans_matrix};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -20,8 +18,10 @@ use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::dungeon::{self, DOWN, Dummies, FogRow, NO_ROOM, RealMap, RoomSize, Rotation, Tables, UP, special};
+use piney_data::light::{self, Light};
 use piney_data::save::SaveData;
 use piney_data::volume::Volume;
+use piney_data::vu0::{UNIT, invers, mul_matrix, rot_matrix, trans_matrix};
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -33,13 +33,13 @@ use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, PI, V4};
 use crate::field::ambient::Weather;
-use crate::hit::{HitModel, Hits, UNIT};
+use crate::hit::{HitModel, Hits};
 use crate::sprite::EffSprite;
 use crate::systems::{
     BuildCx, Carried, CarriedMut, DrawCx, Drawn, FieldCx, Joined, MapEvent, MapView, RoomAt, RoomPart, Statics,
     Systems, paint,
 };
-use crate::town::{Light, LightKind, TownLights};
+use crate::town::TownLights;
 use def::{DungeonDef, RoomStep};
 
 /// `WORLD_MAN` bounds in `GO(2)`: 0..60000 both ways.
@@ -343,7 +343,7 @@ impl Rooms {
     /// `ccClump::Draw` of `nodes` at `m`: each node's models (those with
     /// colour or ST) at the matrix.
     pub fn clump_pieces(&self, nodes: &[u32], m: &[V4; 4]) -> Vec<(u32, Mat4)> {
-        let world = draw::mat(m);
+        let world = piney_data::vu0::to_mat4(m);
         let mut models: Vec<u32> = nodes.iter().filter_map(|n| self.obj_models.get(n)).flatten().copied().collect();
         models.dedup();
         models.retain(|model| self.file.models.get(model).is_some_and(|i| i.mtype & 0x600 != 0x600));
@@ -379,7 +379,7 @@ fn eff_patterns(ccs: &Ccs) -> HashMap<u32, Vec<u16>> {
 /// `sceVu0RotMatrix(m, local, (0, 0, rotate))` then `sceVu0TransMatrix(m,
 /// m, (x, y, 0))`: a dummy's own matrix turned and moved with the room.
 pub fn placed(local: &[V4; 4], slot: &Slot, turn: bool) -> [V4; 4] {
-    let mut m = if turn { piney_data::anim::rot_bits_of(*local, [0, 0, slot.rotate]) } else { *local };
+    let mut m = if turn { rot_matrix(local, [0, 0, slot.rotate, 0]) } else { *local };
     for (k, p) in [slot.pos[0], slot.pos[1], 0].into_iter().enumerate() {
         m[3][k] = ee::add(m[3][k], p);
     }
@@ -766,7 +766,7 @@ pub fn pose_in(file: &SceneFile, play: &Play, root: &[V4; 4], over: Option<(u32,
         } else {
             *root
         };
-        let m = piney_data::anim::vu_mul(&up, &local);
+        let m = mul_matrix(&up, &local);
         cache.insert(o, m);
         m
     }
@@ -779,12 +779,6 @@ pub fn pose_in(file: &SceneFile, play: &Play, root: &[V4; 4], over: Option<(u32,
             world: world(sc, &locals, root, &mut cache, o, 0),
         })
         .collect()
-}
-
-/// `SetRoom`'s `SetAmbient(row / 255)` (0x005c347c), divided in EE single
-/// precision.
-pub fn ambient_bits(fog: &FogRow) -> [F; 3] {
-    fog.ambient().map(f32::to_bits)
 }
 
 /// `fptosi(v / 750)`: the map cell of a coordinate.
@@ -994,11 +988,11 @@ impl DungeonArea {
 
         let heights: Rc<dyn crate::hit::Heights> = Rc::new(Heights);
         let hits = Hits { volume, area: 2, bounds: Some(BOUNDS), heights: Some(heights), ..Hits::default() };
-        let [r, g, b] = ambient_bits(&fog);
+        let [r, g, b] = fog.ambient_bits();
         // The constructor's distant light (0x005b8c10): `ccLight(1, 0)`,
         // priority 0, grey 0.7 copied in, intensity 1 (`Init`), turned by
         // (-0.8, 0, -0.6) (`SetMatrix_RotZYX`, no parent), in the group.
-        let rot = piney_data::anim::rot_bits([0xbf4c_cccd, 0, 0xbf19_999a]);
+        let rot = rot_matrix(&UNIT, [0xbf4c_cccd, 0, 0xbf19_999a, 0]);
         let grey = 0x3f33_3333;
         let light = Light { priority: 0, ..Light::distant(&rot, [grey, grey, grey, grey], ONE) };
         let lights = TownLights {
@@ -1315,7 +1309,7 @@ impl DungeonArea {
 
     /// `SetMatrix_PosRotZYX((x, y, 0), (0, 0, rotate))`.
     fn room_root(slot: &Slot) -> [V4; 4] {
-        crate::town::pos_rot_zyx([slot.pos[0], slot.pos[1], 0, ONE], [0, 0, slot.rotate])
+        piney_data::vu0::pos_rot_zyx([slot.pos[0], slot.pos[1], 0, ONE], [0, 0, slot.rotate, 0])
     }
 
     /// New doors: the old ones' hits gone with them (the ban block's and
@@ -1381,9 +1375,9 @@ impl DungeonArea {
                 let local = trans_matrix(&UNIT, [k750(row.x), k750(row.y), 0, ONE]);
                 let lw = mul_matrix(&room.root, &local);
                 match &mut light.kind {
-                    LightKind::Direct { matrix, .. } | LightKind::Spot { matrix, .. } => *matrix = lw,
-                    LightKind::Omni { pos, .. } => *pos = lw[3],
-                    LightKind::Distant { .. } => {}
+                    light::Kind::Direct { matrix, .. } | light::Kind::Spot { matrix, .. } => *matrix = lw,
+                    light::Kind::Omni { pos, .. } => *pos = lw[3],
+                    light::Kind::Distant { .. } => {}
                 }
             }
             self.core.lights.lights.push(light);
@@ -1568,10 +1562,7 @@ impl DungeonArea {
         let anime = self.tables.doors.anime[self.dtype as usize];
         let mut doors = Vec::new();
         for local in locals.into_iter().take(4) {
-            let mut m = piney_data::anim::rot_bits_of(local, [0, 0, slot.rotate]);
-            for (k, p) in [slot.pos[0], slot.pos[1], 0].into_iter().enumerate() {
-                m[3][k] = ee::add(m[3][k], p);
-            }
+            let m = placed(&local, slot, true);
             let Some(mut play) = Play::new(&self.rooms.file, anime) else { continue };
             let frames = match steps {
                 Steps::Open => self.rooms.file.anims[play.anim].frames,
@@ -1695,13 +1686,7 @@ impl DungeonArea {
         if found.is_empty() {
             found = named(d.dummy);
         }
-        let place = |local: [V4; 4]| {
-            let mut m = piney_data::anim::rot_bits_of(local, [0, 0, slot.rotate]);
-            for (k, p) in [slot.pos[0], slot.pos[1], 0].into_iter().enumerate() {
-                m[3][k] = ee::add(m[3][k], p);
-            }
-            m
-        };
+        let place = |local: [V4; 4]| placed(&local, slot, true);
         let places: Vec<[V4; 4]> = found.into_iter().map(place).collect();
         if places.is_empty() {
             return;
@@ -2267,7 +2252,7 @@ impl DungeonArea {
             let (file, obj_models, _) = self.rooms.src(anm.special);
             for o in &anm.objects {
                 let Some(models) = obj_models.get(&o.target) else { continue };
-                let world = draw::mat(&o.world);
+                let world = piney_data::vu0::to_mat4(&o.world);
                 for &model in models {
                     if file.models.get(&model).is_none_or(|i| i.mtype & 0x600 == 0x600) {
                         continue;
@@ -2592,7 +2577,7 @@ mod tests {
 
     #[test]
     fn inverse_of_a_turned_translation() {
-        let m = crate::town::pos_rot_zyx([ee::k(1500.0), ee::k(-750.0), ee::k(10.0), ONE], [0, 0, HALF_PI]);
+        let m = piney_data::vu0::pos_rot_zyx([ee::k(1500.0), ee::k(-750.0), ee::k(10.0), ONE], [0, 0, HALF_PI, 0]);
         let i = invers(&m);
         let p = ee::apply(&i, [ee::k(1500.0), ee::k(-750.0), ee::k(10.0), ONE]);
         assert!(p[..3].iter().all(|&v| ee::f(v).abs() < 1e-3), "{:?}", p.map(ee::f));

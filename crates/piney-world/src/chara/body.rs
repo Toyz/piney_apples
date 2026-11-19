@@ -447,7 +447,7 @@ impl Body {
 /// `ccCoord::SetMatrix_PosRotZYX(pos, dirc)` (main 0x001382f0): T(pos) Rx
 /// Ry Rz, `sceVu0RotMatrix` then `sceVu0TransMatrix`, to the bit.
 pub fn root(pos: V4, dirc: V4) -> Mat4 {
-    piney_data::vu0::to_mat4(&crate::town::pos_rot_zyx(pos, [dirc[0], dirc[1], dirc[2]]))
+    piney_data::vu0::to_mat4(&piney_data::vu0::pos_rot_zyx(pos, [dirc[0], dirc[1], dirc[2], 0]))
 }
 
 #[cfg(test)]

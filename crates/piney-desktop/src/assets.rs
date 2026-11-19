@@ -74,7 +74,7 @@ impl ModelInfo {
     /// The box's greatest corner when `ccModel::Draw` checks it: a rigid
     /// model with mmats (+0x22) seen above 1/128 (`ccObj::Draw` 0x0013f2b0).
     pub fn checked_max(&self, transparency: u32) -> Option<[u32; 4]> {
-        let seen = piney_data::field::ee::lt(0x3c00_0000, transparency);
+        let seen = piney_data::field::ee::lt(crate::anm::MIN_TRANSPARENCY.to_bits(), transparency);
         self.vertex_box.filter(|_| seen && !self.mmats.is_empty()).map(|b| b.max)
     }
 }

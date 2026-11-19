@@ -161,7 +161,7 @@ impl Needles {
             s = 0;
         }
         for r in &n.rots {
-            let mut m = geom::unit_matrix();
+            let mut m = geom::UNIT;
             m[0][0] = HALF;
             m[1][1] = HALF;
             m[2][2] = s;
@@ -194,14 +194,14 @@ pub fn leaf_explode(cx: &mut Cx, ex: &Explode) {
         draw_eff(cx, &mut e, at);
     }
     if let Some(obj) = cx.assets.find("xeffect", "OBJ_ex31exp1") {
-        let mut s = geom::unit_matrix();
+        let mut s = geom::UNIT;
         let k = ex.exp.scale;
         s[0][0] = k;
         s[1][1] = k;
         s[2][2] = k;
         // sceVu0MulMatrix(m, local, m): the place's matrix through the
         // scale.
-        let matrix = geom::mul_matrix(&geom::trans_matrix(&geom::unit_matrix(), ex.pos), &s);
+        let matrix = geom::mul_matrix(&geom::trans_matrix(&geom::UNIT, ex.pos), &s);
         cx.draws.push(DrawRec::Clump { obj, matrix, alpha: ex.exp.alpha, layer: CHAR_LAYER, clut: None, fog: true });
     }
 }

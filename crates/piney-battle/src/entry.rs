@@ -17,7 +17,10 @@ use crate::blocks::InfoRef;
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{self, Ai, Enemy, EntryParam, Frame};
 use crate::enemy_motion::{At, Call, Motion, MotionData, MotionWorld};
-use crate::geom::{self, F, V4, add, atan2f, deg2rad, div, from_int, le, lt, mul, rad2deg, set_dirc, sinf, sub};
+use crate::geom::{
+    self, F, M4, UNIT, V4, add, apply, atan2f, deg2rad, div, from_int, le, lt, mul, rad2deg, rot_matrix_x,
+    rot_matrix_y, rot_matrix_z, set_dirc, sinf, sub,
+};
 use crate::param::{Base, Elm};
 use crate::rand::Rng;
 use crate::scene::Scene;
@@ -1053,72 +1056,6 @@ pub fn routine(
     }
 }
 
-// VU0 macro routines (sceVu0*, main), in the FPU's rules ------------------------------
-
-type Mat = [V4; 4];
-
-const UNIT: Mat = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-
-/// `_sceVu0ecossin`'s polynomial (S5432, main 0x002f7520).
-const SIN: [F; 4] = [0x362e_9c14, 0xb94f_b21f, 0x3c08_873e, 0xbe2a_aaa4];
-
-/// `_sceVu0ecossin` (main 0x001109b8) as `sceVu0RotMatrixX/Y/Z` use it:
-/// (sin, cos), cos an odd polynomial in pi/2 - |angle|, sin +-sqrt(1 -
-/// cos^2).
-fn vu_cossin(angle: F) -> (F, F) {
-    let neg = lt(angle, 0);
-    let x = if neg { add(HALF_PI, angle) } else { sub(HALF_PI, angle) };
-    let x2 = mul(x, x);
-    let mut p = SIN.map(|k| mul(mul(k, x), x2));
-    for v in &mut p[..3] {
-        *v = mul(*v, x2);
-    }
-    let mut r = add(x, p[3]);
-    for v in &mut p[..2] {
-        *v = mul(*v, x2);
-    }
-    r = add(r, p[2]);
-    p[0] = mul(p[0], x2);
-    r = add(add(r, p[1]), p[0]);
-    let q = geom::sqrt(sub(ONE, mul(r, r)));
-    (if neg { sub(0, q) } else { add(0, q) }, r)
-}
-
-/// The rotation's columns times each column of `m`.
-fn vu_mul(cols: &Mat, m: &Mat) -> Mat {
-    m.map(|col| {
-        std::array::from_fn(|k| {
-            let acc = mul(cols[0][k], col[0]);
-            let acc = add(acc, mul(cols[1][k], col[1]));
-            let acc = add(acc, mul(cols[2][k], col[2]));
-            add(acc, mul(cols[3][k], col[3]))
-        })
-    })
-}
-
-/// `sceVu0RotMatrixX/Y/Z(out, m, angle)` for axis 0, 1, 2: the axis
-/// rotation times `m`.
-fn vu_rot(m: &Mat, axis: usize, angle: F) -> Mat {
-    let (s, c) = vu_cossin(angle);
-    let (cs, sn, ns) = (add(0, c), add(0, s), sub(0, s));
-    let rot = match axis {
-        0 => [[ONE, 0, 0, 0], [0, cs, sn, 0], [0, ns, cs, 0], [0, 0, 0, ONE]],
-        1 => [[cs, 0, ns, 0], [0, ONE, 0, 0], [sn, 0, cs, 0], [0, 0, 0, ONE]],
-        _ => [[cs, sn, 0, 0], [ns, cs, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]],
-    };
-    vu_mul(&rot, m)
-}
-
-/// `sceVu0ApplyMatrix(out, m, v)`: ((c0 x + c1 y) + c2 z) + c3 w.
-fn vu_apply(m: &Mat, v: V4) -> V4 {
-    std::array::from_fn(|k| {
-        let acc = mul(m[0][k], v[0]);
-        let acc = add(acc, mul(m[1][k], v[1]));
-        let acc = add(acc, mul(m[2][k], v[2]));
-        add(acc, mul(m[3][k], v[3]))
-    })
-}
-
 /// `DEG2RAD((short) ccRand())`: a random angle.
 fn rand_angle(cc: &mut dyn Rng) -> F {
     deg2rad(cc.rand() as i16)
@@ -1126,10 +1063,10 @@ fn rand_angle(cc: &mut dyn Rng) -> F {
 
 /// Unit, then X, Y and Z by random angles (the particles' way of turning
 /// at random).
-fn random_turn(cc: &mut dyn Rng) -> Mat {
-    let m = vu_rot(&UNIT, 0, rand_angle(cc));
-    let m = vu_rot(&m, 1, rand_angle(cc));
-    vu_rot(&m, 2, rand_angle(cc))
+fn random_turn(cc: &mut dyn Rng) -> M4 {
+    let m = rot_matrix_x(&UNIT, rand_angle(cc));
+    let m = rot_matrix_y(&m, rand_angle(cc));
+    rot_matrix_z(&m, rand_angle(cc))
 }
 
 /// `DEG2RAD((short)(RAD2DEG(r) + step))`.
@@ -1210,7 +1147,7 @@ impl McPart {
                 let m = random_turn(cc);
                 let r = crate::enemy_ai::rand_f(cc, geom::k(20.0));
                 let base = sub(geom::k(400.0), mul(geom::k(6.0), from_int(i32::from(self.mc_act_cnt))));
-                let v = vu_apply(&m, [add(base, r), 0, 0, ONE]);
+                let v = apply(&m, [add(base, r), 0, 0, ONE]);
                 at = geom::vadd(at, v);
                 self.eff.pos = at;
                 self.mat = m;
@@ -1218,7 +1155,7 @@ impl McPart {
             1 => {
                 self.rad_cnt = turn(self.rad_cnt, 838);
                 self.speed = mul(geom::k(6.0), sinf(self.rad_cnt));
-                let v = vu_apply(&self.mat, [self.speed, 0, 0, ONE]);
+                let v = apply(&self.mat, [self.speed, 0, 0, ONE]);
                 self.eff.pos = geom::vadd(self.eff.pos, v);
                 let z = mul(geom::k(6.0), sinf(deg2rad(i32::from(self.cnt).wrapping_mul(1383) as i16)));
                 self.eff.pos = geom::vadd(self.eff.pos, [0, 0, z, 0]);
@@ -1238,11 +1175,11 @@ impl McPart {
                 if lt(self.speed, NEG_PI) {
                     self.speed = add(self.speed, TWO_PI);
                 }
-                let m = vu_rot(&self.mat, 0, self.speed);
-                let m = vu_rot(&m, 1, self.speed);
-                let m = vu_rot(&m, 2, self.speed);
+                let m = rot_matrix_x(&self.mat, self.speed);
+                let m = rot_matrix_y(&m, self.speed);
+                let m = rot_matrix_z(&m, self.speed);
                 self.mat = m;
-                let v = vu_apply(&m, v);
+                let v = apply(&m, v);
                 self.eff.pos = geom::vadd(self.eff.pos, v);
                 shrink(&mut self.eff.scale_x, ONE, 0x3e8f_5c29);
                 shrink(&mut self.eff.scale_y, ONE, 0x3e8f_5c29);
@@ -1250,7 +1187,7 @@ impl McPart {
             3 => {
                 self.rad_cnt = turn(self.rad_cnt, 582);
                 self.speed = sub(self.speed, sinf(self.rad_cnt));
-                let v = vu_apply(&self.mat, [self.speed, 0, 0, 0]);
+                let v = apply(&self.mat, [self.speed, 0, 0, 0]);
                 self.eff.pos = geom::vadd(self.eff.pos, v);
                 self.eff.pos = geom::vadd(self.eff.pos, [0, 0, 0xc080_0000, 0]);
                 shrink(&mut self.eff.scale_x, geom::k(2.0), 0x3d75_c28f);
@@ -1260,7 +1197,7 @@ impl McPart {
                 self.rad_cnt = turn(self.rad_cnt, 758);
                 self.speed = mul(geom::k(8.0), sinf(self.rad_cnt));
                 let z = crate::enemy_ai::rand_f(cc, 0x3f99_999a);
-                let v = vu_apply(&self.mat, [self.speed, 0, z, ONE]);
+                let v = apply(&self.mat, [self.speed, 0, z, ONE]);
                 self.eff.pos = geom::vadd(self.eff.pos, v);
                 shrink(&mut self.eff.scale_x, ONE, 0x3cf5_c28f);
                 shrink(&mut self.eff.scale_y, ONE, 0x3cf5_c28f);
@@ -1287,7 +1224,7 @@ impl MagicCircle {
     /// `ccMagicCircle::setPart(kind, mat, num)` (gcmn 0x00455510): `num`
     /// particles of `kind` at `mat`, each in the first free one from
     /// `partTop`, else over `partTop` (which then moves on).
-    pub fn set_part(&mut self, kind: i32, mat: &Mat, num: i32) {
+    pub fn set_part(&mut self, kind: i32, mat: &M4, num: i32) {
         let act = self.obj.act_cnt as i16;
         let init = |p: &mut McPart| {
             p.status = kind;
@@ -1776,8 +1713,8 @@ impl EntryCtrl {
             if lt(a, NEG_PI) {
                 a = add(a, TWO_PI);
             }
-            let m = vu_rot(&UNIT, 2, a);
-            let mut v = vu_apply(&m, [geom::k(300.0), 0, 0, ONE]);
+            let m = rot_matrix_z(&UNIT, a);
+            let mut v = apply(&m, [geom::k(300.0), 0, 0, ONE]);
             v = geom::vadd(v, centre);
             if ep.land == -1 {
                 v[2] = cx.world.land(v, 0x2000_0002);

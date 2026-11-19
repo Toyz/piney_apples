@@ -18,7 +18,6 @@ use piney_desktop::assets::SceneFile;
 use super::haze::{sample, sampled};
 use super::{BuildCx, Carried, CarriedMut, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::chara::pose::Play;
-use crate::draw;
 use crate::ee::{self, F, ONE, V4};
 use crate::field::ambient::Env;
 use crate::town::{WaterZero, scroll_statics};
@@ -125,7 +124,7 @@ impl MapSystem for Lake {
             Hook::Again => {}
             _ => return,
         }
-        sample(&mut w.mirror, &w.eff, &w.play, draw::mat(&self.matrix), cx);
+        sample(&mut w.mirror, &w.eff, &w.play, piney_data::vu0::to_mat4(&self.matrix), cx);
     }
 
     /// The first and third on objLayer, the second on refLayer through the
@@ -137,7 +136,7 @@ impl MapSystem for Lake {
         Some(Request::Posed {
             file: &w.eff,
             play: &w.play,
-            root: draw::mat(&self.matrix),
+            root: piney_data::vu0::to_mat4(&self.matrix),
             layer: crate::field::area::ambient_layer(if k == 1 { 6 } else { 1 }),
             rows: Cow::Owned(self.rows(w)),
             alpha: 1.0,

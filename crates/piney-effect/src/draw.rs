@@ -4,6 +4,7 @@
 //! animated object at its pose and transparency) or a `ccEff` sprite
 //! ([`crate::sprite`]); what the first two draw is [`crate::nodes`].
 
+use piney_data::vu0::{self, M4};
 use piney_desktop::layers::Layers;
 use piney_world::chara::pose::Play;
 use piney_world::draw::{self as wdraw, Draw};
@@ -13,7 +14,6 @@ use crate::eff::Eff;
 use crate::files::{Assets, ObjRef};
 use crate::nodes;
 use crate::sprite::DrawEnv;
-use crate::vu::M4;
 
 /// The camera as the effects see it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -69,7 +69,7 @@ impl DrawRec {
                     let d = Draw {
                         file,
                         model: d.model,
-                        world: wdraw::mat(&d.world),
+                        world: vu0::to_mat4(&d.world),
                         alpha: ee::f(d.alpha),
                         rows: &rows,
                         lights: None,
@@ -94,7 +94,7 @@ impl DrawRec {
                     let d = Draw {
                         file,
                         model: d.model,
-                        world: wdraw::mat(&d.world),
+                        world: vu0::to_mat4(&d.world),
                         alpha: ee::f(d.alpha),
                         rows: &rows,
                         lights: None,

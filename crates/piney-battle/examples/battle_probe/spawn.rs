@@ -646,7 +646,7 @@ fn read_etc(t: &mut Toks) -> Etc {
         l.far_start = t.u32();
         l.far_end = t.u32();
         l.far_end2 = t.u32();
-        l.matrix = geom::unit_matrix();
+        l.matrix = geom::UNIT;
         l.matrix[3] = [t.u32(), t.u32(), t.u32(), geom::ONE];
     }
     if t.int() != 0 {

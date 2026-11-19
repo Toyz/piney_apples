@@ -12,6 +12,7 @@ use std::sync::Arc;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::save::offset;
+use piney_data::store::Table;
 use piney_desktop::SaveState;
 use piney_desktop::anm::Ctx;
 use piney_desktop::view::View;
@@ -33,7 +34,6 @@ use crate::ev_host::{self, EvHost, EvStream, HostWorld};
 use crate::field_host::{FieldState, MENU_LAYER, STATUS_WORLD};
 use crate::mode::{Event, Mode};
 use crate::world::Setup;
-use piney_data::store::Table;
 
 mod ride;
 
@@ -1159,7 +1159,7 @@ impl AreaMode {
                 let lights = |world| piney_stream::draw::lights(scene, world);
                 let to_screen = piney_stream::draw::to_screen(scene);
                 if let Some(p) = party.as_mut() {
-                    let dummy = |name: &str| scene.world_named(name).map(|m| piney_stream::scene::to_mat4(&m));
+                    let dummy = |name: &str| scene.world_named(name).map(|m| piney_data::vu0::to_mat4(&m));
                     p.draw(&mut ctx.layers, scene.default_layer, to_screen, &lights, &dummy);
                 }
                 let Some(e) = enemy.as_mut() else { return };

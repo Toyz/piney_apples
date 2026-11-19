@@ -6,8 +6,10 @@ use std::borrow::Cow;
 use std::rc::Rc;
 
 use glam::Mat4;
+use piney_data::light::{AnimLight, Light};
 use piney_data::statics::{self, DrawPass, ObjTable};
 use piney_data::volume::Volume;
+use piney_data::vu0::UNIT;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 
@@ -16,8 +18,7 @@ use super::{BuildCx, DrawCx, Fog, Hook, Kind, MapSystem, Others, Piece, PlaceCx,
 use crate::chara::pose::Play;
 use crate::draw;
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::UNIT;
-use crate::town::{AnimLight, Light, dummy_bits, pos_rot_zyx};
+use crate::town::dummy_bits;
 
 /// The layer each draw pass's rows go on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -275,15 +276,24 @@ pub struct Object {
     pub clip: F,
 }
 
+/// A light record of an object's animation and the light as the anm's
+/// last step left it.
+#[derive(Clone)]
+struct ObjectLight {
+    /// The object's index in [`StaticObjects::objects`].
+    object: usize,
+    record: AnimLight,
+    light: Light,
+}
+
 /// The `STATICOBJECT`s of a table over their file: those whose row names
-/// an animation; and the light records of their animations, by object,
-/// with each light as its anm's last step left it.
+/// an animation; and the light records of their animations.
 #[derive(Clone)]
 pub struct StaticObjects {
     def: &'static ObjectsDef,
     file: Rc<SceneFile>,
     objects: Vec<Object>,
-    lights: Vec<(usize, AnimLight, Light)>,
+    lights: Vec<ObjectLight>,
 }
 
 impl StaticObjects {
@@ -299,7 +309,7 @@ impl StaticObjects {
             let Some(name) = r.anime else { continue };
             let play = Play::new(file, name).ok_or_else(|| Error::NotFound(format!("{}: {name}", file.stem)))?;
             let (pos, rot) = dummy_bits(&r.position, c, sc);
-            let root = pos_rot_zyx(pos, rot);
+            let root = piney_data::vu0::pos_rot_zyx(pos, rot);
             objects.push(Object { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() });
         }
         // The constructor's `SetLightEnv(1)` before `SetAnm` (gcmn
@@ -307,9 +317,9 @@ impl StaticObjects {
         // group, the anm their parent, as `SetAnm` leaves them.
         let mut lights = Vec::new();
         for (k, o) in objects.iter().enumerate() {
-            for a in crate::town::anim_lights(file, o.play.anim)?.1 {
-                let l = a.at(o.play.posed, &o.root);
-                lights.push((k, a, l));
+            for record in crate::town::anim_lights(file, o.play.anim)?.1 {
+                let light = record.at(o.play.posed, &o.root);
+                lights.push(ObjectLight { object: k, record, light });
             }
         }
         Ok(StaticObjects { def, file: file.clone(), objects, lights })
@@ -357,8 +367,8 @@ impl StaticObjects {
             if ee::lt(d, o.clip) || ee::eq(o.clip, 0) {
                 o.play.forward(&self.file);
                 // `_AnimateForward`'s SetAnmCtrlWork moves its lights.
-                for (_, a, l) in self.lights.iter_mut().filter(|(j, ..)| *j == k) {
-                    *l = a.at(o.play.posed, &o.root);
+                for l in self.lights.iter_mut().filter(|l| l.object == k) {
+                    l.light = l.record.at(o.play.posed, &o.root);
                 }
                 out.push(o.row);
             }
@@ -368,13 +378,13 @@ impl StaticObjects {
 
     /// The lights the objects' anms hold in the group, in their order.
     pub fn lights(&self) -> impl Iterator<Item = Light> + '_ {
-        self.lights.iter().map(|(_, _, l)| *l)
+        self.lights.iter().map(|l| l.light)
     }
 
     /// An object as drawn on `layer` with `fog`.
     pub fn request(&self, row: usize, layer: i16, fog: draw::Fogging) -> Option<Request<'_>> {
         let o = self.objects.iter().find(|o| o.row == row)?;
-        let root = draw::mat(&o.root);
+        let root = piney_data::vu0::to_mat4(&o.root);
         Some(Request::Anim { file: &self.file, play: &o.play, root, layer, rows: None, fog, edit: None })
     }
 }
@@ -425,7 +435,7 @@ impl MapSystem for StaticObjects {
         for &k in self.def.ride {
             if let Some(o) = self.objects.get_mut(k) {
                 o.pos = [0, 0, z, 0];
-                o.root = pos_rot_zyx(o.pos, [0; 3]);
+                o.root = piney_data::vu0::pos_rot_zyx(o.pos, [0; 4]);
             }
         }
     }

@@ -259,8 +259,8 @@ fn f_obj_records_pose_the_body() {
     assert!(p.pos.x.abs() < 1e-4 && p.pos.y.abs() < 1e-4 && p.pos.z == 7.75, "{:?}", p.pos);
     assert!((p.scale - glam::Vec3::ONE).abs().max_element() < 1e-5, "{:?}", p.scale);
     assert_eq!(p.alpha, 1.0);
-    let rad = anim::const_radians([0f32.to_bits(), 15f32.to_bits(), (-15f32).to_bits()]);
-    let m = anim::rot_bits(rad);
+    let [x, y, z] = anim::const_radians([0f32.to_bits(), 15f32.to_bits(), (-15f32).to_bits()]);
+    let m = piney_data::vu0::rot_matrix(&piney_data::vu0::UNIT, [x, y, z, 0]);
     let want = Mat3::from_cols_array(&[
         f32::from_bits(m[0][0]),
         f32::from_bits(m[0][1]),

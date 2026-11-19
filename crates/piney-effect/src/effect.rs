@@ -7,6 +7,7 @@
 //! either pass has one here, and an id with none only draws and ages. The
 //! rules are in docs/engine/effects.md ("ccEffect").
 
+use piney_data::vu0;
 use piney_world::chara::pose::Play;
 
 use crate::draw::DrawRec;
@@ -15,7 +16,7 @@ use crate::eff::Eff;
 use crate::files::{Kind, ObjRef};
 use crate::{
     CharRef, Cx, VecRef, ability, arrival, convergence, debris, drain, fall, gimmick, heal, hit, levelup, shockwave,
-    skillstart, space, summons, thunder, tornado, upheaval, vu,
+    skillstart, space, summons, thunder, tornado, upheaval,
 };
 
 /// `effWork`: the slots.
@@ -45,7 +46,7 @@ pub enum Obj {
     Anm {
         obj: ObjRef,
         play: Play,
-        matrix: vu::M4,
+        matrix: vu0::M4,
     },
     /// A `ccEff`.
     Eff(Box<Eff>),
@@ -309,7 +310,7 @@ impl EffectCtrl {
                     Some(anim) => Obj::Anm {
                         obj: o,
                         play: Play { anim, time: 0, posed: 0, frame_spd: 256, hidden: Vec::new() },
-                        matrix: vu::UNIT,
+                        matrix: vu0::UNIT,
                     },
                     None => Obj::None,
                 }
@@ -410,13 +411,13 @@ impl EffectCtrl {
         let layer = e.layer.unwrap_or(active);
         let matrix = |e: &Effect| {
             if e.zyx_flag {
-                vu::pos_rot_zyx_scale(e.pos, e.rot, e.scale)
+                vu0::pos_rot_zyx_scale(e.pos, e.rot, e.scale)
             } else {
-                vu::pos_rot_xyz_scale(e.pos, e.rot, e.scale)
+                vu0::pos_rot_xyz_scale(e.pos, e.rot, e.scale)
             }
         };
         if !e.pause_sw && matches!(e.obj, Obj::Anm { .. }) {
-            let m = vu::pos_rot_zyx_scale(e.pos, e.rot, e.scale);
+            let m = vu0::pos_rot_zyx_scale(e.pos, e.rot, e.scale);
             let mut ended = false;
             if let Obj::Anm { obj, play, matrix } = &mut e.obj {
                 *matrix = m;
@@ -471,9 +472,9 @@ impl EffectCtrl {
         let layer = e.layer.unwrap_or(EFFECT_LAYER);
         let matrix = |pos: V4, e: &Effect| {
             if e.zyx_flag {
-                vu::pos_rot_zyx_scale(pos, e.rot, e.scale)
+                vu0::pos_rot_zyx_scale(pos, e.rot, e.scale)
             } else {
-                vu::pos_rot_xyz_scale(pos, e.rot, e.scale)
+                vu0::pos_rot_xyz_scale(pos, e.rot, e.scale)
             }
         };
         if !e.pause_sw && matches!(e.obj, Obj::Anm { .. }) {

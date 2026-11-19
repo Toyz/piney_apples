@@ -271,11 +271,11 @@ fn change_action(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx, act: i16, forbid:
 /// the Dead): `off` turned by `d` (Rz(-pi/2), Rx, Ry, Rz) from `vp`, and
 /// camera 3 there looking at `vp`.
 fn focus_camera(cx: &mut Cx, vp: V4, d: V4, off: V4) {
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+    let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
     let m = geom::rot_matrix_x(&m, d[0]);
     let m = geom::rot_matrix_y(&m, d[1]);
     let m = geom::rot_matrix_z(&m, d[2]);
-    let v = geom::apply_matrix(&m, off);
+    let v = geom::apply(&m, off);
     let eye = super::p2w(cx, geom::vadd(super::w2p(cx, vp), v));
     cx.cams().change(CamId::Event);
     cx.cams().cam_mut(CamId::Event).pos = eye;
@@ -1148,11 +1148,11 @@ fn on_dead(b: &mut BossBase, x: &mut G<'_>, cx: &mut Cx) {
     let quarter = 0x3fc9_0fdb;
     let sides = [ee::add(quarter, b.center_dirc), ee::sub(b.center_dirc, quarter)];
     for (k, d) in sides.into_iter().map(brother::wrap_pi).enumerate() {
-        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), quarter), d);
-        let off = geom::apply_matrix(&m, [BROTHER_OFFSET, 0, 0, ONE]);
+        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, quarter), d);
+        let off = geom::apply(&m, [BROTHER_OFFSET, 0, 0, ONE]);
         let p = &mut x.brothers[k];
         let master = cx.scene.chars[p.x.master_me].pos;
-        cx.scene.chars[p.me].pos = geom::apply_matrix(&geom::trans_matrix(&geom::unit_matrix(), master), off);
+        cx.scene.chars[p.me].pos = geom::apply(&geom::trans_matrix(&geom::UNIT, master), off);
         p.x.offset = off;
     }
     let mut vp = cx.pos();

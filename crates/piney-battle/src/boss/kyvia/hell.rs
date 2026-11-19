@@ -121,9 +121,9 @@ impl Hell {
         let leg = |cc: &mut dyn Rng| {
             let r = rand_f(cc, 0x3f00_0000);
             let turn = wrap(ee::add(rot[2], ee::add(PI, r)));
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
+            let m = geom::rot_matrix_z(&geom::UNIT, turn);
             let m = geom::rot_matrix_x(&m, rand_f(cc, 0x3e4c_cccd));
-            geom::apply_matrix(&m, [0, ee::mul(0x4448_0000, k), 0, ONE])
+            geom::apply(&m, [0, ee::mul(0x4448_0000, k), 0, ONE])
         };
         let mut v = leg(cc);
         v[2] = ee::add(v[2], 0x4348_0000);
@@ -140,9 +140,9 @@ impl Hell {
         let mut v = leg(cc);
         v[2] = ee::sub(v[2], 0x4348_0000);
         h.spoint[0] = geom::vadd(h.spoint[1], v);
-        let m = geom::rot_matrix_z(&geom::unit_matrix(), rot[2]);
+        let m = geom::rot_matrix_z(&geom::UNIT, rot[2]);
         let z = ee::add(0x42c8_0000, ee::mul(0x4396_0000, ee::sub(ONE, k)));
-        let v = geom::apply_matrix(&m, [0, 0x44c8_0000, z, ONE]);
+        let v = geom::apply(&m, [0, 0x44c8_0000, z, ONE]);
         h.target_cam_pos = geom::vadd(h.spoint[3], v);
         h.act_proccess = [1; 5];
         h.end_count = 70;

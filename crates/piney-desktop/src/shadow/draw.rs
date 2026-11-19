@@ -197,6 +197,9 @@ pub enum Seen {
     Partly,
 }
 
+/// The MAC flag's x, y and w sign bits; the clip sides' sit four above.
+const XYW: u16 = 0xd0;
+
 /// `mc0_CheckBoundingBoxShadow` (VU0 0x000) through `_ccCheckBoundingBoxEx`
 /// (0x0013e9e0): 16 corners through `m`. The first eight are the box's;
 /// the program's `add.w` sets only w, so the other eight are built from the
@@ -216,7 +219,7 @@ fn check_box(m: &M4, bounds: Bounds, [lo, hi]: [V4; 2], reach: V4, vf21: &mut Vf
         let s = |k: usize| u16::from(sign(ee::sub(a[k], b[k])));
         s(0) << 7 | s(1) << 6 | s(2) << 4
     };
-    let (mut inside, mut seen) = (0xd0u16, 0u16);
+    let (mut inside, mut seen) = (XYW, 0u16);
     for k in 0..16 {
         let c = if k < 8 { corner(k, lo, hi) } else { corner(k - 8, reach, stale) };
         let v = vu0::apply(m, c);
@@ -228,8 +231,8 @@ fn check_box(m: &M4, bounds: Bounds, [lo, hi]: [V4; 2], reach: V4, vf21: &mut Vf
         *vf21 = Vf21::Known(v);
     }
     match (seen, inside) {
-        (s, _) if s != 0xdd0 => Seen::Culled,
-        (_, 0xd0) => Seen::Inside,
+        (s, _) if s != XYW | XYW << 4 => Seen::Culled,
+        (_, XYW) => Seen::Inside,
         _ => Seen::Partly,
     }
 }
@@ -238,7 +241,6 @@ fn check_box(m: &M4, bounds: Bounds, [lo, hi]: [V4; 2], reach: V4, vf21: &mut Vf
 /// it. `alpha` is `alphaBlendTbl`; `vf21` VU0's, as the object's
 /// `ccObj::Draw` left it ([`Prelude`]).
 pub fn draw(mesh: &ShadowMesh, view: &ShadowView, p: &Params, alpha: &[u64], vf21: &mut Vf21) -> Option<Setup> {
-    let diag = |s: F| [[s, 0, 0, 0], [0, s, 0, 0], [0, 0, s, 0], [0, 0, 0, ONE]];
     let lw = &p.local_world;
     // sceVu0InversMatrix less its translation: the light in the model's
     // axes, then (over the scale) the stretch, w 0.
@@ -248,7 +250,7 @@ pub fn draw(mesh: &ShadowMesh, view: &ShadowView, p: &Params, alpha: &[u64], vf2
     let stretch = match p.mode {
         Mode::Flat => [0; 4],
         Mode::Count | Mode::Colours => {
-            let e = vu0::apply(&vu0::mul_matrix(&r, &diag(ee::div(ONE, p.scale))), p.light);
+            let e = vu0::apply(&vu0::mul_matrix(&r, &vu0::scale_matrix([ee::div(ONE, p.scale); 3])), p.light);
             let [x, y, z, _] = vu0::vscale(e, p.length);
             [x, y, z, 0]
         }
@@ -262,14 +264,14 @@ pub fn draw(mesh: &ShadowMesh, view: &ShadowView, p: &Params, alpha: &[u64], vf2
     // the buffer, (4096 - w) / 2 over.
     let c = view.clip;
     let (w, h) = (ee::from_int(1 << p.tw), ee::from_int(1 << p.th));
-    let mut to_corner = diag(ONE);
+    let mut to_corner = vu0::UNIT;
     to_corner[3] = [c[0] ^ 0x8000_0000, c[1] ^ 0x8000_0000, 0, ONE];
-    let mut to_buffer = diag(ONE);
+    let mut to_buffer = vu0::UNIT;
     to_buffer[0][0] = ee::div(w, ee::sub(c[2], c[0]));
     to_buffer[1][1] = ee::div(h, ee::sub(c[3], c[1]));
     to_buffer[3] = [ee::div(ee::sub(F4096, w), TWO), ee::div(ee::sub(F4096, h), TWO), 0, ONE];
     let b = vu0::mul_matrix(&to_buffer, &to_corner);
-    let m = vu0::mul_matrix(&b, &vu0::mul_matrix(&screen, &diag(p.scale)));
+    let m = vu0::mul_matrix(&b, &vu0::mul_matrix(&screen, &vu0::scale_matrix([p.scale; 3])));
     let near_w = if ee::lt(view.near, F8) { F8 } else { view.near };
     let near = vu0::apply(&vu0::mul_matrix(&b, &view.view_screen), [0, 0, near_w, ONE]);
     let lo = |s: F| ee::mul(HALF, ee::sub(F4096, s));

@@ -134,7 +134,7 @@ fn dress(d: &DungeonArea) -> String {
                 list(&p2),
                 r.pat2,
                 list(&match l.kind {
-                    piney_world::town::LightKind::Omni { pos, .. } => [pos[0], pos[1], pos[2]],
+                    piney_data::light::Kind::Omni { pos, .. } => [pos[0], pos[1], pos[2]],
                     _ => [0; 3],
                 }),
                 list(&l.colour[..3]),
@@ -291,7 +291,7 @@ fn main() {
                             fog.near.to_bits(),
                             fog.far.to_bits(),
                             fog.max.to_bits(),
-                            list(&piney_world::dungeon::ambient_bits(fog)),
+                            list(&fog.ambient_bits()),
                             list(&a.position),
                             floors.join(", "),
                             hit_list(&a),
@@ -619,7 +619,7 @@ fn main() {
             "evlight" => {
                 let a = d.as_ref().unwrap();
                 let words = a.core.lights.lights.iter().skip(1).find_map(|l| match l.kind {
-                    piney_world::town::LightKind::Direct { matrix, far, radius } => {
+                    piney_data::light::Kind::Direct { matrix, far, radius } => {
                         let mut v: Vec<u32> = matrix.as_flattened().to_vec();
                         v.extend(&l.colour[..3]);
                         v.extend([l.intensity, far.start, far.end, radius.start, radius.end, radius.end2]);

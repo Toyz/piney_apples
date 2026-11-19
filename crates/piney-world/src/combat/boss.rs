@@ -804,7 +804,7 @@ impl Combat {
                         let alpha = |a: Option<F>| ee::f(a.unwrap_or(b.base.set_transparency));
                         let root = |at: &boss::Root| match *at {
                             boss::Root::At { pos, dirc } => Some(crate::chara::body::root(pos, dirc)),
-                            boss::Root::Matrix(m) => Some(mat4(&m)),
+                            boss::Root::Matrix(m) => Some(piney_data::vu0::to_mat4(&m)),
                             boss::Root::Node(name) => node(name),
                         };
                         let shown = match p {
@@ -1215,11 +1215,6 @@ fn node_world(body: &Body, play: &crate::chara::pose::Play, pos: V4, dirc: V4, n
 fn rows(m: glam::Mat4) -> piney_battle::geom::M4 {
     let row = |v: glam::Vec4| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), v.w.to_bits()];
     [row(m.x_axis), row(m.y_axis), row(m.z_axis), row(m.w_axis)]
-}
-
-/// An EE matrix (its rows) as glam's.
-fn mat4(m: &piney_battle::geom::M4) -> glam::Mat4 {
-    glam::Mat4::from_cols_array_2d(&m.map(|r| r.map(f32::from_bits)))
 }
 
 /// The entries of `play` whose objects `names` are: what a draw hides.

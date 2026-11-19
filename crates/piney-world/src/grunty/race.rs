@@ -717,8 +717,8 @@ pub fn before_camera_at(rot: V4, eye: V4, dist: F, height: F) -> (V4, V4) {
     r[1] = 0;
     r[3] = ONE;
     // sceVu0RotMatrix: about z, then y, then x.
-    let m = crate::camera::evcam::rot_x(
-        &crate::camera::evcam::rot_y(&crate::camera::evcam::rot_z(&crate::camera::evcam::UNIT, r[2]), r[1]),
+    let m = piney_data::vu0::rot_matrix_x(
+        &piney_data::vu0::rot_matrix_y(&piney_data::vu0::rot_matrix_z(&piney_data::vu0::UNIT, r[2]), r[1]),
         r[0],
     );
     let v = ee::apply(&m, [0, dist, 0, ONE]);

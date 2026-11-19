@@ -85,7 +85,7 @@ impl Combat {
                     let Some(node) = self.breaths.map.get(&(who, slot)).map(|b| b.info.node.clone()) else {
                         continue;
                     };
-                    let mut m = self.node_world(who, &node).unwrap_or_else(piney_battle::geom::unit_matrix);
+                    let mut m = self.node_world(who, &node).unwrap_or(piney_battle::geom::UNIT);
                     if let Some(b) = self.breaths.map.get_mut(&(who, slot)) {
                         b.set(&param, disp, transparency, act_cnt, &mut m);
                     }

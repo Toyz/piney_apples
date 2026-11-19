@@ -692,8 +692,8 @@ pub(super) fn together_char_pos(cx: &mut Cx, pos: &mut V4, ex: i32) {
             _ => 0,
         };
         pos[2] = cx.scene.chars[m].pos[2];
-        let rm = geom::rot_matrix_z(&geom::unit_matrix(), r);
-        let off = geom::apply_matrix(&rm, [0, y, 0, ONE]);
+        let rm = geom::rot_matrix_z(&geom::UNIT, r);
+        let off = geom::apply(&rm, [0, y, 0, ONE]);
         cx.scene.chars[m].pos = add(off, *pos);
     }
 }
@@ -933,8 +933,8 @@ pub(super) fn skill_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut 
 /// the stack's word there, the last `Think` callee's (docs), 0.
 pub(super) fn core_eye(cx: &Cx, r: F, core: V4) -> V4 {
     let _ = cx;
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), r);
-    add(geom::apply_matrix(&m, [0, 0xc58c_a000, 0x4448_0000, 0]), core)
+    let m = geom::rot_matrix_z(&geom::UNIT, r);
+    add(geom::apply(&m, [0, 0xc58c_a000, 0x4448_0000, 0]), core)
 }
 
 /// `MagicBallAtk` of the fourth fight, act 20 (QUA gcmn 0x003e3c60):

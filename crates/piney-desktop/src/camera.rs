@@ -5,23 +5,17 @@
 //! the matrices are the game's bit for bit. View space is +x right, +y down,
 //! +z forward; the projection is in docs/engine/desktop.md ("The 3D draw").
 
-use glam::Mat4;
-use piney_data::anim::{const_radians, ee, rot_x_bits_of, rot_y_bits_of, rot_z_bits_of, vu_mul};
+use piney_data::anim::const_radians;
+use piney_data::field::ee;
 use piney_data::libm::{neg, tanf};
+use piney_data::vu0::{M4, ONE, UNIT, invers, mul_matrix, rot_matrix_x, rot_matrix_y, rot_matrix_z, trans_matrix};
 
 use crate::view::{Frame, SCREEN_H, SCREEN_W};
 
-/// A matrix as VU0 stores it: four columns of float bits.
-pub type M4 = [[u32; 4]; 4];
-
-const ONE: u32 = 0x3f80_0000;
 const TWO: u32 = 0x4000_0000;
 const PI: u32 = 0x4049_0fdb;
 /// `SetView`'s degrees-to-radians factor (0x3c8efa35).
 const DEG: u32 = 0x3c8e_fa35;
-
-/// `sceVu0UnitMatrix`.
-pub const UNIT: M4 = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
 
 /// `ccCam::Init`'s field of view, 45 degrees.
 pub const DEFAULT_FOV: u32 = 0x4234_0000;
@@ -72,26 +66,11 @@ impl Camera {
 /// call, turned about x, y, then z (`sceVu0RotMatrixX/Y/Z`, libvu0's
 /// sine), moved to `pos` (`sceVu0TransMatrix`), then `sceVu0InversMatrix`.
 fn pos_rot_matrix(pos: [u32; 3], rot: [u32; 3], m: Option<&M4>) -> M4 {
-    let turned = rot_x_bits_of(UNIT, PI);
-    let turned = m.map_or(turned, |m| vu_mul(&turned, m));
-    let mut c = rot_z_bits_of(rot_y_bits_of(rot_x_bits_of(turned, rot[0]), rot[1]), rot[2]);
-    for (k, p) in pos.iter().enumerate() {
-        c[3][k] = ee::add(c[3][k], *p);
-    }
-    invert(&c)
-}
-
-/// `sceVu0InversMatrix` (0x001107b0) of a rotation and translation: the
-/// transposed 3x3, and the translation taken back through it,
-/// `0 - ((r0 tx + r1 ty) + r2 tz)`.
-fn invert(m: &M4) -> M4 {
-    let t = m[3];
-    let rows: [[u32; 4]; 3] = std::array::from_fn(|i| [m[0][i], m[1][i], m[2][i], 0]);
-    let back: [u32; 3] = std::array::from_fn(|k| {
-        let acc = ee::add(ee::mul(rows[0][k], t[0]), ee::mul(rows[1][k], t[1]));
-        ee::sub(0, ee::add(acc, ee::mul(rows[2][k], t[2])))
-    });
-    [rows[0], rows[1], rows[2], [back[0], back[1], back[2], t[3]]]
+    let turned = rot_matrix_x(&UNIT, PI);
+    let turned = m.map_or(turned, |m| mul_matrix(&turned, m));
+    let ([x, y, z], [rx, ry, rz]) = (pos, rot);
+    let c = rot_matrix_z(&rot_matrix_y(&rot_matrix_x(&turned, rx), ry), rz);
+    invers(&trans_matrix(&c, [x, y, z, 0]))
 }
 
 /// The view parameters `world_screen` is built from.
@@ -152,18 +131,13 @@ pub fn view_screen(fov: u32, p: &Projection) -> M4 {
     let cz = ee::div(ee::add(ee::mul(neg(zmax), near), ee::mul(zmin, far)), depth);
     let scale = [[ax, 0, 0, 0], [0, ay, 0, 0], [0, 0, az, 0], [cx, cy, cz, ONE]];
     let distance = [[scrz, 0, 0, 0], [0, scrz, 0, 0], [0, 0, 0, ONE], [0, 0, ONE, 0]];
-    vu_mul(&scale, &distance)
+    mul_matrix(&scale, &distance)
 }
 
 /// `world_screen` for `cam` through `p`: `SetView`'s `sceVu0MulMatrix` of
 /// the view screen and the camera's matrix.
 pub fn world_screen(cam: &Camera, p: &Projection) -> M4 {
-    vu_mul(&view_screen(cam.fov, p), &cam.matrix)
-}
-
-/// A VU0 matrix as glam's, for the draw.
-pub fn to_mat4(m: &M4) -> Mat4 {
-    Mat4::from_cols_array_2d(&m.map(|c| c.map(f32::from_bits)))
+    mul_matrix(&view_screen(cam.fov, p), &cam.matrix)
 }
 
 #[cfg(test)]
@@ -177,7 +151,7 @@ mod tests {
     #[test]
     fn desktop_camera_lands_where_the_game_puts_it() {
         let cam = Camera::pos_rot_xyz([0, 0, 292_609.3f32.to_bits()], [0; 3], 9.999_999f32.to_bits());
-        let m = to_mat4(&world_screen(&cam, &default_projection()));
+        let m = piney_data::vu0::to_mat4(&world_screen(&cam, &default_projection()));
         let px = |p: glam::Vec3| {
             let q = m * p.extend(1.0);
             ((q.x / q.w) - 1792.0, (q.y / q.w) - 1824.0)

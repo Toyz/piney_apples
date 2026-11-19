@@ -120,7 +120,7 @@ impl piney_battle::boss::Field for Body {
         names: &[&str],
         out: &mut [Option<(V4, piney_battle::geom::M4)>],
     ) -> bool {
-        let one = piney_battle::geom::unit_matrix();
+        let one = piney_battle::geom::UNIT;
         for (o, name) in out.iter_mut().zip(names) {
             *o = match magus::SHOCK_OBJS.iter().position(|n| n == name) {
                 Some(k) => Some((self.shock_pos[k], one)),

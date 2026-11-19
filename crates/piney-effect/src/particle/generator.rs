@@ -9,8 +9,8 @@
 use super::tables::{FfParam, GenParam};
 use super::{GenRef, IntRef, Particles, Step, normal2angle, one};
 use crate::ee::{self, F, ONE, V4, VF0};
-use crate::vu::{self, M4};
 use crate::{Host, VecRef};
+use piney_data::vu0::{self, M4};
 
 /// A `ccParticleGenerator`.
 #[derive(Clone, Debug, PartialEq)]
@@ -173,7 +173,7 @@ impl Particles {
                 g.pos2 = ee::vadd(g.offset2, p);
                 g.pos2[3] = ONE;
             }
-            g.mat = vu::rot_zyx(&vu::UNIT, g.rot);
+            g.mat = vu0::rot_matrix(&vu0::UNIT, g.rot);
             if g.pause {
                 return;
             }
@@ -314,7 +314,7 @@ impl Particles {
             5 => {
                 let line = ee::vsub(g.pos2, g.pos);
                 let an = normal2angle(ee::normalize(line));
-                let m = vu::rot_z(&vu::rot_x(&vu::UNIT, an[0]), an[2]);
+                let m = vu0::rot_matrix_z(&vu0::rot_matrix_x(&vu0::UNIT, an[0]), an[2]);
                 let pct = ee::to_int(ee::mul(param.g_radius_rr, ee::from_int(r % 101)));
                 let radius = ee::sub(param.g_radius, ee::div(ee::mul(param.g_radius, ee::from_int(pct)), HUNDRED));
                 let b = ang((r << 8) & 0xff00);

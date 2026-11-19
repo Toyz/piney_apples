@@ -90,8 +90,8 @@ impl Grow {
             s.rot = VF0;
             s.rot[0] = rand_f(cx.cc, PI);
             s.rot[2] = rand_f(cx.cc, PI);
-            let m = geom::rot_matrix(&geom::unit_matrix(), s.rot);
-            let v = geom::apply_matrix(&m, [self.radius, 0, 0, ONE]);
+            let m = geom::rot_matrix(&geom::UNIT, s.rot);
+            let v = geom::apply(&m, [self.radius, 0, 0, ONE]);
             s.pos = geom::vadd(self.center, v);
             s.frame = 0;
             s.turn = rand_f(cx.cc, PI);
@@ -202,8 +202,8 @@ impl Tera {
     /// `ccBossEffTeraLaser(pos, rot, scale, target, cb)` (0x00378900).
     /// `keys` names its two generators.
     pub fn new(cx: &mut Cx, pos: V4, rot: V4, scale: V4, target: V4, keys: [u32; 2]) -> Tera {
-        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), rot[2]);
-        let o = geom::apply_matrix(&m, [0x4348_0000, 0, 0, ONE]);
+        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI), rot[2]);
+        let o = geom::apply(&m, [0x4348_0000, 0, 0, ONE]);
         let at = p2w(cx, geom::vadd(w2p(cx, pos), o));
         let charge = Charge::new(cx, at, keys[0]);
         Tera {
@@ -414,9 +414,9 @@ impl Refrect {
                 }
                 let mut v = VF0;
                 v[0] = rand_f(cx.cc, 0x42c8_0000);
-                let m = geom::rot_matrix_y(&geom::unit_matrix(), rand_f(cx.cc, PI));
+                let m = geom::rot_matrix_y(&geom::UNIT, rand_f(cx.cc, PI));
                 let m = geom::rot_matrix_z(&m, rand_f(cx.cc, PI));
-                let v = geom::apply_matrix(&m, v);
+                let v = geom::apply(&m, v);
                 let p = p2w(cx, geom::vadd(w2p(cx, self.segs[k].pos), v));
                 burst(cx, p, 0x3fc0_0000, -1, None);
                 cx.out(Out::Se { se: 35 });
@@ -441,10 +441,10 @@ impl Refrect {
         let head = w2p(cx, self.segs[0].pos);
         let tgt = w2p(cx, self.pts[self.idx]);
         let y = piney_data::libm::atan2f(ee::sub(head[2], tgt[2]), dist(cx, head, tgt));
-        let m = geom::rot_matrix_y(&geom::unit_matrix(), y);
+        let m = geom::rot_matrix_y(&geom::UNIT, y);
         let m = geom::rot_matrix_z(&m, get_dirc(head, tgt));
         let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-        let v = geom::apply_matrix(&m, [self.speed, 0, 0, ONE]);
+        let v = geom::apply(&m, [self.speed, 0, 0, ONE]);
         if !self.segs[0].done {
             self.segs[0].pos = p2w(cx, geom::vadd(head, v));
         }

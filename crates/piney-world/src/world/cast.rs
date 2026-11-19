@@ -129,7 +129,7 @@ pub trait Cast: Any {
     fn entry_slot(&mut self, _w: &mut World, _fades: &mut dyn RaceHost) {}
     /// Its lights in the characters' light group (`ccLight`s it holds:
     /// a town's Chaos Gate's), after the map's.
-    fn lights(&self, _out: &mut Vec<crate::town::Light>) {}
+    fn lights(&self, _out: &mut Vec<piney_data::light::Light>) {}
     /// What the ride's slot (49) reads of the cast's tasks as they last
     /// left them: a town's Flag Race's handling and whether it is over
     /// (0x005ff760).

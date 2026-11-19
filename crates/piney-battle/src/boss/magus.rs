@@ -682,7 +682,7 @@ pub fn shock_beam(a: V4, leaf: &geom::M4, dirc: V4) -> V4 {
     down[2] = ee::sub(down[2], 0x44fa_0000);
     let d = geom::vsub(down, a);
     let m = geom::rot_matrix(leaf, dirc);
-    geom::vadd(geom::apply_matrix(&m, d), a)
+    geom::vadd(geom::apply(&m, d), a)
 }
 
 /// `ccBossEffNeedle` (MUT gcmn 0x00481180, `Draw` 0x004814d0): its
@@ -1183,11 +1183,11 @@ fn on_cast(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             b.erase_cmnd_target(cx);
             cx.cursor(true);
             let view = [b.target_pos[0], b.target_pos[1], 0x4348_0000, b.target_pos[3]];
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+            let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
             let m = geom::rot_matrix_x(&m, 0);
             let m = geom::rot_matrix_y(&m, 0);
             let m = geom::rot_matrix_z(&m, b.target_dirc);
-            let v = geom::apply_matrix(&m, [0x447a_0000, 0, 0, ONE]);
+            let v = geom::apply(&m, [0x447a_0000, 0, 0, ONE]);
             let p = geom::vadd(v, super::w2p(cx, view));
             let eye = super::p2w(cx, p);
             cx.cams().change(CamId::Event);
@@ -1227,10 +1227,10 @@ fn on_cast(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
 /// boss skill 11 there two frames on.
 fn on_needle(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     let me = cx.me;
-    let m = geom::trans_matrix(&geom::unit_matrix(), [0, 0xc3e8_8000, 0x4348_0000, ONE]);
+    let m = geom::trans_matrix(&geom::UNIT, [0, 0xc3e8_8000, 0x4348_0000, ONE]);
     let m = geom::rot_matrix_z(&m, b.dirc[2]);
     let m = geom::trans_matrix(&m, cx.scene.chars[me].pos_p);
-    let p = geom::apply_matrix(&m, [0, 0, 0, ONE]);
+    let p = geom::apply(&m, [0, 0, 0, ONE]);
     let at = super::p2w(cx, p);
     match b.act_proccess {
         0 => {
@@ -1976,19 +1976,19 @@ fn calc_camera(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         act::RISE => {
             let f = wrap_hi(ee::add(0x40b8_4e89, b.dirc[2]));
             let neg = [pos[0] ^ 0x8000_0000, pos[1] ^ 0x8000_0000, pos[2] ^ 0x8000_0000, ONE];
-            let m = geom::trans_matrix(&geom::unit_matrix(), neg);
+            let m = geom::trans_matrix(&geom::UNIT, neg);
             let m = geom::rot_matrix_y(&m, 0x3e86_0a92);
             let m = geom::rot_matrix_z(&m, f);
             let m = geom::trans_matrix(&m, pos);
             let e = [ee::add(pos[0], ONE), ee::add(pos[1], ONE), ee::add(pos[2], 0x44bb_8000), pos[3]];
-            let eye = geom::apply_matrix(&m, e);
+            let eye = geom::apply(&m, e);
             cx.cams().cam_mut(CamId::Event).pos = eye;
             cx.cams().cam_mut(CamId::Event).view = pos;
         }
         act::FALL => {
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+            let m = geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI);
             let m = geom::rot_matrix_z(&m, b.target_dirc);
-            let v = geom::apply_matrix(&m, [0x44fa_0000, 0, 0, ONE]);
+            let v = geom::apply(&m, [0x44fa_0000, 0, 0, ONE]);
             let mut eye = geom::vadd(pos, v);
             eye[2] = 0x42c8_0000;
             cx.cams().cam_mut(CamId::Event).pos = eye;
@@ -2049,9 +2049,9 @@ fn calc_camera(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
 
 /// The laser's eye: 1000 behind Magus's heading, a tenth aside, 50 up.
 fn laser_eye(b: &BossBase, cx: &mut Cx, pos: V4) {
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), b.dirc[2]);
+    let m = geom::rot_matrix_z(&geom::UNIT, b.dirc[2]);
     let e = [ee::add(pos[0], 0x3dcc_cccd), ee::sub(pos[1], 0x447a_0000), 0x4248_0000, pos[3]];
-    let v = geom::apply_matrix(&m, geom::vsub(e, pos));
+    let v = geom::apply(&m, geom::vsub(e, pos));
     let eye = geom::vadd(v, pos);
     cx.cams().cam_mut(CamId::Event).pos = eye;
 }

@@ -7,6 +7,7 @@
 //! ("UpheavalSystem").
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::drawelm::{self, AnmObj, DrawElm, PI, TWO_PI};
 use crate::ee::{self, F, ONE, V4, VF0};
@@ -16,7 +17,7 @@ use crate::fall::damage2_of;
 use crate::files::ObjRef;
 use crate::particle::{FfParam, GenParam, GenRef};
 use crate::spell::{attr, camera_shake, check_camera_shake_range, first, noise, strings};
-use crate::{Cx, Event, debris, pfx, ring, space, thunder, tornado, vu};
+use crate::{Cx, Event, debris, pfx, ring, space, thunder, tornado};
 
 /// The pillars.
 pub const PILLAR_FIRST: i16 = 29;
@@ -223,7 +224,7 @@ pub fn pillar_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
     } else {
         e.offset[3] = ee::add(e.offset[3], e.speed[0]);
     }
-    let m = vu::rot_zyx(&vu::UNIT, e.rot);
+    let m = vu0::rot_matrix(&vu0::UNIT, e.rot);
     let v = ee::apply(&m, [0, 0, e.offset[3], ONE]);
     e.pos = ee::vadd(e.offset, v);
     e.pos[3] = ONE;
@@ -250,8 +251,8 @@ pub fn pillar_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
 fn upward(cx: &mut Cx, r: V4) -> (i32, V4) {
     let rn = cx.host.rand() >> 3;
     let a = [0, ee::deg2rad(((rn << 8) & 0xfc00) as i16), ee::deg2rad((6144 - (rn & 0xfc0)) as i16), 0];
-    let d = ee::apply(&vu::rot_zyx(&vu::UNIT, a), [0, 0xbf80_0000, 0, ONE]);
-    (rn, ee::apply(&vu::rot_zyx(&vu::UNIT, r), d))
+    let d = ee::apply(&vu0::rot_matrix(&vu0::UNIT, a), [0, 0xbf80_0000, 0, ONE]);
+    (rn, ee::apply(&vu0::rot_matrix(&vu0::UNIT, r), d))
 }
 
 /// `(100 - (rn >> 8) % 50) / 100`.
@@ -1029,10 +1030,10 @@ impl UpheavalMngr {
         let sp = self.base.anim.sp;
         let t = self.tree_parts();
         let a = t.tree_animate.clone();
-        drawelm::draw_clump(cx, t.big_tree, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
+        drawelm::draw_clump(cx, t.big_tree, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
         if let Some(anm) = t.anm_roots.as_mut() {
             anm.forward(cx);
-            anm.draw(cx, vu::pos_rot_zyx_scale(a.pos, a.dirc, ee::vscale(a.scale, 0x3f00_0000)), a.transparency);
+            anm.draw(cx, vu0::pos_rot_zyx_scale(a.pos, a.dirc, ee::vscale(a.scale, 0x3f00_0000)), a.transparency);
         }
         match self.base.proccess {
             0 => {
@@ -1235,7 +1236,7 @@ impl UpheavalPart {
             PartKind::Tree { tree } => (tree, true),
             PartKind::Hand { .. } => return,
         };
-        drawelm::draw_clump(cx, obj, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
+        drawelm::draw_clump(cx, obj, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
         let (mut off, mut spd) = (a.offset, a.speed);
         if c == 0 {
             off[2] = 0xc492_4000;
@@ -1331,7 +1332,7 @@ impl UpheavalPart {
         let a = self.base.anim.clone();
         if let Some(h) = hand.as_mut() {
             h.forward(cx);
-            h.draw(cx, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+            h.draw(cx, vu0::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
         }
         *offset = off;
         self.base.anim.pos = space::p2w(ee::vadd(base, off), player, bounds);

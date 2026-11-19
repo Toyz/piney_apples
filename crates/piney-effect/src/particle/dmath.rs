@@ -7,7 +7,7 @@
 //! the force field 16's turn.
 
 use crate::ee::{self, F, ONE, V4};
-use crate::vu::{M4, UNIT};
+use piney_data::vu0::{M4, UNIT};
 
 /// `fptodp`: the EE float as a double (exactly; an exponent-0 pattern is
 /// a zero).

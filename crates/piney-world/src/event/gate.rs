@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use glam::Mat4;
 use piney_data::archive::Archive;
+use piney_data::light::{AnimLight, Light};
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -20,7 +21,7 @@ use crate::chara::kite::light_matrix;
 use crate::chara::pose::Play;
 use crate::draw::{self, CHAR_LAYER, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::town::{self, AnimLight, Light, TownLights, anim_draw_fog};
+use crate::town::{self, TownLights, anim_draw_fog};
 
 /// `gimmickTbl[16]` (gcmn 0x0061e7f0): its file, and the size
 /// `ccGetCameraTransparency` fades it by (+0x18 height, +0x1c width).
@@ -148,7 +149,7 @@ impl Gate {
         let pos = [dummy.pos.x.to_bits(), dummy.pos.y.to_bits(), dummy.pos.z.to_bits(), ONE];
         // (0, 0, DEG2RAD(-32768)); w is whatever the stack held.
         let dirc = [0, 0, ee::deg2rad(-32768), 0];
-        let root = town::pos_rot_zyx(pos, [dirc[0], dirc[1], dirc[2]]);
+        let root = piney_data::vu0::pos_rot_zyx(pos, [dirc[0], dirc[1], dirc[2], 0]);
         let body = Anm::new(&file, BODY_CLUMP, BODY_ANIM)?;
         let ring = Anm::new(&file, RING_CLUMP, RING_ANIMS[0])?;
         if let Some(n) = RING_ANIMS.iter().find(|n| file.anim(n).is_none()) {
@@ -261,13 +262,13 @@ impl Gate {
     /// The gate's two lights, which go after the town's in the draw
     /// environment (`ccLightGrp::AddGrp` keeps equal priorities in the
     /// order they came).
-    pub fn lights(&self) -> [crate::town::Light; 2] {
+    pub fn lights(&self) -> [piney_data::light::Light; 2] {
         [self.body.light, self.ring.light]
     }
 
     /// The two as the gate's own draw saw them (the circle's not yet
     /// stepped).
-    pub fn body_lights(&self) -> [crate::town::Light; 2] {
+    pub fn body_lights(&self) -> [piney_data::light::Light; 2] {
         [self.body.light, self.ring_at_body]
     }
 
@@ -278,7 +279,7 @@ impl Gate {
     /// `SetFogSw(0)`: no fog, whatever the town's (the portal's additive
     /// plane would take the fog colour on its black border).
     pub fn draw(&self, layers: &mut Layers, to_screen: Mat4, body_lights: &TownLights, lights: &TownLights) {
-        let root = draw::mat(&self.root);
+        let root = piney_data::vu0::to_mat4(&self.root);
         let fm = &*self.file;
         let fog = draw::Fogging::None;
         if self.frame.drawn {
@@ -370,7 +371,7 @@ mod tests {
         assert_eq!((g.transparency, g.times()), (ONE, (256, 0)));
         let l = g.lights();
         let light = l[0];
-        let crate::town::LightKind::Omni { pos, far } = light.kind else { panic!("{light:?}") };
+        let piney_data::light::Kind::Omni { pos, far } = light.kind else { panic!("{light:?}") };
         assert_eq!((far.start, far.end, light.intensity), (ee::k(400.0), ee::k(500.0), ONE));
         let p = pos.map(ee::f);
         assert!(p[0].abs() < 0.01 && (p[1] - 6300.0).abs() < 0.01 && (p[2] - 766.819).abs() < 0.01, "{p:?}");

@@ -110,7 +110,7 @@ pub struct MapFrame<'a> {
 pub fn party_starts(area: i32, leader: V4, dirc: F) -> [V4; 3] {
     let [x, y, z, _] = leader;
     if area == super::kind::DUNGEON {
-        let m = piney_data::anim::rot_bits([0, 0, dirc]);
+        let m = piney_data::vu0::rot_matrix_z(&piney_data::vu0::UNIT, dirc);
         let at = |dx: F, dy: F| {
             let v = ee::apply(&m, [dx, dy, 0, ONE]);
             [ee::add(v[0], x), ee::add(v[1], y), ee::add(v[2], z), ONE]

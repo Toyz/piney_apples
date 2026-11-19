@@ -6,6 +6,7 @@
 //! `ccRand` (`piney_battle::boss::tarvos`); this draws what they say.
 
 use piney_battle::boss::tarvos::Pic;
+use piney_data::vu0;
 
 use crate::boss::{Tables, ff_row, gen_row, va};
 use crate::draw::DrawRec;
@@ -13,7 +14,7 @@ use crate::ee::{self, F, ONE, V4, VF0};
 use crate::eff::Eff;
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
 use crate::particle::GenRef;
-use crate::{CharRef, Cx, VecRef, debris, drawelm, shield, vu};
+use crate::{CharRef, Cx, VecRef, debris, drawelm, shield};
 
 const QUARTER: F = 0x3e80_0000;
 const NEG_HALF_PI: F = 0xbfc9_0fdb;
@@ -42,12 +43,12 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, kept: &mut Kept, me
         // The spike at a quarter: Rx(-pi/2) Rx(pitch) Rz(heading), then
         // its place, at its transparency.
         &Pic::Spike { pos, pitch, heading, transparency } => {
-            let mut m = vu::UNIT;
+            let mut m = vu0::UNIT;
             (m[0][0], m[1][1], m[2][2]) = (QUARTER, QUARTER, QUARTER);
-            let m = vu::rot_x(&m, NEG_HALF_PI);
-            let m = vu::rot_x(&m, pitch);
-            let m = vu::rot_z(&m, heading);
-            let m = vu::trans(&m, pos);
+            let m = vu0::rot_matrix_x(&m, NEG_HALF_PI);
+            let m = vu0::rot_matrix_x(&m, pitch);
+            let m = vu0::rot_matrix_z(&m, heading);
+            let m = vu0::trans_matrix(&m, pos);
             if let Some(obj) = cx.assets.find("xeffect", "CMP_ex71body2") {
                 cx.draws.push(DrawRec::Clump {
                     obj,

@@ -9,8 +9,7 @@ use piney_desktop::assets::SceneFile;
 
 use super::{BuildCx, DrawCx, Hook, Kind, MapSystem, Others, Piece, Request, StepCx};
 use crate::chara::pose::Play;
-use crate::draw;
-use crate::ee::{F, V4};
+use crate::ee::V4;
 
 /// The animation, its file (the area's, or one of its own), its root
 /// (`SetMatrix_PosRotZYX(pos, rot)`) and layer. It draws with the area's
@@ -20,7 +19,7 @@ pub struct AnimDef {
     pub anim: &'static str,
     pub file: Option<&'static str>,
     pub pos: V4,
-    pub rot: [F; 3],
+    pub rot: V4,
     pub layer: i16,
 }
 
@@ -44,7 +43,7 @@ impl Anim {
 
     /// Its root.
     pub fn root(&self) -> [V4; 4] {
-        crate::town::pos_rot_zyx(self.def.pos, self.def.rot)
+        piney_data::vu0::pos_rot_zyx(self.def.pos, self.def.rot)
     }
 }
 
@@ -59,7 +58,7 @@ impl MapSystem for Anim {
 
     fn draw<'a>(&'a self, piece: Piece, cx: &DrawCx<'a>) -> Option<Request<'a>> {
         let Piece::Anim(_) = piece else { return None };
-        let root = draw::mat(&self.root());
+        let root = piney_data::vu0::to_mat4(&self.root());
         let (file, play, layer, fog) = (&*self.file, &self.play, self.def.layer, cx.fog);
         Some(Request::Anim { file, play, root, layer, rows: None, fog, edit: None })
     }

@@ -194,9 +194,9 @@ fn p2w(cx: &Cx, v: V4) -> V4 {
 /// The same with the matrix `Rz(d)` first and `Rz(-pi/2)` after (the
 /// sybly's and star dust's cameras: `RotMatrixX/Y/Z(d)` then `Z(-pi/2)`).
 fn out_from_after(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
-    let m = geom::rot_matrix_y(&geom::rot_matrix_x(&geom::unit_matrix(), 0), 0);
+    let m = geom::rot_matrix_y(&geom::rot_matrix_x(&geom::UNIT, 0), 0);
     let m = geom::rot_matrix_z(&geom::rot_matrix_z(&m, d), NEG_HALF_PI);
-    let o = geom::apply_matrix(&m, v);
+    let o = geom::apply(&m, v);
     p2w(cx, geom::vadd(o, w2p(cx, at)))
 }
 
@@ -318,7 +318,7 @@ impl BossSystem for Root {
             pos,
             dirc: b.dirc,
             shown: b.draw_sw != 0,
-            matrix: Some(super::pos_rot_zyx_scale(pos, b.dirc, ROOT_SCALE)),
+            matrix: Some(piney_data::vu0::pos_rot_zyx_scale(pos, b.dirc, [ROOT_SCALE; 4])),
             again: false,
         };
     }
@@ -949,13 +949,13 @@ fn entry_element(b: &BossBase, x: &mut Second, cx: &mut Cx) {
     let tp = w2p(cx, b.target_pos);
     let Some(e) = x.elements.iter_mut().find(|e| e.state == 0) else { return };
     e.state = 1;
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), r);
-    let v = geom::apply_matrix(&m, [0x447a_0000, 0, 0, ONE]);
+    let m = geom::rot_matrix_z(&geom::UNIT, r);
+    let v = geom::apply(&m, [0x447a_0000, 0, 0, ONE]);
     let sp = geom::vadd(tp, v);
     let ep = geom::vsub(tp, v);
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), get_dirc(sp, ep));
+    let m = geom::rot_matrix_z(&geom::UNIT, get_dirc(sp, ep));
     let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-    let vec = geom::apply_matrix(&m, [0x4305_5555, 0, 0, ONE]);
+    let vec = geom::apply(&m, [0x4305_5555, 0, 0, ONE]);
     e.sp = p2w(cx, sp);
     e.ep = p2w(cx, ep);
     e.pos = e.sp;
@@ -1251,11 +1251,11 @@ fn on_die(b: &mut BossBase, _x: &mut Second, cx: &mut Cx) {
             let mut vp = cx.pos();
             vp[2] = ee::add(vp[2], 0x4348_0000);
             let d = b.dirc;
-            let m = geom::rot_matrix_x(&geom::unit_matrix(), d[0]);
+            let m = geom::rot_matrix_x(&geom::UNIT, d[0]);
             let m = geom::rot_matrix_y(&m, d[1]);
             let m = geom::rot_matrix_z(&m, d[2]);
             let m = geom::rot_matrix_z(&m, NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [0x44bb_8000, 0, 0x4348_0000, ONE]);
+            let v = geom::apply(&m, [0x44bb_8000, 0, 0x4348_0000, ONE]);
             let eye = p2w(cx, geom::vadd(v, w2p(cx, vp)));
             b.free_cam(cx, eye, vp);
             b.act_count = 0;
@@ -1300,8 +1300,8 @@ fn on_random_drive(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             let dir = get_dirc(b.center_pos_p, pp);
             x.rd.dir = dir;
             x.rd.spd = 0x4120_0000;
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), dir);
-            let v = geom::apply_matrix(&m, [0x437a_0000, 0, 0, ONE]);
+            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI), dir);
+            let v = geom::apply(&m, [0x437a_0000, 0, 0, ONE]);
             x.rd.point = p2w(cx, geom::vadd(pp, v));
         }
         1 => {
@@ -1332,8 +1332,8 @@ fn on_random_drive(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 }
                 _ => {}
             }
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), x.rd.dir);
-            b.move_vector = geom::apply_matrix(&m, [x.rd.spd, 0, 0, ONE]);
+            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI), x.rd.dir);
+            b.move_vector = geom::apply(&m, [x.rd.spd, 0, 0, ONE]);
             let a = x.rd.after;
             x.rd.after += 1;
             if a == 2 {
@@ -1368,13 +1368,13 @@ fn setup_root(b: &BossBase, x: &mut Second, cx: &mut Cx) {
     let me = cx.me;
     let pp = cx.scene.chars[me].pos_p;
     let dist = crate::boss::dist(cx, pp, w2p(cx, b.target_pos));
-    let m1 = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), b.target_dirc);
+    let m1 = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::UNIT, NEG_HALF_PI), b.target_dirc);
     let m2 = geom::rot_matrix_z(&m1, NEG_HALF_PI);
     for k in 0..ROOTS {
         let a = ee::div(ee::mul(dist, ee::from_int(k as i32 + 1)), 0x40c0_0000);
-        let mut v = geom::apply_matrix(&m1, [a, 0, 0, ONE]);
+        let mut v = geom::apply(&m1, [a, 0, 0, ONE]);
         let s = rand_f(cx.cc, 0x42c8_0000);
-        let w = geom::apply_matrix(&m2, [s, 0, 0, ONE]);
+        let w = geom::apply(&m2, [s, 0, 0, ONE]);
         v = geom::vadd(v, w);
         let pos = p2w(cx, geom::vadd(pp, v));
         let rm = x.roots[k].me;

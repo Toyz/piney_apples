@@ -12,8 +12,8 @@
 use crate::camera::button::{L1, L2, R1, R2};
 use crate::camera::{CamId, CamList, CamPad, Scheme, kind};
 use crate::geom::{
-    self, F, M4, ONE, V4, VF0, add, apply_matrix, deg2rad, div, from_int, le, lt, mul, rad2deg, rot_matrix_x,
-    rot_matrix_z, sinf, sub, unit_matrix, vadd,
+    self, F, M4, ONE, UNIT, V4, VF0, add, apply, deg2rad, div, from_int, le, lt, mul, rad2deg, rot_matrix_x,
+    rot_matrix_z, sinf, sub, vadd,
 };
 
 /// `3 pi / 4` and `pi / 4`: where `Pad_Control` reads the right stick as
@@ -226,7 +226,7 @@ impl BossCam {
             self.view = view_at;
             self.set_transfer(scheme, pad);
             let d = self.pos_view_dirc(player, view_at);
-            self.rot = apply_matrix(&rot_matrix_z(&unit_matrix(), self.zrot_cont), self.rot);
+            self.rot = apply(&rot_matrix_z(&UNIT, self.zrot_cont), self.rot);
             self.mem_dirc_z = rad2deg(d[2]);
             self.deg = rad2deg(self.rot[2]);
             self.rot[2] = self.z_rot_deg2dad(self.mem_dirc_z, self.deg);
@@ -242,20 +242,20 @@ impl BossCam {
                 let x =
                     if self.ren_xrot { mul(self.xrot, add(self.basis_rot, mul(t, self.limit_rot))) } else { self.xrot };
                 let z = self.zrot_cont;
-                let m = rot_matrix_z(&rot_matrix_z(&unit_matrix(), self.rot[2]), z);
-                self.pos = vadd(self.pos, apply_matrix(&m, self.move_transfer));
+                let m = rot_matrix_z(&rot_matrix_z(&UNIT, self.rot[2]), z);
+                self.pos = vadd(self.pos, apply(&m, self.move_transfer));
                 if self.later {
                     // MUT gcmn 0x004757a4: (0, 0, lift (1 - t), 1), w then 1.
                     let up = (f64::from(f32::from_bits(self.lift)) * (1.0 - f64::from(f32::from_bits(t)))) as f32;
                     self.pos = vadd(self.pos, [0, 0, up.to_bits(), ONE]);
                     self.pos[3] = ONE;
                 }
-                let m: M4 = rot_matrix_z(&rot_matrix_z(&rot_matrix_x(&unit_matrix(), x), self.rot[2]), z);
-                self.view = vadd(self.pos, apply_matrix(&m, AHEAD));
+                let m: M4 = rot_matrix_z(&rot_matrix_z(&rot_matrix_x(&UNIT, x), self.rot[2]), z);
+                self.view = vadd(self.pos, apply(&m, AHEAD));
             } else {
-                let m = rot_matrix_z(&unit_matrix(), self.rot[2]);
-                self.pos = vadd(self.pos, apply_matrix(&m, self.move_transfer));
-                self.view = vadd(self.pos, apply_matrix(&m, AHEAD));
+                let m = rot_matrix_z(&UNIT, self.rot[2]);
+                self.pos = vadd(self.pos, apply(&m, self.move_transfer));
+                self.view = vadd(self.pos, apply(&m, AHEAD));
             }
         }
         let c = cams.cam_mut(CamId::Battle);

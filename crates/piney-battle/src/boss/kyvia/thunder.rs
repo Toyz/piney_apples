@@ -160,10 +160,10 @@ impl Bolt {
         let r = ee::from_int(ran / 10);
         b.spot = (0..n)
             .map(|_| {
-                let m = geom::rot_matrix_z(&geom::unit_matrix(), rand_f(cc, PI));
+                let m = geom::rot_matrix_z(&geom::UNIT, rand_f(cc, PI));
                 let mut s = VF0;
                 s[1] = ee::sub(ee::from_int(ran), rand_f(cc, r));
-                geom::vadd(geom::apply_matrix(&m, s), vec)
+                geom::vadd(geom::apply(&m, s), vec)
             })
             .collect();
         b
@@ -210,13 +210,13 @@ impl Bolt {
             rand_f(cc, PI);
             rand_f(cc, PI);
             let seg = |from: V4, (z, x): (F, F)| -> (M4, V4) {
-                let mut m = geom::unit_matrix();
+                let mut m = geom::UNIT;
                 m[0][0] = w;
                 m[1][1] = thin;
                 m[2][2] = w;
                 let m = geom::rot_matrix_z(&geom::rot_matrix_x(&m, x), z);
-                let turn = geom::rot_matrix_z(&geom::rot_matrix_x(&geom::unit_matrix(), x), z);
-                let to = geom::vadd(geom::apply_matrix(&turn, [0, LENGTH, 0, ONE]), from);
+                let turn = geom::rot_matrix_z(&geom::rot_matrix_x(&geom::UNIT, x), z);
+                let to = geom::vadd(geom::apply(&turn, [0, LENGTH, 0, ONE]), from);
                 (geom::trans_matrix(&m, from), to)
             };
             let first = self.turn(cc);
@@ -443,9 +443,9 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
                 } else {
                     (0x3f33_3333, 0x456d_8000, cx.scene.chars[me].pos)
                 };
-                let rx = geom::rot_matrix_x(&geom::unit_matrix(), tilt);
+                let rx = geom::rot_matrix_x(&geom::UNIT, tilt);
                 let m = geom::rot_matrix_z(&rx, cx.cams_ref().rot()[2]);
-                let eye = geom::vadd(geom::apply_matrix(&m, [0, far, 0, ONE]), t.disc.pos);
+                let eye = geom::vadd(geom::apply(&m, [0, far, 0, ONE]), t.disc.pos);
                 b.cam_pos_view(eye, view);
                 b.act_count = 0;
             } else {
@@ -472,8 +472,8 @@ pub(super) fn thunderbolt_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx:
         50 => {
             let (back, down, lift) =
                 if third { (0xc100_0000, 0xc080_0000, 0x40a0_0000) } else { (0xc020_0000, 0xc190_0000, 0x4120_0000) };
-            let m = geom::rot_matrix_z(&geom::unit_matrix(), cx.cams_ref().rot()[2]);
-            let pos = geom::vadd(cx.cams_ref().active().pos, geom::apply_matrix(&m, [0, back, down, ONE]));
+            let m = geom::rot_matrix_z(&geom::UNIT, cx.cams_ref().rot()[2]);
+            let pos = geom::vadd(cx.cams_ref().active().pos, geom::apply(&m, [0, back, down, ONE]));
             let mut view = cx.cams_ref().active().view;
             view[2] = ee::add(view[2], lift);
             b.cam_pos_view(pos, view);

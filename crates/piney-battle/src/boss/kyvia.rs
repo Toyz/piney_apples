@@ -662,7 +662,7 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
         atk_pat_mode: 1,
         af_timing: 2,
         anm_w: Anm::new(),
-        atk_mat: geom::unit_matrix(),
+        atk_mat: geom::UNIT,
         ..Kyvia::default()
     };
     let mut disc = Disc { max_lv: fight.stages(), ..Disc::default() };
@@ -1062,8 +1062,8 @@ fn ride_camera(b: &mut BossBase, x: &mut Kyvia, disc: &mut Disc, cx: &mut Cx) {
         disc.ex_flg = 0;
     }
     let d = get_dirc(disc.pos, cx.scene.chars[cx.me].pos);
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), d);
-    let mut eye = geom::vadd(geom::apply_matrix(&m, [0, 0x44bb_8000, 0x43fa_0000, ONE]), disc.pos);
+    let m = geom::rot_matrix_z(&geom::UNIT, d);
+    let mut eye = geom::vadd(geom::apply(&m, [0, 0x44bb_8000, 0x43fa_0000, ONE]), disc.pos);
     let view = match x.fight {
         Fight::First | Fight::Third | Fight::Fourth => geom::vadd([0, 0, 0x4316_0000, ONE], disc.pos),
         Fight::Second => {
@@ -1135,8 +1135,8 @@ pub(super) fn check_dmg_smoke_eff(x: &mut Kyvia, t: &Tree, cx: &mut Cx) -> i32 {
     let r = rand_f(cx.cc, 0x4396_0000);
     v[1] = fabs(r) ^ 0x8000_0000;
     let turn = rand_abs(cx, PI);
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
-    v = geom::apply_matrix(&m, v);
+    let m = geom::rot_matrix_z(&geom::UNIT, turn);
+    v = geom::apply(&m, v);
     let up = match x.fight {
         Fight::First => 0x43fa_0000,
         Fight::Fourth => 0x4496_0000,
@@ -1313,7 +1313,7 @@ fn damage_camera(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx, [back, up, eye]: 
     x.move_transfer = VF0;
     x.l_offset = cx.scene.chars[me].pos;
     x.atk_vec = VF0;
-    x.atk_mat = geom::unit_matrix();
+    x.atk_mat = geom::UNIT;
     x.l_offset[1] = ee::sub(x.l_offset[1], back);
     x.l_offset[2] = ee::add(x.l_offset[2], up);
     x.atk_vec[1] = eye;
@@ -1323,7 +1323,7 @@ fn damage_camera(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx, [back, up, eye]: 
         None => rand_f(cx.cc, ONE),
     };
     x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
-    x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
+    x.atk_vec = geom::apply(&x.atk_mat, x.atk_vec);
     x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
     b.cam_pos_view(x.atk_vec, x.l_offset);
 }
@@ -1514,7 +1514,7 @@ pub(super) fn dead_cam(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
         x.move_transfer = VF0;
         x.l_offset = cx.scene.chars[me].pos;
         x.atk_vec = VF0;
-        x.atk_mat = geom::unit_matrix();
+        x.atk_mat = geom::UNIT;
         let (back2, up) = if fourth { (0x43fa_0000, 0x4448_0000) } else { (0x42c8_0000, up) };
         x.l_offset[1] = ee::sub(x.l_offset[1], back2);
         x.l_offset[2] = ee::add(x.l_offset[2], up);
@@ -1527,7 +1527,7 @@ pub(super) fn dead_cam(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
             fp(0.2 + dp(r))
         };
         x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
-        x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
+        x.atk_vec = geom::apply(&x.atk_mat, x.atk_vec);
         x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
         b.cam_pos_view(x.atk_vec, x.l_offset);
     }
@@ -1643,14 +1643,14 @@ fn hand_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
         }
         4 => {
-            let m = geom::unit_matrix();
+            let m = geom::UNIT;
             x.tes_pos = cx.cams_ref().active().pos;
             x.tes_dirc = cx.cams_ref().rot();
             let arm = match x.fight {
                 Fight::Fourth => [0, 0xc535_4000, 0xc396_0000, ONE],
                 _ => [0xc2dc_0000, 0xc509_8000, 0, ONE],
             };
-            let v = geom::apply_matrix(&geom::rot_matrix_z(&m, x.tes_dirc[2]), arm);
+            let v = geom::apply(&geom::rot_matrix_z(&m, x.tes_dirc[2]), arm);
             let rm = geom::rot_matrix_z(&m, x.tes_dirc[2]);
             x.tes_dirc[0] = 0;
             x.tes_dirc[1] = 0;
@@ -1659,8 +1659,8 @@ fn hand_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             b.act_proccess += 1;
             x.snd_pos_l = [0xc3fa_0000, 0, 0, ONE];
             x.snd_pos_r = [0x43fa_0000, 0, 0, ONE];
-            x.snd_pos_l = geom::vadd(geom::apply_matrix(&rm, x.snd_pos_l), x.tes_pos);
-            x.snd_pos_r = geom::vadd(geom::apply_matrix(&rm, x.snd_pos_r), x.tes_pos);
+            x.snd_pos_l = geom::vadd(geom::apply(&rm, x.snd_pos_l), x.tes_pos);
+            x.snd_pos_r = geom::vadd(geom::apply(&rm, x.snd_pos_r), x.tes_pos);
             let pos = cx.scene.chars[me].pos;
             cx.out(if x.fight == Fight::Fourth {
                 Out::SeNote { se: 40, note: 60 }
@@ -1804,12 +1804,12 @@ fn megid_flame(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             x.l_offset[1] = ee::sub(x.l_offset[1], back);
             x.l_offset[2] = ee::add(x.l_offset[2], up);
             x.atk_vec = VF0;
-            x.atk_mat = geom::unit_matrix();
+            x.atk_mat = geom::UNIT;
             x.atk_vec[1] = eye;
             let r = rand_f(cx.cc, 0x3ecc_cccd);
             x.atk_mat = geom::rot_matrix_z(&x.atk_mat, r);
             x.atk_mat = geom::rot_matrix_x(&x.atk_mat, 0x3e4c_cccd);
-            let mut eye = geom::vadd(geom::apply_matrix(&x.atk_mat, x.atk_vec), x.l_offset);
+            let mut eye = geom::vadd(geom::apply(&x.atk_mat, x.atk_vec), x.l_offset);
             eye[3] = ONE;
             b.cam_pos_view(eye, x.l_offset);
             b.act_proccess += 1;
@@ -1947,11 +1947,11 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             b.act_proccess += 1;
             b.cam_mode(cx, 5);
             x.atk_vec = VF0;
-            x.atk_mat = geom::unit_matrix();
+            x.atk_mat = geom::UNIT;
             x.atk_vec[1] = 0xc409_8000;
             x.z = rand_f(cx.cc, 0x3e4c_cccd);
             x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
-            x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
+            x.atk_vec = geom::apply(&x.atk_mat, x.atk_vec);
             x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
             b.cam_pos_view(x.atk_vec, x.l_offset);
             cx.out(Out::Blur(Set::Enable));
@@ -1986,11 +1986,11 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 b.act_proccess += 1;
                 b.cam_mode(cx, 5);
                 x.atk_vec = VF0;
-                x.atk_mat = geom::unit_matrix();
+                x.atk_mat = geom::UNIT;
                 x.atk_vec[1] = back ^ 0x8000_0000;
                 x.z = rand_f(cx.cc, if x.fight == Fight::Third { 0x3e4c_cccd } else { HALF });
                 x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
-                x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
+                x.atk_vec = geom::apply(&x.atk_mat, x.atk_vec);
                 x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
                 b.cam_pos_view(x.atk_vec, x.l_offset);
                 b.lock_player(cx, false);
@@ -2063,7 +2063,7 @@ fn light_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             if !ee::le(left, 0x4100_0000) {
                 x.move_transfer[1] = ee::add(x.move_transfer[1], ee::mul(0xbf80_0000, ee::div(left, 0x4080_0000)));
             }
-            let mut eye = geom::apply_matrix(&x.atk_mat, x.move_transfer);
+            let mut eye = geom::apply(&x.atk_mat, x.move_transfer);
             eye = geom::vadd(eye, x.atk_vec);
             eye = geom::vadd(x.l_offset, eye);
             let third = x.fight == Fight::Third;
@@ -2251,15 +2251,15 @@ impl Meteorite {
         let mut m = Meteorite { pos, ..Meteorite::default() };
         for _ in 0..n {
             let turn = rand_f(cc, 0x4048_f5c3);
-            let rm = geom::rot_matrix_z(&geom::unit_matrix(), turn);
+            let rm = geom::rot_matrix_z(&geom::UNIT, turn);
             let r = rand_f(cc, ee::mul(range, HALF));
             let mut v = VF0;
             v[1] = fabs(ee::add(ee::mul(range, ee::sub(ONE, HALF)), r));
-            m.end.push(geom::apply_matrix(&rm, v));
+            m.end.push(geom::apply(&rm, v));
         }
-        let rx = geom::rot_matrix_x(&geom::unit_matrix(), 0xc023_5ce2);
+        let rx = geom::rot_matrix_x(&geom::UNIT, 0xc023_5ce2);
         for k in 0..n {
-            let back = geom::apply_matrix(&rx, [0, 0xc3fa_0000, 0, ONE]);
+            let back = geom::apply(&rx, [0, 0xc3fa_0000, 0, ONE]);
             let p3 = geom::vadd(m.end[k], back);
             let p2 = geom::vadd(p3, geom::vadd(p3, back));
             let p1 = geom::vadd(p2, back);

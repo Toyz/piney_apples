@@ -12,6 +12,7 @@ use piney_battle::boss::fidchell::Pic;
 use piney_battle::boss::fidchell::eff::{self as rules, Fx};
 use piney_battle::rand::Rng;
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::boss::{Make, Tables};
 use crate::draw::DrawRec;
@@ -20,7 +21,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::eff::Eff;
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
 use crate::files::ObjRef;
-use crate::{Cx, Event, debris, dust, fall, particle, space, vu};
+use crate::{Cx, Event, debris, dust, fall, particle, space};
 
 const PI: F = 0x4049_0fdb;
 const TWO_PI: F = 0x40c9_0fdb;
@@ -121,7 +122,7 @@ impl Spell {
         let Fx::Meteo(m) = &self.fx else { return None };
         let last = m.meteors.last().filter(|_| m.light)?;
         let mut c = [0; 4];
-        crate::boss::set_color(&mut c, METEOR_LIGHT, ONE);
+        piney_data::light::set_color(&mut c, METEOR_LIGHT, ONE);
         Some((last.pos, c, METEOR_LIGHT_FAR))
     }
 
@@ -161,7 +162,7 @@ impl Spell {
             }
             (Fx::Tower(r), Pics::Tower(clump)) => {
                 for t in &r.towers {
-                    let m = vu::pos_rot_zyx_scale(t.drawn_pos, t.dirc, [t.scale, t.scale, t.scale, ONE]);
+                    let m = vu0::pos_rot_zyx_scale(t.drawn_pos, t.dirc, [t.scale, t.scale, t.scale, ONE]);
                     if let Some(obj) = *clump {
                         cx.draws.push(DrawRec::Clump {
                             obj,
@@ -183,12 +184,12 @@ impl Spell {
 /// glow turning about its own y (`m_rotLight`); the fire started again
 /// once it ends.
 fn draw_meteor(cx: &mut Cx, m: &rules::Meteor, fire: &mut Option<AnmObj>, glow: Option<ObjRef>, turn: &mut F) {
-    let mut mat = vu::rot_y(&vu::UNIT, *turn);
-    mat = vu::rot_z(&mat, HALF_PI);
-    mat = vu::rot_y(&mat, m.dirc[1]);
-    mat = vu::rot_z(&mat, m.dirc[2]);
-    mat = vu::rot_z(&mat, NEG_HALF_PI);
-    mat = vu::trans(&mat, m.pos);
+    let mut mat = vu0::rot_matrix_y(&vu0::UNIT, *turn);
+    mat = vu0::rot_matrix_z(&mat, HALF_PI);
+    mat = vu0::rot_matrix_y(&mat, m.dirc[1]);
+    mat = vu0::rot_matrix_z(&mat, m.dirc[2]);
+    mat = vu0::rot_matrix_z(&mat, NEG_HALF_PI);
+    mat = vu0::trans_matrix(&mat, m.pos);
     if let Some(a) = fire.as_mut() {
         let ended = a.forward(cx);
         a.draw(cx, mat, ONE);
@@ -234,15 +235,15 @@ fn draw_bolt(cx: &mut Cx, volume: Volume, t: &rules::Thunder, clump: Option<ObjR
         let d2 = dist(volume, a, b, false);
         let d3 = dist(volume, a, b, true);
         let pitch = wrap(ee::atan2f(ee::sub(p[2], q[2]), d2));
-        let mut m = vu::UNIT;
+        let mut m = vu0::UNIT;
         m[0][0] = THREE;
         m[1][1] = ee::mul(0x3a91_a2b4, d3);
         m[2][2] = THREE;
-        m = vu::rot_z(&m, NEG_HALF_PI);
-        m = vu::rot_y(&m, pitch);
-        m = vu::rot_z(&m, yaw);
-        m = vu::rot_z(&m, NEG_HALF_PI);
-        m = vu::trans(&m, p);
+        m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
+        m = vu0::rot_matrix_y(&m, pitch);
+        m = vu0::rot_matrix_z(&m, yaw);
+        m = vu0::rot_matrix_z(&m, NEG_HALF_PI);
+        m = vu0::trans_matrix(&m, p);
         if let Some(obj) = clump {
             cx.draws.push(DrawRec::Clump {
                 obj,
@@ -402,7 +403,7 @@ mod tests {
     #[test]
     fn the_meteors_light_is_red() {
         let mut c = [0; 4];
-        crate::boss::set_color(&mut c, METEOR_LIGHT, ONE);
+        piney_data::light::set_color(&mut c, METEOR_LIGHT, ONE);
         let f = |k: usize| ee::f(c[k]);
         assert!((f(0) - 1.0).abs() < 1e-6, "{c:x?}");
         assert_eq!(c[1], 0);

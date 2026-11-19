@@ -7,6 +7,7 @@
 //! generators Innis and its images start (`innis::Gen`).
 
 use piney_battle::boss::innis::{Call, Element, Gen, Missile as Flight, Shown};
+use piney_data::vu0;
 
 use crate::boss::{Tables, WaveShock, ff_row, gen_row, va};
 use crate::draw::DrawRec;
@@ -15,7 +16,7 @@ use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::{EFFECT_LAYER, EffectCtrl};
 use crate::files::ObjRef;
 use crate::particle::GenRef;
-use crate::{Cx, VecRef, debris, dust, vu};
+use crate::{Cx, VecRef, debris, dust};
 
 const THREE: [F; 4] = [0x4040_0000, 0x4040_0000, 0x4040_0000, ONE];
 /// The lightning's and the fire's transparency in flight.
@@ -178,7 +179,7 @@ impl Missile {
     /// In flight: the crystal, bolt or fireball at `pos`, turned by `rot`
     /// (`SetMatrix_PosRotXYZScale`, scale 3).
     fn flight(&mut self, cx: &mut Cx, pos: V4, rot: V4) {
-        let m = vu::pos_rot_xyz_scale(pos, rot, THREE);
+        let m = vu0::pos_rot_xyz_scale(pos, rot, THREE);
         match &mut self.pics {
             Pics::Ice { crystal: Some(obj), .. } => {
                 cx.draws.push(DrawRec::Clump {
@@ -216,8 +217,8 @@ impl Missile {
         let s = |v: F| [v, v, v, ONE];
         match &mut self.pics {
             Pics::Ice { hit, burst, .. } => {
-                let mh = vu::pos_rot_zyx_scale(pos, VF0, s(0x40a0_0000));
-                let mb = vu::pos_rot_zyx_scale(pos, VF0, s(0x4020_0000));
+                let mh = vu0::pos_rot_zyx_scale(pos, VF0, s(0x40a0_0000));
+                let mb = vu0::pos_rot_zyx_scale(pos, VF0, s(0x4020_0000));
                 for a in [hit.as_mut(), burst.as_mut()].into_iter().flatten() {
                     a.forward(cx);
                 }
@@ -230,7 +231,7 @@ impl Missile {
             }
             Pics::Blaze { ball: Some(a) } => {
                 let ended = a.forward(cx);
-                a.draw(cx, vu::pos_rot_xyz_scale(pos, VF0, s(0x4080_0000)), HALF);
+                a.draw(cx, vu0::pos_rot_xyz_scale(pos, VF0, s(0x4080_0000)), HALF);
                 if ended {
                     a.restart();
                 }

@@ -6,8 +6,10 @@
 //! `ccpgPawSmoke`. The rules are in docs/engine/effects.md ("Smoke and
 //! dust").
 
+use piney_data::vu0;
+
 use crate::ee::{self, F, ONE, V4};
-use crate::{Cx, particle, portal, space, vu};
+use crate::{Cx, particle, portal, space};
 
 /// `ccParticleSetup`'s fades for dust: `fadeInD` 512, `fadeOutD` 32.
 pub const DUST_FADE_IN: i16 = 512;
@@ -62,7 +64,7 @@ fn smoke(cx: &mut Cx, pos: V4, v: V4, s: F, life: i32, t: i32, (fade_in, fade_ou
 /// A puff of `ccEnemyEffDust` or the ring: at `p` plus M (`out`, 0, 0),
 /// flying M (`fly`, 0, 0) and s / 4 up.
 #[allow(clippy::too_many_arguments)]
-fn puff(cx: &mut Cx, p: V4, m: &vu::M4, out: F, fly: F, s: F, life: i32, t: i32) {
+fn puff(cx: &mut Cx, p: V4, m: &vu0::M4, out: F, fly: F, s: F, life: i32, t: i32) {
     let mut at = ee::apply(m, [out, 0, 0, ONE]);
     at[0] = ee::add(at[0], p[0]);
     at[1] = ee::add(at[1], p[1]);
@@ -77,7 +79,7 @@ fn puff(cx: &mut Cx, p: V4, m: &vu::M4, out: F, fly: F, s: F, life: i32, t: i32)
 pub fn enemy_eff_dust(cx: &mut Cx, p: V4, n: i32, s: F, life: i32, t: i32) {
     for _ in 0..n {
         let a = portal::rand_f(cx.host, PI);
-        let m = vu::rot_z(&vu::UNIT, a);
+        let m = vu0::rot_matrix_z(&vu0::UNIT, a);
         puff(cx, p, &m, ee::mul(0x4120_0000, s), ee::div(s, 0x4000_0000), s, life, t);
     }
 }
@@ -91,7 +93,7 @@ pub fn enemy_eff_dust_ring(cx: &mut Cx, p: V4, s: F, r: F, n: i32, life: i32, t:
     let mut a = portal::rand_f(cx.host, PI);
     let step = ee::div(TWO_PI, ee::from_int(n));
     for _ in 0..n {
-        let m = vu::rot_z(&vu::UNIT, a);
+        let m = vu0::rot_matrix_z(&vu0::UNIT, a);
         puff(cx, p, &m, r, s, s, life, t);
         a = ee::add(a, step);
         if !ee::le(a, PI) {
@@ -104,7 +106,7 @@ pub fn enemy_eff_dust_ring(cx: &mut Cx, p: V4, s: F, r: F, n: i32, life: i32, t:
 /// character at `pos` facing `dirc`.
 #[allow(clippy::too_many_arguments)]
 pub fn enemy_eff_dust_ring_at(cx: &mut Cx, pos: V4, dirc: V4, ofs: V4, s: F, r: F, n: i32, life: i32, t: i32) {
-    let o = ee::apply(&vu::rot_zyx(&vu::UNIT, dirc), ofs);
+    let o = ee::apply(&vu0::rot_matrix(&vu0::UNIT, dirc), ofs);
     let mut p = ee::vadd(space::fw2lw(pos, cx.host.player_pos(), cx.host.bounds()), o);
     p[3] = ONE;
     enemy_eff_dust_ring(cx, p, s, r, n, life, t);
@@ -129,7 +131,7 @@ const DARK: [u32; 11] = [
 
 /// `ccEffPawSmoke(ch, speed)` (main 0x001ce640) with the feet's places.
 pub fn eff_paw_smoke(cx: &mut Cx, feet: [V4; 2], dirc_z: F, speed: F) -> bool {
-    let m = vu::rot_z(&vu::UNIT, dirc_z);
+    let m = vu0::rot_matrix_z(&vu0::UNIT, dirc_z);
     let [mut l, mut r] = feet;
     l[3] = ONE;
     r[3] = ONE;

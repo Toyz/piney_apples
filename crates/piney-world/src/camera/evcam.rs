@@ -7,12 +7,13 @@
 //! `ecam` each frame. EE single precision ([`crate::ee`]), checked by
 //! `tools/test_evcam_rs.py` (docs/engine/field-game.md).
 
+use piney_data::vu0::{UNIT, rot_matrix_x, rot_matrix_z};
 use piney_event::host::CameraCommand;
 
 use crate::camera::{CamId, CamPad, Camera, DIST_DEFAULT, DIST_MAX, DIST_MIN, PITCH_DEFAULT};
 use crate::ee::{
-    self, F, ONE, PI, V4, add, apply, cosf, deg2rad, div, eq, from_int, le, lt, mul, neg, rad2deg, sinf, sqrt, sub,
-    to_int, vadd, vsub,
+    self, F, ONE, PI, V4, add, apply, cosf, deg2rad, div, eq, from_int, le, lt, mul, neg, rad2deg, sinf, sub, to_int,
+    vadd, vsub,
 };
 
 /// `TWO_PI` (0x40c90fdb) and `HALF_PI` (0x3fc90fdb) as the code loads them.
@@ -613,7 +614,7 @@ impl EventCam {
         // The camera point: (0, dist, 0) turned about x by the pitch, then
         // about z by the heading, from the look-at point.
         if e.cp_ctrl != 4 {
-            let m = rot_z(&rot_x(&UNIT, e.rot[0]), e.rot[1]);
+            let m = rot_matrix_z(&rot_matrix_x(&UNIT, e.rot[0]), e.rot[1]);
             s.pos = vadd(s.view, apply(&m, [0, e.dist, 0, ONE]));
             cam.list.cam_mut(n).pos = s.pos;
         }
@@ -897,69 +898,6 @@ fn spline_h(p0: V4, p1: V4, p2: V4, p3: V4, t: F, alpha: F) -> V4 {
     out = vadd(out, scale(p2, h01));
     out[3] = ONE;
     out
-}
-
-/// A matrix as stored columns of float bits.
-pub(crate) type Mat = [V4; 4];
-
-pub(crate) const UNIT: Mat = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-
-/// `_sceVu0ecossin` (0x001109b8) as `sceVu0RotMatrixX/Z` call it: cos an
-/// odd polynomial (S5432, 0x002f7520) in `pi/2 - |angle|`, sin
-/// `+-sqrt(1 - cos^2)`, negative for an angle below zero. (sin, cos).
-fn vu_cossin(angle: F) -> (F, F) {
-    const S: [F; 4] = [0x362e_9c14, 0xb94f_b21f, 0x3c08_873e, 0xbe2a_aaa4];
-    let negative = lt(angle, 0);
-    let x = if negative { add(HALF_PI, angle) } else { sub(HALF_PI, angle) };
-    let x2 = mul(x, x);
-    let mut p = S.map(|c| mul(mul(c, x), x2));
-    for v in &mut p[..3] {
-        *v = mul(*v, x2);
-    }
-    let mut r = add(x, p[3]);
-    for v in &mut p[..2] {
-        *v = mul(*v, x2);
-    }
-    r = add(r, p[2]);
-    p[0] = mul(p[0], x2);
-    r = add(add(r, p[1]), p[0]);
-    let q = sqrt(sub(ONE, mul(r, r)));
-    (if negative { sub(0, q) } else { add(0, q) }, r)
-}
-
-/// `rot`'s columns times each column of `m` (VU0 multiply-adds, each
-/// product rounded).
-fn vu_mul(rot: &Mat, m: &Mat) -> Mat {
-    m.map(|col| {
-        std::array::from_fn(|i| {
-            let acc = mul(rot[0][i], col[0]);
-            let acc = add(acc, mul(rot[1][i], col[1]));
-            let acc = add(acc, mul(rot[2][i], col[2]));
-            add(acc, mul(rot[3][i], col[3]))
-        })
-    })
-}
-
-/// `sceVu0RotMatrixX(m, m, a)` (0x00110ad8): Rx(a) m.
-pub(crate) fn rot_x(m: &Mat, a: F) -> Mat {
-    let (s, c) = vu_cossin(a);
-    let (c, sn, ns) = (add(0, c), add(0, s), sub(0, s));
-    vu_mul(&[[ONE, 0, 0, 0], [0, c, sn, 0], [0, ns, c, 0], [0, 0, 0, ONE]], m)
-}
-
-/// `sceVu0RotMatrixY(m, m, a)` (0x00110b80): Ry(a) m, its columns
-/// (c, 0, -s, 0), (0, 1, 0, 0), (s, 0, c, 0).
-pub(crate) fn rot_y(m: &Mat, a: F) -> Mat {
-    let (s, c) = vu_cossin(a);
-    let (c, sn, ns) = (add(0, c), add(0, s), sub(0, s));
-    vu_mul(&[[c, 0, ns, 0], [0, ONE, 0, 0], [sn, 0, c, 0], [0, 0, 0, ONE]], m)
-}
-
-/// `sceVu0RotMatrixZ(m, m, a)` (0x00110a30): Rz(a) m.
-pub(crate) fn rot_z(m: &Mat, a: F) -> Mat {
-    let (s, c) = vu_cossin(a);
-    let (c, sn, ns) = (add(0, c), add(0, s), sub(0, s));
-    vu_mul(&[[c, sn, 0, 0], [ns, c, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]], m)
 }
 
 #[cfg(test)]

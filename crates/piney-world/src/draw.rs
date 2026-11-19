@@ -30,17 +30,12 @@ pub const EFF_LAYER: i16 = 20;
 /// boss's 254, so drawn with `fade::draw_older`.
 pub const FADE_LAYER: i16 = 254;
 
-/// Stored columns of float bits to a matrix.
-pub fn mat(m: &[V4; 4]) -> Mat4 {
-    Mat4::from_cols_array_2d(&m.map(|c| c.map(f32::from_bits)))
-}
-
 /// `world_screen` with the XYOFFSET taken off: world to frame-buffer
 /// pixels after the divide, as a [`ModelDraw::to_screen`] wants it.
 pub fn screen(world_screen: &[V4; 4]) -> Mat4 {
     let (ox, oy) = (XYOFFSET_X as f32 / 16.0, XYOFFSET_Y as f32 / 16.0);
     let off = Mat4::from_cols(Vec4::X, Vec4::Y, Vec4::Z, Vec4::new(-ox, -oy, 0.0, 1.0));
-    off * mat(world_screen)
+    off * piney_data::vu0::to_mat4(world_screen)
 }
 
 /// How a model is fogged (PRIM.FGE): not at all, with one coefficient
@@ -267,7 +262,7 @@ pub fn go_shadows(lights: &crate::town::TownLights, world_screen: &[V4; 4]) -> p
         .lights
         .iter()
         .find_map(|l| match l.kind {
-            crate::town::LightKind::Distant { dir } => Some([dir[0], dir[1], dir[2], 0]),
+            piney_data::light::Kind::Distant { dir } => Some([dir[0], dir[1], dir[2], 0]),
             _ => None,
         })
         .unwrap_or([0, 0, 0xbf80_0000, 0]);

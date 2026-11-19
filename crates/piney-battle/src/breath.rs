@@ -171,14 +171,14 @@ fn spread(phase: F) -> F {
 /// `sceVu0RotMatrix` would build `m`'s rotation from, read off by undoing
 /// it about x, then y, then z.
 pub fn mat2rot(m: &M4) -> V4 {
-    let v = apply_matrix(m, [0, ONE, ONE, 0]);
+    let v = apply(m, [0, ONE, ONE, 0]);
     let a = libm::atan2f(v[2], v[1]);
     let m = rot_matrix_x(m, neg(a));
-    let v = apply_matrix(&m, [ONE, 0, 0, 0]);
+    let v = apply(&m, [ONE, 0, 0, 0]);
     let t = libm::atan2f(v[2], v[0]);
     let b = neg(t);
     let m = rot_matrix_y(&m, t);
-    let v = apply_matrix(&m, [ONE, 0, 0, 0]);
+    let v = apply(&m, [ONE, 0, 0, 0]);
     let c = libm::atan2f(v[1], v[0]);
     [a, b, c, 0]
 }
@@ -188,11 +188,11 @@ pub fn mat2rot(m: &M4) -> V4 {
 /// then about z from x and y (x the first, less pi/2; y -0; z the second,
 /// less pi/2; each wrapped once).
 pub fn mov2rot(mov: V4) -> V4 {
-    let m = rot_matrix(&unit_matrix(), [0, 0, HALF_PI, ONE]);
-    let d = apply_matrix(&m, [mov[0], mov[1], mov[2], 0]);
+    let m = rot_matrix(&UNIT, [0, 0, HALF_PI, ONE]);
+    let d = apply(&m, [mov[0], mov[1], mov[2], 0]);
     let a = wrap(sub(libm::atan2f(d[0], d[2]), HALF_PI));
-    let m = rot_matrix(&unit_matrix(), [0, neg(a), 0, 0]);
-    let d = apply_matrix(&m, [d[0], d[1], d[2], 0]);
+    let m = rot_matrix(&UNIT, [0, neg(a), 0, 0]);
+    let d = apply(&m, [d[0], d[1], d[2], 0]);
     let b = libm::atan2f(d[1], d[0]);
     [a, neg(0), wrap(sub(b, HALF_PI)), 0]
 }
@@ -247,7 +247,7 @@ impl Breath {
         p.rotate = 0;
         p.pos = node[3];
         if kind == 0 {
-            let r = rot_matrix(&unit_matrix(), [HALF_PI, HALF_PI, 0, ONE]);
+            let r = rot_matrix(&UNIT, [HALF_PI, HALF_PI, 0, ONE]);
             *node = mul_matrix(node, &r);
         }
         node[3][0] = 0;
@@ -305,8 +305,8 @@ impl Breath {
         if lt(p.vel[0], 0) {
             p.vel[0] = 0;
         }
-        let m = rot_matrix(&unit_matrix(), p.rot);
-        let d = apply_matrix(&m, p.vel);
+        let m = rot_matrix(&UNIT, p.rot);
+        let d = apply(&m, p.vel);
         let mut next = vadd(p.pos, d);
         p.count = p.count.wrapping_add(1);
         if !p.wall {
@@ -386,8 +386,8 @@ impl Breath {
         for c in pos.iter_mut().take(3) {
             *c = add(*c, rand_f(cc, K_50));
         }
-        let m = rot_matrix(&unit_matrix(), p.rot);
-        let mut v = apply_matrix(&m, p.vel);
+        let m = rot_matrix(&UNIT, p.rot);
+        let mut v = apply(&m, p.vel);
         for c in v.iter_mut().take(3) {
             *c = mul(*c, K_0_5);
         }

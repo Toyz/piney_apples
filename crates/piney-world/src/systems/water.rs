@@ -14,7 +14,7 @@ use super::{BuildCx, Carried, CarriedMut, DrawCx, Hook, Kind, MapSystem, Others,
 use crate::chara::pose::Play;
 use crate::draw::{self, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::town::{WaterZero, pos_rot_zyx, water_rows};
+use crate::town::{WaterZero, water_rows};
 
 /// A town's water scroll: its step a frame and how it wraps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,7 +99,7 @@ impl Water {
 
     /// The root: `SetMatrix_PosRotZYX(root, 0)`.
     pub fn root(&self) -> [V4; 4] {
-        pos_rot_zyx(self.def.root, [0; 3])
+        piney_data::vu0::pos_rot_zyx(self.def.root, [0; 4])
     }
 }
 
@@ -126,7 +126,7 @@ impl MapSystem for Water {
 
     fn draw<'a>(&'a self, piece: Piece, _: &DrawCx<'a>) -> Option<Request<'a>> {
         let Piece::Anim(k) = piece else { return None };
-        let (file, play, root) = (&*self.file, &self.plays[k], draw::mat(&self.root()));
+        let (file, play, root) = (&*self.file, &self.plays[k], piney_data::vu0::to_mat4(&self.root()));
         let fog = draw::Fogging::None;
         Some(match k {
             // Water 0: the picture so far as its texture, at the UVs

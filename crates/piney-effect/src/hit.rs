@@ -10,12 +10,13 @@
 use std::collections::HashMap;
 
 use piney_data::volume::Volume;
+use piney_data::vu0;
 
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::{EffectCtrl, Next, ONE_VECTOR, Obj, check_camera_deg};
 use crate::files::ObjRef;
 use crate::particle;
-use crate::{CharRef, Cx, Event, VecRef, vu};
+use crate::{CharRef, Cx, Event, VecRef};
 
 /// Effect ids.
 pub const HIT_RING: i16 = 131;
@@ -227,10 +228,10 @@ pub fn photon_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
         let tilt = ee::deg2rad((r & 0x7c0) as i16);
         let v = [ee::sinf(tilt), ee::mul(0xbf80_0000, ee::cosf(tilt)), 0, 0];
         let spin = ee::deg2rad(((r >> 3) & 0xff00) as u16 as i16);
-        let v = ee::apply(&vu::rot_y(&vu::UNIT, spin), v);
+        let v = ee::apply(&vu0::rot_matrix_y(&vu0::UNIT, spin), v);
         let mut dirc = ee::normalize(v);
         dirc[3] = ONE;
-        let m = vu::rot_z(&vu::rot_x(&vu::UNIT, rot[0]), rot[2]);
+        let m = vu0::rot_matrix_z(&vu0::rot_matrix_x(&vu0::UNIT, rot[0]), rot[2]);
         dirc = ee::apply(&m, dirc);
         dirc[3] = ONE;
         let r = (cx.host.rand() >> 3) % 101;
@@ -265,10 +266,10 @@ pub fn photon_post_str(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
         let tilt = ee::deg2rad((r & 0x7c0) as i16);
         let v = [ee::sinf(tilt), ee::mul(0xbf80_0000, ee::cosf(tilt)), 0, 0];
         let spin = ee::deg2rad(((r >> 3) & 0xff00) as u16 as i16);
-        let v = ee::apply(&vu::rot_y(&vu::UNIT, spin), v);
+        let v = ee::apply(&vu0::rot_matrix_y(&vu0::UNIT, spin), v);
         let mut dirc = ee::normalize(v);
         dirc[3] = ONE;
-        let m = vu::rot_z(&vu::rot_x(&vu::UNIT, rot[0]), rot[2]);
+        let m = vu0::rot_matrix_z(&vu0::rot_matrix_x(&vu0::UNIT, rot[0]), rot[2]);
         dirc = ee::apply(&m, dirc);
         dirc[3] = ONE;
         let r = (cx.host.rand() >> 3) % 101;

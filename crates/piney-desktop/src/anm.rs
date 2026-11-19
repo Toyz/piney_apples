@@ -11,10 +11,12 @@ use std::rc::Rc;
 
 use glam::{Mat4, Vec3};
 use piney_data::anim::Ticks;
+use piney_data::light::{Light, light_regs};
+use piney_data::volume::Volume;
 use piney_data::vu0;
 use piney_draw::{
-    AlphaFail, AlphaTest, Blend, Cmd, Compare, Depth, DrawState, Filter, Fog, Frame, MmatDraw, ModelDraw, Scissor,
-    TexFunc, TexParams, Wrap, ZTest,
+    AlphaFail, AlphaTest, Blend, Cmd, Compare, Depth, DrawState, Filter, Fog, Frame, Lights, MmatDraw, ModelDraw,
+    Scissor, TexFunc, TexParams, Wrap, ZTest,
 };
 
 use crate::assets::{SceneFile, TEX_FLAG_CLAMP, TEX_FLAG_SORTED};
@@ -636,6 +638,19 @@ fn draw_model_z(
     if !sorted.is_empty() {
         ctx.layers.sorted(layer, sort_key(&to_screen, info.centre()), make(sorted));
     }
+}
+
+/// What VU1 lights a lit model with world matrix `world` with, after
+/// `mc_SetMatrix`, as the draw takes it: the group's lights (in the order
+/// added) and ambient through [`piney_data::light::light_regs`].
+pub fn model_lights<I>(volume: Volume, lights: I, ambient: vu0::V4, world: Mat4) -> Lights
+where
+    I: IntoIterator<Item = Light>,
+    I::IntoIter: Clone,
+{
+    let regs = light_regs(volume, lights, ambient, &vu0::of_mat4(world));
+    let f = |v: [u32; 3]| v.map(f32::from_bits);
+    Lights { dirs: regs.dirs.map(f), colours: regs.colours.map(f), ambient: f(regs.ambient) }
 }
 
 /// The key `ccModel::Draw` gives a model's node of the sorted group
